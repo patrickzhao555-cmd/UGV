@@ -1,0 +1,4 @@
+[console_scripts]
+obstacle_warning = ugv_perception.obstacle_warning:main
+zed_obj_distance = ugv_perception.zed_obj_distance:main
+

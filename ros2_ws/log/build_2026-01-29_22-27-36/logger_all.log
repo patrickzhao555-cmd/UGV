@@ -1,0 +1,334 @@
+[0.252s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build', '--symlink-install', '--cmake-args=-DCMAKE_BUILD_TYPE=Release']
+[0.252s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=True, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=6, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=None, packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, allow_overriding=[], cmake_args=['-DCMAKE_BUILD_TYPE=Release'], cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, verb_parser=<colcon_defaults.argument_parser.defaults.DefaultArgumentsDecorator object at 0xffffa90db430>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0xffffa90daf20>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0xffffa90daf20>>)
+[0.559s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.559s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.559s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.559s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.559s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[0.559s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.559s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/home/bluelule/ugv_project/ros2_ws'
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[0.560s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[0.561s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[0.581s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[0.582s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[0.582s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[0.582s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[0.582s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[0.582s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.582s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ignore', 'ignore_ament_install']
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore'
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore_ament_install'
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_pkg']
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_pkg'
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_meta']
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_meta'
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ros']
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ros'
+[0.584s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['cmake', 'python']
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'cmake'
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python'
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['python_setup_py']
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python_setup_py'
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extensions ['ignore', 'ignore_ament_install']
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'ignore'
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'ignore_ament_install'
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extensions ['colcon_pkg']
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'colcon_pkg'
+[0.585s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extensions ['colcon_meta']
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'colcon_meta'
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extensions ['ros']
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'ros'
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extensions ['cmake', 'python']
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'cmake'
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'python'
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extensions ['python_setup_py']
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party) by extension 'python_setup_py'
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extensions ['ignore', 'ignore_ament_install']
+[0.586s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'ignore'
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'ignore_ament_install'
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extensions ['colcon_pkg']
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'colcon_pkg'
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extensions ['colcon_meta']
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'colcon_meta'
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extensions ['ros']
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'ros'
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extensions ['cmake', 'python']
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'cmake'
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'python'
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extensions ['python_setup_py']
+[0.587s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper) by extension 'python_setup_py'
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extensions ['ignore', 'ignore_ament_install']
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'ignore'
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'ignore_ament_install'
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extensions ['colcon_pkg']
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'colcon_pkg'
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extensions ['colcon_meta']
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'colcon_meta'
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extensions ['ros']
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'ros'
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extensions ['cmake', 'python']
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'cmake'
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'python'
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extensions ['python_setup_py']
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/docker) by extension 'python_setup_py'
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extensions ['ignore', 'ignore_ament_install']
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'ignore'
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'ignore_ament_install'
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extensions ['colcon_pkg']
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'colcon_pkg'
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extensions ['colcon_meta']
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'colcon_meta'
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extensions ['ros']
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'ros'
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extensions ['cmake', 'python']
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'cmake'
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'python'
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extensions ['python_setup_py']
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/images) by extension 'python_setup_py'
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extensions ['ignore', 'ignore_ament_install']
+[0.590s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extension 'ignore'
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extension 'ignore_ament_install'
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extensions ['colcon_pkg']
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extension 'colcon_pkg'
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extensions ['colcon_meta']
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extension 'colcon_meta'
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extensions ['ros']
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_components) by extension 'ros'
+[0.597s] DEBUG:colcon.colcon_core.package_identification:Package 'src/third_party/zed-ros2-wrapper/zed_components' with type 'ros.ament_cmake' and name 'zed_components'
+[0.597s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extensions ['ignore', 'ignore_ament_install']
+[0.597s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extension 'ignore'
+[0.597s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extension 'ignore_ament_install'
+[0.597s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extensions ['colcon_pkg']
+[0.597s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extension 'colcon_pkg'
+[0.598s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extensions ['colcon_meta']
+[0.598s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extension 'colcon_meta'
+[0.598s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extensions ['ros']
+[0.598s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_ros2) by extension 'ros'
+[0.599s] DEBUG:colcon.colcon_core.package_identification:Package 'src/third_party/zed-ros2-wrapper/zed_ros2' with type 'ros.ament_cmake' and name 'zed_ros2'
+[0.599s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extensions ['ignore', 'ignore_ament_install']
+[0.599s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extension 'ignore'
+[0.599s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extension 'ignore_ament_install'
+[0.599s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extensions ['colcon_pkg']
+[0.600s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extension 'colcon_pkg'
+[0.600s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extensions ['colcon_meta']
+[0.600s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extension 'colcon_meta'
+[0.600s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extensions ['ros']
+[0.600s] Level 1:colcon.colcon_core.package_identification:_identify(src/third_party/zed-ros2-wrapper/zed_wrapper) by extension 'ros'
+[0.601s] DEBUG:colcon.colcon_core.package_identification:Package 'src/third_party/zed-ros2-wrapper/zed_wrapper' with type 'ros.ament_cmake' and name 'zed_wrapper'
+[0.601s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.601s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[0.601s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[0.601s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[0.602s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[0.647s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) check parameters
+[0.647s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) discover
+[0.653s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 282 installed packages in /opt/ros/humble
+[0.680s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) using defaults
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'cmake_args' from command line to '['-DCMAKE_BUILD_TYPE=Release']'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'cmake_target' from command line to 'None'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'cmake_clean_cache' from command line to 'False'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'cmake_clean_first' from command line to 'False'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'cmake_force_configure' from command line to 'False'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'ament_cmake_args' from command line to 'None'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'catkin_cmake_args' from command line to 'None'
+[0.748s] Level 5:colcon.colcon_core.verb:set package 'zed_components' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.748s] DEBUG:colcon.colcon_core.verb:Building package 'zed_components' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/bluelule/ugv_project/ros2_ws/build/zed_components', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': ['-DCMAKE_BUILD_TYPE=Release'], 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/bluelule/ugv_project/ros2_ws/install/zed_components', 'merge_install': False, 'path': '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components', 'symlink_install': True, 'test_result_base': None}
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'cmake_args' from command line to '['-DCMAKE_BUILD_TYPE=Release']'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'cmake_target' from command line to 'None'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'cmake_clean_cache' from command line to 'False'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'cmake_clean_first' from command line to 'False'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'cmake_force_configure' from command line to 'False'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'ament_cmake_args' from command line to 'None'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'catkin_cmake_args' from command line to 'None'
+[0.749s] Level 5:colcon.colcon_core.verb:set package 'zed_wrapper' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.749s] DEBUG:colcon.colcon_core.verb:Building package 'zed_wrapper' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': ['-DCMAKE_BUILD_TYPE=Release'], 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper', 'merge_install': False, 'path': '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_wrapper', 'symlink_install': True, 'test_result_base': None}
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'cmake_args' from command line to '['-DCMAKE_BUILD_TYPE=Release']'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'cmake_target' from command line to 'None'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'cmake_clean_cache' from command line to 'False'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'cmake_clean_first' from command line to 'False'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'cmake_force_configure' from command line to 'False'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'ament_cmake_args' from command line to 'None'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'catkin_cmake_args' from command line to 'None'
+[0.750s] Level 5:colcon.colcon_core.verb:set package 'zed_ros2' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.750s] DEBUG:colcon.colcon_core.verb:Building package 'zed_ros2' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': ['-DCMAKE_BUILD_TYPE=Release'], 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2', 'merge_install': False, 'path': '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2', 'symlink_install': True, 'test_result_base': None}
+[0.751s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.753s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[0.753s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components' with build type 'ament_cmake'
+[0.753s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components'
+[0.759s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.759s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.759s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.770s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components -DCMAKE_BUILD_TYPE=Release -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_components
+[4.441s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components -DCMAKE_BUILD_TYPE=Release -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_components
+[4.447s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_components -- -j6 -l6
+[163.352s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_components -- -j6 -l6
+[163.389s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_components
+[164.032s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(zed_components)
+[164.036s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_components
+[164.053s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components' for CMake module files
+[164.054s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components' for CMake config files
+[164.054s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_components', 'cmake_prefix_path')
+[164.055s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/cmake_prefix_path.ps1'
+[164.059s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/cmake_prefix_path.dsv'
+[164.062s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/cmake_prefix_path.sh'
+[164.065s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib'
+[164.066s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_components', 'ld_library_path_lib')
+[164.067s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/ld_library_path_lib.ps1'
+[164.069s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/ld_library_path_lib.dsv'
+[164.070s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/ld_library_path_lib.sh'
+[164.072s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/bin'
+[164.072s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/pkgconfig/zed_components.pc'
+[164.074s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/python3.10/site-packages'
+[164.076s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/bin'
+[164.077s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.ps1'
+[164.081s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.dsv'
+[164.083s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.sh'
+[164.087s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.bash'
+[164.090s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.zsh'
+[164.095s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/colcon-core/packages/zed_components)
+[164.099s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(zed_components)
+[164.100s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components' for CMake module files
+[164.101s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components' for CMake config files
+[164.102s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_components', 'cmake_prefix_path')
+[164.102s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/cmake_prefix_path.ps1'
+[164.104s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/cmake_prefix_path.dsv'
+[164.105s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/cmake_prefix_path.sh'
+[164.107s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib'
+[164.107s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_components', 'ld_library_path_lib')
+[164.108s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/ld_library_path_lib.ps1'
+[164.109s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/ld_library_path_lib.dsv'
+[164.110s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/hook/ld_library_path_lib.sh'
+[164.111s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/bin'
+[164.111s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/pkgconfig/zed_components.pc'
+[164.112s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/python3.10/site-packages'
+[164.113s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_components/bin'
+[164.114s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.ps1'
+[164.115s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.dsv'
+[164.117s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.sh'
+[164.118s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.bash'
+[164.119s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.zsh'
+[164.120s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/bluelule/ugv_project/ros2_ws/install/zed_components/share/colcon-core/packages/zed_components)
+[164.122s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_wrapper' with build type 'ament_cmake'
+[164.122s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_wrapper'
+[164.124s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[164.124s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[164.149s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_wrapper -DCMAKE_BUILD_TYPE=Release -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper
+[167.161s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper' returned '0': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_wrapper -DCMAKE_BUILD_TYPE=Release -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper
+[167.168s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_wrapper -- -j6 -l6
+[167.254s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper' returned '0': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_wrapper -- -j6 -l6
+[167.259s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_wrapper
+[167.913s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(zed_wrapper)
+[167.915s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper' for CMake module files
+[167.916s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper' returned '0': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_wrapper
+[167.918s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper' for CMake config files
+[167.919s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_wrapper', 'cmake_prefix_path')
+[167.920s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/hook/cmake_prefix_path.ps1'
+[167.922s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/hook/cmake_prefix_path.dsv'
+[167.923s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/hook/cmake_prefix_path.sh'
+[167.925s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/bin'
+[167.925s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/lib/pkgconfig/zed_wrapper.pc'
+[167.926s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/lib/python3.10/site-packages'
+[167.928s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/bin'
+[167.929s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.ps1'
+[167.930s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.dsv'
+[167.932s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.sh'
+[167.934s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.bash'
+[167.936s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.zsh'
+[167.937s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/colcon-core/packages/zed_wrapper)
+[167.940s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(zed_wrapper)
+[167.941s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper' for CMake module files
+[167.942s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper' for CMake config files
+[167.943s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_wrapper', 'cmake_prefix_path')
+[167.944s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/hook/cmake_prefix_path.ps1'
+[167.946s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/hook/cmake_prefix_path.dsv'
+[167.947s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/hook/cmake_prefix_path.sh'
+[167.949s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/bin'
+[167.950s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/lib/pkgconfig/zed_wrapper.pc'
+[167.950s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/lib/python3.10/site-packages'
+[167.952s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/bin'
+[167.953s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.ps1'
+[167.955s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.dsv'
+[167.957s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.sh'
+[167.958s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.bash'
+[167.960s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.zsh'
+[167.962s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/colcon-core/packages/zed_wrapper)
+[167.963s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2' with build type 'ament_cmake'
+[167.964s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2'
+[167.965s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[167.966s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[167.993s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2 -DCMAKE_BUILD_TYPE=Release -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_ros2
+[168.764s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2' returned '0': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2 -DCMAKE_BUILD_TYPE=Release -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_ros2
+[168.769s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_ros2 -- -j6 -l6
+[168.850s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2' returned '0': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_ros2 -- -j6 -l6
+[168.855s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_ros2
+[169.138s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(zed_ros2)
+[169.139s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2' returned '0': AMENT_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/opt/ros/humble LD_LIBRARY_PATH=/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64 /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_ros2
+[169.139s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2' for CMake module files
+[169.140s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2' for CMake config files
+[169.141s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_ros2', 'cmake_prefix_path')
+[169.141s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/hook/cmake_prefix_path.ps1'
+[169.142s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/hook/cmake_prefix_path.dsv'
+[169.143s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/hook/cmake_prefix_path.sh'
+[169.144s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/bin'
+[169.144s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/lib/pkgconfig/zed_ros2.pc'
+[169.144s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/lib/python3.10/site-packages'
+[169.145s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/bin'
+[169.146s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.ps1'
+[169.146s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.dsv'
+[169.147s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.sh'
+[169.148s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.bash'
+[169.149s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.zsh'
+[169.149s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/colcon-core/packages/zed_ros2)
+[169.151s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(zed_ros2)
+[169.151s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2' for CMake module files
+[169.152s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2' for CMake config files
+[169.152s] Level 1:colcon.colcon_core.shell:create_environment_hook('zed_ros2', 'cmake_prefix_path')
+[169.152s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/hook/cmake_prefix_path.ps1'
+[169.153s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/hook/cmake_prefix_path.dsv'
+[169.154s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/hook/cmake_prefix_path.sh'
+[169.155s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/bin'
+[169.155s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/lib/pkgconfig/zed_ros2.pc'
+[169.156s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/lib/python3.10/site-packages'
+[169.157s] Level 1:colcon.colcon_core.environment:checking '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/bin'
+[169.157s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.ps1'
+[169.159s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.dsv'
+[169.160s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.sh'
+[169.161s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.bash'
+[169.162s] INFO:colcon.colcon_core.shell:Creating package script '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.zsh'
+[169.163s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/colcon-core/packages/zed_ros2)
+[169.164s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[169.165s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[169.166s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[169.166s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[169.191s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[169.191s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[169.192s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[169.310s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[169.312s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/bluelule/ugv_project/ros2_ws/install/local_setup.ps1'
+[169.315s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/bluelule/ugv_project/ros2_ws/install/_local_setup_util_ps1.py'
+[169.319s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/bluelule/ugv_project/ros2_ws/install/setup.ps1'
+[169.323s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/bluelule/ugv_project/ros2_ws/install/local_setup.sh'
+[169.326s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/bluelule/ugv_project/ros2_ws/install/_local_setup_util_sh.py'
+[169.328s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/bluelule/ugv_project/ros2_ws/install/setup.sh'
+[169.331s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/bluelule/ugv_project/ros2_ws/install/local_setup.bash'
+[169.333s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/bluelule/ugv_project/ros2_ws/install/setup.bash'
+[169.336s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/bluelule/ugv_project/ros2_ws/install/local_setup.zsh'
+[169.338s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/bluelule/ugv_project/ros2_ws/install/setup.zsh'

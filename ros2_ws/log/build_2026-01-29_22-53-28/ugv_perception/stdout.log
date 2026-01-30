@@ -1,0 +1,22 @@
+running develop
+running egg_info
+creating ugv_perception.egg-info
+writing ugv_perception.egg-info/PKG-INFO
+writing dependency_links to ugv_perception.egg-info/dependency_links.txt
+writing entry points to ugv_perception.egg-info/entry_points.txt
+writing requirements to ugv_perception.egg-info/requires.txt
+writing top-level names to ugv_perception.egg-info/top_level.txt
+writing manifest file 'ugv_perception.egg-info/SOURCES.txt'
+reading manifest file 'ugv_perception.egg-info/SOURCES.txt'
+writing manifest file 'ugv_perception.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv-perception.egg-link (link to .)
+Installing zed_obj_distance script to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/ugv_perception
+
+Installed /home/bluelule/ugv_project/ros2_ws/build/ugv_perception
+running symlink_data
+creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index
+creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index/resource_index
+creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index/resource_index/packages
+symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/resource/ugv_perception -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index/resource_index/packages
+symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ugv_perception

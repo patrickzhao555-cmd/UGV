@@ -1,0 +1,1 @@
+/home/bluelule/ugv_project/ros2_ws/build/zed_components/ament_cmake_environment_hooks/local_setup.zsh

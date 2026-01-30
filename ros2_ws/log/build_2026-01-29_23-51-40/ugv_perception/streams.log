@@ -1,0 +1,18 @@
+[1.411s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build --no-deps symlink_data
+[1.906s] running develop
+[2.205s] running egg_info
+[2.205s] writing ugv_perception.egg-info/PKG-INFO
+[2.205s] writing dependency_links to ugv_perception.egg-info/dependency_links.txt
+[2.206s] writing entry points to ugv_perception.egg-info/entry_points.txt
+[2.206s] writing requirements to ugv_perception.egg-info/requires.txt
+[2.206s] writing top-level names to ugv_perception.egg-info/top_level.txt
+[2.211s] reading manifest file 'ugv_perception.egg-info/SOURCES.txt'
+[2.212s] writing manifest file 'ugv_perception.egg-info/SOURCES.txt'
+[2.329s] running build_ext
+[2.329s] Creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv-perception.egg-link (link to .)
+[2.332s] Installing obstacle_warning script to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/ugv_perception
+[2.332s] Installing zed_obj_distance script to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/ugv_perception
+[2.333s] 
+[2.333s] Installed /home/bluelule/ugv_project/ros2_ws/build/ugv_perception
+[2.333s] running symlink_data
+[2.444s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception' returned '0': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build --no-deps symlink_data

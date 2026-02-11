@@ -1,0 +1,12 @@
+-- run_test.py: invoking following command in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2':
+ - /opt/ros/humble/bin/ament_lint_cmake --xunit-file /home/bluelule/ugv_project/ros2_ws/build/zed_ros2/test_results/zed_ros2/lint_cmake.xunit.xml
+
+CMakeLists.txt:40: Tab found; please use spaces [whitespace/tabs]
+CMakeLists.txt:40: Line ends in whitespace [whitespace/eol]
+
+
+2 errors
+
+
+-- run_test.py: return code 1
+-- run_test.py: verify result file '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2/test_results/zed_ros2/lint_cmake.xunit.xml'

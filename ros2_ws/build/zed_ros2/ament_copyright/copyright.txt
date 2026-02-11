@@ -1,0 +1,9 @@
+-- run_test.py: invoking following command in '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2':
+ - /opt/ros/humble/bin/ament_copyright --xunit-file /home/bluelule/ugv_project/ros2_ws/build/zed_ros2/test_results/zed_ros2/copyright.xunit.xml
+
+No repository roots and files found
+No problems found, checked 0 files
+
+
+-- run_test.py: return code 0
+-- run_test.py: verify result file '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2/test_results/zed_ros2/copyright.xunit.xml'

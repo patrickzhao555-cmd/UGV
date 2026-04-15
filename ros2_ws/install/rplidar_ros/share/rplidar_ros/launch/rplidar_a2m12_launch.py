@@ -1,1 +1,0 @@
-/home/bluelule/ugv_project/ros2_ws/rplidar_ros/launch/rplidar_a2m12_launch.py

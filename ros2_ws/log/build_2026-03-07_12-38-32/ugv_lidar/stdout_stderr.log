@@ -1,0 +1,32 @@
+running develop
+Removing /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv-lidar.egg-link (link to .)
+running egg_info
+writing ../../build/ugv_lidar/ugv_lidar.egg-info/PKG-INFO
+writing dependency_links to ../../build/ugv_lidar/ugv_lidar.egg-info/dependency_links.txt
+writing entry points to ../../build/ugv_lidar/ugv_lidar.egg-info/entry_points.txt
+writing requirements to ../../build/ugv_lidar/ugv_lidar.egg-info/requires.txt
+writing top-level names to ../../build/ugv_lidar/ugv_lidar.egg-info/top_level.txt
+reading manifest file '../../build/ugv_lidar/ugv_lidar.egg-info/SOURCES.txt'
+writing manifest file '../../build/ugv_lidar/ugv_lidar.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build
+creating /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build/lib
+creating /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build/lib/ugv_lidar
+copying ugv_lidar/__init__.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build/lib/ugv_lidar
+copying ugv_lidar/lidar_processor.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build/lib/ugv_lidar
+running install
+running install_lib
+creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv_lidar
+copying /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build/lib/ugv_lidar/__init__.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv_lidar
+copying /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build/lib/ugv_lidar/lidar_processor.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv_lidar
+byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv_lidar/__init__.py to __init__.cpython-310.pyc
+byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv_lidar/lidar_processor.py to lidar_processor.cpython-310.pyc
+running install_data
+copying resource/ugv_lidar -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index/resource_index/packages
+copying package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ugv_lidar
+running install_egg_info
+Copying ../../build/ugv_lidar/ugv_lidar.egg-info to /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv_lidar-0.0.0-py3.10.egg-info
+running install_scripts
+Installing lidar_processor script to /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/ugv_lidar
+writing list of installed files to '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/install.log'

@@ -1,0 +1,52 @@
+[2.461s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build
+[3.000s] running develop
+[3.317s] Removing /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv-perception.egg-link (link to .)
+[3.401s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception' returned '0': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build
+[3.405s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/src/ugv_perception': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ugv_perception build --build-base /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build install --record /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/install.log --single-version-externally-managed install_data --force
+[3.868s] running egg_info
+[3.869s] writing ../../build/ugv_perception/ugv_perception.egg-info/PKG-INFO
+[3.869s] writing dependency_links to ../../build/ugv_perception/ugv_perception.egg-info/dependency_links.txt
+[3.870s] writing entry points to ../../build/ugv_perception/ugv_perception.egg-info/entry_points.txt
+[3.870s] writing requirements to ../../build/ugv_perception/ugv_perception.egg-info/requires.txt
+[3.870s] writing top-level names to ../../build/ugv_perception/ugv_perception.egg-info/top_level.txt
+[3.875s] reading manifest file '../../build/ugv_perception/ugv_perception.egg-info/SOURCES.txt'
+[3.876s] writing manifest file '../../build/ugv_perception/ugv_perception.egg-info/SOURCES.txt'
+[3.876s] running build
+[3.877s] running build_py
+[3.877s] creating /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build
+[3.877s] creating /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib
+[3.877s] creating /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.877s] copying ugv_perception/__init__.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.878s] copying ugv_perception/zed_obj_distance.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.878s] copying ugv_perception/gyroscope.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.878s] copying ugv_perception/obstacle_warning.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.879s] copying ugv_perception/zed_utils.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.879s] copying ugv_perception/accelerometer.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.880s] copying ugv_perception/magnetometer.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception
+[3.880s] running install
+[3.884s] running install_lib
+[3.886s] creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.886s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception/__init__.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.887s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception/zed_obj_distance.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.887s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception/gyroscope.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.887s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception/obstacle_warning.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.888s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception/zed_utils.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.888s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception/accelerometer.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.888s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build/lib/ugv_perception/magnetometer.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception
+[3.888s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception/__init__.py to __init__.cpython-310.pyc
+[3.889s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception/zed_obj_distance.py to zed_obj_distance.cpython-310.pyc
+[3.890s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception/gyroscope.py to gyroscope.cpython-310.pyc
+[3.890s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception/obstacle_warning.py to obstacle_warning.cpython-310.pyc
+[3.892s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception/zed_utils.py to zed_utils.cpython-310.pyc
+[3.893s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception/accelerometer.py to accelerometer.cpython-310.pyc
+[3.893s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception/magnetometer.py to magnetometer.cpython-310.pyc
+[3.894s] running install_data
+[3.894s] copying resource/ugv_perception -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index/resource_index/packages
+[3.894s] copying package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ugv_perception
+[3.895s] running install_egg_info
+[3.899s] Copying ../../build/ugv_perception/ugv_perception.egg-info to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv_perception-0.0.0-py3.10.egg-info
+[3.901s] running install_scripts
+[3.946s] Installing obstacle_warning script to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/ugv_perception
+[3.947s] Installing zed_obj_distance script to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/ugv_perception
+[3.947s] writing list of installed files to '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/install.log'
+[4.073s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/src/ugv_perception' returned '0': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ugv_perception build --build-base /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build install --record /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/install.log --single-version-externally-managed install_data --force

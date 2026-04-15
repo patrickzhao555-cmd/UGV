@@ -1,0 +1,19 @@
+running egg_info
+writing ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/PKG-INFO
+writing dependency_links to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/dependency_links.txt
+writing entry points to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/entry_points.txt
+writing requirements to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/requires.txt
+writing top-level names to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/top_level.txt
+reading manifest file '../../build/ugv_serial_odom/ugv_serial_odom.egg-info/SOURCES.txt'
+writing manifest file '../../build/ugv_serial_odom/ugv_serial_odom.egg-info/SOURCES.txt'
+running build
+running build_py
+running install
+running install_lib
+running install_data
+running install_egg_info
+removing '/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom-0.0.0-py3.10.egg-info' (and everything under it)
+Copying ../../build/ugv_serial_odom/ugv_serial_odom.egg-info to /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom-0.0.0-py3.10.egg-info
+running install_scripts
+Installing serial_odom script to /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/ugv_serial_odom
+writing list of installed files to '/home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/install.log'

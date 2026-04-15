@@ -1,0 +1,112 @@
+[0.036s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_components
+[0.576s] -- The C compiler identification is GNU 11.4.0
+[0.577s] -- The CXX compiler identification is GNU 11.4.0
+[0.578s] -- Detecting C compiler ABI info
+[0.578s] -- Detecting C compiler ABI info - done
+[0.579s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.579s] -- Detecting C compile features
+[0.580s] -- Detecting C compile features - done
+[0.580s] -- Detecting CXX compiler ABI info
+[0.625s] -- Detecting CXX compiler ABI info - done
+[0.637s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.637s] -- Detecting CXX compile features
+[0.638s] -- Detecting CXX compile features - done
+[0.646s] -- Looking for sgemm_
+[0.782s] -- Looking for sgemm_ - not found
+[0.786s] -- Looking for pthread.h
+[0.936s] -- Looking for pthread.h - found
+[0.937s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[1.098s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[1.102s] -- Found Threads: TRUE  
+[1.173s] -- Looking for sgemm_
+[1.353s] -- Looking for sgemm_ - found
+[1.354s] -- Found BLAS: /usr/lib/aarch64-linux-gnu/libopenblas.so  
+[1.407s] -- Found CUDA: /usr/local/cuda-12.6 (found suitable version "12.6", minimum required is "12.6") 
+[1.446s] -- Found CUDA: /usr/local/cuda-12.6 (found version "12.6") 
+[1.449s] -- Found ament_cmake_auto: 1.3.12 (/opt/ros/humble/share/ament_cmake_auto/cmake)
+[1.743s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[1.901s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[2.153s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[2.162s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[2.178s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[2.200s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[2.231s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[2.438s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[2.444s] -- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[2.620s] -- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[2.671s] -- Found FastRTPS: /opt/ros/humble/include  
+[2.744s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[3.186s] -- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)
+[3.188s] -- Found Eigen3: TRUE (found version "3.4.0") 
+[3.188s] -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+[3.395s] -- Found ament_lint_auto: 0.12.14 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[3.465s] -- Added test 'copyright' to check source files copyright and LICENSE
+[3.470s] -- Added test 'cppcheck' to perform static code analysis on C / C++ code
+[3.471s] -- Configured cppcheck include dirs: /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/include;/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/zed_camera/include;/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/tools/include;/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/zed_camera_one/include
+[3.471s] -- Configured cppcheck exclude dirs and/or files: 
+[3.472s] -- Added test 'lint_cmake' to check CMake code style
+[3.477s] -- Added test 'uncrustify' to check C / C++ code style
+[3.477s] -- Configured uncrustify additional arguments: 
+[3.478s] -- Added test 'xmllint' to check XML markup files
+[3.486s] -- Configuring done
+[3.552s] -- Generating done
+[3.571s] -- Build files have been written to: /home/bluelule/ugv_project/ros2_ws/build/zed_components
+[3.606s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_components
+[3.612s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_components -- -j6 -l6
+[3.721s] [ 17%] [32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/sl_tools.cpp.o[0m
+[3.722s] [ 17%] [32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/gnss_replay.cpp.o[0m
+[3.722s] [ 17%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/sl_tools.cpp.o[0m
+[3.722s] [ 23%] [32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/sl_win_avg.cpp.o[0m
+[3.727s] [ 29%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/sl_win_avg.cpp.o[0m
+[3.728s] [ 35%] [32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/sl_types.cpp.o[0m
+[4.613s] [ 41%] [32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/zed_camera_one/src/zed_camera_one_component_main.cpp.o[0m
+[4.795s] [ 47%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/gnss_replay.cpp.o[0m
+[15.596s] [ 52%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/sl_types.cpp.o[0m
+[16.425s] [ 58%] [32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/zed_camera_one/src/zed_camera_one_component_sensors.cpp.o[0m
+[16.956s] [ 64%] [32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/zed_camera_one/src/zed_camera_one_component_video.cpp.o[0m
+[17.441s] [ 70%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_main.cpp.o[0m
+[17.839s] [ 76%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_video_depth.cpp.o[0m
+[28.978s] [ 82%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_objdet.cpp.o[0m
+[45.920s] [ 88%] [32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_bodytrk.cpp.o[0m
+[57.798s] [ 94%] [32m[1mLinking CXX shared library libzed_camera_one_component.so[0m
+[59.146s] [ 94%] Built target zed_camera_one_component
+[161.239s] [100%] [32m[1mLinking CXX shared library libzed_camera_component.so[0m
+[162.820s] [100%] Built target zed_camera_component
+[162.850s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/zed_components -- -j6 -l6
+[162.874s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_components
+[162.893s] -- Install configuration: "Release"
+[162.895s] -- Execute custom install script
+[162.896s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/libzed_camera_component.so
+[162.916s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/libzed_camera_one_component.so
+[162.936s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//cost_traversability.hpp
+[162.954s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//zed_camera_component.hpp
+[162.973s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//gnss_replay.hpp
+[162.993s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//json.hpp
+[163.011s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_logging.hpp
+[163.030s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_tools.hpp
+[163.048s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_types.hpp
+[163.067s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_win_avg.hpp
+[163.086s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_version.hpp
+[163.104s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//visibility_control.hpp
+[163.125s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/library_path.sh
+[163.143s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/library_path.dsv
+[163.163s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/package_run_dependencies/zed_components
+[163.181s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/parent_prefix_path/zed_components
+[163.201s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/ament_prefix_path.sh
+[163.219s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/ament_prefix_path.dsv
+[163.238s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/path.sh
+[163.256s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/path.dsv
+[163.276s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.bash
+[163.294s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.sh
+[163.313s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.zsh
+[163.331s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.dsv
+[163.349s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.dsv
+[163.368s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/packages/zed_components
+[163.387s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/rclcpp_components/zed_components
+[163.406s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/ament_cmake_export_include_directories-extras.cmake
+[163.425s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/ament_cmake_export_libraries-extras.cmake
+[163.444s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/ament_cmake_export_dependencies-extras.cmake
+[163.462s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/zed_componentsConfig.cmake
+[163.479s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/zed_componentsConfig-version.cmake
+[163.498s] -- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.xml
+[163.523s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/zed_components' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/zed_components

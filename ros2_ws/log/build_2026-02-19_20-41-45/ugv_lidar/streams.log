@@ -1,0 +1,23 @@
+[1.943s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build --no-deps symlink_data
+[2.481s] running develop
+[2.782s] running egg_info
+[2.782s] creating ugv_lidar.egg-info
+[2.782s] writing ugv_lidar.egg-info/PKG-INFO
+[2.782s] writing dependency_links to ugv_lidar.egg-info/dependency_links.txt
+[2.783s] writing entry points to ugv_lidar.egg-info/entry_points.txt
+[2.783s] writing requirements to ugv_lidar.egg-info/requires.txt
+[2.783s] writing top-level names to ugv_lidar.egg-info/top_level.txt
+[2.784s] writing manifest file 'ugv_lidar.egg-info/SOURCES.txt'
+[2.787s] reading manifest file 'ugv_lidar.egg-info/SOURCES.txt'
+[2.788s] writing manifest file 'ugv_lidar.egg-info/SOURCES.txt'
+[2.901s] running build_ext
+[2.902s] Creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv-lidar.egg-link (link to .)
+[2.904s] 
+[2.904s] Installed /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar
+[2.904s] running symlink_data
+[2.905s] creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index
+[2.905s] creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index/resource_index
+[2.905s] creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index/resource_index/packages
+[2.905s] symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/resource/ugv_lidar -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index/resource_index/packages
+[2.905s] symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ugv_lidar
+[3.007s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar' returned '0': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build --no-deps symlink_data

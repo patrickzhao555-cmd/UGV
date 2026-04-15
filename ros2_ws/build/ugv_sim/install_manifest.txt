@@ -1,0 +1,15 @@
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ament_index/resource_index/package_run_dependencies/ugv_sim
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ament_index/resource_index/parent_prefix_path/ugv_sim
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/environment/ament_prefix_path.sh
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/environment/ament_prefix_path.dsv
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/environment/path.sh
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/environment/path.dsv
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/local_setup.bash
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/local_setup.sh
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/local_setup.zsh
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/local_setup.dsv
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/package.dsv
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ament_index/resource_index/packages/ugv_sim
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/cmake/ugv_simConfig.cmake
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/cmake/ugv_simConfig-version.cmake
+/home/bluelule/ugv_project/ros2_ws/install/ugv_sim/share/ugv_sim/package.xml

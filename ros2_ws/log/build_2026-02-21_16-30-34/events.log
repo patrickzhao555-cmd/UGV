@@ -1,0 +1,66 @@
+[0.000000] (-) TimerEvent: {}
+[0.000597] (-) JobUnselected: {'identifier': 'ugv_lidar'}
+[0.001059] (-) JobUnselected: {'identifier': 'ugv_perception'}
+[0.001324] (-) JobUnselected: {'identifier': 'ugv_sim'}
+[0.001562] (-) JobUnselected: {'identifier': 'zed_components'}
+[0.001653] (-) JobUnselected: {'identifier': 'zed_ros2'}
+[0.001720] (-) JobUnselected: {'identifier': 'zed_wrapper'}
+[0.001787] (ugv_serial_odom) JobQueued: {'identifier': 'ugv_serial_odom', 'dependencies': OrderedDict()}
+[0.001857] (ugv_serial_odom) JobStarted: {'identifier': 'ugv_serial_odom'}
+[0.099445] (-) TimerEvent: {}
+[0.200020] (-) TimerEvent: {}
+[0.300587] (-) TimerEvent: {}
+[0.401125] (-) TimerEvent: {}
+[0.501666] (-) TimerEvent: {}
+[0.602187] (-) TimerEvent: {}
+[0.702762] (-) TimerEvent: {}
+[0.803311] (-) TimerEvent: {}
+[0.903861] (-) TimerEvent: {}
+[1.004406] (-) TimerEvent: {}
+[1.104964] (-) TimerEvent: {}
+[1.205571] (-) TimerEvent: {}
+[1.263692] (ugv_serial_odom) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'egg_info', '--egg-base', '../../build/ugv_serial_odom', 'build', '--build-base', '/home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build', 'install', '--record', '/home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/install.log', '--single-version-externally-managed', 'install_data'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/src/ugv_serial_odom', 'env': {'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'bluelule', 'SSH_CLIENT': '10.144.101.107 56605 22', 'XDG_SESSION_TYPE': 'tty', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:', 'MOTD_SHOWN': 'pam', 'HOME': '/home/bluelule', 'OLDPWD': '/home/bluelule/ugv_project/ros2_ws/src/ugv_serial_odom', 'SSH_TTY': '/dev/pts/7', 'ROS_PYTHON_VERSION': '3', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'COLCON_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install', 'ROS_DISTRO': 'humble', 'LOGNAME': 'bluelule', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'TERM': 'xterm-256color', 'XDG_SESSION_ID': '23', 'ROS_LOCALHOST_ONLY': '0', 'PATH': '/home/bluelule/.local/bin:/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'XDG_RUNTIME_DIR': '/run/user/1000', 'LANG': 'en_US.UTF-8', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'AMENT_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble', 'SHELL': '/bin/bash', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'PWD': '/home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom', 'SSH_CONNECTION': '10.144.101.107 56605 129.65.74.107 22', 'XDG_DATA_DIRS': '/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1', 'CMAKE_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components'}, 'shell': False}
+[1.305717] (-) TimerEvent: {}
+[1.406279] (-) TimerEvent: {}
+[1.506829] (-) TimerEvent: {}
+[1.607370] (-) TimerEvent: {}
+[1.705423] (ugv_serial_odom) StdoutLine: {'line': b'running egg_info\n'}
+[1.706446] (ugv_serial_odom) StdoutLine: {'line': b'creating ../../build/ugv_serial_odom/ugv_serial_odom.egg-info\n'}
+[1.706816] (ugv_serial_odom) StdoutLine: {'line': b'writing ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/PKG-INFO\n'}
+[1.707290] (ugv_serial_odom) StdoutLine: {'line': b'writing dependency_links to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/dependency_links.txt\n'}
+[1.707437] (-) TimerEvent: {}
+[1.707684] (ugv_serial_odom) StdoutLine: {'line': b'writing entry points to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/entry_points.txt\n'}
+[1.707870] (ugv_serial_odom) StdoutLine: {'line': b'writing requirements to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/requires.txt\n'}
+[1.708032] (ugv_serial_odom) StdoutLine: {'line': b'writing top-level names to ../../build/ugv_serial_odom/ugv_serial_odom.egg-info/top_level.txt\n'}
+[1.708327] (ugv_serial_odom) StdoutLine: {'line': b"writing manifest file '../../build/ugv_serial_odom/ugv_serial_odom.egg-info/SOURCES.txt'\n"}
+[1.711140] (ugv_serial_odom) StdoutLine: {'line': b"reading manifest file '../../build/ugv_serial_odom/ugv_serial_odom.egg-info/SOURCES.txt'\n"}
+[1.712360] (ugv_serial_odom) StdoutLine: {'line': b"writing manifest file '../../build/ugv_serial_odom/ugv_serial_odom.egg-info/SOURCES.txt'\n"}
+[1.712619] (ugv_serial_odom) StdoutLine: {'line': b'running build\n'}
+[1.712761] (ugv_serial_odom) StdoutLine: {'line': b'running build_py\n'}
+[1.712920] (ugv_serial_odom) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build\n'}
+[1.713077] (ugv_serial_odom) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build/lib\n'}
+[1.713229] (ugv_serial_odom) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build/lib/ugv_serial_odom\n'}
+[1.713379] (ugv_serial_odom) StdoutLine: {'line': b'copying ugv_serial_odom/serial_odom_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build/lib/ugv_serial_odom\n'}
+[1.714045] (ugv_serial_odom) StdoutLine: {'line': b'copying ugv_serial_odom/__init__.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build/lib/ugv_serial_odom\n'}
+[1.714380] (ugv_serial_odom) StdoutLine: {'line': b'running install\n'}
+[1.714942] (ugv_serial_odom) StdoutLine: {'line': b'running install_lib\n'}
+[1.718387] (ugv_serial_odom) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom\n'}
+[1.718680] (ugv_serial_odom) StdoutLine: {'line': b'copying /home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build/lib/ugv_serial_odom/serial_odom_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom\n'}
+[1.718859] (ugv_serial_odom) StdoutLine: {'line': b'copying /home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/build/lib/ugv_serial_odom/__init__.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom\n'}
+[1.719871] (ugv_serial_odom) StdoutLine: {'line': b'byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom/serial_odom_node.py to serial_odom_node.cpython-310.pyc\n'}
+[1.721855] (ugv_serial_odom) StdoutLine: {'line': b'byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom/__init__.py to __init__.cpython-310.pyc\n'}
+[1.722149] (ugv_serial_odom) StdoutLine: {'line': b'running install_data\n'}
+[1.722347] (ugv_serial_odom) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/share/ament_index\n'}
+[1.722566] (ugv_serial_odom) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/share/ament_index/resource_index\n'}
+[1.722726] (ugv_serial_odom) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/share/ament_index/resource_index/packages\n'}
+[1.722850] (ugv_serial_odom) StdoutLine: {'line': b'copying resource/ugv_serial_odom -> /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/share/ament_index/resource_index/packages\n'}
+[1.722998] (ugv_serial_odom) StdoutLine: {'line': b'copying package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/share/ugv_serial_odom\n'}
+[1.723337] (ugv_serial_odom) StdoutLine: {'line': b'running install_egg_info\n'}
+[1.726582] (ugv_serial_odom) StdoutLine: {'line': b'Copying ../../build/ugv_serial_odom/ugv_serial_odom.egg-info to /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages/ugv_serial_odom-0.0.0-py3.10.egg-info\n'}
+[1.728288] (ugv_serial_odom) StdoutLine: {'line': b'running install_scripts\n'}
+[1.764734] (ugv_serial_odom) StdoutLine: {'line': b'Installing serial_odom script to /home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/ugv_serial_odom\n'}
+[1.765504] (ugv_serial_odom) StdoutLine: {'line': b"writing list of installed files to '/home/bluelule/ugv_project/ros2_ws/build/ugv_serial_odom/install.log'\n"}
+[1.807645] (-) TimerEvent: {}
+[1.826126] (ugv_serial_odom) CommandEnded: {'returncode': 0}
+[1.864666] (ugv_serial_odom) JobEnded: {'identifier': 'ugv_serial_odom', 'rc': 0}
+[1.866758] (-) EventReactorShutdown: {}

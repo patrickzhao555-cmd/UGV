@@ -1,0 +1,1972 @@
+[0.000000] (-) TimerEvent: {}
+[0.001019] (ugv_lidar) JobQueued: {'identifier': 'ugv_lidar', 'dependencies': OrderedDict()}
+[0.001295] (ugv_perception) JobQueued: {'identifier': 'ugv_perception', 'dependencies': OrderedDict()}
+[0.001537] (zed_components) JobQueued: {'identifier': 'zed_components', 'dependencies': OrderedDict()}
+[0.001653] (zed_wrapper) JobQueued: {'identifier': 'zed_wrapper', 'dependencies': OrderedDict([('zed_components', '/home/bluelule/ugv_project/ros2_ws/install/zed_components')])}
+[0.001753] (zed_ros2) JobQueued: {'identifier': 'zed_ros2', 'dependencies': OrderedDict([('zed_components', '/home/bluelule/ugv_project/ros2_ws/install/zed_components'), ('zed_wrapper', '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper')])}
+[0.001899] (zed_components) JobStarted: {'identifier': 'zed_components'}
+[0.013781] (ugv_lidar) JobStarted: {'identifier': 'ugv_lidar'}
+[0.024117] (ugv_perception) JobStarted: {'identifier': 'ugv_perception'}
+[0.035334] (zed_components) JobProgress: {'identifier': 'zed_components', 'progress': 'cmake'}
+[0.036310] (zed_components) Command: {'cmd': ['/usr/bin/cmake', '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components', '-DAMENT_CMAKE_SYMLINK_INSTALL=1', '-DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_components'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_components', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_components'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[0.099227] (-) TimerEvent: {}
+[0.199849] (-) TimerEvent: {}
+[0.300463] (-) TimerEvent: {}
+[0.401107] (-) TimerEvent: {}
+[0.501752] (-) TimerEvent: {}
+[0.577390] (zed_components) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.578254] (zed_components) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[0.578837] (zed_components) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.579601] (zed_components) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.580437] (zed_components) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.580766] (zed_components) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.581211] (zed_components) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.582192] (zed_components) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.601856] (-) TimerEvent: {}
+[0.626421] (zed_components) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.638290] (zed_components) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.638806] (zed_components) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.639644] (zed_components) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.647543] (zed_components) StdoutLine: {'line': b'-- Looking for sgemm_\n'}
+[0.702023] (-) TimerEvent: {}
+[0.783597] (zed_components) StdoutLine: {'line': b'-- Looking for sgemm_ - not found\n'}
+[0.787800] (zed_components) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[0.802122] (-) TimerEvent: {}
+[0.902751] (-) TimerEvent: {}
+[0.937766] (zed_components) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[0.938533] (zed_components) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[1.002903] (-) TimerEvent: {}
+[1.099670] (zed_components) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[1.103157] (zed_components) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[1.104006] (-) TimerEvent: {}
+[1.174223] (zed_components) StdoutLine: {'line': b'-- Looking for sgemm_\n'}
+[1.204185] (-) TimerEvent: {}
+[1.305228] (-) TimerEvent: {}
+[1.354980] (zed_components) StdoutLine: {'line': b'-- Looking for sgemm_ - found\n'}
+[1.355864] (zed_components) StdoutLine: {'line': b'-- Found BLAS: /usr/lib/aarch64-linux-gnu/libopenblas.so  \n'}
+[1.405385] (-) TimerEvent: {}
+[1.408780] (zed_components) StdoutLine: {'line': b'-- Found CUDA: /usr/local/cuda-12.6 (found suitable version "12.6", minimum required is "12.6") \n'}
+[1.447470] (zed_components) StdoutLine: {'line': b'-- Found CUDA: /usr/local/cuda-12.6 (found version "12.6") \n'}
+[1.450904] (zed_components) StdoutLine: {'line': b'-- Found ament_cmake_auto: 1.3.12 (/opt/ros/humble/share/ament_cmake_auto/cmake)\n'}
+[1.505517] (-) TimerEvent: {}
+[1.606121] (-) TimerEvent: {}
+[1.706836] (-) TimerEvent: {}
+[1.744191] (zed_components) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[1.807001] (-) TimerEvent: {}
+[1.902251] (zed_components) StdoutLine: {'line': b'-- Override CMake install command with custom implementation using symlinks instead of copying resources\n'}
+[1.907209] (-) TimerEvent: {}
+[1.941185] (ugv_perception) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'develop', '--editable', '--build-directory', '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/build', '--no-deps', 'symlink_data'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception', 'env': {'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'bluelule', 'XDG_SESSION_TYPE': 'x11', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:', 'HOME': '/home/bluelule', 'OLDPWD': '/home/bluelule/ugv_project/ros2_ws/src', 'DESKTOP_SESSION': 'ubuntu', 'ROS_PYTHON_VERSION': '3', 'GNOME_SHELL_SESSION_MODE': 'ubuntu', 'GTK_MODULES': 'gail:atk-bridge', 'SYSTEMD_EXEC_PID': '2264', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'COLORTERM': 'truecolor', 'IM_CONFIG_PHASE': '1', 'COLCON_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install', 'ROS_DISTRO': 'humble', 'GTK_IM_MODULE': 'ibus', 'LOGNAME': 'bluelule', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'USERNAME': 'bluelule', 'TERM': 'xterm-256color', 'GNOME_DESKTOP_SESSION_ID': 'this-is-deprecated', 'ROS_LOCALHOST_ONLY': '0', 'WINDOWPATH': '2', 'PATH': '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin', 'SESSION_MANAGER': 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237', 'XDG_MENU_PREFIX': 'gnome-', 'GNOME_TERMINAL_SCREEN': '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747', 'XDG_RUNTIME_DIR': '/run/user/1000', 'DISPLAY': ':1', 'LANG': 'en_US.UTF-8', 'XDG_CURRENT_DESKTOP': 'ubuntu:GNOME', 'XMODIFIERS': '@im=ibus', 'XDG_SESSION_DESKTOP': 'ubuntu', 'XAUTHORITY': '/run/user/1000/gdm/Xauthority', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'GNOME_TERMINAL_SERVICE': ':1.99', 'SSH_AGENT_LAUNCHER': 'gnome-keyring', 'SSH_AUTH_SOCK': '/run/user/1000/keyring/ssh', 'AMENT_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble', 'SHELL': '/bin/bash', 'QT_ACCESSIBILITY': '1', 'GDMSESSION': 'ubuntu', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'GPG_AGENT_INFO': '/run/user/1000/gnupg/S.gpg-agent:0:1', 'QT_IM_MODULE': 'ibus', 'PWD': '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception', 'XDG_CONFIG_DIRS': '/etc/xdg/xdg-ubuntu:/etc/xdg', 'XDG_DATA_DIRS': '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/bluelule/ugv_project/ros2_ws/build/ugv_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1', 'VTE_VERSION': '6800', 'CMAKE_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros'}, 'shell': False}
+[1.955919] (ugv_lidar) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'develop', '--editable', '--build-directory', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/build', '--no-deps', 'symlink_data'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar', 'env': {'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'bluelule', 'XDG_SESSION_TYPE': 'x11', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:', 'HOME': '/home/bluelule', 'OLDPWD': '/home/bluelule/ugv_project/ros2_ws/src', 'DESKTOP_SESSION': 'ubuntu', 'ROS_PYTHON_VERSION': '3', 'GNOME_SHELL_SESSION_MODE': 'ubuntu', 'GTK_MODULES': 'gail:atk-bridge', 'SYSTEMD_EXEC_PID': '2264', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'COLORTERM': 'truecolor', 'IM_CONFIG_PHASE': '1', 'COLCON_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install', 'ROS_DISTRO': 'humble', 'GTK_IM_MODULE': 'ibus', 'LOGNAME': 'bluelule', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'USERNAME': 'bluelule', 'TERM': 'xterm-256color', 'GNOME_DESKTOP_SESSION_ID': 'this-is-deprecated', 'ROS_LOCALHOST_ONLY': '0', 'WINDOWPATH': '2', 'PATH': '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin', 'SESSION_MANAGER': 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237', 'XDG_MENU_PREFIX': 'gnome-', 'GNOME_TERMINAL_SCREEN': '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747', 'XDG_RUNTIME_DIR': '/run/user/1000', 'DISPLAY': ':1', 'LANG': 'en_US.UTF-8', 'XDG_CURRENT_DESKTOP': 'ubuntu:GNOME', 'XMODIFIERS': '@im=ibus', 'XDG_SESSION_DESKTOP': 'ubuntu', 'XAUTHORITY': '/run/user/1000/gdm/Xauthority', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'GNOME_TERMINAL_SERVICE': ':1.99', 'SSH_AGENT_LAUNCHER': 'gnome-keyring', 'SSH_AUTH_SOCK': '/run/user/1000/keyring/ssh', 'AMENT_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble', 'SHELL': '/bin/bash', 'QT_ACCESSIBILITY': '1', 'GDMSESSION': 'ubuntu', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'GPG_AGENT_INFO': '/run/user/1000/gnupg/S.gpg-agent:0:1', 'QT_IM_MODULE': 'ibus', 'PWD': '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar', 'XDG_CONFIG_DIRS': '/etc/xdg/xdg-ubuntu:/etc/xdg', 'XDG_DATA_DIRS': '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1', 'VTE_VERSION': '6800', 'CMAKE_PREFIX_PATH': '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros'}, 'shell': False}
+[2.007357] (-) TimerEvent: {}
+[2.107977] (-) TimerEvent: {}
+[2.154643] (zed_components) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[2.163751] (zed_components) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[2.179721] (zed_components) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[2.201507] (zed_components) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[2.208124] (-) TimerEvent: {}
+[2.232350] (zed_components) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[2.308296] (-) TimerEvent: {}
+[2.408918] (-) TimerEvent: {}
+[2.439429] (zed_components) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[2.445339] (zed_components) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[2.494528] (ugv_lidar) StdoutLine: {'line': b'running develop\n'}
+[2.509075] (-) TimerEvent: {}
+[2.538121] (ugv_perception) StdoutLine: {'line': b'running develop\n'}
+[2.609247] (-) TimerEvent: {}
+[2.621602] (zed_components) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[2.672131] (zed_components) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[2.709382] (-) TimerEvent: {}
+[2.745404] (zed_components) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[2.795383] (ugv_lidar) StdoutLine: {'line': b'running egg_info\n'}
+[2.795793] (ugv_lidar) StdoutLine: {'line': b'creating ugv_lidar.egg-info\n'}
+[2.795986] (ugv_lidar) StdoutLine: {'line': b'writing ugv_lidar.egg-info/PKG-INFO\n'}
+[2.796487] (ugv_lidar) StdoutLine: {'line': b'writing dependency_links to ugv_lidar.egg-info/dependency_links.txt\n'}
+[2.796736] (ugv_lidar) StdoutLine: {'line': b'writing entry points to ugv_lidar.egg-info/entry_points.txt\n'}
+[2.797183] (ugv_lidar) StdoutLine: {'line': b'writing requirements to ugv_lidar.egg-info/requires.txt\n'}
+[2.797311] (ugv_lidar) StdoutLine: {'line': b'writing top-level names to ugv_lidar.egg-info/top_level.txt\n'}
+[2.797667] (ugv_lidar) StdoutLine: {'line': b"writing manifest file 'ugv_lidar.egg-info/SOURCES.txt'\n"}
+[2.801315] (ugv_lidar) StdoutLine: {'line': b"reading manifest file 'ugv_lidar.egg-info/SOURCES.txt'\n"}
+[2.802379] (ugv_lidar) StdoutLine: {'line': b"writing manifest file 'ugv_lidar.egg-info/SOURCES.txt'\n"}
+[2.809484] (-) TimerEvent: {}
+[2.865099] (ugv_perception) StdoutLine: {'line': b'running egg_info\n'}
+[2.865555] (ugv_perception) StdoutLine: {'line': b'creating ugv_perception.egg-info\n'}
+[2.865806] (ugv_perception) StdoutLine: {'line': b'writing ugv_perception.egg-info/PKG-INFO\n'}
+[2.866056] (ugv_perception) StdoutLine: {'line': b'writing dependency_links to ugv_perception.egg-info/dependency_links.txt\n'}
+[2.866268] (ugv_perception) StdoutLine: {'line': b'writing entry points to ugv_perception.egg-info/entry_points.txt\n'}
+[2.866479] (ugv_perception) StdoutLine: {'line': b'writing requirements to ugv_perception.egg-info/requires.txt\n'}
+[2.866647] (ugv_perception) StdoutLine: {'line': b'writing top-level names to ugv_perception.egg-info/top_level.txt\n'}
+[2.867047] (ugv_perception) StdoutLine: {'line': b"writing manifest file 'ugv_perception.egg-info/SOURCES.txt'\n"}
+[2.870942] (ugv_perception) StdoutLine: {'line': b"reading manifest file 'ugv_perception.egg-info/SOURCES.txt'\n"}
+[2.872117] (ugv_perception) StdoutLine: {'line': b"writing manifest file 'ugv_perception.egg-info/SOURCES.txt'\n"}
+[2.909662] (-) TimerEvent: {}
+[2.915270] (ugv_lidar) StdoutLine: {'line': b'running build_ext\n'}
+[2.915734] (ugv_lidar) StdoutLine: {'line': b'Creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages/ugv-lidar.egg-link (link to .)\n'}
+[2.917869] (ugv_lidar) StdoutLine: {'line': b'\n'}
+[2.918155] (ugv_lidar) StdoutLine: {'line': b'Installed /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar\n'}
+[2.918364] (ugv_lidar) StdoutLine: {'line': b'running symlink_data\n'}
+[2.918591] (ugv_lidar) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index\n'}
+[2.918781] (ugv_lidar) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index/resource_index\n'}
+[2.918955] (ugv_lidar) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index/resource_index/packages\n'}
+[2.919074] (ugv_lidar) StdoutLine: {'line': b'symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/resource/ugv_lidar -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ament_index/resource_index/packages\n'}
+[2.919189] (ugv_lidar) StdoutLine: {'line': b'symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_lidar/package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/share/ugv_lidar\n'}
+[2.991309] (ugv_perception) StdoutLine: {'line': b'running build_ext\n'}
+[2.991861] (ugv_perception) StdoutLine: {'line': b'Creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages/ugv-perception.egg-link (link to .)\n'}
+[2.993651] (ugv_perception) StdoutLine: {'line': b'Installing obstacle_warning script to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/ugv_perception\n'}
+[2.994040] (ugv_perception) StdoutLine: {'line': b'Installing zed_obj_distance script to /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/ugv_perception\n'}
+[2.994312] (ugv_perception) StdoutLine: {'line': b'\n'}
+[2.994490] (ugv_perception) StdoutLine: {'line': b'Installed /home/bluelule/ugv_project/ros2_ws/build/ugv_perception\n'}
+[2.994656] (ugv_perception) StdoutLine: {'line': b'running symlink_data\n'}
+[2.994862] (ugv_perception) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index\n'}
+[2.995019] (ugv_perception) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index/resource_index\n'}
+[2.995137] (ugv_perception) StdoutLine: {'line': b'creating /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index/resource_index/packages\n'}
+[2.995289] (ugv_perception) StdoutLine: {'line': b'symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/resource/ugv_perception -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ament_index/resource_index/packages\n'}
+[2.995403] (ugv_perception) StdoutLine: {'line': b'symbolically linking /home/bluelule/ugv_project/ros2_ws/build/ugv_perception/package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_perception/share/ugv_perception\n'}
+[3.009804] (-) TimerEvent: {}
+[3.020390] (ugv_lidar) CommandEnded: {'returncode': 0}
+[3.046572] (ugv_lidar) JobEnded: {'identifier': 'ugv_lidar', 'rc': 0}
+[3.098419] (ugv_perception) CommandEnded: {'returncode': 0}
+[3.109892] (-) TimerEvent: {}
+[3.113394] (ugv_perception) JobEnded: {'identifier': 'ugv_perception', 'rc': 0}
+[3.187527] (zed_components) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)\n'}
+[3.189750] (zed_components) StdoutLine: {'line': b'-- Found Eigen3: TRUE (found version "3.4.0") \n'}
+[3.189972] (zed_components) StdoutLine: {'line': b'-- Ensuring Eigen3 include directory is part of orocos-kdl CMake target\n'}
+[3.210049] (-) TimerEvent: {}
+[3.310589] (-) TimerEvent: {}
+[3.396893] (zed_components) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.12.14 (/opt/ros/humble/share/ament_lint_auto/cmake)\n'}
+[3.410780] (-) TimerEvent: {}
+[3.467097] (zed_components) StdoutLine: {'line': b"-- Added test 'copyright' to check source files copyright and LICENSE\n"}
+[3.471273] (zed_components) StdoutLine: {'line': b"-- Added test 'cppcheck' to perform static code analysis on C / C++ code\n"}
+[3.472302] (zed_components) StdoutLine: {'line': b'-- Configured cppcheck include dirs: /home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/include;/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/zed_camera/include;/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/tools/include;/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_components/src/zed_camera_one/include\n'}
+[3.472521] (zed_components) StdoutLine: {'line': b'-- Configured cppcheck exclude dirs and/or files: \n'}
+[3.474112] (zed_components) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[3.478379] (zed_components) StdoutLine: {'line': b"-- Added test 'uncrustify' to check C / C++ code style\n"}
+[3.478649] (zed_components) StdoutLine: {'line': b'-- Configured uncrustify additional arguments: \n'}
+[3.479933] (zed_components) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[3.488193] (zed_components) StdoutLine: {'line': b'-- Configuring done\n'}
+[3.510962] (-) TimerEvent: {}
+[3.554107] (zed_components) StdoutLine: {'line': b'-- Generating done\n'}
+[3.572847] (zed_components) StdoutLine: {'line': b'-- Build files have been written to: /home/bluelule/ugv_project/ros2_ws/build/zed_components\n'}
+[3.607436] (zed_components) CommandEnded: {'returncode': 0}
+[3.609449] (zed_components) JobProgress: {'identifier': 'zed_components', 'progress': 'build'}
+[3.612169] (zed_components) Command: {'cmd': ['/usr/bin/cmake', '--build', '/home/bluelule/ugv_project/ros2_ws/build/zed_components', '--', '-j6', '-l6'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_components', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_components'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[3.615615] (-) TimerEvent: {}
+[3.716588] (-) TimerEvent: {}
+[3.723134] (zed_components) StdoutLine: {'line': b'[ 17%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/sl_tools.cpp.o\x1b[0m\n'}
+[3.723586] (zed_components) StdoutLine: {'line': b'[ 17%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/gnss_replay.cpp.o\x1b[0m\n'}
+[3.723741] (zed_components) StdoutLine: {'line': b'[ 17%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/sl_tools.cpp.o\x1b[0m\n'}
+[3.723966] (zed_components) StdoutLine: {'line': b'[ 23%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/sl_win_avg.cpp.o\x1b[0m\n'}
+[3.728835] (zed_components) StdoutLine: {'line': b'[ 29%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/sl_win_avg.cpp.o\x1b[0m\n'}
+[3.729447] (zed_components) StdoutLine: {'line': b'[ 35%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/tools/src/sl_types.cpp.o\x1b[0m\n'}
+[3.816767] (-) TimerEvent: {}
+[3.917464] (-) TimerEvent: {}
+[4.018160] (-) TimerEvent: {}
+[4.119223] (-) TimerEvent: {}
+[4.219900] (-) TimerEvent: {}
+[4.320601] (-) TimerEvent: {}
+[4.421328] (-) TimerEvent: {}
+[4.522039] (-) TimerEvent: {}
+[4.614940] (zed_components) StdoutLine: {'line': b'[ 41%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/zed_camera_one/src/zed_camera_one_component_main.cpp.o\x1b[0m\n'}
+[4.622253] (-) TimerEvent: {}
+[4.723027] (-) TimerEvent: {}
+[4.796107] (zed_components) StdoutLine: {'line': b'[ 47%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/gnss_replay.cpp.o\x1b[0m\n'}
+[4.823205] (-) TimerEvent: {}
+[4.923982] (-) TimerEvent: {}
+[5.024753] (-) TimerEvent: {}
+[5.125585] (-) TimerEvent: {}
+[5.226403] (-) TimerEvent: {}
+[5.327189] (-) TimerEvent: {}
+[5.428171] (-) TimerEvent: {}
+[5.529152] (-) TimerEvent: {}
+[5.630156] (-) TimerEvent: {}
+[5.730894] (-) TimerEvent: {}
+[5.831580] (-) TimerEvent: {}
+[5.932243] (-) TimerEvent: {}
+[6.032987] (-) TimerEvent: {}
+[6.134068] (-) TimerEvent: {}
+[6.235066] (-) TimerEvent: {}
+[6.336027] (-) TimerEvent: {}
+[6.436990] (-) TimerEvent: {}
+[6.537736] (-) TimerEvent: {}
+[6.638487] (-) TimerEvent: {}
+[6.739213] (-) TimerEvent: {}
+[6.839942] (-) TimerEvent: {}
+[6.940682] (-) TimerEvent: {}
+[7.041451] (-) TimerEvent: {}
+[7.142221] (-) TimerEvent: {}
+[7.242972] (-) TimerEvent: {}
+[7.345580] (-) TimerEvent: {}
+[7.446283] (-) TimerEvent: {}
+[7.547004] (-) TimerEvent: {}
+[7.647711] (-) TimerEvent: {}
+[7.748437] (-) TimerEvent: {}
+[7.849177] (-) TimerEvent: {}
+[7.949956] (-) TimerEvent: {}
+[8.050772] (-) TimerEvent: {}
+[8.151484] (-) TimerEvent: {}
+[8.252272] (-) TimerEvent: {}
+[8.352999] (-) TimerEvent: {}
+[8.453735] (-) TimerEvent: {}
+[8.554487] (-) TimerEvent: {}
+[8.655283] (-) TimerEvent: {}
+[8.756017] (-) TimerEvent: {}
+[8.856761] (-) TimerEvent: {}
+[8.957507] (-) TimerEvent: {}
+[9.058240] (-) TimerEvent: {}
+[9.158983] (-) TimerEvent: {}
+[9.259709] (-) TimerEvent: {}
+[9.360444] (-) TimerEvent: {}
+[9.461214] (-) TimerEvent: {}
+[9.561975] (-) TimerEvent: {}
+[9.662781] (-) TimerEvent: {}
+[9.763487] (-) TimerEvent: {}
+[9.864192] (-) TimerEvent: {}
+[9.964947] (-) TimerEvent: {}
+[10.065706] (-) TimerEvent: {}
+[10.166495] (-) TimerEvent: {}
+[10.267270] (-) TimerEvent: {}
+[10.368019] (-) TimerEvent: {}
+[10.468773] (-) TimerEvent: {}
+[10.569541] (-) TimerEvent: {}
+[10.670297] (-) TimerEvent: {}
+[10.771274] (-) TimerEvent: {}
+[10.871982] (-) TimerEvent: {}
+[10.972708] (-) TimerEvent: {}
+[11.073433] (-) TimerEvent: {}
+[11.174170] (-) TimerEvent: {}
+[11.274896] (-) TimerEvent: {}
+[11.375591] (-) TimerEvent: {}
+[11.476288] (-) TimerEvent: {}
+[11.577002] (-) TimerEvent: {}
+[11.677763] (-) TimerEvent: {}
+[11.778500] (-) TimerEvent: {}
+[11.879227] (-) TimerEvent: {}
+[11.979928] (-) TimerEvent: {}
+[12.080658] (-) TimerEvent: {}
+[12.181395] (-) TimerEvent: {}
+[12.282172] (-) TimerEvent: {}
+[12.382978] (-) TimerEvent: {}
+[12.483712] (-) TimerEvent: {}
+[12.584437] (-) TimerEvent: {}
+[12.685202] (-) TimerEvent: {}
+[12.785909] (-) TimerEvent: {}
+[12.886608] (-) TimerEvent: {}
+[12.987361] (-) TimerEvent: {}
+[13.088122] (-) TimerEvent: {}
+[13.188838] (-) TimerEvent: {}
+[13.289620] (-) TimerEvent: {}
+[13.390366] (-) TimerEvent: {}
+[13.491078] (-) TimerEvent: {}
+[13.591803] (-) TimerEvent: {}
+[13.692560] (-) TimerEvent: {}
+[13.793260] (-) TimerEvent: {}
+[13.893970] (-) TimerEvent: {}
+[13.994713] (-) TimerEvent: {}
+[14.095492] (-) TimerEvent: {}
+[14.196266] (-) TimerEvent: {}
+[14.297002] (-) TimerEvent: {}
+[14.397785] (-) TimerEvent: {}
+[14.498507] (-) TimerEvent: {}
+[14.599242] (-) TimerEvent: {}
+[14.699964] (-) TimerEvent: {}
+[14.800702] (-) TimerEvent: {}
+[14.901464] (-) TimerEvent: {}
+[15.002193] (-) TimerEvent: {}
+[15.102925] (-) TimerEvent: {}
+[15.203689] (-) TimerEvent: {}
+[15.304421] (-) TimerEvent: {}
+[15.405120] (-) TimerEvent: {}
+[15.505829] (-) TimerEvent: {}
+[15.597816] (zed_components) StdoutLine: {'line': b'[ 52%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/tools/src/sl_types.cpp.o\x1b[0m\n'}
+[15.606019] (-) TimerEvent: {}
+[15.707004] (-) TimerEvent: {}
+[15.808102] (-) TimerEvent: {}
+[15.909105] (-) TimerEvent: {}
+[16.010091] (-) TimerEvent: {}
+[16.111089] (-) TimerEvent: {}
+[16.212059] (-) TimerEvent: {}
+[16.313049] (-) TimerEvent: {}
+[16.414040] (-) TimerEvent: {}
+[16.426962] (zed_components) StdoutLine: {'line': b'[ 58%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/zed_camera_one/src/zed_camera_one_component_sensors.cpp.o\x1b[0m\n'}
+[16.514247] (-) TimerEvent: {}
+[16.615223] (-) TimerEvent: {}
+[16.716135] (-) TimerEvent: {}
+[16.817081] (-) TimerEvent: {}
+[16.918046] (-) TimerEvent: {}
+[16.958034] (zed_components) StdoutLine: {'line': b'[ 64%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_one_component.dir/src/zed_camera_one/src/zed_camera_one_component_video.cpp.o\x1b[0m\n'}
+[17.018231] (-) TimerEvent: {}
+[17.118956] (-) TimerEvent: {}
+[17.219694] (-) TimerEvent: {}
+[17.320543] (-) TimerEvent: {}
+[17.421264] (-) TimerEvent: {}
+[17.442300] (zed_components) StdoutLine: {'line': b'[ 70%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_main.cpp.o\x1b[0m\n'}
+[17.521463] (-) TimerEvent: {}
+[17.622194] (-) TimerEvent: {}
+[17.722924] (-) TimerEvent: {}
+[17.823602] (-) TimerEvent: {}
+[17.840291] (zed_components) StdoutLine: {'line': b'[ 76%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_video_depth.cpp.o\x1b[0m\n'}
+[17.923804] (-) TimerEvent: {}
+[18.024620] (-) TimerEvent: {}
+[18.125366] (-) TimerEvent: {}
+[18.227723] (-) TimerEvent: {}
+[18.329070] (-) TimerEvent: {}
+[18.429843] (-) TimerEvent: {}
+[18.530617] (-) TimerEvent: {}
+[18.631369] (-) TimerEvent: {}
+[18.732108] (-) TimerEvent: {}
+[18.832863] (-) TimerEvent: {}
+[18.933649] (-) TimerEvent: {}
+[19.034452] (-) TimerEvent: {}
+[19.135243] (-) TimerEvent: {}
+[19.236105] (-) TimerEvent: {}
+[19.336862] (-) TimerEvent: {}
+[19.437816] (-) TimerEvent: {}
+[19.540084] (-) TimerEvent: {}
+[19.641074] (-) TimerEvent: {}
+[19.742075] (-) TimerEvent: {}
+[19.843137] (-) TimerEvent: {}
+[19.943900] (-) TimerEvent: {}
+[20.044641] (-) TimerEvent: {}
+[20.145415] (-) TimerEvent: {}
+[20.246160] (-) TimerEvent: {}
+[20.346906] (-) TimerEvent: {}
+[20.447645] (-) TimerEvent: {}
+[20.548400] (-) TimerEvent: {}
+[20.649472] (-) TimerEvent: {}
+[20.750237] (-) TimerEvent: {}
+[20.850972] (-) TimerEvent: {}
+[20.951712] (-) TimerEvent: {}
+[21.052461] (-) TimerEvent: {}
+[21.153246] (-) TimerEvent: {}
+[21.253981] (-) TimerEvent: {}
+[21.354759] (-) TimerEvent: {}
+[21.455468] (-) TimerEvent: {}
+[21.556214] (-) TimerEvent: {}
+[21.656970] (-) TimerEvent: {}
+[21.757735] (-) TimerEvent: {}
+[21.858485] (-) TimerEvent: {}
+[21.959538] (-) TimerEvent: {}
+[22.066888] (-) TimerEvent: {}
+[22.170160] (-) TimerEvent: {}
+[22.271175] (-) TimerEvent: {}
+[22.372326] (-) TimerEvent: {}
+[22.473367] (-) TimerEvent: {}
+[22.574331] (-) TimerEvent: {}
+[22.675238] (-) TimerEvent: {}
+[22.776175] (-) TimerEvent: {}
+[22.877146] (-) TimerEvent: {}
+[22.978435] (-) TimerEvent: {}
+[23.079478] (-) TimerEvent: {}
+[23.180465] (-) TimerEvent: {}
+[23.281464] (-) TimerEvent: {}
+[23.382472] (-) TimerEvent: {}
+[23.483188] (-) TimerEvent: {}
+[23.583909] (-) TimerEvent: {}
+[23.684632] (-) TimerEvent: {}
+[23.785350] (-) TimerEvent: {}
+[23.886100] (-) TimerEvent: {}
+[23.986806] (-) TimerEvent: {}
+[24.087673] (-) TimerEvent: {}
+[24.188957] (-) TimerEvent: {}
+[24.289872] (-) TimerEvent: {}
+[24.390899] (-) TimerEvent: {}
+[24.491766] (-) TimerEvent: {}
+[24.592483] (-) TimerEvent: {}
+[24.693222] (-) TimerEvent: {}
+[24.794037] (-) TimerEvent: {}
+[24.894820] (-) TimerEvent: {}
+[24.995535] (-) TimerEvent: {}
+[25.096253] (-) TimerEvent: {}
+[25.196999] (-) TimerEvent: {}
+[25.297731] (-) TimerEvent: {}
+[25.398430] (-) TimerEvent: {}
+[25.499182] (-) TimerEvent: {}
+[25.599887] (-) TimerEvent: {}
+[25.700588] (-) TimerEvent: {}
+[25.801311] (-) TimerEvent: {}
+[25.902048] (-) TimerEvent: {}
+[26.002808] (-) TimerEvent: {}
+[26.103515] (-) TimerEvent: {}
+[26.204236] (-) TimerEvent: {}
+[26.305222] (-) TimerEvent: {}
+[26.405941] (-) TimerEvent: {}
+[26.506722] (-) TimerEvent: {}
+[26.608255] (-) TimerEvent: {}
+[26.708980] (-) TimerEvent: {}
+[26.809721] (-) TimerEvent: {}
+[26.910478] (-) TimerEvent: {}
+[27.011231] (-) TimerEvent: {}
+[27.111986] (-) TimerEvent: {}
+[27.212720] (-) TimerEvent: {}
+[27.313446] (-) TimerEvent: {}
+[27.414185] (-) TimerEvent: {}
+[27.515010] (-) TimerEvent: {}
+[27.615772] (-) TimerEvent: {}
+[27.716484] (-) TimerEvent: {}
+[27.817237] (-) TimerEvent: {}
+[27.917977] (-) TimerEvent: {}
+[28.018736] (-) TimerEvent: {}
+[28.119502] (-) TimerEvent: {}
+[28.220265] (-) TimerEvent: {}
+[28.321068] (-) TimerEvent: {}
+[28.421854] (-) TimerEvent: {}
+[28.522657] (-) TimerEvent: {}
+[28.623479] (-) TimerEvent: {}
+[28.724241] (-) TimerEvent: {}
+[28.825045] (-) TimerEvent: {}
+[28.925867] (-) TimerEvent: {}
+[28.979537] (zed_components) StdoutLine: {'line': b'[ 82%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_objdet.cpp.o\x1b[0m\n'}
+[29.026064] (-) TimerEvent: {}
+[29.126803] (-) TimerEvent: {}
+[29.227529] (-) TimerEvent: {}
+[29.328277] (-) TimerEvent: {}
+[29.429023] (-) TimerEvent: {}
+[29.529785] (-) TimerEvent: {}
+[29.630542] (-) TimerEvent: {}
+[29.731311] (-) TimerEvent: {}
+[29.833414] (-) TimerEvent: {}
+[29.934243] (-) TimerEvent: {}
+[30.035001] (-) TimerEvent: {}
+[30.135857] (-) TimerEvent: {}
+[30.236635] (-) TimerEvent: {}
+[30.337398] (-) TimerEvent: {}
+[30.438212] (-) TimerEvent: {}
+[30.538969] (-) TimerEvent: {}
+[30.639735] (-) TimerEvent: {}
+[30.740518] (-) TimerEvent: {}
+[30.841301] (-) TimerEvent: {}
+[30.942169] (-) TimerEvent: {}
+[31.042952] (-) TimerEvent: {}
+[31.143744] (-) TimerEvent: {}
+[31.244578] (-) TimerEvent: {}
+[31.345413] (-) TimerEvent: {}
+[31.446245] (-) TimerEvent: {}
+[31.547017] (-) TimerEvent: {}
+[31.647774] (-) TimerEvent: {}
+[31.748549] (-) TimerEvent: {}
+[31.849351] (-) TimerEvent: {}
+[31.950150] (-) TimerEvent: {}
+[32.050970] (-) TimerEvent: {}
+[32.151752] (-) TimerEvent: {}
+[32.252552] (-) TimerEvent: {}
+[32.353369] (-) TimerEvent: {}
+[32.454143] (-) TimerEvent: {}
+[32.556179] (-) TimerEvent: {}
+[32.656972] (-) TimerEvent: {}
+[32.757746] (-) TimerEvent: {}
+[32.858555] (-) TimerEvent: {}
+[32.959420] (-) TimerEvent: {}
+[33.060149] (-) TimerEvent: {}
+[33.160879] (-) TimerEvent: {}
+[33.261682] (-) TimerEvent: {}
+[33.362744] (-) TimerEvent: {}
+[33.463433] (-) TimerEvent: {}
+[33.564116] (-) TimerEvent: {}
+[33.664851] (-) TimerEvent: {}
+[33.765588] (-) TimerEvent: {}
+[33.866342] (-) TimerEvent: {}
+[33.967037] (-) TimerEvent: {}
+[34.067724] (-) TimerEvent: {}
+[34.168472] (-) TimerEvent: {}
+[34.269237] (-) TimerEvent: {}
+[34.370353] (-) TimerEvent: {}
+[34.471110] (-) TimerEvent: {}
+[34.571833] (-) TimerEvent: {}
+[34.672806] (-) TimerEvent: {}
+[34.773538] (-) TimerEvent: {}
+[34.874319] (-) TimerEvent: {}
+[34.975054] (-) TimerEvent: {}
+[35.075834] (-) TimerEvent: {}
+[35.176636] (-) TimerEvent: {}
+[35.277474] (-) TimerEvent: {}
+[35.378262] (-) TimerEvent: {}
+[35.479140] (-) TimerEvent: {}
+[35.579899] (-) TimerEvent: {}
+[35.680669] (-) TimerEvent: {}
+[35.781444] (-) TimerEvent: {}
+[35.882220] (-) TimerEvent: {}
+[35.983231] (-) TimerEvent: {}
+[36.084252] (-) TimerEvent: {}
+[36.185281] (-) TimerEvent: {}
+[36.286271] (-) TimerEvent: {}
+[36.387262] (-) TimerEvent: {}
+[36.488248] (-) TimerEvent: {}
+[36.589268] (-) TimerEvent: {}
+[36.690327] (-) TimerEvent: {}
+[36.791375] (-) TimerEvent: {}
+[36.892399] (-) TimerEvent: {}
+[36.993462] (-) TimerEvent: {}
+[37.094529] (-) TimerEvent: {}
+[37.195558] (-) TimerEvent: {}
+[37.296553] (-) TimerEvent: {}
+[37.397549] (-) TimerEvent: {}
+[37.498564] (-) TimerEvent: {}
+[37.599568] (-) TimerEvent: {}
+[37.700314] (-) TimerEvent: {}
+[37.801029] (-) TimerEvent: {}
+[37.901774] (-) TimerEvent: {}
+[38.002514] (-) TimerEvent: {}
+[38.103271] (-) TimerEvent: {}
+[38.204017] (-) TimerEvent: {}
+[38.304792] (-) TimerEvent: {}
+[38.405570] (-) TimerEvent: {}
+[38.506346] (-) TimerEvent: {}
+[38.607109] (-) TimerEvent: {}
+[38.707840] (-) TimerEvent: {}
+[38.808787] (-) TimerEvent: {}
+[38.909824] (-) TimerEvent: {}
+[39.010888] (-) TimerEvent: {}
+[39.111920] (-) TimerEvent: {}
+[39.213000] (-) TimerEvent: {}
+[39.314027] (-) TimerEvent: {}
+[39.414979] (-) TimerEvent: {}
+[39.515965] (-) TimerEvent: {}
+[39.616999] (-) TimerEvent: {}
+[39.717737] (-) TimerEvent: {}
+[39.818510] (-) TimerEvent: {}
+[39.919306] (-) TimerEvent: {}
+[40.020049] (-) TimerEvent: {}
+[40.120807] (-) TimerEvent: {}
+[40.221511] (-) TimerEvent: {}
+[40.322287] (-) TimerEvent: {}
+[40.423052] (-) TimerEvent: {}
+[40.523753] (-) TimerEvent: {}
+[40.624449] (-) TimerEvent: {}
+[40.725210] (-) TimerEvent: {}
+[40.825930] (-) TimerEvent: {}
+[40.926655] (-) TimerEvent: {}
+[41.028139] (-) TimerEvent: {}
+[41.129602] (-) TimerEvent: {}
+[41.230632] (-) TimerEvent: {}
+[41.331716] (-) TimerEvent: {}
+[41.432778] (-) TimerEvent: {}
+[41.533813] (-) TimerEvent: {}
+[41.634816] (-) TimerEvent: {}
+[41.735822] (-) TimerEvent: {}
+[41.836830] (-) TimerEvent: {}
+[41.937561] (-) TimerEvent: {}
+[42.038322] (-) TimerEvent: {}
+[42.139059] (-) TimerEvent: {}
+[42.239812] (-) TimerEvent: {}
+[42.340542] (-) TimerEvent: {}
+[42.441530] (-) TimerEvent: {}
+[42.542302] (-) TimerEvent: {}
+[42.643036] (-) TimerEvent: {}
+[42.743789] (-) TimerEvent: {}
+[42.844800] (-) TimerEvent: {}
+[42.945868] (-) TimerEvent: {}
+[43.046885] (-) TimerEvent: {}
+[43.147908] (-) TimerEvent: {}
+[43.248918] (-) TimerEvent: {}
+[43.349973] (-) TimerEvent: {}
+[43.450983] (-) TimerEvent: {}
+[43.551970] (-) TimerEvent: {}
+[43.652983] (-) TimerEvent: {}
+[43.754000] (-) TimerEvent: {}
+[43.855028] (-) TimerEvent: {}
+[43.955988] (-) TimerEvent: {}
+[44.057038] (-) TimerEvent: {}
+[44.158091] (-) TimerEvent: {}
+[44.259136] (-) TimerEvent: {}
+[44.360182] (-) TimerEvent: {}
+[44.461228] (-) TimerEvent: {}
+[44.562246] (-) TimerEvent: {}
+[44.663292] (-) TimerEvent: {}
+[44.764323] (-) TimerEvent: {}
+[44.865357] (-) TimerEvent: {}
+[44.966434] (-) TimerEvent: {}
+[45.067497] (-) TimerEvent: {}
+[45.168921] (-) TimerEvent: {}
+[45.269992] (-) TimerEvent: {}
+[45.371060] (-) TimerEvent: {}
+[45.472067] (-) TimerEvent: {}
+[45.573049] (-) TimerEvent: {}
+[45.674112] (-) TimerEvent: {}
+[45.775139] (-) TimerEvent: {}
+[45.876438] (-) TimerEvent: {}
+[45.920914] (zed_components) StdoutLine: {'line': b'[ 88%] \x1b[32mBuilding CXX object CMakeFiles/zed_camera_component.dir/src/zed_camera/src/zed_camera_component_bodytrk.cpp.o\x1b[0m\n'}
+[45.976623] (-) TimerEvent: {}
+[46.077351] (-) TimerEvent: {}
+[46.178067] (-) TimerEvent: {}
+[46.278819] (-) TimerEvent: {}
+[46.379509] (-) TimerEvent: {}
+[46.480278] (-) TimerEvent: {}
+[46.581021] (-) TimerEvent: {}
+[46.681783] (-) TimerEvent: {}
+[46.782560] (-) TimerEvent: {}
+[46.883319] (-) TimerEvent: {}
+[46.984058] (-) TimerEvent: {}
+[47.084833] (-) TimerEvent: {}
+[47.185611] (-) TimerEvent: {}
+[47.286372] (-) TimerEvent: {}
+[47.387121] (-) TimerEvent: {}
+[47.487853] (-) TimerEvent: {}
+[47.588552] (-) TimerEvent: {}
+[47.689519] (-) TimerEvent: {}
+[47.790316] (-) TimerEvent: {}
+[47.891056] (-) TimerEvent: {}
+[47.991759] (-) TimerEvent: {}
+[48.092474] (-) TimerEvent: {}
+[48.193419] (-) TimerEvent: {}
+[48.294413] (-) TimerEvent: {}
+[48.395416] (-) TimerEvent: {}
+[48.496358] (-) TimerEvent: {}
+[48.597353] (-) TimerEvent: {}
+[48.698313] (-) TimerEvent: {}
+[48.799341] (-) TimerEvent: {}
+[48.900320] (-) TimerEvent: {}
+[49.001304] (-) TimerEvent: {}
+[49.102327] (-) TimerEvent: {}
+[49.203313] (-) TimerEvent: {}
+[49.304267] (-) TimerEvent: {}
+[49.405248] (-) TimerEvent: {}
+[49.506297] (-) TimerEvent: {}
+[49.607289] (-) TimerEvent: {}
+[49.708306] (-) TimerEvent: {}
+[49.809316] (-) TimerEvent: {}
+[49.910296] (-) TimerEvent: {}
+[50.011323] (-) TimerEvent: {}
+[50.112283] (-) TimerEvent: {}
+[50.213280] (-) TimerEvent: {}
+[50.314281] (-) TimerEvent: {}
+[50.415272] (-) TimerEvent: {}
+[50.516207] (-) TimerEvent: {}
+[50.617176] (-) TimerEvent: {}
+[50.718175] (-) TimerEvent: {}
+[50.819208] (-) TimerEvent: {}
+[50.920204] (-) TimerEvent: {}
+[51.021199] (-) TimerEvent: {}
+[51.122177] (-) TimerEvent: {}
+[51.223154] (-) TimerEvent: {}
+[51.330459] (-) TimerEvent: {}
+[51.432054] (-) TimerEvent: {}
+[51.533029] (-) TimerEvent: {}
+[51.633721] (-) TimerEvent: {}
+[51.734455] (-) TimerEvent: {}
+[51.835196] (-) TimerEvent: {}
+[51.935943] (-) TimerEvent: {}
+[52.036648] (-) TimerEvent: {}
+[52.137641] (-) TimerEvent: {}
+[52.238396] (-) TimerEvent: {}
+[52.339179] (-) TimerEvent: {}
+[52.439924] (-) TimerEvent: {}
+[52.540672] (-) TimerEvent: {}
+[52.641387] (-) TimerEvent: {}
+[52.742125] (-) TimerEvent: {}
+[52.842872] (-) TimerEvent: {}
+[52.943576] (-) TimerEvent: {}
+[53.044301] (-) TimerEvent: {}
+[53.145465] (-) TimerEvent: {}
+[53.246476] (-) TimerEvent: {}
+[53.347501] (-) TimerEvent: {}
+[53.448451] (-) TimerEvent: {}
+[53.549442] (-) TimerEvent: {}
+[53.650416] (-) TimerEvent: {}
+[53.751387] (-) TimerEvent: {}
+[53.852336] (-) TimerEvent: {}
+[53.953312] (-) TimerEvent: {}
+[54.054302] (-) TimerEvent: {}
+[54.155318] (-) TimerEvent: {}
+[54.256260] (-) TimerEvent: {}
+[54.357235] (-) TimerEvent: {}
+[54.458232] (-) TimerEvent: {}
+[54.559227] (-) TimerEvent: {}
+[54.660241] (-) TimerEvent: {}
+[54.761258] (-) TimerEvent: {}
+[54.862263] (-) TimerEvent: {}
+[54.963291] (-) TimerEvent: {}
+[55.064315] (-) TimerEvent: {}
+[55.165335] (-) TimerEvent: {}
+[55.266360] (-) TimerEvent: {}
+[55.367402] (-) TimerEvent: {}
+[55.468397] (-) TimerEvent: {}
+[55.569416] (-) TimerEvent: {}
+[55.670442] (-) TimerEvent: {}
+[55.771446] (-) TimerEvent: {}
+[55.872415] (-) TimerEvent: {}
+[55.973371] (-) TimerEvent: {}
+[56.074514] (-) TimerEvent: {}
+[56.175233] (-) TimerEvent: {}
+[56.275938] (-) TimerEvent: {}
+[56.376688] (-) TimerEvent: {}
+[56.477429] (-) TimerEvent: {}
+[56.578163] (-) TimerEvent: {}
+[56.679145] (-) TimerEvent: {}
+[56.780072] (-) TimerEvent: {}
+[56.881037] (-) TimerEvent: {}
+[56.981974] (-) TimerEvent: {}
+[57.082882] (-) TimerEvent: {}
+[57.184116] (-) TimerEvent: {}
+[57.284998] (-) TimerEvent: {}
+[57.385938] (-) TimerEvent: {}
+[57.486971] (-) TimerEvent: {}
+[57.588815] (-) TimerEvent: {}
+[57.689577] (-) TimerEvent: {}
+[57.790307] (-) TimerEvent: {}
+[57.799155] (zed_components) StdoutLine: {'line': b'[ 94%] \x1b[32m\x1b[1mLinking CXX shared library libzed_camera_one_component.so\x1b[0m\n'}
+[57.890540] (-) TimerEvent: {}
+[57.991579] (-) TimerEvent: {}
+[58.092584] (-) TimerEvent: {}
+[58.193612] (-) TimerEvent: {}
+[58.294349] (-) TimerEvent: {}
+[58.395376] (-) TimerEvent: {}
+[58.496345] (-) TimerEvent: {}
+[58.597352] (-) TimerEvent: {}
+[58.698415] (-) TimerEvent: {}
+[58.799131] (-) TimerEvent: {}
+[58.899836] (-) TimerEvent: {}
+[59.000531] (-) TimerEvent: {}
+[59.101234] (-) TimerEvent: {}
+[59.147564] (zed_components) StdoutLine: {'line': b'[ 94%] Built target zed_camera_one_component\n'}
+[59.201413] (-) TimerEvent: {}
+[59.302115] (-) TimerEvent: {}
+[59.402846] (-) TimerEvent: {}
+[59.503533] (-) TimerEvent: {}
+[59.604201] (-) TimerEvent: {}
+[59.704917] (-) TimerEvent: {}
+[59.805652] (-) TimerEvent: {}
+[59.906343] (-) TimerEvent: {}
+[60.007064] (-) TimerEvent: {}
+[60.107746] (-) TimerEvent: {}
+[60.208422] (-) TimerEvent: {}
+[60.309131] (-) TimerEvent: {}
+[60.409842] (-) TimerEvent: {}
+[60.510526] (-) TimerEvent: {}
+[60.611257] (-) TimerEvent: {}
+[60.711971] (-) TimerEvent: {}
+[60.812646] (-) TimerEvent: {}
+[60.913332] (-) TimerEvent: {}
+[61.014030] (-) TimerEvent: {}
+[61.114747] (-) TimerEvent: {}
+[61.215432] (-) TimerEvent: {}
+[61.316121] (-) TimerEvent: {}
+[61.416807] (-) TimerEvent: {}
+[61.517488] (-) TimerEvent: {}
+[61.618160] (-) TimerEvent: {}
+[61.718869] (-) TimerEvent: {}
+[61.819560] (-) TimerEvent: {}
+[61.920240] (-) TimerEvent: {}
+[62.020917] (-) TimerEvent: {}
+[62.121600] (-) TimerEvent: {}
+[62.222314] (-) TimerEvent: {}
+[62.323025] (-) TimerEvent: {}
+[62.423736] (-) TimerEvent: {}
+[62.524453] (-) TimerEvent: {}
+[62.625192] (-) TimerEvent: {}
+[62.725934] (-) TimerEvent: {}
+[62.826808] (-) TimerEvent: {}
+[62.927467] (-) TimerEvent: {}
+[63.028126] (-) TimerEvent: {}
+[63.128791] (-) TimerEvent: {}
+[63.229454] (-) TimerEvent: {}
+[63.330118] (-) TimerEvent: {}
+[63.430801] (-) TimerEvent: {}
+[63.531440] (-) TimerEvent: {}
+[63.632105] (-) TimerEvent: {}
+[63.732761] (-) TimerEvent: {}
+[63.833421] (-) TimerEvent: {}
+[63.934073] (-) TimerEvent: {}
+[64.034773] (-) TimerEvent: {}
+[64.135450] (-) TimerEvent: {}
+[64.236139] (-) TimerEvent: {}
+[64.336816] (-) TimerEvent: {}
+[64.437484] (-) TimerEvent: {}
+[64.538226] (-) TimerEvent: {}
+[64.638929] (-) TimerEvent: {}
+[64.739603] (-) TimerEvent: {}
+[64.840277] (-) TimerEvent: {}
+[64.940956] (-) TimerEvent: {}
+[65.041603] (-) TimerEvent: {}
+[65.142261] (-) TimerEvent: {}
+[65.243200] (-) TimerEvent: {}
+[65.343843] (-) TimerEvent: {}
+[65.444530] (-) TimerEvent: {}
+[65.545311] (-) TimerEvent: {}
+[65.646076] (-) TimerEvent: {}
+[65.746883] (-) TimerEvent: {}
+[65.847692] (-) TimerEvent: {}
+[65.948355] (-) TimerEvent: {}
+[66.049025] (-) TimerEvent: {}
+[66.149690] (-) TimerEvent: {}
+[66.250352] (-) TimerEvent: {}
+[66.351051] (-) TimerEvent: {}
+[66.451728] (-) TimerEvent: {}
+[66.552379] (-) TimerEvent: {}
+[66.653016] (-) TimerEvent: {}
+[66.753685] (-) TimerEvent: {}
+[66.854361] (-) TimerEvent: {}
+[66.955051] (-) TimerEvent: {}
+[67.055729] (-) TimerEvent: {}
+[67.156391] (-) TimerEvent: {}
+[67.257044] (-) TimerEvent: {}
+[67.357694] (-) TimerEvent: {}
+[67.458393] (-) TimerEvent: {}
+[67.559060] (-) TimerEvent: {}
+[67.659706] (-) TimerEvent: {}
+[67.760398] (-) TimerEvent: {}
+[67.861026] (-) TimerEvent: {}
+[67.961677] (-) TimerEvent: {}
+[68.062339] (-) TimerEvent: {}
+[68.163033] (-) TimerEvent: {}
+[68.263697] (-) TimerEvent: {}
+[68.364358] (-) TimerEvent: {}
+[68.465034] (-) TimerEvent: {}
+[68.565712] (-) TimerEvent: {}
+[68.666378] (-) TimerEvent: {}
+[68.767095] (-) TimerEvent: {}
+[68.867777] (-) TimerEvent: {}
+[68.968456] (-) TimerEvent: {}
+[69.069106] (-) TimerEvent: {}
+[69.169768] (-) TimerEvent: {}
+[69.270436] (-) TimerEvent: {}
+[69.371098] (-) TimerEvent: {}
+[69.471775] (-) TimerEvent: {}
+[69.572411] (-) TimerEvent: {}
+[69.673022] (-) TimerEvent: {}
+[69.773621] (-) TimerEvent: {}
+[69.874234] (-) TimerEvent: {}
+[69.974938] (-) TimerEvent: {}
+[70.075591] (-) TimerEvent: {}
+[70.176257] (-) TimerEvent: {}
+[70.276916] (-) TimerEvent: {}
+[70.377582] (-) TimerEvent: {}
+[70.478268] (-) TimerEvent: {}
+[70.578978] (-) TimerEvent: {}
+[70.679639] (-) TimerEvent: {}
+[70.780300] (-) TimerEvent: {}
+[70.880910] (-) TimerEvent: {}
+[70.981576] (-) TimerEvent: {}
+[71.082281] (-) TimerEvent: {}
+[71.183058] (-) TimerEvent: {}
+[71.283844] (-) TimerEvent: {}
+[71.384657] (-) TimerEvent: {}
+[71.485462] (-) TimerEvent: {}
+[71.586244] (-) TimerEvent: {}
+[71.687060] (-) TimerEvent: {}
+[71.787877] (-) TimerEvent: {}
+[71.888682] (-) TimerEvent: {}
+[71.989495] (-) TimerEvent: {}
+[72.090328] (-) TimerEvent: {}
+[72.191145] (-) TimerEvent: {}
+[72.291936] (-) TimerEvent: {}
+[72.392733] (-) TimerEvent: {}
+[72.493507] (-) TimerEvent: {}
+[72.594271] (-) TimerEvent: {}
+[72.695067] (-) TimerEvent: {}
+[72.795860] (-) TimerEvent: {}
+[72.896658] (-) TimerEvent: {}
+[72.997440] (-) TimerEvent: {}
+[73.098221] (-) TimerEvent: {}
+[73.199029] (-) TimerEvent: {}
+[73.299812] (-) TimerEvent: {}
+[73.400585] (-) TimerEvent: {}
+[73.501386] (-) TimerEvent: {}
+[73.602198] (-) TimerEvent: {}
+[73.703039] (-) TimerEvent: {}
+[73.803871] (-) TimerEvent: {}
+[73.904715] (-) TimerEvent: {}
+[74.005542] (-) TimerEvent: {}
+[74.106370] (-) TimerEvent: {}
+[74.207222] (-) TimerEvent: {}
+[74.308032] (-) TimerEvent: {}
+[74.408852] (-) TimerEvent: {}
+[74.509667] (-) TimerEvent: {}
+[74.610487] (-) TimerEvent: {}
+[74.711331] (-) TimerEvent: {}
+[74.812122] (-) TimerEvent: {}
+[74.912924] (-) TimerEvent: {}
+[75.013744] (-) TimerEvent: {}
+[75.114572] (-) TimerEvent: {}
+[75.215415] (-) TimerEvent: {}
+[75.316507] (-) TimerEvent: {}
+[75.417146] (-) TimerEvent: {}
+[75.517763] (-) TimerEvent: {}
+[75.618415] (-) TimerEvent: {}
+[75.719206] (-) TimerEvent: {}
+[75.819841] (-) TimerEvent: {}
+[75.920470] (-) TimerEvent: {}
+[76.021080] (-) TimerEvent: {}
+[76.121728] (-) TimerEvent: {}
+[76.222472] (-) TimerEvent: {}
+[76.323230] (-) TimerEvent: {}
+[76.423980] (-) TimerEvent: {}
+[76.524756] (-) TimerEvent: {}
+[76.625550] (-) TimerEvent: {}
+[76.726349] (-) TimerEvent: {}
+[76.827176] (-) TimerEvent: {}
+[76.927959] (-) TimerEvent: {}
+[77.028759] (-) TimerEvent: {}
+[77.129552] (-) TimerEvent: {}
+[77.230294] (-) TimerEvent: {}
+[77.331014] (-) TimerEvent: {}
+[77.431793] (-) TimerEvent: {}
+[77.532583] (-) TimerEvent: {}
+[77.633382] (-) TimerEvent: {}
+[77.734185] (-) TimerEvent: {}
+[77.835059] (-) TimerEvent: {}
+[77.935852] (-) TimerEvent: {}
+[78.036646] (-) TimerEvent: {}
+[78.137420] (-) TimerEvent: {}
+[78.238218] (-) TimerEvent: {}
+[78.339040] (-) TimerEvent: {}
+[78.439830] (-) TimerEvent: {}
+[78.540619] (-) TimerEvent: {}
+[78.641418] (-) TimerEvent: {}
+[78.742206] (-) TimerEvent: {}
+[78.843027] (-) TimerEvent: {}
+[78.943830] (-) TimerEvent: {}
+[79.044622] (-) TimerEvent: {}
+[79.145405] (-) TimerEvent: {}
+[79.246173] (-) TimerEvent: {}
+[79.346948] (-) TimerEvent: {}
+[79.447723] (-) TimerEvent: {}
+[79.548489] (-) TimerEvent: {}
+[79.649252] (-) TimerEvent: {}
+[79.750034] (-) TimerEvent: {}
+[79.850839] (-) TimerEvent: {}
+[79.951600] (-) TimerEvent: {}
+[80.052383] (-) TimerEvent: {}
+[80.153161] (-) TimerEvent: {}
+[80.253940] (-) TimerEvent: {}
+[80.354744] (-) TimerEvent: {}
+[80.455492] (-) TimerEvent: {}
+[80.556251] (-) TimerEvent: {}
+[80.657020] (-) TimerEvent: {}
+[80.757787] (-) TimerEvent: {}
+[80.858562] (-) TimerEvent: {}
+[80.959339] (-) TimerEvent: {}
+[81.060069] (-) TimerEvent: {}
+[81.160827] (-) TimerEvent: {}
+[81.261534] (-) TimerEvent: {}
+[81.362186] (-) TimerEvent: {}
+[81.462882] (-) TimerEvent: {}
+[81.563457] (-) TimerEvent: {}
+[81.664062] (-) TimerEvent: {}
+[81.764765] (-) TimerEvent: {}
+[81.865501] (-) TimerEvent: {}
+[81.966200] (-) TimerEvent: {}
+[82.066876] (-) TimerEvent: {}
+[82.167632] (-) TimerEvent: {}
+[82.268430] (-) TimerEvent: {}
+[82.369214] (-) TimerEvent: {}
+[82.469997] (-) TimerEvent: {}
+[82.570831] (-) TimerEvent: {}
+[82.671595] (-) TimerEvent: {}
+[82.772384] (-) TimerEvent: {}
+[82.873176] (-) TimerEvent: {}
+[82.973982] (-) TimerEvent: {}
+[83.074888] (-) TimerEvent: {}
+[83.175684] (-) TimerEvent: {}
+[83.276496] (-) TimerEvent: {}
+[83.377293] (-) TimerEvent: {}
+[83.478084] (-) TimerEvent: {}
+[83.579059] (-) TimerEvent: {}
+[83.679826] (-) TimerEvent: {}
+[83.780631] (-) TimerEvent: {}
+[83.881408] (-) TimerEvent: {}
+[83.982209] (-) TimerEvent: {}
+[84.083061] (-) TimerEvent: {}
+[84.183847] (-) TimerEvent: {}
+[84.284641] (-) TimerEvent: {}
+[84.385426] (-) TimerEvent: {}
+[84.486205] (-) TimerEvent: {}
+[84.587036] (-) TimerEvent: {}
+[84.687818] (-) TimerEvent: {}
+[84.788608] (-) TimerEvent: {}
+[84.889403] (-) TimerEvent: {}
+[84.990182] (-) TimerEvent: {}
+[85.090932] (-) TimerEvent: {}
+[85.191565] (-) TimerEvent: {}
+[85.292287] (-) TimerEvent: {}
+[85.393021] (-) TimerEvent: {}
+[85.493729] (-) TimerEvent: {}
+[85.594416] (-) TimerEvent: {}
+[85.695044] (-) TimerEvent: {}
+[85.795684] (-) TimerEvent: {}
+[85.896335] (-) TimerEvent: {}
+[85.997081] (-) TimerEvent: {}
+[86.097803] (-) TimerEvent: {}
+[86.198523] (-) TimerEvent: {}
+[86.299300] (-) TimerEvent: {}
+[86.400008] (-) TimerEvent: {}
+[86.500630] (-) TimerEvent: {}
+[86.601302] (-) TimerEvent: {}
+[86.701975] (-) TimerEvent: {}
+[86.802680] (-) TimerEvent: {}
+[86.903460] (-) TimerEvent: {}
+[87.004207] (-) TimerEvent: {}
+[87.104925] (-) TimerEvent: {}
+[87.205648] (-) TimerEvent: {}
+[87.306390] (-) TimerEvent: {}
+[87.407149] (-) TimerEvent: {}
+[87.507774] (-) TimerEvent: {}
+[87.608478] (-) TimerEvent: {}
+[87.709174] (-) TimerEvent: {}
+[87.809887] (-) TimerEvent: {}
+[87.910612] (-) TimerEvent: {}
+[88.011412] (-) TimerEvent: {}
+[88.112146] (-) TimerEvent: {}
+[88.212860] (-) TimerEvent: {}
+[88.313601] (-) TimerEvent: {}
+[88.414355] (-) TimerEvent: {}
+[88.515164] (-) TimerEvent: {}
+[88.615949] (-) TimerEvent: {}
+[88.716722] (-) TimerEvent: {}
+[88.817499] (-) TimerEvent: {}
+[88.918281] (-) TimerEvent: {}
+[89.019118] (-) TimerEvent: {}
+[89.119905] (-) TimerEvent: {}
+[89.220704] (-) TimerEvent: {}
+[89.321488] (-) TimerEvent: {}
+[89.422289] (-) TimerEvent: {}
+[89.523098] (-) TimerEvent: {}
+[89.623875] (-) TimerEvent: {}
+[89.724646] (-) TimerEvent: {}
+[89.825427] (-) TimerEvent: {}
+[89.926230] (-) TimerEvent: {}
+[90.027044] (-) TimerEvent: {}
+[90.127828] (-) TimerEvent: {}
+[90.228574] (-) TimerEvent: {}
+[90.329341] (-) TimerEvent: {}
+[90.430088] (-) TimerEvent: {}
+[90.530864] (-) TimerEvent: {}
+[90.631591] (-) TimerEvent: {}
+[90.732323] (-) TimerEvent: {}
+[90.833050] (-) TimerEvent: {}
+[90.933791] (-) TimerEvent: {}
+[91.034578] (-) TimerEvent: {}
+[91.135428] (-) TimerEvent: {}
+[91.236181] (-) TimerEvent: {}
+[91.336949] (-) TimerEvent: {}
+[91.437716] (-) TimerEvent: {}
+[91.538475] (-) TimerEvent: {}
+[91.639265] (-) TimerEvent: {}
+[91.739977] (-) TimerEvent: {}
+[91.840619] (-) TimerEvent: {}
+[91.941203] (-) TimerEvent: {}
+[92.041959] (-) TimerEvent: {}
+[92.142682] (-) TimerEvent: {}
+[92.243342] (-) TimerEvent: {}
+[92.344044] (-) TimerEvent: {}
+[92.444724] (-) TimerEvent: {}
+[92.545356] (-) TimerEvent: {}
+[92.646082] (-) TimerEvent: {}
+[92.746856] (-) TimerEvent: {}
+[92.847584] (-) TimerEvent: {}
+[92.948313] (-) TimerEvent: {}
+[93.049065] (-) TimerEvent: {}
+[93.149798] (-) TimerEvent: {}
+[93.250441] (-) TimerEvent: {}
+[93.351199] (-) TimerEvent: {}
+[93.451934] (-) TimerEvent: {}
+[93.552626] (-) TimerEvent: {}
+[93.653357] (-) TimerEvent: {}
+[93.754134] (-) TimerEvent: {}
+[93.854861] (-) TimerEvent: {}
+[93.955609] (-) TimerEvent: {}
+[94.056402] (-) TimerEvent: {}
+[94.157085] (-) TimerEvent: {}
+[94.258444] (-) TimerEvent: {}
+[94.359226] (-) TimerEvent: {}
+[94.459886] (-) TimerEvent: {}
+[94.560549] (-) TimerEvent: {}
+[94.661341] (-) TimerEvent: {}
+[94.762143] (-) TimerEvent: {}
+[94.862956] (-) TimerEvent: {}
+[94.963744] (-) TimerEvent: {}
+[95.064538] (-) TimerEvent: {}
+[95.165326] (-) TimerEvent: {}
+[95.266082] (-) TimerEvent: {}
+[95.366860] (-) TimerEvent: {}
+[95.467631] (-) TimerEvent: {}
+[95.568426] (-) TimerEvent: {}
+[95.669239] (-) TimerEvent: {}
+[95.770036] (-) TimerEvent: {}
+[95.870840] (-) TimerEvent: {}
+[95.971610] (-) TimerEvent: {}
+[96.072411] (-) TimerEvent: {}
+[96.173172] (-) TimerEvent: {}
+[96.273955] (-) TimerEvent: {}
+[96.374757] (-) TimerEvent: {}
+[96.475550] (-) TimerEvent: {}
+[96.576326] (-) TimerEvent: {}
+[96.677087] (-) TimerEvent: {}
+[96.777833] (-) TimerEvent: {}
+[96.878569] (-) TimerEvent: {}
+[96.979344] (-) TimerEvent: {}
+[97.080091] (-) TimerEvent: {}
+[97.180877] (-) TimerEvent: {}
+[97.281659] (-) TimerEvent: {}
+[97.382425] (-) TimerEvent: {}
+[97.483234] (-) TimerEvent: {}
+[97.583977] (-) TimerEvent: {}
+[97.684681] (-) TimerEvent: {}
+[97.785408] (-) TimerEvent: {}
+[97.886151] (-) TimerEvent: {}
+[97.986884] (-) TimerEvent: {}
+[98.088496] (-) TimerEvent: {}
+[98.189259] (-) TimerEvent: {}
+[98.290044] (-) TimerEvent: {}
+[98.390830] (-) TimerEvent: {}
+[98.491590] (-) TimerEvent: {}
+[98.592296] (-) TimerEvent: {}
+[98.692974] (-) TimerEvent: {}
+[98.793654] (-) TimerEvent: {}
+[98.894327] (-) TimerEvent: {}
+[98.995036] (-) TimerEvent: {}
+[99.095746] (-) TimerEvent: {}
+[99.196494] (-) TimerEvent: {}
+[99.297261] (-) TimerEvent: {}
+[99.398029] (-) TimerEvent: {}
+[99.498822] (-) TimerEvent: {}
+[99.599557] (-) TimerEvent: {}
+[99.700315] (-) TimerEvent: {}
+[99.801083] (-) TimerEvent: {}
+[99.901853] (-) TimerEvent: {}
+[100.002631] (-) TimerEvent: {}
+[100.103418] (-) TimerEvent: {}
+[100.204190] (-) TimerEvent: {}
+[100.304956] (-) TimerEvent: {}
+[100.405667] (-) TimerEvent: {}
+[100.506321] (-) TimerEvent: {}
+[100.607067] (-) TimerEvent: {}
+[100.707757] (-) TimerEvent: {}
+[100.808429] (-) TimerEvent: {}
+[100.909093] (-) TimerEvent: {}
+[101.009830] (-) TimerEvent: {}
+[101.110575] (-) TimerEvent: {}
+[101.211385] (-) TimerEvent: {}
+[101.312145] (-) TimerEvent: {}
+[101.412899] (-) TimerEvent: {}
+[101.513651] (-) TimerEvent: {}
+[101.614372] (-) TimerEvent: {}
+[101.715139] (-) TimerEvent: {}
+[101.815888] (-) TimerEvent: {}
+[101.916633] (-) TimerEvent: {}
+[102.017416] (-) TimerEvent: {}
+[102.118166] (-) TimerEvent: {}
+[102.218961] (-) TimerEvent: {}
+[102.319726] (-) TimerEvent: {}
+[102.420490] (-) TimerEvent: {}
+[102.521244] (-) TimerEvent: {}
+[102.621996] (-) TimerEvent: {}
+[102.722775] (-) TimerEvent: {}
+[102.823543] (-) TimerEvent: {}
+[102.924299] (-) TimerEvent: {}
+[103.025051] (-) TimerEvent: {}
+[103.125807] (-) TimerEvent: {}
+[103.226576] (-) TimerEvent: {}
+[103.327371] (-) TimerEvent: {}
+[103.428131] (-) TimerEvent: {}
+[103.528897] (-) TimerEvent: {}
+[103.629627] (-) TimerEvent: {}
+[103.730290] (-) TimerEvent: {}
+[103.830963] (-) TimerEvent: {}
+[103.931672] (-) TimerEvent: {}
+[104.032404] (-) TimerEvent: {}
+[104.133132] (-) TimerEvent: {}
+[104.233908] (-) TimerEvent: {}
+[104.334800] (-) TimerEvent: {}
+[104.435585] (-) TimerEvent: {}
+[104.536386] (-) TimerEvent: {}
+[104.637149] (-) TimerEvent: {}
+[104.737898] (-) TimerEvent: {}
+[104.838683] (-) TimerEvent: {}
+[104.939484] (-) TimerEvent: {}
+[105.040254] (-) TimerEvent: {}
+[105.141012] (-) TimerEvent: {}
+[105.241779] (-) TimerEvent: {}
+[105.342554] (-) TimerEvent: {}
+[105.443370] (-) TimerEvent: {}
+[105.544158] (-) TimerEvent: {}
+[105.644911] (-) TimerEvent: {}
+[105.745646] (-) TimerEvent: {}
+[105.846411] (-) TimerEvent: {}
+[105.947229] (-) TimerEvent: {}
+[106.047998] (-) TimerEvent: {}
+[106.148763] (-) TimerEvent: {}
+[106.249527] (-) TimerEvent: {}
+[106.350290] (-) TimerEvent: {}
+[106.451082] (-) TimerEvent: {}
+[106.551835] (-) TimerEvent: {}
+[106.652562] (-) TimerEvent: {}
+[106.753262] (-) TimerEvent: {}
+[106.853929] (-) TimerEvent: {}
+[106.954545] (-) TimerEvent: {}
+[107.055124] (-) TimerEvent: {}
+[107.155798] (-) TimerEvent: {}
+[107.256545] (-) TimerEvent: {}
+[107.357281] (-) TimerEvent: {}
+[107.458059] (-) TimerEvent: {}
+[107.558849] (-) TimerEvent: {}
+[107.659591] (-) TimerEvent: {}
+[107.760331] (-) TimerEvent: {}
+[107.861072] (-) TimerEvent: {}
+[107.961792] (-) TimerEvent: {}
+[108.062545] (-) TimerEvent: {}
+[108.163337] (-) TimerEvent: {}
+[108.264115] (-) TimerEvent: {}
+[108.364901] (-) TimerEvent: {}
+[108.465670] (-) TimerEvent: {}
+[108.566440] (-) TimerEvent: {}
+[108.667226] (-) TimerEvent: {}
+[108.767985] (-) TimerEvent: {}
+[108.868718] (-) TimerEvent: {}
+[108.969454] (-) TimerEvent: {}
+[109.070232] (-) TimerEvent: {}
+[109.171008] (-) TimerEvent: {}
+[109.271768] (-) TimerEvent: {}
+[109.372490] (-) TimerEvent: {}
+[109.473215] (-) TimerEvent: {}
+[109.573939] (-) TimerEvent: {}
+[109.674733] (-) TimerEvent: {}
+[109.775480] (-) TimerEvent: {}
+[109.876176] (-) TimerEvent: {}
+[109.976731] (-) TimerEvent: {}
+[110.077343] (-) TimerEvent: {}
+[110.178066] (-) TimerEvent: {}
+[110.278854] (-) TimerEvent: {}
+[110.379555] (-) TimerEvent: {}
+[110.480301] (-) TimerEvent: {}
+[110.581051] (-) TimerEvent: {}
+[110.681794] (-) TimerEvent: {}
+[110.782576] (-) TimerEvent: {}
+[110.883363] (-) TimerEvent: {}
+[110.984118] (-) TimerEvent: {}
+[111.084902] (-) TimerEvent: {}
+[111.185681] (-) TimerEvent: {}
+[111.286462] (-) TimerEvent: {}
+[111.387266] (-) TimerEvent: {}
+[111.488050] (-) TimerEvent: {}
+[111.588855] (-) TimerEvent: {}
+[111.689638] (-) TimerEvent: {}
+[111.790414] (-) TimerEvent: {}
+[111.891222] (-) TimerEvent: {}
+[111.991971] (-) TimerEvent: {}
+[112.092751] (-) TimerEvent: {}
+[112.193530] (-) TimerEvent: {}
+[112.294316] (-) TimerEvent: {}
+[112.395124] (-) TimerEvent: {}
+[112.495907] (-) TimerEvent: {}
+[112.596678] (-) TimerEvent: {}
+[112.697471] (-) TimerEvent: {}
+[112.798246] (-) TimerEvent: {}
+[112.899001] (-) TimerEvent: {}
+[112.999685] (-) TimerEvent: {}
+[113.100291] (-) TimerEvent: {}
+[113.200936] (-) TimerEvent: {}
+[113.301682] (-) TimerEvent: {}
+[113.402356] (-) TimerEvent: {}
+[113.503035] (-) TimerEvent: {}
+[113.603766] (-) TimerEvent: {}
+[113.704505] (-) TimerEvent: {}
+[113.805193] (-) TimerEvent: {}
+[113.905801] (-) TimerEvent: {}
+[114.006440] (-) TimerEvent: {}
+[114.107060] (-) TimerEvent: {}
+[114.207700] (-) TimerEvent: {}
+[114.308433] (-) TimerEvent: {}
+[114.409177] (-) TimerEvent: {}
+[114.509948] (-) TimerEvent: {}
+[114.610753] (-) TimerEvent: {}
+[114.711529] (-) TimerEvent: {}
+[114.812319] (-) TimerEvent: {}
+[114.913085] (-) TimerEvent: {}
+[115.013861] (-) TimerEvent: {}
+[115.114642] (-) TimerEvent: {}
+[115.215470] (-) TimerEvent: {}
+[115.316268] (-) TimerEvent: {}
+[115.417054] (-) TimerEvent: {}
+[115.517831] (-) TimerEvent: {}
+[115.618619] (-) TimerEvent: {}
+[115.719447] (-) TimerEvent: {}
+[115.820494] (-) TimerEvent: {}
+[115.921287] (-) TimerEvent: {}
+[116.022101] (-) TimerEvent: {}
+[116.122923] (-) TimerEvent: {}
+[116.223745] (-) TimerEvent: {}
+[116.324536] (-) TimerEvent: {}
+[116.425304] (-) TimerEvent: {}
+[116.526080] (-) TimerEvent: {}
+[116.626880] (-) TimerEvent: {}
+[116.727673] (-) TimerEvent: {}
+[116.828721] (-) TimerEvent: {}
+[116.929529] (-) TimerEvent: {}
+[117.030200] (-) TimerEvent: {}
+[117.131028] (-) TimerEvent: {}
+[117.231888] (-) TimerEvent: {}
+[117.332653] (-) TimerEvent: {}
+[117.433321] (-) TimerEvent: {}
+[117.533982] (-) TimerEvent: {}
+[117.634764] (-) TimerEvent: {}
+[117.735483] (-) TimerEvent: {}
+[117.836237] (-) TimerEvent: {}
+[117.937000] (-) TimerEvent: {}
+[118.037770] (-) TimerEvent: {}
+[118.138542] (-) TimerEvent: {}
+[118.239355] (-) TimerEvent: {}
+[118.340123] (-) TimerEvent: {}
+[118.440899] (-) TimerEvent: {}
+[118.541674] (-) TimerEvent: {}
+[118.642421] (-) TimerEvent: {}
+[118.743156] (-) TimerEvent: {}
+[118.843825] (-) TimerEvent: {}
+[118.944595] (-) TimerEvent: {}
+[119.045339] (-) TimerEvent: {}
+[119.146029] (-) TimerEvent: {}
+[119.246790] (-) TimerEvent: {}
+[119.347560] (-) TimerEvent: {}
+[119.448287] (-) TimerEvent: {}
+[119.548994] (-) TimerEvent: {}
+[119.649682] (-) TimerEvent: {}
+[119.750397] (-) TimerEvent: {}
+[119.851175] (-) TimerEvent: {}
+[119.951945] (-) TimerEvent: {}
+[120.052657] (-) TimerEvent: {}
+[120.153312] (-) TimerEvent: {}
+[120.253972] (-) TimerEvent: {}
+[120.354724] (-) TimerEvent: {}
+[120.455421] (-) TimerEvent: {}
+[120.556037] (-) TimerEvent: {}
+[120.656724] (-) TimerEvent: {}
+[120.757472] (-) TimerEvent: {}
+[120.858250] (-) TimerEvent: {}
+[120.959059] (-) TimerEvent: {}
+[121.059829] (-) TimerEvent: {}
+[121.160594] (-) TimerEvent: {}
+[121.261360] (-) TimerEvent: {}
+[121.362132] (-) TimerEvent: {}
+[121.462880] (-) TimerEvent: {}
+[121.563644] (-) TimerEvent: {}
+[121.664409] (-) TimerEvent: {}
+[121.765176] (-) TimerEvent: {}
+[121.865963] (-) TimerEvent: {}
+[121.966751] (-) TimerEvent: {}
+[122.067526] (-) TimerEvent: {}
+[122.168299] (-) TimerEvent: {}
+[122.269096] (-) TimerEvent: {}
+[122.369890] (-) TimerEvent: {}
+[122.470656] (-) TimerEvent: {}
+[122.571473] (-) TimerEvent: {}
+[122.672222] (-) TimerEvent: {}
+[122.772975] (-) TimerEvent: {}
+[122.873747] (-) TimerEvent: {}
+[122.974503] (-) TimerEvent: {}
+[123.075293] (-) TimerEvent: {}
+[123.176132] (-) TimerEvent: {}
+[123.276920] (-) TimerEvent: {}
+[123.377695] (-) TimerEvent: {}
+[123.478502] (-) TimerEvent: {}
+[123.579323] (-) TimerEvent: {}
+[123.680086] (-) TimerEvent: {}
+[123.780840] (-) TimerEvent: {}
+[123.881599] (-) TimerEvent: {}
+[123.982347] (-) TimerEvent: {}
+[124.083150] (-) TimerEvent: {}
+[124.183930] (-) TimerEvent: {}
+[124.284706] (-) TimerEvent: {}
+[124.385451] (-) TimerEvent: {}
+[124.486082] (-) TimerEvent: {}
+[124.586872] (-) TimerEvent: {}
+[124.687611] (-) TimerEvent: {}
+[124.788356] (-) TimerEvent: {}
+[124.889125] (-) TimerEvent: {}
+[124.989885] (-) TimerEvent: {}
+[125.090664] (-) TimerEvent: {}
+[125.191492] (-) TimerEvent: {}
+[125.292292] (-) TimerEvent: {}
+[125.393085] (-) TimerEvent: {}
+[125.493879] (-) TimerEvent: {}
+[125.594676] (-) TimerEvent: {}
+[125.695480] (-) TimerEvent: {}
+[125.796268] (-) TimerEvent: {}
+[125.897040] (-) TimerEvent: {}
+[125.997814] (-) TimerEvent: {}
+[126.098623] (-) TimerEvent: {}
+[126.199441] (-) TimerEvent: {}
+[126.300254] (-) TimerEvent: {}
+[126.401072] (-) TimerEvent: {}
+[126.501889] (-) TimerEvent: {}
+[126.602653] (-) TimerEvent: {}
+[126.703401] (-) TimerEvent: {}
+[126.804174] (-) TimerEvent: {}
+[126.904936] (-) TimerEvent: {}
+[127.005681] (-) TimerEvent: {}
+[127.106440] (-) TimerEvent: {}
+[127.207261] (-) TimerEvent: {}
+[127.308024] (-) TimerEvent: {}
+[127.408764] (-) TimerEvent: {}
+[127.509500] (-) TimerEvent: {}
+[127.610189] (-) TimerEvent: {}
+[127.710892] (-) TimerEvent: {}
+[127.811678] (-) TimerEvent: {}
+[127.912464] (-) TimerEvent: {}
+[128.013166] (-) TimerEvent: {}
+[128.113885] (-) TimerEvent: {}
+[128.214688] (-) TimerEvent: {}
+[128.315537] (-) TimerEvent: {}
+[128.416313] (-) TimerEvent: {}
+[128.517080] (-) TimerEvent: {}
+[128.617826] (-) TimerEvent: {}
+[128.718602] (-) TimerEvent: {}
+[128.819391] (-) TimerEvent: {}
+[128.920135] (-) TimerEvent: {}
+[129.020840] (-) TimerEvent: {}
+[129.121535] (-) TimerEvent: {}
+[129.222272] (-) TimerEvent: {}
+[129.323056] (-) TimerEvent: {}
+[129.423807] (-) TimerEvent: {}
+[129.524564] (-) TimerEvent: {}
+[129.625316] (-) TimerEvent: {}
+[129.726061] (-) TimerEvent: {}
+[129.826863] (-) TimerEvent: {}
+[129.927593] (-) TimerEvent: {}
+[130.028354] (-) TimerEvent: {}
+[130.129178] (-) TimerEvent: {}
+[130.229942] (-) TimerEvent: {}
+[130.330768] (-) TimerEvent: {}
+[130.431531] (-) TimerEvent: {}
+[130.532294] (-) TimerEvent: {}
+[130.633061] (-) TimerEvent: {}
+[130.733835] (-) TimerEvent: {}
+[130.834591] (-) TimerEvent: {}
+[130.935386] (-) TimerEvent: {}
+[131.036142] (-) TimerEvent: {}
+[131.136906] (-) TimerEvent: {}
+[131.237666] (-) TimerEvent: {}
+[131.338415] (-) TimerEvent: {}
+[131.439199] (-) TimerEvent: {}
+[131.539976] (-) TimerEvent: {}
+[131.640742] (-) TimerEvent: {}
+[131.741470] (-) TimerEvent: {}
+[131.842234] (-) TimerEvent: {}
+[131.943033] (-) TimerEvent: {}
+[132.043773] (-) TimerEvent: {}
+[132.144530] (-) TimerEvent: {}
+[132.245289] (-) TimerEvent: {}
+[132.346055] (-) TimerEvent: {}
+[132.446860] (-) TimerEvent: {}
+[132.547585] (-) TimerEvent: {}
+[132.648273] (-) TimerEvent: {}
+[132.749007] (-) TimerEvent: {}
+[132.849751] (-) TimerEvent: {}
+[132.950487] (-) TimerEvent: {}
+[133.051275] (-) TimerEvent: {}
+[133.152044] (-) TimerEvent: {}
+[133.252769] (-) TimerEvent: {}
+[133.353474] (-) TimerEvent: {}
+[133.454206] (-) TimerEvent: {}
+[133.555012] (-) TimerEvent: {}
+[133.655786] (-) TimerEvent: {}
+[133.756540] (-) TimerEvent: {}
+[133.857294] (-) TimerEvent: {}
+[133.958050] (-) TimerEvent: {}
+[134.058841] (-) TimerEvent: {}
+[134.159595] (-) TimerEvent: {}
+[134.260368] (-) TimerEvent: {}
+[134.361142] (-) TimerEvent: {}
+[134.461915] (-) TimerEvent: {}
+[134.562682] (-) TimerEvent: {}
+[134.663478] (-) TimerEvent: {}
+[134.764243] (-) TimerEvent: {}
+[134.865009] (-) TimerEvent: {}
+[134.965781] (-) TimerEvent: {}
+[135.066570] (-) TimerEvent: {}
+[135.167414] (-) TimerEvent: {}
+[135.268205] (-) TimerEvent: {}
+[135.368996] (-) TimerEvent: {}
+[135.469765] (-) TimerEvent: {}
+[135.570519] (-) TimerEvent: {}
+[135.671305] (-) TimerEvent: {}
+[135.772022] (-) TimerEvent: {}
+[135.872790] (-) TimerEvent: {}
+[135.973536] (-) TimerEvent: {}
+[136.074278] (-) TimerEvent: {}
+[136.175091] (-) TimerEvent: {}
+[136.275844] (-) TimerEvent: {}
+[136.376593] (-) TimerEvent: {}
+[136.477369] (-) TimerEvent: {}
+[136.578126] (-) TimerEvent: {}
+[136.678876] (-) TimerEvent: {}
+[136.779609] (-) TimerEvent: {}
+[136.880384] (-) TimerEvent: {}
+[136.981121] (-) TimerEvent: {}
+[137.081884] (-) TimerEvent: {}
+[137.182663] (-) TimerEvent: {}
+[137.283492] (-) TimerEvent: {}
+[137.384214] (-) TimerEvent: {}
+[137.484964] (-) TimerEvent: {}
+[137.585725] (-) TimerEvent: {}
+[137.686463] (-) TimerEvent: {}
+[137.787206] (-) TimerEvent: {}
+[137.887856] (-) TimerEvent: {}
+[137.988573] (-) TimerEvent: {}
+[138.089338] (-) TimerEvent: {}
+[138.190170] (-) TimerEvent: {}
+[138.290982] (-) TimerEvent: {}
+[138.391746] (-) TimerEvent: {}
+[138.492522] (-) TimerEvent: {}
+[138.593287] (-) TimerEvent: {}
+[138.694021] (-) TimerEvent: {}
+[138.794810] (-) TimerEvent: {}
+[138.895559] (-) TimerEvent: {}
+[138.996309] (-) TimerEvent: {}
+[139.097093] (-) TimerEvent: {}
+[139.197889] (-) TimerEvent: {}
+[139.298672] (-) TimerEvent: {}
+[139.399477] (-) TimerEvent: {}
+[139.500242] (-) TimerEvent: {}
+[139.601000] (-) TimerEvent: {}
+[139.701752] (-) TimerEvent: {}
+[139.802500] (-) TimerEvent: {}
+[139.903257] (-) TimerEvent: {}
+[140.003953] (-) TimerEvent: {}
+[140.104688] (-) TimerEvent: {}
+[140.205470] (-) TimerEvent: {}
+[140.306257] (-) TimerEvent: {}
+[140.407069] (-) TimerEvent: {}
+[140.507833] (-) TimerEvent: {}
+[140.608607] (-) TimerEvent: {}
+[140.709356] (-) TimerEvent: {}
+[140.810103] (-) TimerEvent: {}
+[140.910868] (-) TimerEvent: {}
+[141.011592] (-) TimerEvent: {}
+[141.112357] (-) TimerEvent: {}
+[141.213117] (-) TimerEvent: {}
+[141.313886] (-) TimerEvent: {}
+[141.414659] (-) TimerEvent: {}
+[141.515461] (-) TimerEvent: {}
+[141.616215] (-) TimerEvent: {}
+[141.716930] (-) TimerEvent: {}
+[141.817599] (-) TimerEvent: {}
+[141.918227] (-) TimerEvent: {}
+[142.018930] (-) TimerEvent: {}
+[142.119603] (-) TimerEvent: {}
+[142.220262] (-) TimerEvent: {}
+[142.321049] (-) TimerEvent: {}
+[142.421793] (-) TimerEvent: {}
+[142.522544] (-) TimerEvent: {}
+[142.623333] (-) TimerEvent: {}
+[142.724060] (-) TimerEvent: {}
+[142.824802] (-) TimerEvent: {}
+[142.925552] (-) TimerEvent: {}
+[143.026357] (-) TimerEvent: {}
+[143.127144] (-) TimerEvent: {}
+[143.227967] (-) TimerEvent: {}
+[143.328753] (-) TimerEvent: {}
+[143.429500] (-) TimerEvent: {}
+[143.530204] (-) TimerEvent: {}
+[143.630970] (-) TimerEvent: {}
+[143.731737] (-) TimerEvent: {}
+[143.832522] (-) TimerEvent: {}
+[143.933276] (-) TimerEvent: {}
+[144.034030] (-) TimerEvent: {}
+[144.134844] (-) TimerEvent: {}
+[144.235628] (-) TimerEvent: {}
+[144.336411] (-) TimerEvent: {}
+[144.437160] (-) TimerEvent: {}
+[144.537860] (-) TimerEvent: {}
+[144.638566] (-) TimerEvent: {}
+[144.739316] (-) TimerEvent: {}
+[144.840032] (-) TimerEvent: {}
+[144.940738] (-) TimerEvent: {}
+[145.041421] (-) TimerEvent: {}
+[145.142110] (-) TimerEvent: {}
+[145.242897] (-) TimerEvent: {}
+[145.343656] (-) TimerEvent: {}
+[145.444408] (-) TimerEvent: {}
+[145.545113] (-) TimerEvent: {}
+[145.645829] (-) TimerEvent: {}
+[145.746566] (-) TimerEvent: {}
+[145.847271] (-) TimerEvent: {}
+[145.947979] (-) TimerEvent: {}
+[146.048668] (-) TimerEvent: {}
+[146.149345] (-) TimerEvent: {}
+[146.250061] (-) TimerEvent: {}
+[146.350840] (-) TimerEvent: {}
+[146.451602] (-) TimerEvent: {}
+[146.552342] (-) TimerEvent: {}
+[146.653066] (-) TimerEvent: {}
+[146.753784] (-) TimerEvent: {}
+[146.854557] (-) TimerEvent: {}
+[146.955340] (-) TimerEvent: {}
+[147.056106] (-) TimerEvent: {}
+[147.156878] (-) TimerEvent: {}
+[147.257656] (-) TimerEvent: {}
+[147.358433] (-) TimerEvent: {}
+[147.459258] (-) TimerEvent: {}
+[147.560040] (-) TimerEvent: {}
+[147.660815] (-) TimerEvent: {}
+[147.761592] (-) TimerEvent: {}
+[147.862374] (-) TimerEvent: {}
+[147.963143] (-) TimerEvent: {}
+[148.063866] (-) TimerEvent: {}
+[148.164592] (-) TimerEvent: {}
+[148.265396] (-) TimerEvent: {}
+[148.366211] (-) TimerEvent: {}
+[148.467042] (-) TimerEvent: {}
+[148.567832] (-) TimerEvent: {}
+[148.668572] (-) TimerEvent: {}
+[148.769265] (-) TimerEvent: {}
+[148.869873] (-) TimerEvent: {}
+[148.970502] (-) TimerEvent: {}
+[149.071159] (-) TimerEvent: {}
+[149.171845] (-) TimerEvent: {}
+[149.272451] (-) TimerEvent: {}
+[149.373099] (-) TimerEvent: {}
+[149.473887] (-) TimerEvent: {}
+[149.574654] (-) TimerEvent: {}
+[149.675429] (-) TimerEvent: {}
+[149.776138] (-) TimerEvent: {}
+[149.876791] (-) TimerEvent: {}
+[149.977515] (-) TimerEvent: {}
+[150.078260] (-) TimerEvent: {}
+[150.178981] (-) TimerEvent: {}
+[150.279632] (-) TimerEvent: {}
+[150.380380] (-) TimerEvent: {}
+[150.481129] (-) TimerEvent: {}
+[150.581864] (-) TimerEvent: {}
+[150.682559] (-) TimerEvent: {}
+[150.783275] (-) TimerEvent: {}
+[150.883949] (-) TimerEvent: {}
+[150.984623] (-) TimerEvent: {}
+[151.085279] (-) TimerEvent: {}
+[151.185976] (-) TimerEvent: {}
+[151.286785] (-) TimerEvent: {}
+[151.387560] (-) TimerEvent: {}
+[151.488343] (-) TimerEvent: {}
+[151.589132] (-) TimerEvent: {}
+[151.689901] (-) TimerEvent: {}
+[151.790686] (-) TimerEvent: {}
+[151.891514] (-) TimerEvent: {}
+[151.992292] (-) TimerEvent: {}
+[152.093082] (-) TimerEvent: {}
+[152.193869] (-) TimerEvent: {}
+[152.294651] (-) TimerEvent: {}
+[152.395443] (-) TimerEvent: {}
+[152.496209] (-) TimerEvent: {}
+[152.596975] (-) TimerEvent: {}
+[152.697723] (-) TimerEvent: {}
+[152.798500] (-) TimerEvent: {}
+[152.899306] (-) TimerEvent: {}
+[153.000099] (-) TimerEvent: {}
+[153.100882] (-) TimerEvent: {}
+[153.201659] (-) TimerEvent: {}
+[153.302435] (-) TimerEvent: {}
+[153.403239] (-) TimerEvent: {}
+[153.504042] (-) TimerEvent: {}
+[153.604826] (-) TimerEvent: {}
+[153.705581] (-) TimerEvent: {}
+[153.806340] (-) TimerEvent: {}
+[153.907148] (-) TimerEvent: {}
+[154.007932] (-) TimerEvent: {}
+[154.108710] (-) TimerEvent: {}
+[154.209502] (-) TimerEvent: {}
+[154.310285] (-) TimerEvent: {}
+[154.411065] (-) TimerEvent: {}
+[154.511781] (-) TimerEvent: {}
+[154.612593] (-) TimerEvent: {}
+[154.713388] (-) TimerEvent: {}
+[154.814152] (-) TimerEvent: {}
+[154.914946] (-) TimerEvent: {}
+[155.015694] (-) TimerEvent: {}
+[155.116475] (-) TimerEvent: {}
+[155.217258] (-) TimerEvent: {}
+[155.318049] (-) TimerEvent: {}
+[155.418870] (-) TimerEvent: {}
+[155.519662] (-) TimerEvent: {}
+[155.620459] (-) TimerEvent: {}
+[155.721228] (-) TimerEvent: {}
+[155.821985] (-) TimerEvent: {}
+[155.922838] (-) TimerEvent: {}
+[156.023587] (-) TimerEvent: {}
+[156.124368] (-) TimerEvent: {}
+[156.225140] (-) TimerEvent: {}
+[156.325924] (-) TimerEvent: {}
+[156.426737] (-) TimerEvent: {}
+[156.527513] (-) TimerEvent: {}
+[156.628283] (-) TimerEvent: {}
+[156.729043] (-) TimerEvent: {}
+[156.829790] (-) TimerEvent: {}
+[156.930535] (-) TimerEvent: {}
+[157.031302] (-) TimerEvent: {}
+[157.132070] (-) TimerEvent: {}
+[157.232852] (-) TimerEvent: {}
+[157.333625] (-) TimerEvent: {}
+[157.434521] (-) TimerEvent: {}
+[157.535311] (-) TimerEvent: {}
+[157.636089] (-) TimerEvent: {}
+[157.736841] (-) TimerEvent: {}
+[157.837587] (-) TimerEvent: {}
+[157.938330] (-) TimerEvent: {}
+[158.039123] (-) TimerEvent: {}
+[158.139899] (-) TimerEvent: {}
+[158.240691] (-) TimerEvent: {}
+[158.341480] (-) TimerEvent: {}
+[158.442254] (-) TimerEvent: {}
+[158.543064] (-) TimerEvent: {}
+[158.643831] (-) TimerEvent: {}
+[158.744589] (-) TimerEvent: {}
+[158.845352] (-) TimerEvent: {}
+[158.946086] (-) TimerEvent: {}
+[159.046727] (-) TimerEvent: {}
+[159.147344] (-) TimerEvent: {}
+[159.247963] (-) TimerEvent: {}
+[159.348586] (-) TimerEvent: {}
+[159.449212] (-) TimerEvent: {}
+[159.549839] (-) TimerEvent: {}
+[159.650465] (-) TimerEvent: {}
+[159.751101] (-) TimerEvent: {}
+[159.851691] (-) TimerEvent: {}
+[159.952290] (-) TimerEvent: {}
+[160.052890] (-) TimerEvent: {}
+[160.153510] (-) TimerEvent: {}
+[160.254136] (-) TimerEvent: {}
+[160.354777] (-) TimerEvent: {}
+[160.455400] (-) TimerEvent: {}
+[160.556018] (-) TimerEvent: {}
+[160.656632] (-) TimerEvent: {}
+[160.757252] (-) TimerEvent: {}
+[160.857874] (-) TimerEvent: {}
+[160.958513] (-) TimerEvent: {}
+[161.059204] (-) TimerEvent: {}
+[161.160007] (-) TimerEvent: {}
+[161.241013] (zed_components) StdoutLine: {'line': b'[100%] \x1b[32m\x1b[1mLinking CXX shared library libzed_camera_component.so\x1b[0m\n'}
+[161.260127] (-) TimerEvent: {}
+[161.360758] (-) TimerEvent: {}
+[161.461559] (-) TimerEvent: {}
+[161.562334] (-) TimerEvent: {}
+[161.663105] (-) TimerEvent: {}
+[161.763797] (-) TimerEvent: {}
+[161.864400] (-) TimerEvent: {}
+[161.965055] (-) TimerEvent: {}
+[162.065657] (-) TimerEvent: {}
+[162.166377] (-) TimerEvent: {}
+[162.267178] (-) TimerEvent: {}
+[162.367957] (-) TimerEvent: {}
+[162.468732] (-) TimerEvent: {}
+[162.569510] (-) TimerEvent: {}
+[162.670307] (-) TimerEvent: {}
+[162.771094] (-) TimerEvent: {}
+[162.821453] (zed_components) StdoutLine: {'line': b'[100%] Built target zed_camera_component\n'}
+[162.851282] (zed_components) CommandEnded: {'returncode': 0}
+[162.854068] (zed_components) JobProgress: {'identifier': 'zed_components', 'progress': 'install'}
+[162.871248] (-) TimerEvent: {}
+[162.874280] (zed_components) Command: {'cmd': ['/usr/bin/cmake', '--install', '/home/bluelule/ugv_project/ros2_ws/build/zed_components'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_components', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_components'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[162.895079] (zed_components) StdoutLine: {'line': b'-- Install configuration: "Release"\n'}
+[162.896570] (zed_components) StdoutLine: {'line': b'-- Execute custom install script\n'}
+[162.897802] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/libzed_camera_component.so\n'}
+[162.917324] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/lib/libzed_camera_one_component.so\n'}
+[162.937832] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//cost_traversability.hpp\n'}
+[162.955597] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//zed_camera_component.hpp\n'}
+[162.971351] (-) TimerEvent: {}
+[162.974960] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//gnss_replay.hpp\n'}
+[162.994485] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//json.hpp\n'}
+[163.012830] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_logging.hpp\n'}
+[163.031422] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_tools.hpp\n'}
+[163.049530] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_types.hpp\n'}
+[163.069115] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_win_avg.hpp\n'}
+[163.071429] (-) TimerEvent: {}
+[163.087498] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//sl_version.hpp\n'}
+[163.106002] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/include/zed_components//visibility_control.hpp\n'}
+[163.126784] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/library_path.sh\n'}
+[163.144952] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/library_path.dsv\n'}
+[163.164390] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/package_run_dependencies/zed_components\n'}
+[163.171566] (-) TimerEvent: {}
+[163.182642] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/parent_prefix_path/zed_components\n'}
+[163.202425] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/ament_prefix_path.sh\n'}
+[163.220428] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/ament_prefix_path.dsv\n'}
+[163.239538] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/path.sh\n'}
+[163.257955] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/environment/path.dsv\n'}
+[163.271705] (-) TimerEvent: {}
+[163.277329] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.bash\n'}
+[163.296041] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.sh\n'}
+[163.314678] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.zsh\n'}
+[163.332977] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/local_setup.dsv\n'}
+[163.351087] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.dsv\n'}
+[163.369514] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/packages/zed_components\n'}
+[163.372009] (-) TimerEvent: {}
+[163.388576] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/ament_index/resource_index/rclcpp_components/zed_components\n'}
+[163.407212] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/ament_cmake_export_include_directories-extras.cmake\n'}
+[163.426564] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/ament_cmake_export_libraries-extras.cmake\n'}
+[163.445435] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/ament_cmake_export_dependencies-extras.cmake\n'}
+[163.463313] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/zed_componentsConfig.cmake\n'}
+[163.472150] (-) TimerEvent: {}
+[163.481093] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/cmake/zed_componentsConfig-version.cmake\n'}
+[163.499175] (zed_components) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_components/share/zed_components/package.xml\n'}
+[163.522327] (zed_components) CommandEnded: {'returncode': 0}
+[163.572289] (-) TimerEvent: {}
+[163.575366] (zed_components) JobEnded: {'identifier': 'zed_components', 'rc': 0}
+[163.578310] (zed_wrapper) JobStarted: {'identifier': 'zed_wrapper'}
+[163.601189] (zed_wrapper) JobProgress: {'identifier': 'zed_wrapper', 'progress': 'cmake'}
+[163.602359] (zed_wrapper) Command: {'cmd': ['/usr/bin/cmake', '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_wrapper', '-DAMENT_CMAKE_SYMLINK_INSTALL=1', '-DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[163.672482] (-) TimerEvent: {}
+[163.755490] (zed_wrapper) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[163.772678] (-) TimerEvent: {}
+[163.873565] (-) TimerEvent: {}
+[163.877008] (zed_wrapper) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[163.897491] (zed_wrapper) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[163.973739] (-) TimerEvent: {}
+[164.041357] (zed_wrapper) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[164.065953] (zed_wrapper) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[164.067848] (zed_wrapper) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[164.069515] (zed_wrapper) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[164.073807] (-) TimerEvent: {}
+[164.081222] (zed_wrapper) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[164.174034] (-) TimerEvent: {}
+[164.236109] (zed_wrapper) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[164.261171] (zed_wrapper) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[164.262159] (zed_wrapper) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[164.263836] (zed_wrapper) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[164.274147] (-) TimerEvent: {}
+[164.274732] (zed_wrapper) StdoutLine: {'line': b'-- Found ament_cmake_auto: 1.3.12 (/opt/ros/humble/share/ament_cmake_auto/cmake)\n'}
+[164.374333] (-) TimerEvent: {}
+[164.475136] (-) TimerEvent: {}
+[164.575830] (-) TimerEvent: {}
+[164.630200] (zed_wrapper) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[164.675963] (-) TimerEvent: {}
+[164.776569] (-) TimerEvent: {}
+[164.777408] (zed_wrapper) StdoutLine: {'line': b'-- Override CMake install command with custom implementation using symlinks instead of copying resources\n'}
+[164.876708] (-) TimerEvent: {}
+[164.977296] (-) TimerEvent: {}
+[165.077958] (-) TimerEvent: {}
+[165.081569] (zed_wrapper) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[165.091141] (zed_wrapper) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[165.107718] (zed_wrapper) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[165.132162] (zed_wrapper) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[165.161672] (zed_wrapper) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[165.178029] (-) TimerEvent: {}
+[165.244240] (zed_wrapper) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[165.249444] (zed_wrapper) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[165.278153] (-) TimerEvent: {}
+[165.378671] (-) TimerEvent: {}
+[165.402033] (zed_wrapper) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[165.464733] (zed_wrapper) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[165.478743] (-) TimerEvent: {}
+[165.539570] (zed_wrapper) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[165.556761] (zed_wrapper) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[165.578918] (-) TimerEvent: {}
+[165.679515] (-) TimerEvent: {}
+[165.690463] (zed_wrapper) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[165.691219] (zed_wrapper) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[165.779702] (-) TimerEvent: {}
+[165.849899] (zed_wrapper) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[165.853406] (zed_wrapper) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[165.879789] (-) TimerEvent: {}
+[165.980316] (-) TimerEvent: {}
+[166.081023] (-) TimerEvent: {}
+[166.181873] (-) TimerEvent: {}
+[166.282485] (-) TimerEvent: {}
+[166.324102] (zed_wrapper) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)\n'}
+[166.326461] (zed_wrapper) StdoutLine: {'line': b'-- Found Eigen3: TRUE (found version "3.4.0") \n'}
+[166.326648] (zed_wrapper) StdoutLine: {'line': b'-- Ensuring Eigen3 include directory is part of orocos-kdl CMake target\n'}
+[166.382605] (-) TimerEvent: {}
+[166.483152] (-) TimerEvent: {}
+[166.583719] (-) TimerEvent: {}
+[166.673017] (zed_wrapper) StdoutLine: {'line': b'-- Configuring done\n'}
+[166.683787] (-) TimerEvent: {}
+[166.685001] (zed_wrapper) StdoutLine: {'line': b'-- Generating done\n'}
+[166.689986] (zed_wrapper) StdoutLine: {'line': b'-- Build files have been written to: /home/bluelule/ugv_project/ros2_ws/build/zed_wrapper\n'}
+[166.718479] (zed_wrapper) CommandEnded: {'returncode': 0}
+[166.720266] (zed_wrapper) JobProgress: {'identifier': 'zed_wrapper', 'progress': 'build'}
+[166.721243] (zed_wrapper) Command: {'cmd': ['/usr/bin/cmake', '--build', '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper', '--', '-j6', '-l6'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[166.784011] (-) TimerEvent: {}
+[166.807432] (zed_wrapper) CommandEnded: {'returncode': 0}
+[166.809452] (zed_wrapper) JobProgress: {'identifier': 'zed_wrapper', 'progress': 'install'}
+[166.810319] (zed_wrapper) Command: {'cmd': ['/usr/bin/cmake', '--install', '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[166.829090] (zed_wrapper) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[166.829965] (zed_wrapper) StdoutLine: {'line': b'-- Execute custom install script\n'}
+[166.832595] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/common_mono.yaml\n'}
+[166.850685] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/common_stereo.yaml\n'}
+[166.867803] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/custom_object_detection.yaml\n'}
+[166.884113] (-) TimerEvent: {}
+[166.885835] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/object_detection.yaml\n'}
+[166.903137] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/virtual.yaml\n'}
+[166.920692] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zed.yaml\n'}
+[166.940328] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zed2.yaml\n'}
+[166.958930] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zed2i.yaml\n'}
+[166.976252] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedm.yaml\n'}
+[166.984201] (-) TimerEvent: {}
+[166.993680] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedx.yaml\n'}
+[167.011343] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedxhdr.yaml\n'}
+[167.029944] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedxhdrmax.yaml\n'}
+[167.048359] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedxhdrmini.yaml\n'}
+[167.065615] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedxm.yaml\n'}
+[167.083842] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedxone4k.yaml\n'}
+[167.084257] (-) TimerEvent: {}
+[167.101046] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedxonegs.yaml\n'}
+[167.118588] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/config/zedxonehdr.yaml\n'}
+[167.138433] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/urdf/zed_descr.urdf.xacro\n'}
+[167.156245] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/urdf/zed_macro.urdf.xacro\n'}
+[167.174127] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/launch/zed_camera.launch.py\n'}
+[167.184409] (-) TimerEvent: {}
+[167.191648] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/ament_index/resource_index/package_run_dependencies/zed_wrapper\n'}
+[167.209256] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/ament_index/resource_index/parent_prefix_path/zed_wrapper\n'}
+[167.227399] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/environment/ament_prefix_path.sh\n'}
+[167.245945] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/environment/ament_prefix_path.dsv\n'}
+[167.263672] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/environment/path.sh\n'}
+[167.282144] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/environment/path.dsv\n'}
+[167.284501] (-) TimerEvent: {}
+[167.300982] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/local_setup.bash\n'}
+[167.319117] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/local_setup.sh\n'}
+[167.336906] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/local_setup.zsh\n'}
+[167.355801] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/local_setup.dsv\n'}
+[167.373503] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.dsv\n'}
+[167.384645] (-) TimerEvent: {}
+[167.392025] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/ament_index/resource_index/packages/zed_wrapper\n'}
+[167.410179] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/cmake/zed_wrapperConfig.cmake\n'}
+[167.428048] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/cmake/zed_wrapperConfig-version.cmake\n'}
+[167.445627] (zed_wrapper) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_wrapper/share/zed_wrapper/package.xml\n'}
+[167.466204] (zed_wrapper) CommandEnded: {'returncode': 0}
+[167.484786] (-) TimerEvent: {}
+[167.512628] (zed_wrapper) JobEnded: {'identifier': 'zed_wrapper', 'rc': 0}
+[167.515846] (zed_ros2) JobStarted: {'identifier': 'zed_ros2'}
+[167.535023] (zed_ros2) JobProgress: {'identifier': 'zed_ros2', 'progress': 'cmake'}
+[167.536357] (zed_ros2) Command: {'cmd': ['/usr/bin/cmake', '/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_ros2', '-DAMENT_CMAKE_SYMLINK_INSTALL=1', '-DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/zed_ros2'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[167.569385] (zed_ros2) StdoutLine: {'line': b'-- Found ament_cmake_auto: 1.3.12 (/opt/ros/humble/share/ament_cmake_auto/cmake)\n'}
+[167.584891] (-) TimerEvent: {}
+[167.685343] (-) TimerEvent: {}
+[167.785964] (-) TimerEvent: {}
+[167.886605] (-) TimerEvent: {}
+[167.937390] (zed_ros2) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[167.986772] (-) TimerEvent: {}
+[168.072335] (zed_ros2) StdoutLine: {'line': b'-- Override CMake install command with custom implementation using symlinks instead of copying resources\n'}
+[168.086873] (-) TimerEvent: {}
+[168.187446] (-) TimerEvent: {}
+[168.287709] (zed_ros2) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.12.14 (/opt/ros/humble/share/ament_lint_auto/cmake)\n'}
+[168.288351] (-) TimerEvent: {}
+[168.332353] (zed_ros2) StdoutLine: {'line': b"-- Added test 'copyright' to check source files copyright and LICENSE\n"}
+[168.335701] (zed_ros2) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[168.338603] (zed_ros2) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[168.343695] (zed_ros2) StdoutLine: {'line': b'-- Configuring done\n'}
+[168.352191] (zed_ros2) StdoutLine: {'line': b'-- Generating done\n'}
+[168.356360] (zed_ros2) StdoutLine: {'line': b'-- Build files have been written to: /home/bluelule/ugv_project/ros2_ws/build/zed_ros2\n'}
+[168.363139] (zed_ros2) CommandEnded: {'returncode': 0}
+[168.364378] (zed_ros2) JobProgress: {'identifier': 'zed_ros2', 'progress': 'build'}
+[168.365048] (zed_ros2) Command: {'cmd': ['/usr/bin/cmake', '--build', '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2', '--', '-j6', '-l6'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[168.388535] (-) TimerEvent: {}
+[168.440330] (zed_ros2) CommandEnded: {'returncode': 0}
+[168.442156] (zed_ros2) JobProgress: {'identifier': 'zed_ros2', 'progress': 'install'}
+[168.442675] (zed_ros2) Command: {'cmd': ['/usr/bin/cmake', '--install', '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws/src'), ('DESKTOP_SESSION', 'ubuntu'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '2264'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('IM_CONFIG_PHASE', '1'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'bluelule'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/home/bluelule/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/ubuntu:@/tmp/.ICE-unix/2237,unix/ubuntu:/tmp/.ICE-unix/2237'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/2f8dd3a9_95cd_48f9_825c_eadafddcd747'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.99'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/zed_ros2'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/rplidar_ros:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/opt/ros/humble')]), 'shell': False}
+[168.461443] (zed_ros2) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[168.462349] (zed_ros2) StdoutLine: {'line': b'-- Execute custom install script\n'}
+[168.463863] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/ament_index/resource_index/package_run_dependencies/zed_ros2\n'}
+[168.479278] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/ament_index/resource_index/parent_prefix_path/zed_ros2\n'}
+[168.488623] (-) TimerEvent: {}
+[168.495643] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/environment/ament_prefix_path.sh\n'}
+[168.514264] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/environment/ament_prefix_path.dsv\n'}
+[168.533746] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/environment/path.sh\n'}
+[168.553635] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/environment/path.dsv\n'}
+[168.570821] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/local_setup.bash\n'}
+[168.588742] (-) TimerEvent: {}
+[168.590208] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/local_setup.sh\n'}
+[168.607874] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/local_setup.zsh\n'}
+[168.625442] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/local_setup.dsv\n'}
+[168.643284] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.dsv\n'}
+[168.660612] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/ament_index/resource_index/packages/zed_ros2\n'}
+[168.679281] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/cmake/zed_ros2Config.cmake\n'}
+[168.688858] (-) TimerEvent: {}
+[168.697568] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/cmake/zed_ros2Config-version.cmake\n'}
+[168.714940] (zed_ros2) StdoutLine: {'line': b'-- Symlinking: /home/bluelule/ugv_project/ros2_ws/install/zed_ros2/share/zed_ros2/package.xml\n'}
+[168.737763] (zed_ros2) CommandEnded: {'returncode': 0}
+[168.782329] (zed_ros2) JobEnded: {'identifier': 'zed_ros2', 'rc': 0}
+[168.784778] (-) EventReactorShutdown: {}

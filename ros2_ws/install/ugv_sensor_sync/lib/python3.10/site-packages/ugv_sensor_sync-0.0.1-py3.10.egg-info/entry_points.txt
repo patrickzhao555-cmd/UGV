@@ -1,0 +1,6 @@
+[console_scripts]
+fusion_node = ugv_sensor_sync.fusion_node:main
+lidar_sync_node = ugv_sensor_sync.lidar_sync_node:main
+uwb_node = ugv_sensor_sync.uwb_node:main
+zed_sync_node = ugv_sensor_sync.zed_sync_node:main
+

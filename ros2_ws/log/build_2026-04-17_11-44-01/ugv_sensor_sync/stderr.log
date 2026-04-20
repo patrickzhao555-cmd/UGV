@@ -1,0 +1,22 @@
+[0mCMake Deprecation Warning at /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_target_interfaces.cmake:32 (message):
+  Use rosidl_get_typesupport_target() and target_link_libraries() instead of
+  rosidl_target_interfaces()
+Call Stack (most recent call first):
+  CMakeLists.txt:37 (rosidl_target_interfaces)
+
+[0m
+[0mCMake Deprecation Warning at /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_target_interfaces.cmake:32 (message):
+  Use rosidl_get_typesupport_target() and target_link_libraries() instead of
+  rosidl_target_interfaces()
+Call Stack (most recent call first):
+  CMakeLists.txt:51 (rosidl_target_interfaces)
+
+[0m
+[01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/clock_mapper.cpp:[m[K In member function ‘[01m[Kstd::pair<double, double> ugv_sensor_sync::ClockMapper::getFit() const[m[K’:
+[01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/clock_mapper.cpp:35:49:[m[K [01;36m[Knote: [m[Kparameter passing for argument of type ‘[01m[Kstd::pair<double, double>[m[K’ when C++17 is enabled changed to match C++14 ]8;;https://gcc.gnu.org/gcc-10/changes.html#empty_basein GCC 10.1]8;;
+   35 | std::pair<double, double> ClockMapper::getFit() [01;36m[Kconst[m[K
+      |                                                 [01;36m[K^~~~~[m[K
+[01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/uwb_time_bridge.cpp:[m[K In member function ‘[01m[Kvoid UwbTimeBridge::statusTimer()[m[K’:
+[01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/uwb_time_bridge.cpp:98:31:[m[K [01;36m[Knote: [m[Kparameter passing for argument of type ‘[01m[Kstd::pair<double, double>[m[K’ when C++17 is enabled changed to match C++14 ]8;;https://gcc.gnu.org/gcc-10/changes.html#empty_basein GCC 10.1]8;;
+   98 |     auto fit = mapper_.getFit([01;36m[K)[m[K;
+      |                               [01;36m[K^[m[K

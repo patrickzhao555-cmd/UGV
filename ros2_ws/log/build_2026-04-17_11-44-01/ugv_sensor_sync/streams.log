@@ -1,0 +1,282 @@
+[0.024s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync
+[0.157s] -- The C compiler identification is GNU 11.4.0
+[0.269s] -- The CXX compiler identification is GNU 11.4.0
+[0.291s] -- Detecting C compiler ABI info
+[0.442s] -- Detecting C compiler ABI info - done
+[0.466s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.468s] -- Detecting C compile features
+[0.469s] -- Detecting C compile features - done
+[0.481s] -- Detecting CXX compiler ABI info
+[0.651s] -- Detecting CXX compiler ABI info - done
+[0.676s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.677s] -- Detecting CXX compile features
+[0.679s] -- Detecting CXX compile features - done
+[0.698s] -- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)
+[1.062s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[1.332s] -- Found rclcpp: 16.0.17 (/opt/ros/humble/share/rclcpp/cmake)
+[1.461s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[1.474s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[1.494s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[1.521s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[1.556s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[1.656s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[1.663s] -- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[1.833s] -- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[1.896s] -- Found FastRTPS: /opt/ros/humble/include  
+[1.977s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[2.001s] -- Looking for pthread.h
+[2.139s] -- Looking for pthread.h - found
+[2.140s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[2.290s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[2.294s] -- Found Threads: TRUE  
+[2.460s] -- Found sensor_msgs: 4.9.0 (/opt/ros/humble/share/sensor_msgs/cmake)
+[2.519s] -- Found message_filters: 4.3.11 (/opt/ros/humble/share/message_filters/cmake)
+[2.528s] -- Found rosidl_default_generators: 1.2.0 (/opt/ros/humble/share/rosidl_default_generators/cmake)
+[3.174s] -- Found ament_cmake_ros: 0.10.0 (/opt/ros/humble/share/ament_cmake_ros/cmake)
+[4.106s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[4.473s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[4.534s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.10.12", minimum required is "3.6") 
+[4.546s] -- Found python_cmake_module: 0.10.0 (/opt/ros/humble/share/python_cmake_module/cmake)
+[4.621s] -- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.10.so (found suitable version "3.10.12", minimum required is "3.5") 
+[4.622s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[4.622s] -- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.10
+[4.622s] -- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.10.so
+[4.673s] -- Found PythonExtra: .so  
+[4.852s] [0mCMake Deprecation Warning at /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_target_interfaces.cmake:32 (message):
+[4.852s]   Use rosidl_get_typesupport_target() and target_link_libraries() instead of
+[4.852s]   rosidl_target_interfaces()
+[4.853s] Call Stack (most recent call first):
+[4.853s]   CMakeLists.txt:37 (rosidl_target_interfaces)
+[4.853s] 
+[4.853s] [0m
+[4.859s] [0mCMake Deprecation Warning at /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_target_interfaces.cmake:32 (message):
+[4.859s]   Use rosidl_get_typesupport_target() and target_link_libraries() instead of
+[4.860s]   rosidl_target_interfaces()
+[4.860s] Call Stack (most recent call first):
+[4.860s]   CMakeLists.txt:51 (rosidl_target_interfaces)
+[4.860s] 
+[4.861s] [0m
+[4.877s] -- Configuring done
+[4.977s] -- Generating done
+[5.006s] -- Build files have been written to: /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync
+[5.037s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble /usr/bin/cmake /home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync -DCMAKE_INSTALL_PREFIX=/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync
+[5.043s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync -- -j6 -l6
+[5.131s] [  2%] [34m[1mGenerating C code for ROS interfaces[0m
+[5.150s] [  7%] [34m[1mGenerating C++ code for ROS interfaces[0m
+[5.151s] [  7%] [32mBuilding CXX object CMakeFiles/clock_mapper.dir/src/clock_mapper.cpp.o[0m
+[5.156s] [ 10%] [32mBuilding CXX object CMakeFiles/scan_time_corrector.dir/src/scan_time_corrector.cpp.o[0m
+[5.186s] [ 10%] Built target ament_cmake_python_copy_ugv_sensor_sync
+[5.655s] [ 10%] Built target ugv_sensor_sync__cpp
+[5.676s] [ 15%] [34m[1mGenerating C++ type support dispatch for ROS interfaces[0m
+[5.676s] [ 15%] [34m[1mGenerating C++ type support for eProsima Fast-RTPS[0m
+[5.693s] running egg_info
+[5.694s] creating ugv_sensor_sync.egg-info
+[5.695s] writing ugv_sensor_sync.egg-info/PKG-INFO
+[5.696s] writing dependency_links to ugv_sensor_sync.egg-info/dependency_links.txt
+[5.696s] writing top-level names to ugv_sensor_sync.egg-info/top_level.txt
+[5.696s] writing manifest file 'ugv_sensor_sync.egg-info/SOURCES.txt'
+[5.699s] [ 17%] [32mBuilding C object CMakeFiles/ugv_sensor_sync__rosidl_generator_c.dir/rosidl_generator_c/ugv_sensor_sync/msg/detail/uwb_range__functions.c.o[0m
+[5.700s] reading manifest file 'ugv_sensor_sync.egg-info/SOURCES.txt'
+[5.701s] writing manifest file 'ugv_sensor_sync.egg-info/SOURCES.txt'
+[5.783s] [ 17%] Built target ament_cmake_python_build_ugv_sensor_sync_egg
+[5.786s] [01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/clock_mapper.cpp:[m[K In member function ‘[01m[Kstd::pair<double, double> ugv_sensor_sync::ClockMapper::getFit() const[m[K’:
+[5.786s] [01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/clock_mapper.cpp:35:49:[m[K [01;36m[Knote: [m[Kparameter passing for argument of type ‘[01m[Kstd::pair<double, double>[m[K’ when C++17 is enabled changed to match C++14 ]8;;https://gcc.gnu.org/gcc-10/changes.html#empty_basein GCC 10.1]8;;
+[5.786s]    35 | std::pair<double, double> ClockMapper::getFit() [01;36m[Kconst[m[K
+[5.787s]       |                                                 [01;36m[K^~~~~[m[K
+[5.804s] [ 20%] [34m[1mGenerating C++ introspection for ROS interfaces[0m
+[5.813s] [ 23%] [32m[1mLinking C shared library libugv_sensor_sync__rosidl_generator_c.so[0m
+[5.893s] [ 23%] Built target ugv_sensor_sync__rosidl_generator_c
+[5.913s] [ 25%] [34m[1mGenerating C type support for eProsima Fast-RTPS[0m
+[6.109s] [ 28%] [32m[1mLinking CXX static library libclock_mapper.a[0m
+[6.143s] [ 30%] [32mBuilding CXX object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/ugv_sensor_sync/msg/uwb_range__type_support.cpp.o[0m
+[6.227s] [ 33%] [32mBuilding CXX object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/ugv_sensor_sync/msg/detail/dds_fastrtps/uwb_range__type_support.cpp.o[0m
+[6.321s] [ 35%] [32mBuilding CXX object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/ugv_sensor_sync/msg/detail/uwb_range__type_support.cpp.o[0m
+[6.327s] [ 35%] Built target clock_mapper
+[6.391s] [ 38%] [34m[1mGenerating C introspection for ROS interfaces[0m
+[6.536s] [ 41%] [32mBuilding CXX object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/ugv_sensor_sync/msg/detail/uwb_range__type_support_c.cpp.o[0m
+[6.816s] [ 43%] [32m[1mLinking CXX shared library libugv_sensor_sync__rosidl_typesupport_cpp.so[0m
+[7.017s] [ 43%] Built target ugv_sensor_sync__rosidl_typesupport_cpp
+[7.050s] [ 46%] [34m[1mGenerating C type support dispatch for ROS interfaces[0m
+[7.050s] [ 48%] [32mBuilding C object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/ugv_sensor_sync/msg/detail/uwb_range__type_support.c.o[0m
+[7.248s] [ 51%] [32m[1mLinking C shared library libugv_sensor_sync__rosidl_typesupport_introspection_c.so[0m
+[7.259s] [ 53%] [32m[1mLinking CXX shared library libugv_sensor_sync__rosidl_typesupport_introspection_cpp.so[0m
+[7.293s] [ 56%] [32m[1mLinking CXX shared library libugv_sensor_sync__rosidl_typesupport_fastrtps_cpp.so[0m
+[7.325s] [ 56%] Built target ugv_sensor_sync__rosidl_typesupport_introspection_c
+[7.407s] [ 58%] [32m[1mLinking CXX shared library libugv_sensor_sync__rosidl_typesupport_fastrtps_c.so[0m
+[7.437s] [ 58%] Built target ugv_sensor_sync__rosidl_typesupport_introspection_cpp
+[7.471s] [ 58%] Built target ugv_sensor_sync__rosidl_typesupport_fastrtps_cpp
+[7.554s] [ 61%] [32mBuilding CXX object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_c.dir/rosidl_typesupport_c/ugv_sensor_sync/msg/uwb_range__type_support.cpp.o[0m
+[7.593s] [ 61%] Built target ugv_sensor_sync__rosidl_typesupport_fastrtps_c
+[7.620s] [ 64%] [32m[1mLinking CXX shared library libugv_sensor_sync__rosidl_typesupport_c.so[0m
+[7.728s] [ 64%] Built target ugv_sensor_sync__rosidl_typesupport_c
+[7.767s] [ 64%] Built target ugv_sensor_sync
+[7.806s] [ 69%] [32mBuilding CXX object CMakeFiles/planner_sync_node.dir/src/planner_sync_node.cpp.o[0m
+[7.807s] [ 69%] [34m[1mGenerating Python code for ROS interfaces[0m
+[7.810s] [ 71%] [32mBuilding CXX object CMakeFiles/uwb_time_bridge.dir/src/uwb_time_bridge.cpp.o[0m
+[8.411s] [ 71%] Built target ugv_sensor_sync__py
+[8.454s] [ 74%] [32mBuilding C object CMakeFiles/ugv_sensor_sync__rosidl_generator_py.dir/rosidl_generator_py/ugv_sensor_sync/msg/_uwb_range_s.c.o[0m
+[8.657s] [ 76%] [32m[1mLinking C shared library rosidl_generator_py/ugv_sensor_sync/libugv_sensor_sync__rosidl_generator_py.so[0m
+[8.731s] [ 76%] Built target ugv_sensor_sync__rosidl_generator_py
+[8.772s] [ 82%] [32mBuilding C object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_fastrtps_c__pyext.dir/rosidl_generator_py/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_fastrtps_c.c.o[0m
+[8.772s] [ 84%] [32mBuilding C object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_c__pyext.dir/rosidl_generator_py/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_c.c.o[0m
+[8.773s] [ 84%] [32mBuilding C object CMakeFiles/ugv_sensor_sync__rosidl_typesupport_introspection_c__pyext.dir/rosidl_generator_py/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_introspection_c.c.o[0m
+[8.960s] [ 89%] [32m[1mLinking C shared library rosidl_generator_py/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so[0m
+[8.960s] [ 89%] [32m[1mLinking C shared library rosidl_generator_py/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so[0m
+[8.961s] [ 92%] [32m[1mLinking C shared library rosidl_generator_py/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so[0m
+[9.039s] [ 92%] Built target ugv_sensor_sync__rosidl_typesupport_fastrtps_c__pyext
+[9.040s] [ 92%] Built target ugv_sensor_sync__rosidl_typesupport_c__pyext
+[9.044s] [ 92%] Built target ugv_sensor_sync__rosidl_typesupport_introspection_c__pyext
+[18.166s] [01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/uwb_time_bridge.cpp:[m[K In member function ‘[01m[Kvoid UwbTimeBridge::statusTimer()[m[K’:
+[18.166s] [01m[K/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync/src/uwb_time_bridge.cpp:98:31:[m[K [01;36m[Knote: [m[Kparameter passing for argument of type ‘[01m[Kstd::pair<double, double>[m[K’ when C++17 is enabled changed to match C++14 ]8;;https://gcc.gnu.org/gcc-10/changes.html#empty_basein GCC 10.1]8;;
+[18.166s]    98 |     auto fit = mapper_.getFit([01;36m[K)[m[K;
+[18.166s]       |                               [01;36m[K^[m[K
+[22.611s] [ 94%] [32m[1mLinking CXX executable scan_time_corrector[0m
+[23.386s] [ 94%] Built target scan_time_corrector
+[25.858s] [ 97%] [32m[1mLinking CXX executable uwb_time_bridge[0m
+[26.639s] [ 97%] Built target uwb_time_bridge
+[41.128s] [100%] [32m[1mLinking CXX executable planner_sync_node[0m
+[42.759s] [100%] Built target planner_sync_node
+[42.787s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble /usr/bin/cmake --build /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync -- -j6 -l6
+[42.811s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync
+[42.831s] -- Install configuration: ""
+[42.831s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/rosidl_interfaces/ugv_sensor_sync
+[42.832s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync
+[42.832s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg
+[42.832s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail
+[42.833s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__struct.h
+[42.833s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__functions.h
+[42.833s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.h
+[42.834s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__functions.c
+[42.834s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/uwb_range.h
+[42.834s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_generator_c__visibility_control.h
+[42.835s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/library_path.sh
+[42.835s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/library_path.dsv
+[42.835s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_c.so
+[42.836s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_c.so" to ""
+[42.836s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync
+[42.836s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg
+[42.837s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail
+[42.837s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_fastrtps_c.h
+[42.837s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+[42.838s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_c.so
+[42.838s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_c.so" to ""
+[42.838s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync
+[42.838s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg
+[42.839s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail
+[42.839s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__traits.hpp
+[42.840s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__struct.hpp
+[42.840s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__builder.hpp
+[42.840s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.hpp
+[42.840s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/uwb_range.hpp
+[42.841s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_generator_cpp__visibility_control.hpp
+[42.841s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync
+[42.841s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg
+[42.842s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail
+[42.842s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_fastrtps_cpp.hpp
+[42.842s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/dds_fastrtps
+[42.843s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+[42.843s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_cpp.so
+[42.843s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_cpp.so" to ""
+[42.844s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync
+[42.844s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg
+[42.844s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail
+[42.845s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_introspection_c.h
+[42.845s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.c
+[42.845s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_typesupport_introspection_c__visibility_control.h
+[42.845s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_c.so
+[42.846s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_c.so" to ""
+[42.846s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_c.so
+[42.846s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_c.so" to ""
+[42.847s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync
+[42.847s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg
+[42.847s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail
+[42.848s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_introspection_cpp.hpp
+[42.848s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.cpp
+[42.849s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_cpp.so
+[42.849s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_cpp.so" to ""
+[42.849s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_cpp.so
+[42.849s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_cpp.so" to ""
+[42.850s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/pythonpath.sh
+[42.850s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/pythonpath.dsv
+[42.850s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info
+[42.850s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/SOURCES.txt
+[42.851s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/top_level.txt
+[42.851s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/PKG-INFO
+[42.851s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/dependency_links.txt
+[42.852s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync
+[42.852s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg
+[42.852s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/__init__.py
+[42.852s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/_uwb_range_s.c
+[42.853s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/_uwb_range.py
+[42.853s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[42.853s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/__init__.py
+[42.854s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_fastrtps_c.c
+[42.854s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[42.854s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_introspection_c.c
+[42.854s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/libugv_sensor_sync__rosidl_generator_py.so
+[42.855s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[42.855s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_c.c
+[42.922s] Listing '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync'...
+[42.922s] Compiling '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/__init__.py'...
+[42.922s] Listing '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg'...
+[42.923s] Compiling '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/__init__.py'...
+[42.923s] Compiling '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/_uwb_range.py'...
+[42.932s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so
+[42.933s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so" to ""
+[42.934s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so
+[42.935s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so" to ""
+[42.935s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so
+[42.936s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so" to ""
+[42.936s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_py.so
+[42.937s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_py.so" to ""
+[42.937s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/msg/UwbRange.idl
+[42.937s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/msg/UwbRange.msg
+[42.938s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/uwb_time_bridge
+[42.948s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/uwb_time_bridge" to ""
+[42.948s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/scan_time_corrector
+[42.958s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/scan_time_corrector" to ""
+[42.959s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/planner_sync_node
+[42.984s] -- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/planner_sync_node" to ""
+[42.985s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/
+[42.985s] -- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include//ugv_sensor_sync
+[42.986s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include//ugv_sensor_sync/clock_mapper.hpp
+[42.987s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/package_run_dependencies/ugv_sensor_sync
+[42.987s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/parent_prefix_path/ugv_sensor_sync
+[42.988s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/ament_prefix_path.sh
+[42.988s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/ament_prefix_path.dsv
+[42.989s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/path.sh
+[42.989s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/path.dsv
+[42.989s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.bash
+[42.990s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.sh
+[42.990s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.zsh
+[42.991s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.dsv
+[42.991s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/package.dsv
+[42.992s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/packages/ugv_sensor_sync
+[42.992s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_cExport.cmake
+[42.992s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_cExport-noconfig.cmake
+[42.993s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cExport.cmake
+[42.994s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cExport-noconfig.cmake
+[42.994s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_cppExport.cmake
+[42.995s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cppExport.cmake
+[42.996s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cppExport-noconfig.cmake
+[42.997s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cExport.cmake
+[42.997s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cExport-noconfig.cmake
+[42.998s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cExport.cmake
+[42.998s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cExport-noconfig.cmake
+[42.999s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cppExport.cmake
+[42.999s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+[43.000s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cppExport.cmake
+[43.000s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cppExport-noconfig.cmake
+[43.000s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_pyExport.cmake
+[43.001s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_pyExport-noconfig.cmake
+[43.002s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/rosidl_cmake-extras.cmake
+[43.003s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_dependencies-extras.cmake
+[43.005s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_include_directories-extras.cmake
+[43.006s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_libraries-extras.cmake
+[43.007s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_targets-extras.cmake
+[43.008s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+[43.009s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+[43.010s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_syncConfig.cmake
+[43.011s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_syncConfig-version.cmake
+[43.011s] -- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/package.xml
+[43.012s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble /usr/bin/cmake --install /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync

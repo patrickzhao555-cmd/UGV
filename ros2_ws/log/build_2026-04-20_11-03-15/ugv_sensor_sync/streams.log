@@ -1,0 +1,48 @@
+[1.298s] Invoking command in '/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ugv_sensor_sync build --build-base /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build install --record /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/install.log --single-version-externally-managed install_data
+[1.752s] running egg_info
+[1.753s] creating ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info
+[1.754s] writing ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/PKG-INFO
+[1.754s] writing dependency_links to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/dependency_links.txt
+[1.754s] writing entry points to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/entry_points.txt
+[1.755s] writing requirements to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/requires.txt
+[1.755s] writing top-level names to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/top_level.txt
+[1.755s] writing manifest file '../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/SOURCES.txt'
+[1.758s] reading manifest file '../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/SOURCES.txt'
+[1.759s] writing manifest file '../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/SOURCES.txt'
+[1.760s] running build
+[1.760s] running build_py
+[1.760s] creating /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build
+[1.760s] creating /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib
+[1.760s] creating /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+[1.762s] copying ugv_sensor_sync/__init__.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+[1.762s] copying ugv_sensor_sync/lidar_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+[1.762s] copying ugv_sensor_sync/zed_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+[1.762s] copying ugv_sensor_sync/uwb_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+[1.763s] copying ugv_sensor_sync/fusion_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+[1.763s] running install
+[1.763s] running install_lib
+[1.764s] creating /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+[1.764s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/__init__.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+[1.764s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/lidar_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+[1.764s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/zed_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+[1.764s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/uwb_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+[1.765s] copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/fusion_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+[1.766s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/__init__.py to __init__.cpython-310.pyc
+[1.766s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/lidar_sync_node.py to lidar_sync_node.cpython-310.pyc
+[1.767s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/zed_sync_node.py to zed_sync_node.cpython-310.pyc
+[1.769s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/uwb_node.py to uwb_node.cpython-310.pyc
+[1.770s] byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/fusion_node.py to fusion_node.cpython-310.pyc
+[1.771s] running install_data
+[1.771s] copying resource/ugv_sensor_sync -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/packages
+[1.772s] copying package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync
+[1.772s] creating /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/launch
+[1.772s] copying launch/sensor_sync_launch.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/launch
+[1.772s] running install_egg_info
+[1.778s] Copying ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info
+[1.780s] running install_scripts
+[1.817s] Installing fusion_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+[1.817s] Installing lidar_sync_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+[1.817s] Installing uwb_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+[1.818s] Installing zed_sync_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+[1.818s] writing list of installed files to '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/install.log'
+[1.880s] Invoked command in '/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync' returned '0': PYTHONPATH=/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ugv_sensor_sync build --build-base /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build install --record /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/install.log --single-version-externally-managed install_data

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libclock_mapper.a CMakeFiles/clock_mapper.dir/src/clock_mapper.cpp.o
+/usr/bin/ranlib libclock_mapper.a

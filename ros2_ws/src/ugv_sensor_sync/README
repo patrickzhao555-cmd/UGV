@@ -1,0 +1,10 @@
+cd ~/ugv_project/ros2_ws
+colcon build --packages-select ugv_sensor_sync
+source install/setup.bash
+
+# Launch everything
+ros2 launch ugv_sensor_sync sensor_sync_launch.py
+
+# In another terminal — verify timestamps are aligned
+ros2 topic echo /scan/synced --field header.stamp
+ros2 topic echo /zed/imu --field header.stamp

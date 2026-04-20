@@ -1,0 +1,542 @@
+[0.000000] (-) TimerEvent: {}
+[0.000796] (-) JobUnselected: {'identifier': 'ugv_lidar'}
+[0.001036] (-) JobUnselected: {'identifier': 'ugv_perception'}
+[0.001244] (-) JobUnselected: {'identifier': 'ugv_serial_odom'}
+[0.001328] (-) JobUnselected: {'identifier': 'ugv_sim'}
+[0.001395] (-) JobUnselected: {'identifier': 'zed_components'}
+[0.001456] (-) JobUnselected: {'identifier': 'zed_ros2'}
+[0.001515] (-) JobUnselected: {'identifier': 'zed_wrapper'}
+[0.001578] (ugv_sensor_sync) JobQueued: {'identifier': 'ugv_sensor_sync', 'dependencies': OrderedDict()}
+[0.001645] (ugv_sensor_sync) JobStarted: {'identifier': 'ugv_sensor_sync'}
+[0.018474] (ugv_sensor_sync) JobProgress: {'identifier': 'ugv_sensor_sync', 'progress': 'cmake'}
+[0.019885] (ugv_sensor_sync) JobProgress: {'identifier': 'ugv_sensor_sync', 'progress': 'build'}
+[0.021046] (ugv_sensor_sync) Command: {'cmd': ['/usr/bin/cmake', '--build', '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync', '--', '-j6', '-l6'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('SSH_CLIENT', '10.144.237.127 48931 22'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_ws_albert/install/zed_components/lib:/home/bluelule/ugv_ws_albert/install/micro_ros_agent/lib:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs/lib:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_agent/lib:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs/lib:/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_ws_albert/install:/home/bluelule/ugv_ws_albert/microros_ws/install:/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '2'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/bluelule/.local/bin:/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_ws_albert/install/zed_ros2:/home/bluelule/ugv_ws_albert/install/zed_wrapper:/home/bluelule/ugv_ws_albert/install/zed_components:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_ws_albert/install/sllidar_ros2:/home/bluelule/ugv_ws_albert/install/motor_control:/home/bluelule/ugv_ws_albert/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_sim:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync'), ('SSH_CONNECTION', '10.144.237.127 48931 129.65.74.107 22'), ('XDG_DATA_DIRS', '/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_ws_albert/install/ugv_perception/lib/python3.10/site-packages:/home/bluelule/ugv_ws_albert/install/ugv_nav/lib/python3.10/site-packages:/home/bluelule/ugv_ws_albert/install/ugv_autonomy/lib/python3.10/site-packages:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs/local/lib/python3.10/dist-packages:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs/local/lib/python3.10/dist-packages:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_ws_albert/install/zed_ros2:/home/bluelule/ugv_ws_albert/install/zed_wrapper:/home/bluelule/ugv_ws_albert/install/zed_components:/home/bluelule/ugv_ws_albert/install/sllidar_ros2:/home/bluelule/ugv_ws_albert/install/motor_control:/home/bluelule/ugv_ws_albert/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_sim:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble')]), 'shell': False}
+[0.099420] (-) TimerEvent: {}
+[0.113015] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_generator_c\x1b[0m\n'}
+[0.116383] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target clock_mapper\x1b[0m\n'}
+[0.119195] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target scan_time_corrector\x1b[0m\n'}
+[0.131939] (ugv_sensor_sync) StdoutLine: {'line': b'[  2%] Built target ugv_sensor_sync__cpp\n'}
+[0.137151] (ugv_sensor_sync) StdoutLine: {'line': b'[ 10%] Built target ugv_sensor_sync__rosidl_generator_c\n'}
+[0.143661] (ugv_sensor_sync) StdoutLine: {'line': b'[ 15%] Built target clock_mapper\n'}
+[0.152779] (ugv_sensor_sync) StdoutLine: {'line': b'[ 15%] Built target ament_cmake_python_copy_ugv_sensor_sync\n'}
+[0.153254] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_cpp\x1b[0m\n'}
+[0.156600] (ugv_sensor_sync) StdoutLine: {'line': b'[ 20%] Built target scan_time_corrector\n'}
+[0.157101] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_introspection_cpp\x1b[0m\n'}
+[0.157294] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_fastrtps_cpp\x1b[0m\n'}
+[0.163472] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_fastrtps_c\x1b[0m\n'}
+[0.179368] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_introspection_c\x1b[0m\n'}
+[0.180195] (ugv_sensor_sync) StdoutLine: {'line': b'[ 28%] Built target ugv_sensor_sync__rosidl_typesupport_cpp\n'}
+[0.181489] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_c\x1b[0m\n'}
+[0.188167] (ugv_sensor_sync) StdoutLine: {'line': b'[ 38%] Built target ugv_sensor_sync__rosidl_typesupport_introspection_cpp\n'}
+[0.188668] (ugv_sensor_sync) StdoutLine: {'line': b'[ 43%] Built target ugv_sensor_sync__rosidl_typesupport_fastrtps_cpp\n'}
+[0.198146] (ugv_sensor_sync) StdoutLine: {'line': b'[ 51%] Built target ugv_sensor_sync__rosidl_typesupport_fastrtps_c\n'}
+[0.199600] (-) TimerEvent: {}
+[0.205650] (ugv_sensor_sync) StdoutLine: {'line': b'[ 61%] Built target ugv_sensor_sync__rosidl_typesupport_introspection_c\n'}
+[0.206126] (ugv_sensor_sync) StdoutLine: {'line': b'[ 66%] Built target ugv_sensor_sync__rosidl_typesupport_c\n'}
+[0.246808] (ugv_sensor_sync) StdoutLine: {'line': b'[ 66%] Built target ugv_sensor_sync\n'}
+[0.268370] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target planner_sync_node\x1b[0m\n'}
+[0.268835] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target uwb_time_bridge\x1b[0m\n'}
+[0.293566] (ugv_sensor_sync) StdoutLine: {'line': b'[ 69%] Built target ugv_sensor_sync__py\n'}
+[0.299757] (-) TimerEvent: {}
+[0.307751] (ugv_sensor_sync) StdoutLine: {'line': b'[ 74%] Built target uwb_time_bridge\n'}
+[0.309392] (ugv_sensor_sync) StdoutLine: {'line': b'[ 76%] \x1b[32mBuilding CXX object CMakeFiles/planner_sync_node.dir/src/planner_sync_node.cpp.o\x1b[0m\n'}
+[0.311963] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_generator_py\x1b[0m\n'}
+[0.338524] (ugv_sensor_sync) StdoutLine: {'line': b'[ 82%] Built target ugv_sensor_sync__rosidl_generator_py\n'}
+[0.359627] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_introspection_c__pyext\x1b[0m\n'}
+[0.362327] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_fastrtps_c__pyext\x1b[0m\n'}
+[0.362684] (ugv_sensor_sync) StdoutLine: {'line': b'\x1b[35m\x1b[1mConsolidate compiler generated dependencies of target ugv_sensor_sync__rosidl_typesupport_c__pyext\x1b[0m\n'}
+[0.386603] (ugv_sensor_sync) StdoutLine: {'line': b'[ 87%] Built target ugv_sensor_sync__rosidl_typesupport_introspection_c__pyext\n'}
+[0.391615] (ugv_sensor_sync) StdoutLine: {'line': b'[ 92%] Built target ugv_sensor_sync__rosidl_typesupport_fastrtps_c__pyext\n'}
+[0.395539] (ugv_sensor_sync) StdoutLine: {'line': b'[ 97%] Built target ugv_sensor_sync__rosidl_typesupport_c__pyext\n'}
+[0.399847] (-) TimerEvent: {}
+[0.500336] (-) TimerEvent: {}
+[0.600922] (-) TimerEvent: {}
+[0.667425] (ugv_sensor_sync) StdoutLine: {'line': b'running egg_info\n'}
+[0.668713] (ugv_sensor_sync) StdoutLine: {'line': b'writing ugv_sensor_sync.egg-info/PKG-INFO\n'}
+[0.669277] (ugv_sensor_sync) StdoutLine: {'line': b'writing dependency_links to ugv_sensor_sync.egg-info/dependency_links.txt\n'}
+[0.669654] (ugv_sensor_sync) StdoutLine: {'line': b'writing top-level names to ugv_sensor_sync.egg-info/top_level.txt\n'}
+[0.673772] (ugv_sensor_sync) StdoutLine: {'line': b"reading manifest file 'ugv_sensor_sync.egg-info/SOURCES.txt'\n"}
+[0.674978] (ugv_sensor_sync) StdoutLine: {'line': b"writing manifest file 'ugv_sensor_sync.egg-info/SOURCES.txt'\n"}
+[0.701029] (-) TimerEvent: {}
+[0.742912] (ugv_sensor_sync) StdoutLine: {'line': b'[ 97%] Built target ament_cmake_python_build_ugv_sensor_sync_egg\n'}
+[0.801197] (-) TimerEvent: {}
+[0.902101] (-) TimerEvent: {}
+[1.002789] (-) TimerEvent: {}
+[1.103515] (-) TimerEvent: {}
+[1.204209] (-) TimerEvent: {}
+[1.304892] (-) TimerEvent: {}
+[1.405582] (-) TimerEvent: {}
+[1.506256] (-) TimerEvent: {}
+[1.607213] (-) TimerEvent: {}
+[1.707911] (-) TimerEvent: {}
+[1.808817] (-) TimerEvent: {}
+[1.909725] (-) TimerEvent: {}
+[2.010412] (-) TimerEvent: {}
+[2.111308] (-) TimerEvent: {}
+[2.212003] (-) TimerEvent: {}
+[2.312929] (-) TimerEvent: {}
+[2.413602] (-) TimerEvent: {}
+[2.514316] (-) TimerEvent: {}
+[2.615265] (-) TimerEvent: {}
+[2.715967] (-) TimerEvent: {}
+[2.816899] (-) TimerEvent: {}
+[2.917825] (-) TimerEvent: {}
+[3.018526] (-) TimerEvent: {}
+[3.119460] (-) TimerEvent: {}
+[3.220165] (-) TimerEvent: {}
+[3.320870] (-) TimerEvent: {}
+[3.421577] (-) TimerEvent: {}
+[3.522279] (-) TimerEvent: {}
+[3.623005] (-) TimerEvent: {}
+[3.723749] (-) TimerEvent: {}
+[3.824467] (-) TimerEvent: {}
+[3.925190] (-) TimerEvent: {}
+[4.025907] (-) TimerEvent: {}
+[4.126619] (-) TimerEvent: {}
+[4.227338] (-) TimerEvent: {}
+[4.328055] (-) TimerEvent: {}
+[4.428760] (-) TimerEvent: {}
+[4.529721] (-) TimerEvent: {}
+[4.630642] (-) TimerEvent: {}
+[4.731571] (-) TimerEvent: {}
+[4.832506] (-) TimerEvent: {}
+[4.933214] (-) TimerEvent: {}
+[5.034146] (-) TimerEvent: {}
+[5.134835] (-) TimerEvent: {}
+[5.235564] (-) TimerEvent: {}
+[5.336505] (-) TimerEvent: {}
+[5.437223] (-) TimerEvent: {}
+[5.538144] (-) TimerEvent: {}
+[5.638841] (-) TimerEvent: {}
+[5.739763] (-) TimerEvent: {}
+[5.840460] (-) TimerEvent: {}
+[5.941358] (-) TimerEvent: {}
+[6.042268] (-) TimerEvent: {}
+[6.142970] (-) TimerEvent: {}
+[6.243687] (-) TimerEvent: {}
+[6.344363] (-) TimerEvent: {}
+[6.445050] (-) TimerEvent: {}
+[6.545745] (-) TimerEvent: {}
+[6.646448] (-) TimerEvent: {}
+[6.747156] (-) TimerEvent: {}
+[6.847863] (-) TimerEvent: {}
+[6.948556] (-) TimerEvent: {}
+[7.049265] (-) TimerEvent: {}
+[7.149961] (-) TimerEvent: {}
+[7.250644] (-) TimerEvent: {}
+[7.351370] (-) TimerEvent: {}
+[7.452068] (-) TimerEvent: {}
+[7.552783] (-) TimerEvent: {}
+[7.653467] (-) TimerEvent: {}
+[7.754386] (-) TimerEvent: {}
+[7.855092] (-) TimerEvent: {}
+[7.956002] (-) TimerEvent: {}
+[8.056671] (-) TimerEvent: {}
+[8.157580] (-) TimerEvent: {}
+[8.258514] (-) TimerEvent: {}
+[8.359449] (-) TimerEvent: {}
+[8.460352] (-) TimerEvent: {}
+[8.561012] (-) TimerEvent: {}
+[8.661934] (-) TimerEvent: {}
+[8.762860] (-) TimerEvent: {}
+[8.863583] (-) TimerEvent: {}
+[8.964298] (-) TimerEvent: {}
+[9.065224] (-) TimerEvent: {}
+[9.165928] (-) TimerEvent: {}
+[9.266633] (-) TimerEvent: {}
+[9.367341] (-) TimerEvent: {}
+[9.468242] (-) TimerEvent: {}
+[9.569221] (-) TimerEvent: {}
+[9.669917] (-) TimerEvent: {}
+[9.770590] (-) TimerEvent: {}
+[9.871268] (-) TimerEvent: {}
+[9.971911] (-) TimerEvent: {}
+[10.072544] (-) TimerEvent: {}
+[10.173156] (-) TimerEvent: {}
+[10.273774] (-) TimerEvent: {}
+[10.374419] (-) TimerEvent: {}
+[10.475026] (-) TimerEvent: {}
+[10.575591] (-) TimerEvent: {}
+[10.676205] (-) TimerEvent: {}
+[10.776868] (-) TimerEvent: {}
+[10.877494] (-) TimerEvent: {}
+[10.978125] (-) TimerEvent: {}
+[11.078737] (-) TimerEvent: {}
+[11.179398] (-) TimerEvent: {}
+[11.280043] (-) TimerEvent: {}
+[11.380676] (-) TimerEvent: {}
+[11.481285] (-) TimerEvent: {}
+[11.581837] (-) TimerEvent: {}
+[11.682469] (-) TimerEvent: {}
+[11.783127] (-) TimerEvent: {}
+[11.883742] (-) TimerEvent: {}
+[11.984298] (-) TimerEvent: {}
+[12.084902] (-) TimerEvent: {}
+[12.185450] (-) TimerEvent: {}
+[12.286072] (-) TimerEvent: {}
+[12.386706] (-) TimerEvent: {}
+[12.487353] (-) TimerEvent: {}
+[12.587923] (-) TimerEvent: {}
+[12.688550] (-) TimerEvent: {}
+[12.789183] (-) TimerEvent: {}
+[12.889804] (-) TimerEvent: {}
+[12.990370] (-) TimerEvent: {}
+[13.091009] (-) TimerEvent: {}
+[13.191670] (-) TimerEvent: {}
+[13.292304] (-) TimerEvent: {}
+[13.392925] (-) TimerEvent: {}
+[13.493531] (-) TimerEvent: {}
+[13.594095] (-) TimerEvent: {}
+[13.694736] (-) TimerEvent: {}
+[13.795438] (-) TimerEvent: {}
+[13.896039] (-) TimerEvent: {}
+[13.996594] (-) TimerEvent: {}
+[14.097223] (-) TimerEvent: {}
+[14.197841] (-) TimerEvent: {}
+[14.298474] (-) TimerEvent: {}
+[14.399146] (-) TimerEvent: {}
+[14.499780] (-) TimerEvent: {}
+[14.600403] (-) TimerEvent: {}
+[14.701043] (-) TimerEvent: {}
+[14.801695] (-) TimerEvent: {}
+[14.902320] (-) TimerEvent: {}
+[15.002901] (-) TimerEvent: {}
+[15.103565] (-) TimerEvent: {}
+[15.204160] (-) TimerEvent: {}
+[15.304829] (-) TimerEvent: {}
+[15.405503] (-) TimerEvent: {}
+[15.506174] (-) TimerEvent: {}
+[15.606846] (-) TimerEvent: {}
+[15.707549] (-) TimerEvent: {}
+[15.808211] (-) TimerEvent: {}
+[15.908847] (-) TimerEvent: {}
+[16.009432] (-) TimerEvent: {}
+[16.110059] (-) TimerEvent: {}
+[16.210648] (-) TimerEvent: {}
+[16.311333] (-) TimerEvent: {}
+[16.411980] (-) TimerEvent: {}
+[16.512662] (-) TimerEvent: {}
+[16.613311] (-) TimerEvent: {}
+[16.713969] (-) TimerEvent: {}
+[16.814626] (-) TimerEvent: {}
+[16.915283] (-) TimerEvent: {}
+[17.015846] (-) TimerEvent: {}
+[17.116445] (-) TimerEvent: {}
+[17.216964] (-) TimerEvent: {}
+[17.317593] (-) TimerEvent: {}
+[17.418175] (-) TimerEvent: {}
+[17.518727] (-) TimerEvent: {}
+[17.619336] (-) TimerEvent: {}
+[17.719895] (-) TimerEvent: {}
+[17.820568] (-) TimerEvent: {}
+[17.921216] (-) TimerEvent: {}
+[18.021876] (-) TimerEvent: {}
+[18.122537] (-) TimerEvent: {}
+[18.223193] (-) TimerEvent: {}
+[18.323810] (-) TimerEvent: {}
+[18.424442] (-) TimerEvent: {}
+[18.525078] (-) TimerEvent: {}
+[18.625731] (-) TimerEvent: {}
+[18.726377] (-) TimerEvent: {}
+[18.827012] (-) TimerEvent: {}
+[18.927687] (-) TimerEvent: {}
+[19.028322] (-) TimerEvent: {}
+[19.128984] (-) TimerEvent: {}
+[19.229631] (-) TimerEvent: {}
+[19.330288] (-) TimerEvent: {}
+[19.430936] (-) TimerEvent: {}
+[19.531635] (-) TimerEvent: {}
+[19.632286] (-) TimerEvent: {}
+[19.733040] (-) TimerEvent: {}
+[19.833682] (-) TimerEvent: {}
+[19.934320] (-) TimerEvent: {}
+[20.034944] (-) TimerEvent: {}
+[20.135600] (-) TimerEvent: {}
+[20.236223] (-) TimerEvent: {}
+[20.336838] (-) TimerEvent: {}
+[20.437467] (-) TimerEvent: {}
+[20.538093] (-) TimerEvent: {}
+[20.638725] (-) TimerEvent: {}
+[20.739372] (-) TimerEvent: {}
+[20.839990] (-) TimerEvent: {}
+[20.940608] (-) TimerEvent: {}
+[21.041233] (-) TimerEvent: {}
+[21.141846] (-) TimerEvent: {}
+[21.242462] (-) TimerEvent: {}
+[21.343124] (-) TimerEvent: {}
+[21.443754] (-) TimerEvent: {}
+[21.544381] (-) TimerEvent: {}
+[21.645022] (-) TimerEvent: {}
+[21.745663] (-) TimerEvent: {}
+[21.846315] (-) TimerEvent: {}
+[21.946928] (-) TimerEvent: {}
+[22.047610] (-) TimerEvent: {}
+[22.148264] (-) TimerEvent: {}
+[22.248918] (-) TimerEvent: {}
+[22.349552] (-) TimerEvent: {}
+[22.450189] (-) TimerEvent: {}
+[22.550873] (-) TimerEvent: {}
+[22.651556] (-) TimerEvent: {}
+[22.752215] (-) TimerEvent: {}
+[22.852860] (-) TimerEvent: {}
+[22.953508] (-) TimerEvent: {}
+[23.054132] (-) TimerEvent: {}
+[23.154763] (-) TimerEvent: {}
+[23.255416] (-) TimerEvent: {}
+[23.356037] (-) TimerEvent: {}
+[23.456660] (-) TimerEvent: {}
+[23.557266] (-) TimerEvent: {}
+[23.657900] (-) TimerEvent: {}
+[23.758535] (-) TimerEvent: {}
+[23.859192] (-) TimerEvent: {}
+[23.959808] (-) TimerEvent: {}
+[24.060446] (-) TimerEvent: {}
+[24.161058] (-) TimerEvent: {}
+[24.261682] (-) TimerEvent: {}
+[24.362297] (-) TimerEvent: {}
+[24.462906] (-) TimerEvent: {}
+[24.563552] (-) TimerEvent: {}
+[24.664169] (-) TimerEvent: {}
+[24.764784] (-) TimerEvent: {}
+[24.865393] (-) TimerEvent: {}
+[24.966008] (-) TimerEvent: {}
+[25.066621] (-) TimerEvent: {}
+[25.167212] (-) TimerEvent: {}
+[25.267817] (-) TimerEvent: {}
+[25.368451] (-) TimerEvent: {}
+[25.469065] (-) TimerEvent: {}
+[25.569677] (-) TimerEvent: {}
+[25.670316] (-) TimerEvent: {}
+[25.770939] (-) TimerEvent: {}
+[25.871613] (-) TimerEvent: {}
+[25.972240] (-) TimerEvent: {}
+[26.072869] (-) TimerEvent: {}
+[26.173498] (-) TimerEvent: {}
+[26.274114] (-) TimerEvent: {}
+[26.374744] (-) TimerEvent: {}
+[26.475384] (-) TimerEvent: {}
+[26.576001] (-) TimerEvent: {}
+[26.676612] (-) TimerEvent: {}
+[26.777227] (-) TimerEvent: {}
+[26.877839] (-) TimerEvent: {}
+[26.978456] (-) TimerEvent: {}
+[27.079095] (-) TimerEvent: {}
+[27.179711] (-) TimerEvent: {}
+[27.280341] (-) TimerEvent: {}
+[27.380971] (-) TimerEvent: {}
+[27.481593] (-) TimerEvent: {}
+[27.582224] (-) TimerEvent: {}
+[27.682869] (-) TimerEvent: {}
+[27.783522] (-) TimerEvent: {}
+[27.884142] (-) TimerEvent: {}
+[27.984768] (-) TimerEvent: {}
+[28.085381] (-) TimerEvent: {}
+[28.186019] (-) TimerEvent: {}
+[28.286645] (-) TimerEvent: {}
+[28.387295] (-) TimerEvent: {}
+[28.487916] (-) TimerEvent: {}
+[28.588542] (-) TimerEvent: {}
+[28.689174] (-) TimerEvent: {}
+[28.789804] (-) TimerEvent: {}
+[28.890452] (-) TimerEvent: {}
+[28.991151] (-) TimerEvent: {}
+[29.091789] (-) TimerEvent: {}
+[29.192433] (-) TimerEvent: {}
+[29.293080] (-) TimerEvent: {}
+[29.393734] (-) TimerEvent: {}
+[29.494381] (-) TimerEvent: {}
+[29.595025] (-) TimerEvent: {}
+[29.695934] (-) TimerEvent: {}
+[29.796810] (-) TimerEvent: {}
+[29.897683] (-) TimerEvent: {}
+[29.998554] (-) TimerEvent: {}
+[30.099207] (-) TimerEvent: {}
+[30.199825] (-) TimerEvent: {}
+[30.300701] (-) TimerEvent: {}
+[30.401371] (-) TimerEvent: {}
+[30.502028] (-) TimerEvent: {}
+[30.602885] (-) TimerEvent: {}
+[30.703555] (-) TimerEvent: {}
+[30.804218] (-) TimerEvent: {}
+[30.905092] (-) TimerEvent: {}
+[31.005780] (-) TimerEvent: {}
+[31.106471] (-) TimerEvent: {}
+[31.207157] (-) TimerEvent: {}
+[31.308053] (-) TimerEvent: {}
+[31.408748] (-) TimerEvent: {}
+[31.509439] (-) TimerEvent: {}
+[31.610103] (-) TimerEvent: {}
+[31.710819] (-) TimerEvent: {}
+[31.811534] (-) TimerEvent: {}
+[31.912059] (-) TimerEvent: {}
+[31.925208] (ugv_sensor_sync) StdoutLine: {'line': b'[100%] \x1b[32m\x1b[1mLinking CXX executable planner_sync_node\x1b[0m\n'}
+[32.012262] (-) TimerEvent: {}
+[32.112969] (-) TimerEvent: {}
+[32.213687] (-) TimerEvent: {}
+[32.314418] (-) TimerEvent: {}
+[32.415226] (-) TimerEvent: {}
+[32.515933] (-) TimerEvent: {}
+[32.616631] (-) TimerEvent: {}
+[32.717319] (-) TimerEvent: {}
+[32.817960] (-) TimerEvent: {}
+[32.918562] (-) TimerEvent: {}
+[33.019165] (-) TimerEvent: {}
+[33.119750] (-) TimerEvent: {}
+[33.220386] (-) TimerEvent: {}
+[33.321050] (-) TimerEvent: {}
+[33.421670] (-) TimerEvent: {}
+[33.522313] (-) TimerEvent: {}
+[33.575019] (ugv_sensor_sync) StdoutLine: {'line': b'[100%] Built target planner_sync_node\n'}
+[33.602447] (ugv_sensor_sync) CommandEnded: {'returncode': 0}
+[33.605205] (ugv_sensor_sync) JobProgress: {'identifier': 'ugv_sensor_sync', 'progress': 'install'}
+[33.622423] (-) TimerEvent: {}
+[33.626246] (ugv_sensor_sync) Command: {'cmd': ['/usr/bin/cmake', '--install', '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync'], 'cwd': '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'bluelule'), ('SSH_CLIENT', '10.144.237.127 48931 22'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/home/bluelule/ugv_ws_albert/install/zed_components/lib:/home/bluelule/ugv_ws_albert/install/micro_ros_agent/lib:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs/lib:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_agent/lib:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs/lib:/home/bluelule/ugv_project/ros2_ws/install/zed_components/lib:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda-12.6/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/bluelule'), ('OLDPWD', '/home/bluelule/ugv_project/ros2_ws'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/bluelule/ugv_ws_albert/install:/home/bluelule/ugv_ws_albert/microros_ws/install:/home/bluelule/ugv_project/ros2_ws/install'), ('ROS_DISTRO', 'humble'), ('LOGNAME', 'bluelule'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '2'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/bluelule/.local/bin:/opt/ros/humble/bin:/usr/local/cuda-12.6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/bluelule/ugv_ws_albert/install/zed_ros2:/home/bluelule/ugv_ws_albert/install/zed_wrapper:/home/bluelule/ugv_ws_albert/install/zed_components:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_ws_albert/install/sllidar_ros2:/home/bluelule/ugv_ws_albert/install/motor_control:/home/bluelule/ugv_ws_albert/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_sim:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('PWD', '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync'), ('SSH_CONNECTION', '10.144.237.127 48931 129.65.74.107 22'), ('XDG_DATA_DIRS', '/usr/share/gnome:/home/bluelule/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/bluelule/ugv_ws_albert/install/ugv_perception/lib/python3.10/site-packages:/home/bluelule/ugv_ws_albert/install/ugv_nav/lib/python3.10/site-packages:/home/bluelule/ugv_ws_albert/install/ugv_autonomy/lib/python3.10/site-packages:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs/local/lib/python3.10/dist-packages:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs/local/lib/python3.10/dist-packages:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception/lib/python3.10/site-packages:/home/bluelule/ugv_project/ros2_ws/build/ugv_lidar:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/bluelule/ugv_ws_albert/install/zed_ros2:/home/bluelule/ugv_ws_albert/install/zed_wrapper:/home/bluelule/ugv_ws_albert/install/zed_components:/home/bluelule/ugv_ws_albert/install/sllidar_ros2:/home/bluelule/ugv_ws_albert/install/motor_control:/home/bluelule/ugv_ws_albert/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/install/micro_ros_msgs:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_setup:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_agent:/home/bluelule/ugv_ws_albert/microros_ws/install/micro_ros_msgs:/home/bluelule/ugv_project/ros2_ws/install/zed_ros2:/home/bluelule/ugv_project/ros2_ws/install/zed_wrapper:/home/bluelule/ugv_project/ros2_ws/install/zed_components:/home/bluelule/ugv_project/ros2_ws/install/ugv_sim:/home/bluelule/ugv_ws_albert/install/ugv_perception:/home/bluelule/ugv_ws_albert/install/ugv_nav:/home/bluelule/ugv_ws_albert/install/ugv_autonomy:/home/bluelule/ugv_project/ros2_ws/install/ugv_serial_odom:/home/bluelule/ugv_project/ros2_ws/install/ugv_perception:/home/bluelule/ugv_project/ros2_ws/install/ugv_lidar:/opt/ros/humble')]), 'shell': False}
+[33.647752] (ugv_sensor_sync) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[33.648496] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/rosidl_interfaces/ugv_sensor_sync\n'}
+[33.649137] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync\n'}
+[33.649449] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg\n'}
+[33.649702] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail\n'}
+[33.649922] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__struct.h\n'}
+[33.650123] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__functions.h\n'}
+[33.650375] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.h\n'}
+[33.650712] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__functions.c\n'}
+[33.651085] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/uwb_range.h\n'}
+[33.651398] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_generator_c__visibility_control.h\n'}
+[33.651822] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/library_path.sh\n'}
+[33.652164] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/library_path.dsv\n'}
+[33.652699] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_c.so\n'}
+[33.653420] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_c.so" to ""\n'}
+[33.653762] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync\n'}
+[33.653990] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg\n'}
+[33.654195] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail\n'}
+[33.654367] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_fastrtps_c.h\n'}
+[33.654531] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_typesupport_fastrtps_c__visibility_control.h\n'}
+[33.654733] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_c.so\n'}
+[33.655376] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_c.so" to ""\n'}
+[33.655685] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync\n'}
+[33.655943] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg\n'}
+[33.656166] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail\n'}
+[33.656375] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__traits.hpp\n'}
+[33.656568] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__struct.hpp\n'}
+[33.656726] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__builder.hpp\n'}
+[33.656914] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.hpp\n'}
+[33.657108] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/uwb_range.hpp\n'}
+[33.657260] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_generator_cpp__visibility_control.hpp\n'}
+[33.657480] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync\n'}
+[33.657908] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg\n'}
+[33.658120] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail\n'}
+[33.658343] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_fastrtps_cpp.hpp\n'}
+[33.658498] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/dds_fastrtps\n'}
+[33.658642] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h\n'}
+[33.658831] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_cpp.so\n'}
+[33.659707] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_fastrtps_cpp.so" to ""\n'}
+[33.660261] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync\n'}
+[33.660439] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg\n'}
+[33.660690] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail\n'}
+[33.660864] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_introspection_c.h\n'}
+[33.661076] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.c\n'}
+[33.661241] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/rosidl_typesupport_introspection_c__visibility_control.h\n'}
+[33.661474] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_c.so\n'}
+[33.662111] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_c.so" to ""\n'}
+[33.662376] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_c.so\n'}
+[33.662868] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_c.so" to ""\n'}
+[33.663289] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync\n'}
+[33.663471] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg\n'}
+[33.663696] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail\n'}
+[33.663886] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__rosidl_typesupport_introspection_cpp.hpp\n'}
+[33.664045] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/ugv_sensor_sync/ugv_sensor_sync/msg/detail/uwb_range__type_support.cpp\n'}
+[33.664308] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_cpp.so\n'}
+[33.664958] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_introspection_cpp.so" to ""\n'}
+[33.665170] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_cpp.so\n'}
+[33.665722] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_typesupport_cpp.so" to ""\n'}
+[33.665994] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/pythonpath.sh\n'}
+[33.666463] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/pythonpath.dsv\n'}
+[33.666853] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info\n'}
+[33.667205] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/SOURCES.txt\n'}
+[33.667438] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/top_level.txt\n'}
+[33.667649] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/PKG-INFO\n'}
+[33.667880] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info/dependency_links.txt\n'}
+[33.668141] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync\n'}
+[33.668325] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg\n'}
+[33.668546] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/__init__.py\n'}
+[33.668729] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/_uwb_range_s.c\n'}
+[33.668963] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/_uwb_range.py\n'}
+[33.669225] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so\n'}
+[33.669503] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/__init__.py\n'}
+[33.669727] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_fastrtps_c.c\n'}
+[33.670030] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so\n'}
+[33.670304] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_introspection_c.c\n'}
+[33.670545] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/libugv_sensor_sync__rosidl_generator_py.so\n'}
+[33.670793] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so\n'}
+[33.671082] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/_ugv_sensor_sync_s.ep.rosidl_typesupport_c.c\n'}
+[33.722561] (-) TimerEvent: {}
+[33.745898] (ugv_sensor_sync) StdoutLine: {'line': b"Listing '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync'...\n"}
+[33.746330] (ugv_sensor_sync) StdoutLine: {'line': b"Compiling '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/__init__.py'...\n"}
+[33.746494] (ugv_sensor_sync) StdoutLine: {'line': b"Listing '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg'...\n"}
+[33.746632] (ugv_sensor_sync) StdoutLine: {'line': b"Compiling '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/__init__.py'...\n"}
+[33.746756] (ugv_sensor_sync) StdoutLine: {'line': b"Compiling '/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/msg/_uwb_range.py'...\n"}
+[33.757616] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so\n'}
+[33.758292] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_fastrtps_c.cpython-310-aarch64-linux-gnu.so" to ""\n'}
+[33.758766] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so\n'}
+[33.759661] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_introspection_c.cpython-310-aarch64-linux-gnu.so" to ""\n'}
+[33.760190] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so\n'}
+[33.761111] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/local/lib/python3.10/dist-packages/ugv_sensor_sync/ugv_sensor_sync_s__rosidl_typesupport_c.cpython-310-aarch64-linux-gnu.so" to ""\n'}
+[33.761466] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_py.so\n'}
+[33.762240] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/libugv_sensor_sync__rosidl_generator_py.so" to ""\n'}
+[33.762681] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/msg/UwbRange.idl\n'}
+[33.763006] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/msg/UwbRange.msg\n'}
+[33.763657] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/libclock_mapper.so\n'}
+[33.765736] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/libclock_mapper.so" to ""\n'}
+[33.766195] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/uwb_time_bridge\n'}
+[33.788711] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/uwb_time_bridge" to ""\n'}
+[33.789290] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/scan_time_corrector\n'}
+[33.810069] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/scan_time_corrector" to ""\n'}
+[33.810601] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/planner_sync_node\n'}
+[33.822724] (-) TimerEvent: {}
+[33.839794] (ugv_sensor_sync) StdoutLine: {'line': b'-- Set runtime path of "/home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync/planner_sync_node" to ""\n'}
+[33.840379] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include/\n'}
+[33.840651] (ugv_sensor_sync) StdoutLine: {'line': b'-- Up-to-date: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include//ugv_sensor_sync\n'}
+[33.840843] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/include//ugv_sensor_sync/clock_mapper.hpp\n'}
+[33.841017] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/package_run_dependencies/ugv_sensor_sync\n'}
+[33.841441] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/parent_prefix_path/ugv_sensor_sync\n'}
+[33.842182] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/ament_prefix_path.sh\n'}
+[33.842539] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/ament_prefix_path.dsv\n'}
+[33.843387] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/path.sh\n'}
+[33.844638] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/environment/path.dsv\n'}
+[33.845596] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.bash\n'}
+[33.846083] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.sh\n'}
+[33.846639] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.zsh\n'}
+[33.847104] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/local_setup.dsv\n'}
+[33.847576] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/package.dsv\n'}
+[33.848323] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/packages/ugv_sensor_sync\n'}
+[33.848764] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_cExport.cmake\n'}
+[33.849301] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_cExport-noconfig.cmake\n'}
+[33.849833] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cExport.cmake\n'}
+[33.850372] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cExport-noconfig.cmake\n'}
+[33.850929] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_cppExport.cmake\n'}
+[33.851639] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cppExport.cmake\n'}
+[33.852369] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_typesupport_fastrtps_cppExport-noconfig.cmake\n'}
+[33.853356] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cExport.cmake\n'}
+[33.853889] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cExport-noconfig.cmake\n'}
+[33.854624] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cExport.cmake\n'}
+[33.855426] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cExport-noconfig.cmake\n'}
+[33.856010] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cppExport.cmake\n'}
+[33.856608] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_introspection_cppExport-noconfig.cmake\n'}
+[33.857203] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cppExport.cmake\n'}
+[33.857872] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_sync__rosidl_typesupport_cppExport-noconfig.cmake\n'}
+[33.858495] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_pyExport.cmake\n'}
+[33.859134] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/export_ugv_sensor_sync__rosidl_generator_pyExport-noconfig.cmake\n'}
+[33.859883] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/rosidl_cmake-extras.cmake\n'}
+[33.860248] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_dependencies-extras.cmake\n'}
+[33.860740] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_include_directories-extras.cmake\n'}
+[33.861204] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_libraries-extras.cmake\n'}
+[33.861700] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ament_cmake_export_targets-extras.cmake\n'}
+[33.862139] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake\n'}
+[33.862467] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake\n'}
+[33.862804] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_syncConfig.cmake\n'}
+[33.863153] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/cmake/ugv_sensor_syncConfig-version.cmake\n'}
+[33.863456] (ugv_sensor_sync) StdoutLine: {'line': b'-- Installing: /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/package.xml\n'}
+[33.868696] (ugv_sensor_sync) CommandEnded: {'returncode': 0}
+[33.923173] (-) TimerEvent: {}
+[33.942291] (ugv_sensor_sync) JobEnded: {'identifier': 'ugv_sensor_sync', 'rc': 0}
+[33.944391] (-) EventReactorShutdown: {}

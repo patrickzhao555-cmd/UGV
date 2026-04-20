@@ -1,0 +1,46 @@
+running egg_info
+creating ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info
+writing ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/PKG-INFO
+writing dependency_links to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/dependency_links.txt
+writing entry points to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/entry_points.txt
+writing requirements to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/requires.txt
+writing top-level names to ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/top_level.txt
+writing manifest file '../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/SOURCES.txt'
+reading manifest file '../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/SOURCES.txt'
+writing manifest file '../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build
+creating /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib
+creating /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+copying ugv_sensor_sync/__init__.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+copying ugv_sensor_sync/lidar_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+copying ugv_sensor_sync/zed_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+copying ugv_sensor_sync/uwb_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+copying ugv_sensor_sync/fusion_node.py -> /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync
+running install
+running install_lib
+creating /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/__init__.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/lidar_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/zed_sync_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/uwb_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+copying /home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/build/lib/ugv_sensor_sync/fusion_node.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync
+byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/__init__.py to __init__.cpython-310.pyc
+byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/lidar_sync_node.py to lidar_sync_node.cpython-310.pyc
+byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/zed_sync_node.py to zed_sync_node.cpython-310.pyc
+byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/uwb_node.py to uwb_node.cpython-310.pyc
+byte-compiling /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync/fusion_node.py to fusion_node.cpython-310.pyc
+running install_data
+copying resource/ugv_sensor_sync -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ament_index/resource_index/packages
+copying package.xml -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync
+creating /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/launch
+copying launch/sensor_sync_launch.py -> /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/share/ugv_sensor_sync/launch
+running install_egg_info
+Copying ../../build/ugv_sensor_sync/ugv_sensor_sync.egg-info to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/python3.10/site-packages/ugv_sensor_sync-0.0.1-py3.10.egg-info
+running install_scripts
+Installing fusion_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+Installing lidar_sync_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+Installing uwb_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+Installing zed_sync_node script to /home/bluelule/ugv_project/ros2_ws/install/ugv_sensor_sync/lib/ugv_sensor_sync
+writing list of installed files to '/home/bluelule/ugv_project/ros2_ws/build/ugv_sensor_sync/install.log'

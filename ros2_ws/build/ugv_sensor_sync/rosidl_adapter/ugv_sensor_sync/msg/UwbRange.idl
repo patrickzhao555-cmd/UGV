@@ -1,0 +1,21 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from ugv_sensor_sync/msg/UwbRange.msg
+// generated code does not contain a copyright notice
+
+#include "std_msgs/msg/Header.idl"
+
+module ugv_sensor_sync {
+  module msg {
+    struct UwbRange {
+      std_msgs::msg::Header header;
+
+      uint64 esp32_time_us;
+
+      double range_m;
+
+      double range_stddev_m;
+
+      uint32 anchor_id;
+    };
+  };
+};

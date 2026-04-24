@@ -17,7 +17,7 @@ class ZedSyncNode(Node):
         self.declare_parameter('image_frame_id', 'zed_left')
         self.declare_parameter('depth_frame_id', 'zed_depth')
         self.declare_parameter('imu_frame_id', 'zed_imu')
-        self.declare_parameter('publish_rate_hz', 15.0)
+        self.declare_parameter('publish_rate_hz', 10.0)
 
         image_topic = self.get_parameter('image_topic').value
         depth_topic = self.get_parameter('depth_topic').value

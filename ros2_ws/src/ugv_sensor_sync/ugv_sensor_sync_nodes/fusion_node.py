@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from collections import deque
 import json
 import math
 from typing import List, Optional, Tuple
@@ -36,8 +37,10 @@ class FusionNode(Node):
         self.declare_parameter('summary_topic', '/sensors/synced_summary')
         self.declare_parameter('use_legacy_encoder_fallback', True)
         self.declare_parameter('encoder_stale_timeout_s', 0.25)
+        self.declare_parameter('encoder_buffer_duration_s', 5.0)
+        self.declare_parameter('max_frame_age_s', 0.40)
         self.declare_parameter('sync_slop_s', DEFAULT_SLOP_S)
-        self.declare_parameter('sync_queue_size', 20)
+        self.declare_parameter('sync_queue_size', 5)
         self.declare_parameter('depth_warning_threshold_m', 0.30)
         self.declare_parameter('depth_min_valid_m', 0.05)
         self.declare_parameter('depth_max_valid_m', 10.0)
@@ -65,6 +68,8 @@ class FusionNode(Node):
         summary_topic = self.get_parameter('summary_topic').value
         self.use_legacy_encoder_fallback = bool(self.get_parameter('use_legacy_encoder_fallback').value)
         self.encoder_stale_timeout_s = float(self.get_parameter('encoder_stale_timeout_s').value)
+        self.encoder_buffer_duration_s = float(self.get_parameter('encoder_buffer_duration_s').value)
+        self.max_frame_age_s = float(self.get_parameter('max_frame_age_s').value)
         sync_slop_s = float(self.get_parameter('sync_slop_s').value)
         sync_queue_size = int(self.get_parameter('sync_queue_size').value)
 
@@ -83,8 +88,10 @@ class FusionNode(Node):
         self.depth_obstacle_max_points = max(1, int(self.get_parameter('depth_obstacle_max_points').value))
 
         self.latest_encoder_stamped: Optional[dict] = None
+        self.encoder_stamped_history = deque()
         self.latest_encoder_legacy: Optional[dict] = None
         self.last_encoder_warning_s = 0.0
+        self.last_frame_age_warning_s = 0.0
         self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, 10)
         if self.use_legacy_encoder_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, 10)
@@ -123,6 +130,8 @@ class FusionNode(Node):
             'stamp_s': stamp_s,
             'source': 'stamped',
         }
+        self.encoder_stamped_history.append(self.latest_encoder_stamped.copy())
+        self._trim_encoder_history(stamp_s)
 
     def encoder_callback(self, msg: Int32MultiArray) -> None:
         if len(msg.data) >= 2:
@@ -141,6 +150,14 @@ class FusionNode(Node):
         depth_msg: Image,
         imu_msg: Imu,
     ) -> None:
+        frame_stamp_s = self._header_stamp_to_seconds(scan_msg.header)
+        frame_age_s = max(0.0, self._clock_now_seconds() - frame_stamp_s)
+        if frame_age_s > self.max_frame_age_s:
+            self._warn_frame_delay(
+                f'dropping stale fused frame before publish (frame_age={frame_age_s:.3f}s)'
+            )
+            return
+
         lidar_min_range_m = self._compute_lidar_min_range(scan_msg)
         depth_min_range_m, depth_warning, valid_depth_samples = self._compute_depth_stats(depth_msg)
         zed_obstacle_points = self._build_depth_obstacle_pose_array(depth_msg)
@@ -186,6 +203,7 @@ class FusionNode(Node):
 
         summary = {
             'stamp_sec': self._stamp_to_seconds(scan_msg),
+            'frame_age_s': round(frame_age_s, 3),
             'scan_frame': scan_msg.header.frame_id,
             'image_frame': image_msg.header.frame_id,
             'depth_frame': depth_msg.header.frame_id,
@@ -209,7 +227,8 @@ class FusionNode(Node):
     def _select_encoder_for_frame(self, frame_header):
         frame_stamp_s = self._header_stamp_to_seconds(frame_header)
         candidates = []
-        if self.latest_encoder_stamped is not None:
+        candidates.extend(self.encoder_stamped_history)
+        if not candidates and self.latest_encoder_stamped is not None:
             candidates.append(self.latest_encoder_stamped)
         if self.use_legacy_encoder_fallback and self.latest_encoder_legacy is not None:
             candidates.append(self.latest_encoder_legacy)
@@ -362,11 +381,22 @@ class FusionNode(Node):
         now = self.get_clock().now().to_msg()
         return float(now.sec) + float(now.nanosec) / 1e9
 
+    def _trim_encoder_history(self, newest_stamp_s: float) -> None:
+        cutoff_s = newest_stamp_s - max(self.encoder_buffer_duration_s, 0.5)
+        while self.encoder_stamped_history and float(self.encoder_stamped_history[0]['stamp_s']) < cutoff_s:
+            self.encoder_stamped_history.popleft()
+
     def _warn_encoder_gap(self, message: str, period_s: float = 2.0) -> None:
         now_s = self._clock_now_seconds()
         if now_s - self.last_encoder_warning_s >= period_s:
             self.get_logger().warn(message)
             self.last_encoder_warning_s = now_s
+
+    def _warn_frame_delay(self, message: str, period_s: float = 2.0) -> None:
+        now_s = self._clock_now_seconds()
+        if now_s - self.last_frame_age_warning_s >= period_s:
+            self.get_logger().warn(message)
+            self.last_frame_age_warning_s = now_s
 
     @staticmethod
     def _finite_or_none(value: float):

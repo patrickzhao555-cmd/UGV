@@ -12,18 +12,15 @@ This script is a bridge between a pure simulation and a real UGV pipeline.
 
 - `--mode real`
   - No GUI
-  - Reads real-style sensor data
+  - Reads the pathing-ready sensor frame from `ugv_sensor_sync`
   - Computes path and outputs commands like `FORWARD`, `TURN_LEFT`, `TURN_RIGHT`, `BACKWARD`, `STOP`
 
 ## Expected real topics
 
 If you use the built-in ROS 2 bridge, the script expects:
 
-- `/encoder_ticks` as `std_msgs/Int32MultiArray`
-  - data = `[left_ticks, right_ticks]`
-- `/scan` as `sensor_msgs/LaserScan`
-- `/zed_obstacle_points` as `geometry_msgs/PoseArray`
-  - each pose position is a point in the robot base frame
+- `/sensors/nav_frame` as `ugv_sensor_sync/msg/NavSensorFrame`
+  - includes lidar scan, ZED obstacle points, latest encoder ticks, and clearance summaries
 - `/ugv_goal` as `geometry_msgs/PointStamped`
   - point in the map frame
 
@@ -64,5 +61,5 @@ python ugv_nav_dual_mode.py --mode real --replay-json sample_log.jsonl
 - Internal planning map grows from sensor hits instead of starting with full map knowledge
 - Differential / tank style control is used for command output
 - Wheel encoder odometry drives the estimated pose
-- Lidar and ZED are treated as separate sensor streams
+- Navigation now reads a stable middle-layer contract instead of individual raw sensor topics
 - Goal input is separated from obstacle sensing, which matches the UAV gives goal and UGV handles navigation idea

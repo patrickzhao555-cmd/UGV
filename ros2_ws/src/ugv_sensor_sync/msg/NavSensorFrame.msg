@@ -1,0 +1,10 @@
+std_msgs/Header header
+sensor_msgs/LaserScan scan
+geometry_msgs/PoseArray zed_obstacle_points
+int32 left_encoder_ticks
+int32 right_encoder_ticks
+bool encoder_available
+float32 min_lidar_range_m
+float32 min_depth_range_m
+float32 front_clearance_m
+bool near_obstacle

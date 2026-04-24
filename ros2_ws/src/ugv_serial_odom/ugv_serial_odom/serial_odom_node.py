@@ -3,8 +3,9 @@ import math
 import serial
 import rclpy
 from rclpy.node import Node
-from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TransformStamped
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Int32MultiArray
 from tf2_ros import TransformBroadcaster
 
 def yaw_to_quat(yaw: float):
@@ -37,6 +38,7 @@ class SerialOdom(Node):
         self.get_logger().info(f"Reading ticks from {port} @ {baud}")
 
         self.odom_pub = self.create_publisher(Odometry, '/odom', 10)
+        self.encoder_pub = self.create_publisher(Int32MultiArray, '/encoder_ticks', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
 
         self.x = 0.0
@@ -69,6 +71,10 @@ class SerialOdom(Node):
             dt_ms = int(parts[3])
         except ValueError:
             return
+
+        encoder_msg = Int32MultiArray()
+        encoder_msg.data = [l, r]
+        self.encoder_pub.publish(encoder_msg)
 
         if self.prev_l is None:
             self.prev_l, self.prev_r = l, r

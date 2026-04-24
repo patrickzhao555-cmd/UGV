@@ -1079,20 +1079,22 @@ class Ros2Bridge(RealRobotBridgeBase):
         try:
             import rclpy
             from rclpy.node import Node
-            from std_msgs.msg import Int32MultiArray, String
-            from sensor_msgs.msg import LaserScan
-            from geometry_msgs.msg import PoseArray, PointStamped
+            from geometry_msgs.msg import PointStamped
+            from std_msgs.msg import String
+            from ugv_sensor_sync.msg import NavSensorFrame
         except Exception as e:
             raise RuntimeError(
-                "ROS2 bridge needs rclpy, std_msgs, sensor_msgs, geometry_msgs installed. "
+                "ROS2 bridge needs rclpy, geometry_msgs, std_msgs, and the built ugv_sensor_sync "
+                "message package available in the sourced workspace. "
                 "If you are not on the Jetson yet, use --replay-json instead."
             ) from e
 
         self._rclpy = rclpy
         self._String = String
-        self._latest_ticks: Optional[Tuple[int, int, float]] = None
-        self._latest_scan: Optional[Tuple[List[Tuple[float, float]], float]] = None
-        self._latest_zed: Optional[Tuple[List[Tuple[float, float]], float]] = None
+        self._NavSensorFrame = NavSensorFrame
+        self._latest_synced: Optional[
+            Tuple[int, int, List[Tuple[float, float]], List[float], List[float], List[Tuple[float, float]], float]
+        ] = None
         self._latest_goal: Optional[Tuple[float, float, float]] = None
 
         class BridgeNode(Node):
@@ -1100,50 +1102,52 @@ class Ros2Bridge(RealRobotBridgeBase):
 
         rclpy.init(args=None)
         self.node = BridgeNode("ugv_nav_bridge")
-        self.node.create_subscription(Int32MultiArray, "/encoder_ticks", self._ticks_cb, 10)
-        self.node.create_subscription(LaserScan, "/scan", self._scan_cb, 10)
-        self.node.create_subscription(PoseArray, "/zed_obstacle_points", self._zed_cb, 10)
+        self.node.create_subscription(NavSensorFrame, "/sensors/nav_frame", self._synced_cb, 10)
         self.node.create_subscription(PointStamped, "/ugv_goal", self._goal_cb, 10)
         self.pub = self.node.create_publisher(String, "/ugv_nav_cmd", 10)
 
-    def _ticks_cb(self, msg):
-        ts = time.time()
-        if len(msg.data) >= 2:
-            self._latest_ticks = (int(msg.data[0]), int(msg.data[1]), ts)
-
-    def _scan_cb(self, msg):
+    def _synced_cb(self, msg):
+        if not msg.encoder_available:
+            return
         hits: List[Tuple[float, float]] = []
-        angle = msg.angle_min
-        for r in msg.ranges:
-            if math.isfinite(r) and msg.range_min <= r <= msg.range_max:
+        ranges_m: List[float] = []
+        angles_rad: List[float] = []
+        angle = msg.scan.angle_min
+        for r in msg.scan.ranges:
+            if math.isfinite(r) and msg.scan.range_min <= r <= msg.scan.range_max:
                 hits.append((r * math.cos(angle), r * math.sin(angle)))
-            angle += msg.angle_increment
-        self._latest_scan = (hits, time.time())
+                ranges_m.append(float(r))
+                angles_rad.append(float(angle))
+            angle += msg.scan.angle_increment
 
-    def _zed_cb(self, msg):
-        hits = []
-        for p in msg.poses:
-            hits.append((float(p.position.x), float(p.position.y)))
-        self._latest_zed = (hits, time.time())
+        zed_hits = []
+        for p in msg.zed_obstacle_points.poses:
+            zed_hits.append((float(p.position.x), float(p.position.y)))
+
+        ts = self._stamp_to_seconds(msg.header.stamp)
+        self._latest_synced = (
+            int(msg.left_encoder_ticks),
+            int(msg.right_encoder_ticks),
+            hits,
+            ranges_m,
+            angles_rad,
+            zed_hits,
+            ts,
+        )
 
     def _goal_cb(self, msg):
         self._latest_goal = (float(msg.point.x), float(msg.point.y), time.time())
 
     def read_frame(self) -> Optional[SensorFrame]:
         self._rclpy.spin_once(self.node, timeout_sec=0.02)
-        if self._latest_ticks is None or self._latest_scan is None or self._latest_goal is None:
+        if self._latest_synced is None or self._latest_goal is None:
             return None
-        left, right, ts_e = self._latest_ticks
-        scan_hits, ts_l = self._latest_scan
-        if self._latest_zed is None:
-            zed_hits, ts_z = [], max(ts_e, ts_l)
-        else:
-            zed_hits, ts_z = self._latest_zed
+        left, right, scan_hits, ranges_m, angles_rad, zed_hits, ts_s = self._latest_synced
         gx, gy, ts_g = self._latest_goal
-        ts = max(ts_e, ts_l, ts_z, ts_g)
+        ts = max(ts_s, ts_g)
         return SensorFrame(
             encoder=EncoderPacket(left, right, ts),
-            lidar=LidarPacket(scan_hits, [0.0] * len(scan_hits), [0.0] * len(scan_hits), ts),
+            lidar=LidarPacket(scan_hits, ranges_m, angles_rad, ts),
             zed=ZedPacket(zed_hits, ts),
             goal=GoalPacket(gx, gy, ts),
         )
@@ -1153,6 +1157,10 @@ class Ros2Bridge(RealRobotBridgeBase):
         msg.data = json.dumps(cmd.as_dict())
         self.pub.publish(msg)
         print("REAL CMD", msg.data)
+
+    @staticmethod
+    def _stamp_to_seconds(stamp) -> float:
+        return float(stamp.sec) + float(stamp.nanosec) / 1e9
 
 
 # =========================================================
@@ -1874,9 +1882,8 @@ def run_real_mode(replay_json: Optional[str] = None) -> None:
 
     print("Running REAL mode. No GUI. Printing and sending control commands.")
     print("Expected ROS2 topics if using Ros2Bridge:")
-    print("  /encoder_ticks        std_msgs/Int32MultiArray [left_ticks, right_ticks]")
-    print("  /scan                 sensor_msgs/LaserScan")
-    print("  /zed_obstacle_points  geometry_msgs/PoseArray in base_link frame")
+    print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
+    print("                        includes scan, zed obstacle points, latest encoder ticks, and clearance summaries")
     print("  /ugv_goal             geometry_msgs/PointStamped in map frame")
     print("Publishing:")
     print("  /ugv_nav_cmd          std_msgs/String with JSON control command")

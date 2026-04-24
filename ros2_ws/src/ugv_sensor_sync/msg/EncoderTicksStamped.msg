@@ -1,0 +1,8 @@
+std_msgs/Header header
+int32 left_ticks
+int32 right_ticks
+int32 front_left_ticks
+int32 front_right_ticks
+int32 rear_left_ticks
+int32 rear_right_ticks
+uint32 controller_millis

@@ -1,10 +1,69 @@
-cd ~/ugv_project/ros2_ws
+ugv_sensor_sync is the middle layer between raw sensors and navigation.
+
+What it does now:
+
+- publishes ZED left image, depth image, and IMU with a shared timestamp
+- republishes lidar scans with a midpoint-corrected timestamp
+- accepts timestamped encoder ticks from the motor controller bridge
+- bundles synced lidar + ZED image + ZED depth + ZED IMU into one ROS message
+- publishes a slimmer navigation contract so nav does not depend on raw sensor internals
+- publishes pathing-friendly ZED obstacle points and front clearance summaries
+
+Main topics:
+
+- `/zed/image`
+- `/zed/depth`
+- `/zed/imu`
+- `/scan/synced`
+- `/encoder_ticks_stamped`
+- `/sensors/synced`
+- `/sensors/nav_frame`
+- `/sensors/zed_obstacle_points`
+- `/sensors/front_clearance_m`
+- `/sensors/near_obstacle`
+- `/sensors/synced_summary`
+
+Contract layers:
+
+- device adapters publish normalized per-sensor topics
+- `fusion_node` owns the cross-sensor time alignment and publishes stable outputs
+- `ugv_nav` should read `/sensors/nav_frame`, not the raw sensor topics
+- if you add a new sensor later, try to keep the change inside the adapter node and `fusion_node`
+- only change nav when the stable pathing contract itself truly needs new information
+
+Build and run:
+
+```bash
+cd ~/UGV/ros2_ws
 colcon build --packages-select ugv_sensor_sync
 source install/setup.bash
-
-# Launch everything
 ros2 launch ugv_sensor_sync sensor_sync_launch.py
+```
 
-# In another terminal — verify timestamps are aligned
+Full stack bring-up from one command:
+
+```bash
+cd ~/UGV/ros2_ws
+bash jetson_bringup.sh
+```
+
+If the ESP32 / UWB stack is not ready yet, keep it disabled:
+
+```bash
+ros2 launch ugv_sensor_sync sensor_sync_launch.py start_uwb:=false
+```
+
+Useful debug commands:
+
+```bash
 ros2 topic echo /scan/synced --field header.stamp
 ros2 topic echo /zed/imu --field header.stamp
+ros2 topic echo /encoder_ticks_stamped --once
+ros2 topic echo /sensors/nav_frame --once
+ros2 topic echo /sensors/front_clearance_m
+ros2 topic echo /sensors/near_obstacle
+ros2 topic echo /sensors/synced_summary
+ros2 interface show ugv_sensor_sync/msg/EncoderTicksStamped
+ros2 interface show ugv_sensor_sync/msg/NavSensorFrame
+ros2 interface show ugv_sensor_sync/msg/SyncedSensorPacket
+```

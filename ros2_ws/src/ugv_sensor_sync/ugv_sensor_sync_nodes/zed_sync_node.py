@@ -3,6 +3,7 @@ import numpy as np
 import pyzed.sl as sl
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, Imu
 from std_msgs.msg import Header
 
@@ -27,9 +28,9 @@ class ZedSyncNode(Node):
         self.imu_frame_id = self.get_parameter('imu_frame_id').value
         publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
 
-        self.image_pub = self.create_publisher(Image, image_topic, 10)
-        self.depth_pub = self.create_publisher(Image, depth_topic, 10)
-        self.imu_pub = self.create_publisher(Imu, imu_topic, 10)
+        self.image_pub = self.create_publisher(Image, image_topic, qos_profile_sensor_data)
+        self.depth_pub = self.create_publisher(Image, depth_topic, qos_profile_sensor_data)
+        self.imu_pub = self.create_publisher(Imu, imu_topic, qos_profile_sensor_data)
 
         self.zed = sl.Camera()
         init_params = sl.InitParameters()

@@ -8,13 +8,14 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import Pose, PoseArray
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, Imu, LaserScan
 from std_msgs.msg import Bool, Float32, Int32MultiArray, String
 
 from ugv_sensor_sync.msg import EncoderTicksStamped, NavSensorFrame, SyncedSensorPacket
 
 
-DEFAULT_SLOP_S = 0.08
+DEFAULT_SLOP_S = 0.25
 
 
 class FusionNode(Node):
@@ -94,13 +95,13 @@ class FusionNode(Node):
         self.last_encoder_warning_s = 0.0
         self.last_frame_age_warning_s = 0.0
         self.last_zed_warning_s = 0.0
-        self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, 10)
+        self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, qos_profile_sensor_data)
         if self.use_legacy_encoder_fallback:
-            self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, 10)
-        self.create_subscription(LaserScan, scan_topic, self.scan_callback, 10)
-        self.create_subscription(Image, image_topic, self.image_callback, 10)
-        self.create_subscription(Image, depth_topic, self.depth_callback, 10)
-        self.create_subscription(Imu, imu_topic, self.imu_callback, 10)
+            self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, qos_profile_sensor_data)
+        self.create_subscription(LaserScan, scan_topic, self.scan_callback, qos_profile_sensor_data)
+        self.create_subscription(Image, image_topic, self.image_callback, qos_profile_sensor_data)
+        self.create_subscription(Image, depth_topic, self.depth_callback, qos_profile_sensor_data)
+        self.create_subscription(Imu, imu_topic, self.imu_callback, qos_profile_sensor_data)
 
         self.bundle_pub = self.create_publisher(SyncedSensorPacket, output_topic, 10)
         self.nav_frame_pub = self.create_publisher(NavSensorFrame, nav_frame_topic, 10)

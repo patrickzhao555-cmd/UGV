@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import LaserScan
 
@@ -15,8 +16,8 @@ class LidarSyncNode(Node):
         self.declare_parameter('scan_freq_hz', SCAN_FREQ_HZ)
         self.freq = self.get_parameter('scan_freq_hz').value
 
-        self.sub = self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
-        self.pub = self.create_publisher(LaserScan, '/scan/synced', 10)
+        self.sub = self.create_subscription(LaserScan, '/scan', self.scan_callback, qos_profile_sensor_data)
+        self.pub = self.create_publisher(LaserScan, '/scan/synced', qos_profile_sensor_data)
 
         self.get_logger().info(f'Lidar sync node started (scan_freq={self.freq} Hz)')
 

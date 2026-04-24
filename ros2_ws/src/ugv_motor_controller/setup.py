@@ -1,4 +1,3 @@
-from glob import glob
 import os
 
 from setuptools import find_packages, setup
@@ -14,8 +13,14 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml', 'README.md']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
-        (os.path.join('share', package_name, 'firmware'), glob('firmware/*.ino')),
+        (
+            os.path.join('share', package_name, 'launch'),
+            [os.path.join('launch', name) for name in os.listdir('launch') if name.endswith('.py')],
+        ),
+        (
+            os.path.join('share', package_name, 'firmware', 'teensy_4_1_motor_bridge'),
+            [os.path.join('firmware', 'teensy_4_1_motor_bridge', 'teensy_4_1_motor_bridge.ino')],
+        ),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

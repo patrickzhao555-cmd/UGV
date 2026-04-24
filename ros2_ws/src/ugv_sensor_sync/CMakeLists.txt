@@ -23,7 +23,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES std_msgs sensor_msgs geometry_msgs builtin_interfaces
 )
 
-ament_python_install_package(${PROJECT_NAME})
+ament_python_install_package(ugv_sensor_sync_nodes)
 
 install(PROGRAMS
   scripts/fusion_node

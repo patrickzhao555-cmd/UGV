@@ -28,7 +28,7 @@ Useful overrides:
 
 ```bash
 ros2 launch ugv_motor_controller motor_controller.launch.py \
-  port:=/dev/ttyTHS1 \
+  port:=/dev/ttyACM0 \
   baud:=115200 \
   raw_command_scale_us:=900.0 \
   invert_left_command:=false \
@@ -39,16 +39,17 @@ ros2 launch ugv_motor_controller motor_controller.launch.py \
 
 Firmware file:
 
-- `firmware/teensy_4_1_motor_bridge.ino`
+- `firmware/teensy_4_1_motor_bridge/teensy_4_1_motor_bridge.ino`
 
 Protocol:
 
 - Jetson -> Teensy: `M<left_us>,<right_us>\n`
 - Teensy -> Jetson: `E<fl>,<fr>,<rl>,<rr>,<millis>\n`
+- USB `Serial` and UART `Serial1` both support the same protocol, so the robot can run over `/dev/ttyACM0` now and still keep `Serial1` available later
 
 The bridge keeps a ROS-side failsafe too:
 
 - if `/ugv_nav_cmd` stops arriving, it sends neutral PWM
 - if Teensy serial drops, it reconnects and republishes connection status
 
-Default Jetson-side serial port is `/dev/ttyTHS1`. Change it in launch if your wiring is different.
+Default Jetson-side serial port is `/dev/ttyACM0` because the current UGV wiring uses Teensy USB directly to the Nano. Change it in launch if your wiring is different.

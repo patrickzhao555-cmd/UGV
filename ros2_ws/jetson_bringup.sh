@@ -19,7 +19,7 @@ source_setup_compat() {
 
 # Edit these defaults once for your Jetson if the device names change.
 LIDAR_PORT="${LIDAR_PORT:-/dev/ttyUSB0}"
-MOTOR_PORT="${MOTOR_PORT:-/dev/ttyTHS1}"
+MOTOR_PORT="${MOTOR_PORT:-/dev/ttyACM0}"
 LIDAR_BAUD="${LIDAR_BAUD:-115200}"
 MOTOR_BAUD="${MOTOR_BAUD:-115200}"
 MOTOR_RAW_COMMAND_SCALE_US="${MOTOR_RAW_COMMAND_SCALE_US:-900.0}"

@@ -30,7 +30,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'lidar_scan_freq_hz',
-            default_value='5.5',
+            default_value='10.0',
             description='Expected lidar scan frequency for midpoint timestamp correction.',
         ),
 

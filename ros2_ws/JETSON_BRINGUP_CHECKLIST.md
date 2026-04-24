@@ -26,7 +26,7 @@ If your ports are different, override them without editing code:
 
 ```bash
 cd ~/UGV/ros2_ws
-LIDAR_PORT=/dev/ttyUSB0 MOTOR_PORT=/dev/ttyTHS1 bash jetson_bringup.sh
+LIDAR_PORT=/dev/ttyUSB0 MOTOR_PORT=/dev/ttyACM0 bash jetson_bringup.sh
 ```
 
 If one side drives backward when it should go forward, flip it from the shell:
@@ -38,9 +38,9 @@ INVERT_LEFT_COMMAND=true INVERT_LEFT_ENCODER=true bash jetson_bringup.sh
 
 ## 4. Make sure the Teensy side is ready
 
-- flash `ros2_ws/src/ugv_motor_controller/firmware/teensy_4_1_motor_bridge.ino` to the Teensy 4.1
-- confirm Jetson UART is wired to Teensy `Serial1`
-- confirm USB is optional debug only
+- flash `ros2_ws/src/ugv_motor_controller/firmware/teensy_4_1_motor_bridge/teensy_4_1_motor_bridge.ino` to the Teensy 4.1
+- confirm the current robot wiring uses Teensy USB directly to the Nano and shows up as `/dev/ttyACM0`
+- optional: the same firmware also supports UART on Teensy `Serial1` if you switch wiring later
 
 ## 5. Validate the raw sensor and drivetrain chain
 

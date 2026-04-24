@@ -15,7 +15,7 @@ class MotorControllerBridge(Node):
     def __init__(self):
         super().__init__('motor_controller_bridge')
 
-        self.declare_parameter('port', '/dev/ttyTHS1')
+        self.declare_parameter('port', '/dev/ttyACM0')
         self.declare_parameter('baud', 115200)
         self.declare_parameter('command_topic', '/ugv_nav_cmd')
         self.declare_parameter('encoder_topic', '/encoder_ticks')
@@ -73,6 +73,7 @@ class MotorControllerBridge(Node):
         self.last_status_publish = 0.0
         self.last_parse_error_log = 0.0
         self.last_connected_state: Optional[bool] = None
+        self.serial_rx_buffer = ''
 
         self.encoder_pub = self.create_publisher(Int32MultiArray, self.encoder_topic, 10)
         self.encoder_stamped_pub = self.create_publisher(EncoderTicksStamped, self.encoder_stamped_topic, 10)
@@ -130,7 +131,7 @@ class MotorControllerBridge(Node):
             self.serial_device = serial.Serial(
                 self.port,
                 self.baud,
-                timeout=0.0,
+                timeout=0.02,
                 write_timeout=0.1,
             )
             self.get_logger().info(f'Motor controller serial connected: {self.port} @ {self.baud}')
@@ -158,15 +159,29 @@ class MotorControllerBridge(Node):
             return
 
         try:
-            while self.serial_device.in_waiting > 0:
-                line = self.serial_device.readline().decode('utf-8', errors='ignore').strip()
-                if line:
-                    self._handle_serial_line(line)
+            while True:
+                waiting = self.serial_device.in_waiting
+                chunk = self.serial_device.read(waiting if waiting > 0 else 1)
+                if not chunk:
+                    break
+                self.serial_rx_buffer += chunk.decode('utf-8', errors='ignore')
+
+                while '\n' in self.serial_rx_buffer:
+                    line, self.serial_rx_buffer = self.serial_rx_buffer.split('\n', 1)
+                    line = line.strip()
+                    if line:
+                        self._handle_serial_line(line)
+
+                if len(self.serial_rx_buffer) > 4096:
+                    self.serial_rx_buffer = self.serial_rx_buffer[-1024:]
         except serial.SerialException as exc:
             self.get_logger().warn(f'Motor controller serial lost: {exc}')
             self._close_serial()
 
     def _handle_serial_line(self, line: str) -> None:
+        if line.startswith('ENC ') or line.startswith('DBG ENC '):
+            self._handle_debug_encoder_line(line)
+            return
         if not line.startswith('E'):
             self._throttled_info(f'Motor controller debug: {line}')
             return
@@ -187,6 +202,38 @@ class MotorControllerBridge(Node):
             self._log_parse_issue(f'Failed to parse encoder line: {line!r}')
             return
 
+        self._publish_encoder_values(
+            fl=fl,
+            fr=fr,
+            rl=rl,
+            rr=rr,
+            teensy_ms=teensy_ms,
+        )
+
+    def _handle_debug_encoder_line(self, line: str) -> None:
+        body = line[4:] if line.startswith('DBG ') else line
+        try:
+            ticks_part = body[4:].split(' pwm=', 1)[0]
+            fl_s, fr_s, rl_s, rr_s = ticks_part.split(',')
+            self._publish_encoder_values(
+                fl=int(fl_s),
+                fr=int(fr_s),
+                rl=int(rl_s),
+                rr=int(rr_s),
+                teensy_ms=None,
+            )
+        except (ValueError, IndexError):
+            self._log_parse_issue(f'Failed to parse debug encoder line: {line!r}')
+
+    def _publish_encoder_values(
+        self,
+        *,
+        fl: int,
+        fr: int,
+        rl: int,
+        rr: int,
+        teensy_ms: Optional[int],
+    ) -> None:
         left = int(round((fl + rl) / 2.0))
         right = int(round((fr + rr) / 2.0))
         if self.invert_left_encoder:
@@ -301,6 +348,7 @@ class MotorControllerBridge(Node):
             except Exception:
                 pass
         self.serial_device = None
+        self.serial_rx_buffer = ''
 
     def _throttled_info(self, msg: str, period_s: float = 2.0) -> None:
         now = time.monotonic()

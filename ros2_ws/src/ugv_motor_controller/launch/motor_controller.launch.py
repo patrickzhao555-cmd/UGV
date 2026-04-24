@@ -17,7 +17,7 @@ def generate_launch_description():
     invert_right_encoder = LaunchConfiguration('invert_right_encoder')
 
     return LaunchDescription([
-        DeclareLaunchArgument('port', default_value='/dev/ttyTHS1'),
+        DeclareLaunchArgument('port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('baud', default_value='115200'),
         DeclareLaunchArgument('raw_command_scale_us', default_value='900.0'),
         DeclareLaunchArgument('command_timeout_s', default_value='0.75'),

@@ -1,6 +1,6 @@
 // Teensy 4.1 - dual-channel motor PWM + 4-wheel encoder bridge
-// Serial  = USB debug console
-// Serial1 = Jetson UART on pins 0/1
+// Serial  = USB serial transport and debug console
+// Serial1 = optional Jetson UART on pins 0/1
 //
 // Jetson -> Teensy:
 //   M<left_us>,<right_us>\n
@@ -9,6 +9,10 @@
 // Teensy -> Jetson:
 //   E<fl>,<fr>,<rl>,<rr>,<millis>\n
 //   Example: E120,118,121,119,5320
+//
+// The same command/encoder protocol is accepted on USB Serial and Serial1.
+// That lets the robot run over /dev/ttyACM0 today and still keep UART support
+// available later if you move the wiring back to Serial1.
 //
 // Left PWM drives both left-side motors.
 // Right PWM drives both right-side motors.
@@ -43,8 +47,10 @@ const int PWM_MIN_US = 1100;
 const int PWM_NEUTRAL_US = 1500;
 const int PWM_MAX_US = 1900;
 
-char jetson_buf[48];
-int jetson_buf_idx = 0;
+char usb_buf[48];
+char uart_buf[48];
+int usb_buf_idx = 0;
+int uart_buf_idx = 0;
 int current_left_pwm = PWM_NEUTRAL_US;
 int current_right_pwm = PWM_NEUTRAL_US;
 
@@ -95,6 +101,15 @@ void writeMotors(int left_us, int right_us) {
   motor_right.writeMicroseconds(current_right_pwm);
 }
 
+void sendProtocolEncoderFrame(Stream& stream, long fl, long fr, long rl, long rr) {
+  stream.print("E");
+  stream.print(fl); stream.print(",");
+  stream.print(fr); stream.print(",");
+  stream.print(rl); stream.print(",");
+  stream.print(rr); stream.print(",");
+  stream.println(millis());
+}
+
 void sendEncoderFrame() {
   long fl, fr, rl, rr;
 
@@ -105,23 +120,23 @@ void sendEncoderFrame() {
   rr = enc_rr;
   interrupts();
 
-  Serial1.print("E");
-  Serial1.print(fl); Serial1.print(",");
-  Serial1.print(fr); Serial1.print(",");
-  Serial1.print(rl); Serial1.print(",");
-  Serial1.print(rr); Serial1.print(",");
-  Serial1.println(millis());
+  if (Serial) {
+    sendProtocolEncoderFrame(Serial, fl, fr, rl, rr);
+  }
+  sendProtocolEncoderFrame(Serial1, fl, fr, rl, rr);
 
-  Serial.print("ENC ");
-  Serial.print(fl); Serial.print(",");
-  Serial.print(fr); Serial.print(",");
-  Serial.print(rl); Serial.print(",");
-  Serial.print(rr); Serial.print(" pwm=");
-  Serial.print(current_left_pwm); Serial.print(",");
-  Serial.println(current_right_pwm);
+  if (Serial) {
+    Serial.print("DBG ENC ");
+    Serial.print(fl); Serial.print(",");
+    Serial.print(fr); Serial.print(",");
+    Serial.print(rl); Serial.print(",");
+    Serial.print(rr); Serial.print(" pwm=");
+    Serial.print(current_left_pwm); Serial.print(",");
+    Serial.println(current_right_pwm);
+  }
 }
 
-void parseCommand(char* s) {
+void parseCommand(char* s, const char* transport_name) {
   if (s[0] != 'M') return;
 
   char* comma = strchr(s + 1, ',');
@@ -134,21 +149,25 @@ void parseCommand(char* s) {
   writeMotors(left_us, right_us);
   last_command_ms = millis();
 
-  Serial.print("CMD ");
-  Serial.print(current_left_pwm);
-  Serial.print(",");
-  Serial.println(current_right_pwm);
+  if (Serial) {
+    Serial.print("DBG CMD ");
+    Serial.print(transport_name);
+    Serial.print(" ");
+    Serial.print(current_left_pwm);
+    Serial.print(",");
+    Serial.println(current_right_pwm);
+  }
 }
 
-void processJetsonSerial() {
-  while (Serial1.available()) {
-    char c = Serial1.read();
+void processTransport(Stream& stream, char* buf, int& buf_idx, const char* transport_name) {
+  while (stream.available()) {
+    char c = stream.read();
     if (c == '\n') {
-      jetson_buf[jetson_buf_idx] = '\0';
-      parseCommand(jetson_buf);
-      jetson_buf_idx = 0;
-    } else if (c != '\r' && jetson_buf_idx < (int)sizeof(jetson_buf) - 1) {
-      jetson_buf[jetson_buf_idx++] = c;
+      buf[buf_idx] = '\0';
+      parseCommand(buf, transport_name);
+      buf_idx = 0;
+    } else if (c != '\r' && buf_idx < 47) {
+      buf[buf_idx++] = c;
     }
   }
 }
@@ -181,16 +200,22 @@ void setup() {
   last_command_ms = millis();
 
   Serial.println("Teensy 4.1 motor bridge ready");
-  Serial.println("Jetson link on Serial1, debug on Serial");
+  Serial.println("USB Serial and Serial1 both accept M... commands");
+  Serial.println("USB Serial and Serial1 both publish E... encoder frames");
 }
 
 void loop() {
-  processJetsonSerial();
+  if (Serial) {
+    processTransport(Serial, usb_buf, usb_buf_idx, "usb");
+  }
+  processTransport(Serial1, uart_buf, uart_buf_idx, "uart");
 
   if (millis() - last_command_ms > COMMAND_TIMEOUT_MS) {
     if (current_left_pwm != PWM_NEUTRAL_US || current_right_pwm != PWM_NEUTRAL_US) {
       writeMotors(PWM_NEUTRAL_US, PWM_NEUTRAL_US);
-      Serial.println("Failsafe stop");
+      if (Serial) {
+        Serial.println("DBG Failsafe stop");
+      }
     }
   }
 

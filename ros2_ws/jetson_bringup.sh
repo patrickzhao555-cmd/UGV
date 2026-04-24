@@ -26,6 +26,7 @@ MOTOR_RAW_COMMAND_SCALE_US="${MOTOR_RAW_COMMAND_SCALE_US:-900.0}"
 START_UWB="${START_UWB:-false}"
 START_MOTOR_CONTROLLER="${START_MOTOR_CONTROLLER:-true}"
 START_NAV="${START_NAV:-true}"
+EXTRA_SETUP_BASH="${EXTRA_SETUP_BASH:-}"
 INVERT_LEFT_COMMAND="${INVERT_LEFT_COMMAND:-false}"
 INVERT_RIGHT_COMMAND="${INVERT_RIGHT_COMMAND:-false}"
 INVERT_LEFT_ENCODER="${INVERT_LEFT_ENCODER:-false}"
@@ -33,6 +34,14 @@ INVERT_RIGHT_ENCODER="${INVERT_RIGHT_ENCODER:-false}"
 
 if [[ -n "${ROS_DISTRO:-}" && -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
   source_setup_compat "/opt/ros/${ROS_DISTRO}/setup.bash"
+fi
+
+if [[ -n "${EXTRA_SETUP_BASH}" ]]; then
+  if [[ ! -f "${EXTRA_SETUP_BASH}" ]]; then
+    echo "Missing extra setup file: ${EXTRA_SETUP_BASH}"
+    exit 1
+  fi
+  source_setup_compat "${EXTRA_SETUP_BASH}"
 fi
 
 if [[ ! -f "${WORKSPACE_DIR}/install/setup.bash" ]]; then

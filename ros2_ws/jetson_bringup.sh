@@ -3,6 +3,20 @@ set -euo pipefail
 
 WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+source_setup_compat() {
+  local setup_path="$1"
+  local restore_nounset=0
+  if [[ $- == *u* ]]; then
+    restore_nounset=1
+    set +u
+  fi
+  # shellcheck disable=SC1090
+  source "${setup_path}"
+  if [[ "${restore_nounset}" -eq 1 ]]; then
+    set -u
+  fi
+}
+
 # Edit these defaults once for your Jetson if the device names change.
 LIDAR_PORT="${LIDAR_PORT:-/dev/ttyUSB0}"
 MOTOR_PORT="${MOTOR_PORT:-/dev/ttyTHS1}"
@@ -18,8 +32,7 @@ INVERT_LEFT_ENCODER="${INVERT_LEFT_ENCODER:-false}"
 INVERT_RIGHT_ENCODER="${INVERT_RIGHT_ENCODER:-false}"
 
 if [[ -n "${ROS_DISTRO:-}" && -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
-  # shellcheck disable=SC1090
-  source "/opt/ros/${ROS_DISTRO}/setup.bash"
+  source_setup_compat "/opt/ros/${ROS_DISTRO}/setup.bash"
 fi
 
 if [[ ! -f "${WORKSPACE_DIR}/install/setup.bash" ]]; then
@@ -30,8 +43,7 @@ if [[ ! -f "${WORKSPACE_DIR}/install/setup.bash" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1091
-source "${WORKSPACE_DIR}/install/setup.bash"
+source_setup_compat "${WORKSPACE_DIR}/install/setup.bash"
 export UGV_WS="${WORKSPACE_DIR}"
 
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \

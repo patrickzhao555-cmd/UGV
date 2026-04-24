@@ -4,7 +4,6 @@ import json
 import math
 from typing import List, Optional, Tuple
 
-import message_filters
 import numpy as np
 import rclpy
 from geometry_msgs.msg import Pose, PoseArray
@@ -39,8 +38,8 @@ class FusionNode(Node):
         self.declare_parameter('encoder_stale_timeout_s', 0.25)
         self.declare_parameter('encoder_buffer_duration_s', 5.0)
         self.declare_parameter('max_frame_age_s', 0.40)
+        self.declare_parameter('zed_frame_buffer_duration_s', 2.0)
         self.declare_parameter('sync_slop_s', DEFAULT_SLOP_S)
-        self.declare_parameter('sync_queue_size', 5)
         self.declare_parameter('depth_warning_threshold_m', 0.30)
         self.declare_parameter('depth_min_valid_m', 0.05)
         self.declare_parameter('depth_max_valid_m', 10.0)
@@ -70,8 +69,8 @@ class FusionNode(Node):
         self.encoder_stale_timeout_s = float(self.get_parameter('encoder_stale_timeout_s').value)
         self.encoder_buffer_duration_s = float(self.get_parameter('encoder_buffer_duration_s').value)
         self.max_frame_age_s = float(self.get_parameter('max_frame_age_s').value)
-        sync_slop_s = float(self.get_parameter('sync_slop_s').value)
-        sync_queue_size = int(self.get_parameter('sync_queue_size').value)
+        self.zed_frame_buffer_duration_s = float(self.get_parameter('zed_frame_buffer_duration_s').value)
+        self.sync_slop_s = float(self.get_parameter('sync_slop_s').value)
 
         self.depth_warning_threshold_m = float(self.get_parameter('depth_warning_threshold_m').value)
         self.depth_min_valid_m = float(self.get_parameter('depth_min_valid_m').value)
@@ -90,23 +89,18 @@ class FusionNode(Node):
         self.latest_encoder_stamped: Optional[dict] = None
         self.encoder_stamped_history = deque()
         self.latest_encoder_legacy: Optional[dict] = None
+        self.zed_frame_history = deque()
+        self.zed_frame_map = {}
         self.last_encoder_warning_s = 0.0
         self.last_frame_age_warning_s = 0.0
+        self.last_zed_warning_s = 0.0
         self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, 10)
         if self.use_legacy_encoder_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, 10)
-
-        scan_sub = message_filters.Subscriber(self, LaserScan, scan_topic)
-        image_sub = message_filters.Subscriber(self, Image, image_topic)
-        depth_sub = message_filters.Subscriber(self, Image, depth_topic)
-        imu_sub = message_filters.Subscriber(self, Imu, imu_topic)
-
-        self.sync = message_filters.ApproximateTimeSynchronizer(
-            [scan_sub, image_sub, depth_sub, imu_sub],
-            queue_size=max(sync_queue_size, 5),
-            slop=sync_slop_s,
-        )
-        self.sync.registerCallback(self.fused_callback)
+        self.create_subscription(LaserScan, scan_topic, self.scan_callback, 10)
+        self.create_subscription(Image, image_topic, self.image_callback, 10)
+        self.create_subscription(Image, depth_topic, self.depth_callback, 10)
+        self.create_subscription(Imu, imu_topic, self.imu_callback, 10)
 
         self.bundle_pub = self.create_publisher(SyncedSensorPacket, output_topic, 10)
         self.nav_frame_pub = self.create_publisher(NavSensorFrame, nav_frame_topic, 10)
@@ -142,6 +136,29 @@ class FusionNode(Node):
                 'stamp_s': now_s,
                 'source': 'legacy',
             }
+
+    def image_callback(self, msg: Image) -> None:
+        frame = self._upsert_zed_frame(msg.header)
+        frame['image'] = msg
+
+    def depth_callback(self, msg: Image) -> None:
+        frame = self._upsert_zed_frame(msg.header)
+        frame['depth'] = msg
+
+    def imu_callback(self, msg: Imu) -> None:
+        frame = self._upsert_zed_frame(msg.header)
+        frame['imu'] = msg
+
+    def scan_callback(self, scan_msg: LaserScan) -> None:
+        zed_frame = self._select_zed_frame_for_scan(scan_msg.header)
+        if zed_frame is None:
+            return
+        self.fused_callback(
+            scan_msg,
+            zed_frame.get('image', Image()),
+            zed_frame['depth'],
+            zed_frame['imu'],
+        )
 
     def fused_callback(
         self,
@@ -258,6 +275,48 @@ class FusionNode(Node):
             float(best_age_s),
             str(best['source']),
         )
+
+    def _upsert_zed_frame(self, header):
+        stamp_s = self._header_stamp_to_seconds(header)
+        key = self._header_stamp_key(header)
+        frame = self.zed_frame_map.get(key)
+        if frame is None:
+            frame = {
+                'stamp_s': stamp_s,
+                'image': None,
+                'depth': None,
+                'imu': None,
+            }
+            self.zed_frame_map[key] = frame
+            self.zed_frame_history.append((key, frame))
+        else:
+            frame['stamp_s'] = stamp_s
+        self._trim_zed_history(stamp_s)
+        return frame
+
+    def _select_zed_frame_for_scan(self, scan_header):
+        frame_stamp_s = self._header_stamp_to_seconds(scan_header)
+        best = None
+        best_age_s = float('inf')
+        for _, frame in self.zed_frame_history:
+            if frame.get('depth') is None or frame.get('imu') is None:
+                continue
+            age_s = abs(frame_stamp_s - float(frame['stamp_s']))
+            if age_s < best_age_s:
+                best = frame
+                best_age_s = age_s
+
+        if best is None:
+            self._warn_zed_gap('no complete ZED frame available yet for scan fusion')
+            return None
+
+        if best_age_s > self.sync_slop_s:
+            self._warn_zed_gap(
+                f'no ZED frame within sync window for scan fusion (age={best_age_s:.3f}s)'
+            )
+            return None
+
+        return best
 
     def _compute_lidar_min_range(self, scan_msg: LaserScan) -> float:
         valid = [r for r in scan_msg.ranges if scan_msg.range_min < r < scan_msg.range_max]
@@ -386,6 +445,12 @@ class FusionNode(Node):
         while self.encoder_stamped_history and float(self.encoder_stamped_history[0]['stamp_s']) < cutoff_s:
             self.encoder_stamped_history.popleft()
 
+    def _trim_zed_history(self, newest_stamp_s: float) -> None:
+        cutoff_s = newest_stamp_s - max(self.zed_frame_buffer_duration_s, 0.5)
+        while self.zed_frame_history and float(self.zed_frame_history[0][1]['stamp_s']) < cutoff_s:
+            old_key, _ = self.zed_frame_history.popleft()
+            self.zed_frame_map.pop(old_key, None)
+
     def _warn_encoder_gap(self, message: str, period_s: float = 2.0) -> None:
         now_s = self._clock_now_seconds()
         if now_s - self.last_encoder_warning_s >= period_s:
@@ -398,9 +463,19 @@ class FusionNode(Node):
             self.get_logger().warn(message)
             self.last_frame_age_warning_s = now_s
 
+    def _warn_zed_gap(self, message: str, period_s: float = 2.0) -> None:
+        now_s = self._clock_now_seconds()
+        if now_s - self.last_zed_warning_s >= period_s:
+            self.get_logger().warn(message)
+            self.last_zed_warning_s = now_s
+
     @staticmethod
     def _finite_or_none(value: float):
         return value if math.isfinite(value) else None
+
+    @staticmethod
+    def _header_stamp_key(header):
+        return int(header.stamp.sec), int(header.stamp.nanosec)
 
 
 def main(args=None):

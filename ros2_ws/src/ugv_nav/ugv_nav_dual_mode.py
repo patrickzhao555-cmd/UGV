@@ -1136,7 +1136,12 @@ class Ros2Bridge(RealRobotBridgeBase):
         )
 
     def _goal_cb(self, msg):
-        self._latest_goal = (float(msg.point.x), float(msg.point.y), time.time())
+        stamp_now = self.node.get_clock().now().to_msg()
+        self._latest_goal = (
+            float(msg.point.x),
+            float(msg.point.y),
+            self._stamp_to_seconds(stamp_now),
+        )
 
     def read_frame(self) -> Optional[SensorFrame]:
         self._rclpy.spin_once(self.node, timeout_sec=0.02)

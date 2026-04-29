@@ -42,6 +42,7 @@ class FusionNode(Node):
         self.declare_parameter('max_frame_age_s', 0.40)
         self.declare_parameter('zed_frame_buffer_duration_s', 2.0)
         self.declare_parameter('sync_slop_s', DEFAULT_SLOP_S)
+        self.declare_parameter('zed_fresh_timeout_s', 0.40)
         self.declare_parameter('depth_warning_threshold_m', 0.30)
         self.declare_parameter('depth_min_valid_m', 0.05)
         self.declare_parameter('depth_max_valid_m', 10.0)
@@ -74,6 +75,7 @@ class FusionNode(Node):
         self.max_frame_age_s = float(self.get_parameter('max_frame_age_s').value)
         self.zed_frame_buffer_duration_s = float(self.get_parameter('zed_frame_buffer_duration_s').value)
         self.sync_slop_s = float(self.get_parameter('sync_slop_s').value)
+        self.zed_fresh_timeout_s = float(self.get_parameter('zed_fresh_timeout_s').value)
 
         self.depth_warning_threshold_m = float(self.get_parameter('depth_warning_threshold_m').value)
         self.depth_min_valid_m = float(self.get_parameter('depth_min_valid_m').value)
@@ -155,14 +157,17 @@ class FusionNode(Node):
         frame['imu'] = msg
 
     def scan_callback(self, scan_msg: LaserScan) -> None:
-        zed_frame = self._select_zed_frame_for_scan(scan_msg.header)
-        if zed_frame is None:
+        zed_selection = self._select_zed_frame_for_scan(scan_msg.header)
+        if zed_selection is None:
             return
+        zed_frame, zed_stamp_age_s, zed_receive_age_s = zed_selection
         self.fused_callback(
             scan_msg,
             zed_frame.get('image', Image()),
             zed_frame['depth'],
             zed_frame['imu'],
+            zed_stamp_age_s=zed_stamp_age_s,
+            zed_receive_age_s=zed_receive_age_s,
         )
 
     def fused_callback(
@@ -171,6 +176,8 @@ class FusionNode(Node):
         image_msg: Image,
         depth_msg: Image,
         imu_msg: Imu,
+        zed_stamp_age_s: float = 0.0,
+        zed_receive_age_s: float = 0.0,
     ) -> None:
         frame_stamp_s = self._header_stamp_to_seconds(scan_msg.header)
         frame_age_s = max(0.0, self._clock_now_seconds() - frame_stamp_s)
@@ -226,6 +233,8 @@ class FusionNode(Node):
         summary = {
             'stamp_sec': self._stamp_to_seconds(scan_msg),
             'frame_age_s': round(frame_age_s, 3),
+            'zed_stamp_age_s': self._finite_or_none(zed_stamp_age_s),
+            'zed_receive_age_s': self._finite_or_none(zed_receive_age_s),
             'scan_frame': scan_msg.header.frame_id,
             'image_frame': image_msg.header.frame_id,
             'depth_frame': depth_msg.header.frame_id,
@@ -283,11 +292,13 @@ class FusionNode(Node):
 
     def _upsert_zed_frame(self, header):
         stamp_s = self._header_stamp_to_seconds(header)
+        received_s = self._clock_now_seconds()
         key = self._header_stamp_key(header)
         frame = self.zed_frame_map.get(key)
         if frame is None:
             frame = {
                 'stamp_s': stamp_s,
+                'received_s': received_s,
                 'image': None,
                 'depth': None,
                 'imu': None,
@@ -296,32 +307,48 @@ class FusionNode(Node):
             self.zed_frame_history.append((key, frame))
         else:
             frame['stamp_s'] = stamp_s
+            frame['received_s'] = received_s
         self._trim_zed_history(stamp_s)
         return frame
 
     def _select_zed_frame_for_scan(self, scan_header):
         frame_stamp_s = self._header_stamp_to_seconds(scan_header)
+        now_s = self._clock_now_seconds()
         best = None
         best_age_s = float('inf')
+        freshest = None
+        freshest_receive_age_s = float('inf')
         for _, frame in self.zed_frame_history:
             if frame.get('depth') is None or frame.get('imu') is None:
                 continue
             age_s = abs(frame_stamp_s - float(frame['stamp_s']))
+            receive_age_s = max(0.0, now_s - float(frame.get('received_s', frame['stamp_s'])))
             if age_s < best_age_s:
                 best = frame
                 best_age_s = age_s
+            if receive_age_s < freshest_receive_age_s:
+                freshest = frame
+                freshest_receive_age_s = receive_age_s
 
         if best is None:
             self._warn_zed_gap('no complete ZED frame available yet for scan fusion')
             return None
 
         if best_age_s > self.sync_slop_s:
+            if freshest is not None and freshest_receive_age_s <= self.zed_fresh_timeout_s:
+                self._warn_zed_gap(
+                    'using freshest complete ZED frame despite header mismatch '
+                    f'(stamp_age={best_age_s:.3f}s, recv_age={freshest_receive_age_s:.3f}s)'
+                )
+                return freshest, best_age_s, freshest_receive_age_s
             self._warn_zed_gap(
-                f'no ZED frame within sync window for scan fusion (age={best_age_s:.3f}s)'
+                'no fresh ZED frame available for scan fusion '
+                f'(best_stamp_age={best_age_s:.3f}s, freshest_recv_age={freshest_receive_age_s:.3f}s)'
             )
             return None
 
-        return best
+        best_receive_age_s = max(0.0, now_s - float(best.get('received_s', best['stamp_s'])))
+        return best, best_age_s, best_receive_age_s
 
     def _compute_lidar_min_range(self, scan_msg: LaserScan) -> float:
         valid = [r for r in scan_msg.ranges if scan_msg.range_min < r < scan_msg.range_max]

@@ -30,6 +30,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('raw_command_scale_us', 900.0)
         self.declare_parameter('command_deadband', 0.03)
         self.declare_parameter('command_timeout_s', 0.75)
+        self.declare_parameter('command_refresh_period_s', 0.1)
         self.declare_parameter('serial_retry_period_s', 1.0)
         self.declare_parameter('poll_period_s', 0.02)
         self.declare_parameter('status_period_s', 0.5)
@@ -53,6 +54,7 @@ class MotorControllerBridge(Node):
         self.raw_command_scale_us = float(self.get_parameter('raw_command_scale_us').value)
         self.command_deadband = float(self.get_parameter('command_deadband').value)
         self.command_timeout_s = float(self.get_parameter('command_timeout_s').value)
+        self.command_refresh_period_s = float(self.get_parameter('command_refresh_period_s').value)
         self.serial_retry_period_s = float(self.get_parameter('serial_retry_period_s').value)
         self.poll_period_s = float(self.get_parameter('poll_period_s').value)
         self.status_period_s = float(self.get_parameter('status_period_s').value)
@@ -75,6 +77,7 @@ class MotorControllerBridge(Node):
         self.last_connected_state: Optional[bool] = None
         self.serial_rx_buffer = ''
         self.last_command_mode: Optional[str] = None
+        self.last_pwm_send_time = 0.0
 
         self.encoder_pub = self.create_publisher(Int32MultiArray, self.encoder_topic, 10)
         self.encoder_stamped_pub = self.create_publisher(EncoderTicksStamped, self.encoder_stamped_topic, 10)
@@ -130,6 +133,7 @@ class MotorControllerBridge(Node):
 
     def poll(self) -> None:
         self._ensure_serial()
+        self._refresh_active_command()
         self._handle_command_timeout()
         self._drain_serial()
         self._publish_connected()
@@ -170,6 +174,20 @@ class MotorControllerBridge(Node):
         if time.monotonic() - self.last_command_received > self.command_timeout_s:
             self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason='command timeout stop')
             self.last_stop_sent = True
+
+    def _refresh_active_command(self) -> None:
+        if self.serial_device is None:
+            return
+        if self.last_stop_sent:
+            return
+        if self.last_command_received <= 0.0:
+            return
+        now = time.monotonic()
+        if now - self.last_command_received > self.command_timeout_s:
+            return
+        if now - self.last_pwm_send_time < self.command_refresh_period_s:
+            return
+        self._send_pwm_command(*self.last_pwm_command, reason='command refresh')
 
     def _drain_serial(self) -> None:
         if self.serial_device is None:
@@ -328,6 +346,7 @@ class MotorControllerBridge(Node):
             self.serial_device.write(line.encode('utf-8'))
             self.serial_device.flush()
             self.last_pwm_command = (left_pwm, right_pwm)
+            self.last_pwm_send_time = time.monotonic()
             self._throttled_info(f'Sent motor command ({reason}): {left_pwm}, {right_pwm}')
         except serial.SerialException as exc:
             self.get_logger().warn(f'Failed to send motor command: {exc}')

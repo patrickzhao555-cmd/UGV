@@ -161,9 +161,12 @@ class FusionNode(Node):
         if zed_selection is None:
             return
         zed_frame, zed_stamp_age_s, zed_receive_age_s = zed_selection
+        image_msg = zed_frame.get('image')
+        if image_msg is None:
+            image_msg = self._empty_image_like(zed_frame['depth'].header)
         self.fused_callback(
             scan_msg,
-            zed_frame.get('image', Image()),
+            image_msg,
             zed_frame['depth'],
             zed_frame['imu'],
             zed_stamp_age_s=zed_stamp_age_s,
@@ -459,6 +462,18 @@ class FusionNode(Node):
         if return_bounds:
             return roi, x0, x1, y0, y1
         return roi
+
+    @staticmethod
+    def _empty_image_like(header) -> Image:
+        msg = Image()
+        msg.header = header
+        msg.height = 0
+        msg.width = 0
+        msg.encoding = ''
+        msg.is_bigendian = 0
+        msg.step = 0
+        msg.data = b''
+        return msg
 
     @staticmethod
     def _stamp_to_seconds(msg: LaserScan) -> float:

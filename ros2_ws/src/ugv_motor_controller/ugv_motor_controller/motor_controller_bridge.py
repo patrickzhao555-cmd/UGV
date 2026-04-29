@@ -31,7 +31,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('command_deadband', 0.03)
         self.declare_parameter('command_timeout_s', 0.75)
         self.declare_parameter('serial_retry_period_s', 1.0)
-        self.declare_parameter('poll_period_s', 0.01)
+        self.declare_parameter('poll_period_s', 0.02)
         self.declare_parameter('status_period_s', 0.5)
         self.declare_parameter('invert_left_command', False)
         self.declare_parameter('invert_right_command', False)
@@ -74,6 +74,7 @@ class MotorControllerBridge(Node):
         self.last_parse_error_log = 0.0
         self.last_connected_state: Optional[bool] = None
         self.serial_rx_buffer = ''
+        self.last_command_mode: Optional[str] = None
 
         self.encoder_pub = self.create_publisher(Int32MultiArray, self.encoder_topic, 10)
         self.encoder_stamped_pub = self.create_publisher(EncoderTicksStamped, self.encoder_stamped_topic, 10)
@@ -82,7 +83,9 @@ class MotorControllerBridge(Node):
         self.status_pub = self.create_publisher(String, self.status_topic, 10)
 
         self.create_subscription(String, self.command_topic, self.command_callback, 10)
-        self.create_timer(max(self.poll_period_s, 0.005), self.poll)
+        # Match the Teensy encoder cadence (~50 Hz) so the serial poll timer
+        # does not monopolize the single-threaded executor and starve commands.
+        self.create_timer(max(self.poll_period_s, 0.02), self.poll)
 
         self.get_logger().info(
             f'Motor controller bridge starting '
@@ -104,12 +107,26 @@ class MotorControllerBridge(Node):
         self.last_command_received = time.monotonic()
         self.last_stop_sent = False
         self.last_pwm_command = (left_pwm, right_pwm)
+        self.last_command_mode = str(obj.get('mode', 'RAW'))
 
         if self.serial_device is None:
-            self._publish_status(connected=False, extra={'reason': 'serial disconnected'})
+            self._publish_status(
+                connected=False,
+                extra={
+                    'reason': 'serial disconnected',
+                    'last_command_mode': self.last_command_mode,
+                },
+            )
             return
 
         self._send_pwm_command(left_pwm, right_pwm, reason='nav command')
+        self._publish_status(
+            connected=True,
+            extra={
+                'event': 'nav command received',
+                'last_command_mode': self.last_command_mode,
+            },
+        )
 
     def poll(self) -> None:
         self._ensure_serial()
@@ -131,7 +148,7 @@ class MotorControllerBridge(Node):
             self.serial_device = serial.Serial(
                 self.port,
                 self.baud,
-                timeout=0.02,
+                timeout=0.0,
                 write_timeout=0.1,
             )
             self.get_logger().info(f'Motor controller serial connected: {self.port} @ {self.baud}')
@@ -161,7 +178,9 @@ class MotorControllerBridge(Node):
         try:
             while True:
                 waiting = self.serial_device.in_waiting
-                chunk = self.serial_device.read(waiting if waiting > 0 else 1)
+                if waiting <= 0:
+                    break
+                chunk = self.serial_device.read(waiting)
                 if not chunk:
                     break
                 self.serial_rx_buffer += chunk.decode('utf-8', errors='ignore')
@@ -336,6 +355,8 @@ class MotorControllerBridge(Node):
             status['encoder_ticks'] = list(self.last_encoder_pair)
         if self.last_teensy_ms is not None:
             status['teensy_ms'] = self.last_teensy_ms
+        if self.last_command_mode is not None:
+            status['last_command_mode'] = self.last_command_mode
         if extra:
             status.update(extra)
         self.status_pub.publish(String(data=json.dumps(status)))

@@ -19,6 +19,7 @@ class ZedSyncNode(Node):
         self.declare_parameter('depth_frame_id', 'zed_depth')
         self.declare_parameter('imu_frame_id', 'zed_imu')
         self.declare_parameter('publish_rate_hz', 10.0)
+        self.declare_parameter('publish_image', False)
 
         image_topic = self.get_parameter('image_topic').value
         depth_topic = self.get_parameter('depth_topic').value
@@ -27,8 +28,11 @@ class ZedSyncNode(Node):
         self.depth_frame_id = self.get_parameter('depth_frame_id').value
         self.imu_frame_id = self.get_parameter('imu_frame_id').value
         publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
+        self.publish_image = bool(self.get_parameter('publish_image').value)
 
-        self.image_pub = self.create_publisher(Image, image_topic, qos_profile_sensor_data)
+        self.image_pub = None
+        if self.publish_image:
+            self.image_pub = self.create_publisher(Image, image_topic, qos_profile_sensor_data)
         self.depth_pub = self.create_publisher(Image, depth_topic, qos_profile_sensor_data)
         self.imu_pub = self.create_publisher(Imu, imu_topic, qos_profile_sensor_data)
 
@@ -50,7 +54,8 @@ class ZedSyncNode(Node):
         self.create_timer(1.0 / max(publish_rate_hz, 1.0), self.grab_frame)
         self.get_logger().info(
             'ZED sync node started '
-            f'(image={image_topic}, depth={depth_topic}, imu={imu_topic})'
+            f'(image={"disabled" if not self.publish_image else image_topic}, '
+            f'depth={depth_topic}, imu={imu_topic})'
         )
 
     def grab_frame(self):
@@ -59,15 +64,16 @@ class ZedSyncNode(Node):
 
         stamp = self.get_clock().now().to_msg()
 
-        self.zed.retrieve_image(self.left_image, sl.VIEW.LEFT)
         self.zed.retrieve_measure(self.depth_image, sl.MEASURE.DEPTH)
 
-        left_np = np.array(self.left_image.get_data(), copy=True)
         depth_np = np.array(self.depth_image.get_data(), copy=True)
         if depth_np.ndim == 3:
             depth_np = depth_np[:, :, 0]
 
-        self.image_pub.publish(self._image_from_array(left_np, 'bgra8', self.image_frame_id, stamp))
+        if self.publish_image and self.image_pub is not None:
+            self.zed.retrieve_image(self.left_image, sl.VIEW.LEFT)
+            left_np = np.array(self.left_image.get_data(), copy=True)
+            self.image_pub.publish(self._image_from_array(left_np, 'bgra8', self.image_frame_id, stamp))
         self.depth_pub.publish(
             self._image_from_array(
                 np.ascontiguousarray(depth_np.astype(np.float32, copy=False)),

@@ -35,6 +35,7 @@ class FusionNode(Node):
         self.declare_parameter('front_clearance_topic', '/sensors/front_clearance_m')
         self.declare_parameter('near_obstacle_topic', '/sensors/near_obstacle')
         self.declare_parameter('summary_topic', '/sensors/synced_summary')
+        self.declare_parameter('subscribe_image_topic', False)
         self.declare_parameter('use_legacy_encoder_fallback', True)
         self.declare_parameter('encoder_stale_timeout_s', 0.25)
         self.declare_parameter('encoder_buffer_duration_s', 5.0)
@@ -66,6 +67,7 @@ class FusionNode(Node):
         front_clearance_topic = self.get_parameter('front_clearance_topic').value
         near_obstacle_topic = self.get_parameter('near_obstacle_topic').value
         summary_topic = self.get_parameter('summary_topic').value
+        self.subscribe_image_topic = bool(self.get_parameter('subscribe_image_topic').value)
         self.use_legacy_encoder_fallback = bool(self.get_parameter('use_legacy_encoder_fallback').value)
         self.encoder_stale_timeout_s = float(self.get_parameter('encoder_stale_timeout_s').value)
         self.encoder_buffer_duration_s = float(self.get_parameter('encoder_buffer_duration_s').value)
@@ -99,7 +101,8 @@ class FusionNode(Node):
         if self.use_legacy_encoder_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, qos_profile_sensor_data)
         self.create_subscription(LaserScan, scan_topic, self.scan_callback, qos_profile_sensor_data)
-        self.create_subscription(Image, image_topic, self.image_callback, qos_profile_sensor_data)
+        if self.subscribe_image_topic:
+            self.create_subscription(Image, image_topic, self.image_callback, qos_profile_sensor_data)
         self.create_subscription(Image, depth_topic, self.depth_callback, qos_profile_sensor_data)
         self.create_subscription(Imu, imu_topic, self.imu_callback, qos_profile_sensor_data)
 
@@ -112,7 +115,8 @@ class FusionNode(Node):
 
         self.get_logger().info(
             'Fusion node started '
-            f'(scan={scan_topic}, image={image_topic}, depth={depth_topic}, imu={imu_topic}, '
+            f'(scan={scan_topic}, image={"disabled" if not self.subscribe_image_topic else image_topic}, '
+            f'depth={depth_topic}, imu={imu_topic}, '
             f'encoder_stamped={encoder_stamped_topic}, encoder_legacy={encoder_topic}, '
             f'out={output_topic}, nav_frame={nav_frame_topic}, obstacle_points={obstacle_points_topic})'
         )

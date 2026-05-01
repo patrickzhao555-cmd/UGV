@@ -129,6 +129,33 @@ class FieldMapPacket:
     source: str = "field_map"
 
 
+FieldMapKey = Tuple[
+    int,
+    float,
+    Tuple[Tuple[int, int], ...],
+    Optional[Tuple[float, float]],
+    Optional[Tuple[float, float]],
+    str,
+]
+
+
+def _field_map_xy_key(xy: Optional[Tuple[float, float]]) -> Optional[Tuple[float, float]]:
+    if xy is None:
+        return None
+    return round(float(xy[0]), 4), round(float(xy[1]), 4)
+
+
+def field_map_content_key(packet: FieldMapPacket) -> FieldMapKey:
+    return (
+        int(packet.size),
+        round(float(packet.cell_size_m), 6),
+        tuple(packet.obstacle_cells),
+        _field_map_xy_key(packet.start_xy),
+        _field_map_xy_key(packet.goal_xy),
+        str(packet.source),
+    )
+
+
 @dataclass
 class SensorFrame:
     encoder: EncoderPacket
@@ -1351,6 +1378,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         self._latest_synced_seq = 0
         self._goal_version = 0
         self._field_map_version = 0
+        self._field_map_key = None
         self._marker_version = 0
         self._last_returned_signature: Tuple[int, int, int, int] = (-1, -1, -1, -1)
         self.nav_frame_timeout_s = 0.75
@@ -1427,8 +1455,12 @@ class Ros2Bridge(RealRobotBridgeBase):
         except Exception as exc:
             self.node.get_logger().warn(f"Rejected /ugv/field_map JSON: {exc}")
             return
+        packet_key = field_map_content_key(packet)
+        if packet_key == self._field_map_key:
+            return
         self._latest_field_map = packet
         self._field_map_version = next_version
+        self._field_map_key = packet_key
         self.node.get_logger().info(
             "Received field map "
             f"v{packet.version}: size={packet.size}, obstacles={len(packet.obstacle_cells)}, "
@@ -1588,6 +1620,7 @@ class UGVNavigator:
         self._last_escape_side_left = True
         self._turn_loop_counter = 0
         self._last_field_map_version = -1
+        self._last_field_map_key = None
 
     def _touch_map(self) -> None:
         self._map_version += 1
@@ -1677,7 +1710,13 @@ class UGVNavigator:
         return changed
 
     def apply_field_map(self, packet: Optional[FieldMapPacket]) -> int:
-        if packet is None or packet.version == self._last_field_map_version:
+        if packet is None:
+            return 0
+        if packet.version == self._last_field_map_version:
+            return 0
+        packet_key = field_map_content_key(packet)
+        if packet_key == self._last_field_map_key:
+            self._last_field_map_version = packet.version
             return 0
 
         added = 0
@@ -1691,6 +1730,7 @@ class UGVNavigator:
             self.known_costmap.clear_disk_world(packet.goal_xy[0], packet.goal_xy[1], packet.cell_size_m * 0.45)
 
         self._last_field_map_version = packet.version
+        self._last_field_map_key = packet_key
         self._plan_costmap_dirty = True
         return added
 

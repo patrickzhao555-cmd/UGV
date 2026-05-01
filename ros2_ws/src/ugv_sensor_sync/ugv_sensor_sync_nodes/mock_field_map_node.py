@@ -72,14 +72,41 @@ class MockFieldMapNode(Node):
         self.marker_cell = parse_cell(self.get_parameter('marker_cell').value, (7, 7))
         self.use_default_obstacles = bool(self.get_parameter('use_default_obstacles').value)
         self.obstacles_json = self.get_parameter('obstacles_json').value
+        self.extra_obstacles = self._parse_obstacles_json(self.obstacles_json)
 
         self.pub = self.create_publisher(String, topic, 10)
         self.create_timer(self.publish_period_s, self.publish_map)
         self.get_logger().info(
             f'Mock field-map publisher started (topic={topic}, start_corner={self.start_corner}, '
-            f'marker_cell={self.marker_cell}, period={self.publish_period_s}s)'
+            f'marker_cell={self.marker_cell}, extra_obstacles={len(self.extra_obstacles)}, '
+            f'period={self.publish_period_s}s)'
         )
         self.publish_map()
+
+    def _parse_obstacles_json(self, raw: str) -> List[Tuple[int, int]]:
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(str(raw))
+        except Exception as exc:
+            self.get_logger().warn(f'Invalid obstacles_json; using defaults only: {exc}')
+            return []
+        if not isinstance(parsed, list):
+            self.get_logger().warn(
+                'Invalid obstacles_json; expected a list of [row, col] or {"row": r, "col": c} entries'
+            )
+            return []
+
+        obstacles: List[Tuple[int, int]] = []
+        for item in parsed:
+            try:
+                if isinstance(item, dict):
+                    obstacles.append((int(item['row']), int(item['col'])))
+                elif isinstance(item, list) and len(item) >= 2:
+                    obstacles.append((int(item[0]), int(item[1])))
+            except (KeyError, TypeError, ValueError) as exc:
+                self.get_logger().warn(f'Skipping invalid mock obstacle entry {item!r}: {exc}')
+        return obstacles
 
     def publish_map(self) -> None:
         size = self.field_size
@@ -88,15 +115,7 @@ class MockFieldMapNode(Node):
         marker = self.marker_cell
 
         obstacles = list(DEFAULT_OBSTACLES) if self.use_default_obstacles else []
-        if self.obstacles_json:
-            try:
-                for item in json.loads(self.obstacles_json):
-                    if isinstance(item, dict):
-                        obstacles.append((int(item['row']), int(item['col'])))
-                    elif isinstance(item, list) and len(item) >= 2:
-                        obstacles.append((int(item[0]), int(item[1])))
-            except Exception as exc:
-                self.get_logger().warn(f'Invalid obstacles_json; using defaults only: {exc}')
+        obstacles.extend(self.extra_obstacles)
 
         for row, col in obstacles:
             if 0 <= row < size and 0 <= col < size and (row, col) not in {start, marker}:

@@ -1354,6 +1354,8 @@ class Ros2Bridge(RealRobotBridgeBase):
         self._marker_version = 0
         self._last_returned_signature: Tuple[int, int, int, int] = (-1, -1, -1, -1)
         self.nav_frame_timeout_s = 0.75
+        self._last_printed_cmd = ""
+        self._last_printed_cmd_s = 0.0
 
         class BridgeNode(Node):
             pass
@@ -1496,7 +1498,11 @@ class Ros2Bridge(RealRobotBridgeBase):
         msg = self._String()
         msg.data = json.dumps(cmd.as_dict())
         self.pub.publish(msg)
-        print("REAL CMD", msg.data)
+        now_s = self._stamp_to_seconds(self.node.get_clock().now().to_msg())
+        if msg.data != self._last_printed_cmd or now_s - self._last_printed_cmd_s >= 1.0:
+            print("REAL CMD", msg.data)
+            self._last_printed_cmd = msg.data
+            self._last_printed_cmd_s = now_s
 
     def publish_nav_status(self, status: dict) -> None:
         msg = self._String()

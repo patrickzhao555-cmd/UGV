@@ -38,10 +38,14 @@ def generate_launch_description():
     start_motor_controller = LaunchConfiguration('start_motor_controller')
     start_nav = LaunchConfiguration('start_nav')
     start_debug_status = LaunchConfiguration('start_debug_status')
+    start_bench_goal = LaunchConfiguration('start_bench_goal')
     start_mock_field_map = LaunchConfiguration('start_mock_field_map')
     competition_mode = LaunchConfiguration('competition_mode')
     start_corner = LaunchConfiguration('start_corner')
     center_loiter_radius_m = LaunchConfiguration('center_loiter_radius_m')
+    bench_goal_x_m = LaunchConfiguration('bench_goal_x_m')
+    bench_goal_y_m = LaunchConfiguration('bench_goal_y_m')
+    bench_goal_period_s = LaunchConfiguration('bench_goal_period_s')
     mock_marker_cell = LaunchConfiguration('mock_marker_cell')
     mock_obstacles_json = LaunchConfiguration('mock_obstacles_json')
     lidar_port = LaunchConfiguration('lidar_port')
@@ -125,10 +129,14 @@ def generate_launch_description():
         DeclareLaunchArgument('start_motor_controller', default_value='true'),
         DeclareLaunchArgument('start_nav', default_value='true'),
         DeclareLaunchArgument('start_debug_status', default_value='true'),
+        DeclareLaunchArgument('start_bench_goal', default_value='false'),
         DeclareLaunchArgument('start_mock_field_map', default_value='false'),
         DeclareLaunchArgument('competition_mode', default_value='false'),
         DeclareLaunchArgument('start_corner', default_value='lower_left'),
         DeclareLaunchArgument('center_loiter_radius_m', default_value='0.75'),
+        DeclareLaunchArgument('bench_goal_x_m', default_value='12.2'),
+        DeclareLaunchArgument('bench_goal_y_m', default_value='12.0'),
+        DeclareLaunchArgument('bench_goal_period_s', default_value='1.0'),
         DeclareLaunchArgument('mock_marker_cell', default_value='7,7'),
         DeclareLaunchArgument('mock_obstacles_json', default_value=''),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB0'),
@@ -159,6 +167,18 @@ def generate_launch_description():
                 'start_corner': start_corner,
                 'marker_cell': mock_marker_cell,
                 'obstacles_json': mock_obstacles_json,
+            }],
+        ),
+        Node(
+            package='ugv_sensor_sync',
+            executable='bench_goal_node',
+            name='bench_goal_node',
+            output='screen',
+            condition=IfCondition(start_bench_goal),
+            parameters=[{
+                'goal_x_m': bench_goal_x_m,
+                'goal_y_m': bench_goal_y_m,
+                'publish_period_s': bench_goal_period_s,
             }],
         ),
         Node(

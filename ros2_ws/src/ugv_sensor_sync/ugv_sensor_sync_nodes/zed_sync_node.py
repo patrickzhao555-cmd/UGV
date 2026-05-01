@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
+import json
+import math
+
 import numpy as np
 import pyzed.sl as sl
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, Imu
-from std_msgs.msg import Header
+from std_msgs.msg import Header, String
+
+try:
+    from cv_bridge import CvBridge
+except ImportError:  # pragma: no cover - optional runtime optimization
+    CvBridge = None
 
 
 class ZedSyncNode(Node):
@@ -20,6 +28,9 @@ class ZedSyncNode(Node):
         self.declare_parameter('imu_frame_id', 'zed_imu')
         self.declare_parameter('publish_rate_hz', 10.0)
         self.declare_parameter('publish_image', False)
+        self.declare_parameter('depth_downsample_factor', 2)
+        self.declare_parameter('status_topic', '/zed/status')
+        self.declare_parameter('status_period_s', 1.0)
 
         image_topic = self.get_parameter('image_topic').value
         depth_topic = self.get_parameter('depth_topic').value
@@ -29,17 +40,24 @@ class ZedSyncNode(Node):
         self.imu_frame_id = self.get_parameter('imu_frame_id').value
         publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
         self.publish_image = bool(self.get_parameter('publish_image').value)
+        self.depth_downsample_factor = max(1, int(self.get_parameter('depth_downsample_factor').value))
+        status_topic = self.get_parameter('status_topic').value
+        self.status_period_s = max(0.2, float(self.get_parameter('status_period_s').value))
+        self.bridge = CvBridge() if CvBridge is not None else None
 
         self.image_pub = None
         if self.publish_image:
             self.image_pub = self.create_publisher(Image, image_topic, qos_profile_sensor_data)
         self.depth_pub = self.create_publisher(Image, depth_topic, qos_profile_sensor_data)
         self.imu_pub = self.create_publisher(Imu, imu_topic, qos_profile_sensor_data)
+        self.status_pub = self.create_publisher(String, status_topic, 10)
+        self.frame_count = 0
+        self.last_status_s = 0.0
 
         self.zed = sl.Camera()
         init_params = sl.InitParameters()
         init_params.camera_resolution = sl.RESOLUTION.HD720
-        init_params.depth_mode = sl.DEPTH_MODE.ULTRA
+        init_params.depth_mode = sl.DEPTH_MODE.NEURAL
         init_params.coordinate_units = sl.UNIT.METER
         status = self.zed.open(init_params)
         if status != sl.ERROR_CODE.SUCCESS:
@@ -55,7 +73,10 @@ class ZedSyncNode(Node):
         self.get_logger().info(
             'ZED sync node started '
             f'(image={"disabled" if not self.publish_image else image_topic}, '
-            f'depth={depth_topic}, imu={imu_topic})'
+            f'depth={depth_topic}, imu={imu_topic}, '
+            f'status={status_topic}, '
+            f'depth_downsample_factor={self.depth_downsample_factor}, '
+            f'cv_bridge={"enabled" if self.bridge is not None else "disabled"})'
         )
 
     def grab_frame(self):
@@ -63,16 +84,21 @@ class ZedSyncNode(Node):
             return
 
         stamp = self.get_clock().now().to_msg()
+        self.frame_count += 1
 
         self.zed.retrieve_measure(self.depth_image, sl.MEASURE.DEPTH)
 
         depth_np = np.array(self.depth_image.get_data(), copy=True)
         if depth_np.ndim == 3:
             depth_np = depth_np[:, :, 0]
+        if self.depth_downsample_factor > 1:
+            depth_np = depth_np[::self.depth_downsample_factor, ::self.depth_downsample_factor]
 
         if self.publish_image and self.image_pub is not None:
             self.zed.retrieve_image(self.left_image, sl.VIEW.LEFT)
             left_np = np.array(self.left_image.get_data(), copy=True)
+            if self.depth_downsample_factor > 1:
+                left_np = left_np[::self.depth_downsample_factor, ::self.depth_downsample_factor]
             self.image_pub.publish(self._image_from_array(left_np, 'bgra8', self.image_frame_id, stamp))
         self.depth_pub.publish(
             self._image_from_array(
@@ -97,9 +123,47 @@ class ZedSyncNode(Node):
         imu_msg.angular_velocity.y = ang[1]
         imu_msg.angular_velocity.z = ang[2]
         self.imu_pub.publish(imu_msg)
+        self._publish_status(depth_np, stamp)
+
+    def _publish_status(self, depth_np, stamp) -> None:
+        now_s = self.get_clock().now().nanoseconds / 1e9
+        if now_s - self.last_status_s < self.status_period_s:
+            return
+        self.last_status_s = now_s
+
+        valid = depth_np[np.isfinite(depth_np)]
+        valid = valid[(valid > 0.05) & (valid < 20.0)]
+        if valid.size:
+            depth_min = float(np.min(valid))
+            depth_p10 = float(np.percentile(valid, 10.0))
+            depth_mean = float(np.mean(valid))
+        else:
+            depth_min = float('inf')
+            depth_p10 = float('inf')
+            depth_mean = float('inf')
+
+        status = {
+            'stamp_sec': float(stamp.sec) + float(stamp.nanosec) / 1e9,
+            'frame_count': self.frame_count,
+            'depth_shape': [int(depth_np.shape[0]), int(depth_np.shape[1])],
+            'valid_depth_samples': int(valid.size),
+            'depth_min_m': self._finite_or_none(depth_min),
+            'depth_p10_m': self._finite_or_none(depth_p10),
+            'depth_mean_m': self._finite_or_none(depth_mean),
+            'publish_image': self.publish_image,
+        }
+        self.status_pub.publish(String(data=json.dumps(status)))
 
     @staticmethod
-    def _image_from_array(array, encoding: str, frame_id: str, stamp) -> Image:
+    def _finite_or_none(value: float):
+        return value if math.isfinite(value) else None
+
+    def _image_from_array(self, array, encoding: str, frame_id: str, stamp) -> Image:
+        if self.bridge is not None:
+            msg = self.bridge.cv2_to_imgmsg(np.ascontiguousarray(array), encoding=encoding)
+            msg.header = Header(stamp=stamp, frame_id=frame_id)
+            return msg
+
         msg = Image()
         msg.header = Header(stamp=stamp, frame_id=frame_id)
         msg.height = int(array.shape[0])
@@ -127,7 +191,8 @@ def main(args=None):
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

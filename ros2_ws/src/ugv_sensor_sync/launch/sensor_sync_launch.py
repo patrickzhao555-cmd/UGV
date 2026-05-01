@@ -11,6 +11,10 @@ def generate_launch_description():
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
+    zed_publish_rate_hz = LaunchConfiguration('zed_publish_rate_hz')
+    zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
+    fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
+    fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -33,6 +37,26 @@ def generate_launch_description():
             default_value='10.0',
             description='Expected lidar scan frequency for midpoint timestamp correction.',
         ),
+        DeclareLaunchArgument(
+            'zed_publish_rate_hz',
+            default_value='10.0',
+            description='Target ZED publish rate.',
+        ),
+        DeclareLaunchArgument(
+            'zed_depth_downsample_factor',
+            default_value='2',
+            description='Integer decimation factor applied before publishing ZED depth frames.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_zed_fresh_timeout_s',
+            default_value='0.75',
+            description='Maximum receive age allowed when fusion falls back to the freshest ZED frame.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_depth_invalid_warn_frames',
+            default_value='2',
+            description='Number of consecutive invalid ZED depth ROIs before fusion marks the forward view unsafe.',
+        ),
 
         Node(
             package='sllidar_ros2',
@@ -54,6 +78,10 @@ def generate_launch_description():
             executable='zed_sync_node',
             name='zed_sync_node',
             output='screen',
+            parameters=[{
+                'publish_rate_hz': ParameterValue(zed_publish_rate_hz, value_type=float),
+                'depth_downsample_factor': ParameterValue(zed_depth_downsample_factor, value_type=int),
+            }],
         ),
 
         TimerAction(period=2.0, actions=[
@@ -87,6 +115,10 @@ def generate_launch_description():
                 executable='fusion_node',
                 name='fusion_node',
                 output='screen',
+                parameters=[{
+                    'zed_fresh_timeout_s': ParameterValue(fusion_zed_fresh_timeout_s, value_type=float),
+                    'depth_invalid_warn_frames': ParameterValue(fusion_depth_invalid_warn_frames, value_type=int),
+                }],
             ),
         ]),
     ])

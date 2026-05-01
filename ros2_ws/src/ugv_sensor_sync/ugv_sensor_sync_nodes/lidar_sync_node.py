@@ -6,7 +6,7 @@ from rclpy.time import Time
 from sensor_msgs.msg import LaserScan
 
 
-SCAN_FREQ_HZ = 5.5  # A1M8 typical; tune by watching actual scan rate
+SCAN_FREQ_HZ = 10.0  # Match the standard A1/A2 bring-up unless explicitly overridden
 
 
 class LidarSyncNode(Node):
@@ -52,7 +52,8 @@ def main(args=None):
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

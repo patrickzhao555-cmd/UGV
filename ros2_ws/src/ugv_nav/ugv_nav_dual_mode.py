@@ -7,7 +7,7 @@ import heapq
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
@@ -32,10 +32,16 @@ from matplotlib.patches import Circle, Polygon, Rectangle
 FT_TO_M = 0.3048
 M_TO_FT = 1.0 / FT_TO_M
 CM_TO_M = 0.01
+YARD_TO_M = 0.9144
+FIELD_CELLS_DEFAULT = 15
 
 
 def ft(x: float) -> float:
     return x * FT_TO_M
+
+
+def yd(x: float) -> float:
+    return x * YARD_TO_M
 
 
 # =========================================================
@@ -112,11 +118,25 @@ class GoalPacket:
 
 
 @dataclass
+class FieldMapPacket:
+    size: int
+    cell_size_m: float
+    obstacle_cells: List[Tuple[int, int]]
+    start_xy: Optional[Tuple[float, float]]
+    goal_xy: Optional[Tuple[float, float]]
+    timestamp: float
+    version: int
+    source: str = "field_map"
+
+
+@dataclass
 class SensorFrame:
     encoder: EncoderPacket
     lidar: LidarPacket
     zed: ZedPacket
     goal: GoalPacket
+    field_map: Optional[FieldMapPacket] = None
+    marker_goal: Optional[GoalPacket] = None
 
 
 @dataclass
@@ -193,12 +213,13 @@ class NavConfig:
     local_turn_penalty: float = 0.10
     local_goal_progress_weight: float = 4.5
     local_heading_weight: float = 0.95
+    allow_stop_at_goal: bool = True
 
 
 @dataclass
 class SimConfig:
-    field_w_m: float = ft(15.0)
-    field_h_m: float = ft(15.0)
+    field_w_m: float = yd(15.0)
+    field_h_m: float = yd(15.0)
     dt_s: float = 0.10
     max_steps: int = 900
     show_gui: bool = True
@@ -219,6 +240,166 @@ def wrap_to_pi(a: float) -> float:
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
+
+
+def normalize_corner_name(name: str) -> str:
+    value = str(name or "lower_left").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "ll": "lower_left",
+        "bottom_left": "lower_left",
+        "sw": "lower_left",
+        "left_bottom": "lower_left",
+        "ul": "upper_left",
+        "top_left": "upper_left",
+        "nw": "upper_left",
+        "left_top": "upper_left",
+        "lr": "lower_right",
+        "bottom_right": "lower_right",
+        "se": "lower_right",
+        "right_bottom": "lower_right",
+        "ur": "upper_right",
+        "top_right": "upper_right",
+        "ne": "upper_right",
+        "right_top": "upper_right",
+    }
+    value = aliases.get(value, value)
+    if value not in {"lower_left", "upper_left", "lower_right", "upper_right"}:
+        raise ValueError(f"Unsupported start corner {name!r}")
+    return value
+
+
+def field_cell_to_world(row: int, col: int, size: int = FIELD_CELLS_DEFAULT, cell_size_m: float = YARD_TO_M) -> Tuple[float, float]:
+    x = (float(col) + 0.5) * cell_size_m
+    y = (float(size - 1 - row) + 0.5) * cell_size_m
+    return x, y
+
+
+def start_pose_for_corner(
+    corner: str,
+    field_w_m: float = yd(15.0),
+    field_h_m: float = yd(15.0),
+    inset_m: float = 0.5 * YARD_TO_M,
+) -> Pose2D:
+    corner = normalize_corner_name(corner)
+    x = inset_m if "left" in corner else field_w_m - inset_m
+    y = inset_m if "lower" in corner else field_h_m - inset_m
+    yaw = math.atan2(0.5 * field_h_m - y, 0.5 * field_w_m - x)
+    return Pose2D(x, y, yaw)
+
+
+def _cell_value_role(value: Any) -> Optional[str]:
+    if isinstance(value, str):
+        token = value.strip().lower()
+        if token in {"1", "o", "obs", "obstacle", "blocked", "block", "x", "#"}:
+            return "obstacle"
+        if token in {"2", "s", "start", "ugv", "robot", "current"}:
+            return "start"
+        if token in {"3", "g", "goal", "m", "marker", "destination", "dest", "target"}:
+            return "goal"
+        return None
+    if isinstance(value, (int, float)):
+        code = int(value)
+        if code == 1:
+            return "obstacle"
+        if code == 2:
+            return "start"
+        if code == 3:
+            return "goal"
+    return None
+
+
+def _coerce_cell(value: Any) -> Optional[Tuple[int, int]]:
+    if isinstance(value, dict):
+        if "row" in value and "col" in value:
+            return int(value["row"]), int(value["col"])
+        if "r" in value and "c" in value:
+            return int(value["r"]), int(value["c"])
+        if "y" in value and "x" in value:
+            return int(value["y"]), int(value["x"])
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        return int(value[0]), int(value[1])
+    return None
+
+
+def _find_named_cell(obj: Dict[str, Any], names: Sequence[str]) -> Optional[Tuple[int, int]]:
+    for name in names:
+        if name in obj:
+            cell = _coerce_cell(obj[name])
+            if cell is not None:
+                return cell
+    return None
+
+
+def field_map_from_json(raw: str, timestamp: float, version: int) -> FieldMapPacket:
+    obj = json.loads(raw)
+    if isinstance(obj, list):
+        obj = {"matrix": obj}
+    if not isinstance(obj, dict):
+        raise ValueError("field map JSON must be an object or a 2D array")
+
+    matrix = obj.get("matrix", obj.get("grid", obj.get("map")))
+    if matrix is None:
+        raise ValueError("field map JSON needs a matrix/grid/map field")
+    if not isinstance(matrix, list) or not matrix:
+        raise ValueError("field map matrix must be a non-empty 2D list")
+
+    size = int(obj.get("size", len(matrix)))
+    cell_size_yard = float(obj.get("cell_size_yard", obj.get("cell_yard", 1.0)))
+    cell_size_m = float(obj.get("cell_size_m", cell_size_yard * YARD_TO_M))
+    if size <= 0 or cell_size_m <= 0.0:
+        raise ValueError("field map size and cell size must be positive")
+
+    obstacle_cells: Set[Tuple[int, int]] = set()
+    start_cell: Optional[Tuple[int, int]] = _find_named_cell(
+        obj, ("ugv", "robot", "start", "start_cell", "ugv_cell", "current")
+    )
+    goal_cell: Optional[Tuple[int, int]] = _find_named_cell(
+        obj, ("marker", "goal", "destination", "target", "marker_cell", "goal_cell")
+    )
+
+    for row, row_values in enumerate(matrix):
+        if not isinstance(row_values, list):
+            continue
+        for col, value in enumerate(row_values):
+            role = _cell_value_role(value)
+            if role == "obstacle":
+                obstacle_cells.add((row, col))
+            elif role == "start" and start_cell is None:
+                start_cell = (row, col)
+            elif role == "goal" and goal_cell is None:
+                goal_cell = (row, col)
+
+    for cell_obj in obj.get("obstacles", []):
+        cell = _coerce_cell(cell_obj)
+        if cell is not None:
+            obstacle_cells.add(cell)
+
+    def valid_cell(cell: Optional[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
+        if cell is None:
+            return None
+        row, col = cell
+        if 0 <= row < size and 0 <= col < size:
+            return row, col
+        return None
+
+    start_cell = valid_cell(start_cell)
+    goal_cell = valid_cell(goal_cell)
+    obstacle_cells = {
+        (row, col)
+        for row, col in obstacle_cells
+        if 0 <= row < size and 0 <= col < size and (row, col) not in {start_cell, goal_cell}
+    }
+
+    return FieldMapPacket(
+        size=size,
+        cell_size_m=cell_size_m,
+        obstacle_cells=sorted(obstacle_cells),
+        start_xy=field_cell_to_world(*start_cell, size=size, cell_size_m=cell_size_m) if start_cell else None,
+        goal_xy=field_cell_to_world(*goal_cell, size=size, cell_size_m=cell_size_m) if goal_cell else None,
+        timestamp=timestamp,
+        version=version,
+        source=str(obj.get("source", "field_map")),
+    )
 
 
 # =========================================================
@@ -742,6 +923,26 @@ class LocalPlanner:
                 score -= self.nav_cfg.local_turn_switch_penalty
         return score
 
+    def _forward_candidates(self, goal_dist: float, sectors: SectorSnapshot) -> List[ControlCommand]:
+        steps = list(self.nav_cfg.forward_step_choices_m)
+        if not steps:
+            return []
+
+        profiles: List[Tuple[float, float, str]] = []
+        profiles.append((steps[0], 0.30, 'local forward slow'))
+
+        medium_clearance = self.robot_cfg.length_m * 0.55 + 0.30
+        fast_clearance = self.robot_cfg.length_m * 0.55 + 0.70
+        if len(steps) >= 2 and sectors.front_m > medium_clearance and goal_dist > 0.30:
+            profiles.append((steps[1], 0.38, 'local forward medium'))
+        if len(steps) >= 3 and sectors.front_m > fast_clearance and goal_dist > 0.60:
+            profiles.append((steps[2], 0.48, 'local forward fast'))
+
+        return [
+            ControlCommand('FORWARD', move_m=move_m, raw_left=raw, raw_right=raw, reason=reason)
+            for move_m, raw, reason in profiles
+        ]
+
     def choose_command(
         self,
         pose: Pose2D,
@@ -763,8 +964,7 @@ class LocalPlanner:
         for deg in self.nav_cfg.turn_step_choices_deg:
             candidates.append(ControlCommand('TURN_LEFT', turn_deg=deg, raw_left=-0.30, raw_right=0.30, reason='local turn left'))
             candidates.append(ControlCommand('TURN_RIGHT', turn_deg=deg, raw_left=0.30, raw_right=-0.30, reason='local turn right'))
-        for mv in self.nav_cfg.forward_step_choices_m:
-            candidates.append(ControlCommand('FORWARD', move_m=mv, raw_left=0.42, raw_right=0.42, reason='local forward'))
+        candidates.extend(self._forward_candidates(goal_dist, sectors))
 
         best_score = -1e18
         best_cmd: Optional[ControlCommand] = None
@@ -799,6 +999,20 @@ class LocalPlanner:
                 best_cmd = cmd
 
         if best_cmd is not None:
+            if best_cmd.mode == 'FORWARD':
+                steer_ratio = clamp(yaw_err / math.radians(28.0), -1.0, 1.0)
+                if abs(steer_ratio) >= 0.18:
+                    base = max(abs(best_cmd.raw_left), abs(best_cmd.raw_right))
+                    inner = max(0.22, base * (1.0 - 0.55 * abs(steer_ratio)))
+                    outer = min(0.55, base * (1.0 + 0.18 * abs(steer_ratio)))
+                    if steer_ratio > 0.0:
+                        best_cmd.raw_left = inner
+                        best_cmd.raw_right = outer
+                        best_cmd.reason = 'local forward arc left'
+                    else:
+                        best_cmd.raw_left = outer
+                        best_cmd.raw_right = inner
+                        best_cmd.reason = 'local forward arc right'
             return best_cmd
 
         if sectors.left_m + sectors.front_left_m >= sectors.right_m + sectors.front_right_m:
@@ -837,15 +1051,15 @@ class VirtualWorld:
 
     def _make_obstacles(self) -> List[Obstacle]:
         return [
-            Obstacle("box",   ft(3.5),  ft(3.4),  ft(1.9),  ft(1.3)),
-            Obstacle("box",   ft(5.0),  ft(11.1), ft(2.0),  ft(1.3)),
-            Obstacle("box",   ft(11.8), ft(10.8), ft(2.0),  ft(1.3)),
-            Obstacle("chair", ft(7.4),  ft(7.0),  ft(1.45), ft(1.45)),
-            Obstacle("chair", ft(10.6), ft(3.7),  ft(1.4),  ft(1.4)),
-            Obstacle("cone",  ft(2.6),  ft(8.2),  ft(0.85), ft(0.85)),
-            Obstacle("cone",  ft(4.4),  ft(9.1),  ft(0.85), ft(0.85)),
-            Obstacle("cone",  ft(8.7),  ft(9.8),  ft(0.85), ft(0.85)),
-            Obstacle("cone",  ft(11.0), ft(8.8),  ft(0.85), ft(0.85)),
+            Obstacle("box",   yd(3.5),  yd(3.4),  ft(1.9),  ft(1.3)),
+            Obstacle("box",   yd(5.0),  yd(11.1), ft(2.0),  ft(1.3)),
+            Obstacle("box",   yd(11.8), yd(10.8), ft(2.0),  ft(1.3)),
+            Obstacle("chair", yd(7.4),  yd(7.0),  ft(1.45), ft(1.45)),
+            Obstacle("chair", yd(10.6), yd(3.7),  ft(1.4),  ft(1.4)),
+            Obstacle("cone",  yd(2.6),  yd(8.2),  ft(0.85), ft(0.85)),
+            Obstacle("cone",  yd(4.4),  yd(9.1),  ft(0.85), ft(0.85)),
+            Obstacle("cone",  yd(8.7),  yd(9.8),  ft(0.85), ft(0.85)),
+            Obstacle("cone",  yd(11.0), yd(8.8),  ft(0.85), ft(0.85)),
         ]
 
     @staticmethod
@@ -1045,6 +1259,12 @@ class RealRobotBridgeBase:
     def send_control(self, cmd: ControlCommand) -> None:
         raise NotImplementedError
 
+    def publish_nav_status(self, status: dict) -> None:
+        del status
+
+    def send_uav_flag(self, flag: dict) -> None:
+        del flag
+
 
 class JsonReplayBridge(RealRobotBridgeBase):
     """
@@ -1063,19 +1283,36 @@ class JsonReplayBridge(RealRobotBridgeBase):
         ts = float(obj.get("timestamp", time.time()))
         lidar_hits = [tuple(map(float, p)) for p in obj.get("lidar_hits_local", [])]
         zed_hits = [tuple(map(float, p)) for p in obj.get("zed_hits_local", [])]
+        field_map = None
+        if "field_map" in obj:
+            field_map = field_map_from_json(json.dumps(obj["field_map"]), ts, int(obj.get("field_map_version", 1)))
         return SensorFrame(
             encoder=EncoderPacket(int(obj["left_ticks"]), int(obj["right_ticks"]), ts),
             lidar=LidarPacket(lidar_hits, [0.0] * len(lidar_hits), [0.0] * len(lidar_hits), ts),
             zed=ZedPacket(zed_hits, ts),
-            goal=GoalPacket(float(obj["goal_x"]), float(obj["goal_y"]), ts),
+            goal=GoalPacket(float(obj.get("goal_x", float("nan"))), float(obj.get("goal_y", float("nan"))), ts),
+            field_map=field_map,
         )
 
     def send_control(self, cmd: ControlCommand) -> None:
         print("REAL CMD", json.dumps(cmd.as_dict()))
 
+    def publish_nav_status(self, status: dict) -> None:
+        print("NAV STATUS", json.dumps(status))
+
+    def send_uav_flag(self, flag: dict) -> None:
+        print("UAV FLAG", json.dumps(flag))
+
 
 class Ros2Bridge(RealRobotBridgeBase):
-    def __init__(self):
+    def __init__(
+        self,
+        allow_missing_goal: bool = False,
+        field_map_topic: str = "/ugv/field_map",
+        marker_topic: str = "/ugv/marker_detection",
+        nav_status_topic: str = "/ugv_nav_status",
+        uav_flag_topic: str = "/ugv/uav_flag",
+    ):
         try:
             import rclpy
             from rclpy.node import Node
@@ -1092,10 +1329,31 @@ class Ros2Bridge(RealRobotBridgeBase):
         self._rclpy = rclpy
         self._String = String
         self._NavSensorFrame = NavSensorFrame
+        self.allow_missing_goal = bool(allow_missing_goal)
+        self.field_map_topic = field_map_topic
+        self.marker_topic = marker_topic
+        self.nav_status_topic = nav_status_topic
+        self.uav_flag_topic = uav_flag_topic
         self._latest_synced: Optional[
-            Tuple[int, int, List[Tuple[float, float]], List[float], List[float], List[Tuple[float, float]], float]
+            Tuple[
+                int,
+                int,
+                List[Tuple[float, float]],
+                List[float],
+                List[float],
+                List[Tuple[float, float]],
+                float,
+            ]
         ] = None
         self._latest_goal: Optional[Tuple[float, float, float]] = None
+        self._latest_field_map: Optional[FieldMapPacket] = None
+        self._latest_marker_goal: Optional[GoalPacket] = None
+        self._latest_synced_seq = 0
+        self._goal_version = 0
+        self._field_map_version = 0
+        self._marker_version = 0
+        self._last_returned_signature: Tuple[int, int, int, int] = (-1, -1, -1, -1)
+        self.nav_frame_timeout_s = 0.75
 
         class BridgeNode(Node):
             pass
@@ -1104,7 +1362,16 @@ class Ros2Bridge(RealRobotBridgeBase):
         self.node = BridgeNode("ugv_nav_bridge")
         self.node.create_subscription(NavSensorFrame, "/sensors/nav_frame", self._synced_cb, 10)
         self.node.create_subscription(PointStamped, "/ugv_goal", self._goal_cb, 10)
+        self.node.create_subscription(String, self.field_map_topic, self._field_map_cb, 10)
+        self.node.create_subscription(PointStamped, self.marker_topic, self._marker_cb, 10)
         self.pub = self.node.create_publisher(String, "/ugv_nav_cmd", 10)
+        self.status_pub = self.node.create_publisher(String, self.nav_status_topic, 10)
+        self.uav_flag_pub = self.node.create_publisher(String, self.uav_flag_topic, 10)
+        self.node.get_logger().info(
+            "UGV nav bridge ready "
+            f"(allow_missing_goal={self.allow_missing_goal}, field_map={self.field_map_topic}, "
+            f"marker={self.marker_topic}, nav_status={self.nav_status_topic}, uav_flag={self.uav_flag_topic})"
+        )
 
     def _synced_cb(self, msg):
         if not msg.encoder_available:
@@ -1123,6 +1390,11 @@ class Ros2Bridge(RealRobotBridgeBase):
         zed_hits = []
         for p in msg.zed_obstacle_points.poses:
             zed_hits.append((float(p.position.x), float(p.position.y)))
+        if bool(msg.near_obstacle):
+            protective_x = float(msg.front_clearance_m) if math.isfinite(float(msg.front_clearance_m)) else 0.12
+            protective_x = clamp(protective_x, 0.06, 0.30)
+            for offset_y in (-0.16, 0.0, 0.16):
+                zed_hits.append((protective_x, offset_y))
 
         ts = self._stamp_to_seconds(msg.header.stamp)
         self._latest_synced = (
@@ -1134,6 +1406,7 @@ class Ros2Bridge(RealRobotBridgeBase):
             zed_hits,
             ts,
         )
+        self._latest_synced_seq += 1
 
     def _goal_cb(self, msg):
         stamp_now = self.node.get_clock().now().to_msg()
@@ -1142,19 +1415,81 @@ class Ros2Bridge(RealRobotBridgeBase):
             float(msg.point.y),
             self._stamp_to_seconds(stamp_now),
         )
+        self._goal_version += 1
+
+    def _field_map_cb(self, msg):
+        now_s = self._stamp_to_seconds(self.node.get_clock().now().to_msg())
+        next_version = self._field_map_version + 1
+        try:
+            packet = field_map_from_json(msg.data, now_s, next_version)
+        except Exception as exc:
+            self.node.get_logger().warn(f"Rejected /ugv/field_map JSON: {exc}")
+            return
+        self._latest_field_map = packet
+        self._field_map_version = next_version
+        self.node.get_logger().info(
+            "Received field map "
+            f"v{packet.version}: size={packet.size}, obstacles={len(packet.obstacle_cells)}, "
+            f"start={packet.start_xy}, goal={packet.goal_xy}, source={packet.source}"
+        )
+
+    def _marker_cb(self, msg):
+        stamp_now = self.node.get_clock().now().to_msg()
+        ts = self._stamp_to_seconds(stamp_now)
+        self._latest_marker_goal = GoalPacket(float(msg.point.x), float(msg.point.y), ts)
+        self._marker_version += 1
+        self.send_uav_flag(
+            {
+                "target_found": True,
+                "source": "zed_marker_detection",
+                "target_m": [round(float(msg.point.x), 3), round(float(msg.point.y), 3)],
+                "stamp": round(ts, 3),
+            }
+        )
 
     def read_frame(self) -> Optional[SensorFrame]:
         self._rclpy.spin_once(self.node, timeout_sec=0.02)
-        if self._latest_synced is None or self._latest_goal is None:
+        if self._latest_synced is None:
+            return None
+        if (
+            not self.allow_missing_goal
+            and self._latest_goal is None
+            and (self._latest_field_map is None or self._latest_field_map.goal_xy is None)
+            and self._latest_marker_goal is None
+        ):
+            return None
+        signature = (
+            self._latest_synced_seq,
+            self._goal_version,
+            self._field_map_version,
+            self._marker_version,
+        )
+        if signature == self._last_returned_signature:
             return None
         left, right, scan_hits, ranges_m, angles_rad, zed_hits, ts_s = self._latest_synced
-        gx, gy, ts_g = self._latest_goal
-        ts = max(ts_s, ts_g)
+        now_s = self._stamp_to_seconds(self.node.get_clock().now().to_msg())
+        if now_s - ts_s > self.nav_frame_timeout_s:
+            return None
+
+        goal_packet = GoalPacket(float("nan"), float("nan"), ts_s)
+        if self._latest_marker_goal is not None:
+            goal_packet = self._latest_marker_goal
+        elif self._latest_field_map is not None and self._latest_field_map.goal_xy is not None:
+            gx, gy = self._latest_field_map.goal_xy
+            goal_packet = GoalPacket(gx, gy, self._latest_field_map.timestamp)
+        elif self._latest_goal is not None:
+            gx, gy, ts_g = self._latest_goal
+            goal_packet = GoalPacket(gx, gy, ts_g)
+
+        ts = max(ts_s, goal_packet.timestamp)
+        self._last_returned_signature = signature
         return SensorFrame(
             encoder=EncoderPacket(left, right, ts),
             lidar=LidarPacket(scan_hits, ranges_m, angles_rad, ts),
             zed=ZedPacket(zed_hits, ts),
-            goal=GoalPacket(gx, gy, ts),
+            goal=GoalPacket(goal_packet.x, goal_packet.y, ts),
+            field_map=self._latest_field_map,
+            marker_goal=self._latest_marker_goal,
         )
 
     def send_control(self, cmd: ControlCommand) -> None:
@@ -1162,6 +1497,17 @@ class Ros2Bridge(RealRobotBridgeBase):
         msg.data = json.dumps(cmd.as_dict())
         self.pub.publish(msg)
         print("REAL CMD", msg.data)
+
+    def publish_nav_status(self, status: dict) -> None:
+        msg = self._String()
+        msg.data = json.dumps(status)
+        self.status_pub.publish(msg)
+
+    def send_uav_flag(self, flag: dict) -> None:
+        msg = self._String()
+        msg.data = json.dumps(flag)
+        self.uav_flag_pub.publish(msg)
+        print("UAV FLAG", msg.data)
 
     @staticmethod
     def _stamp_to_seconds(stamp) -> float:
@@ -1235,6 +1581,7 @@ class UGVNavigator:
         self._last_path_block_version = -1
         self._last_escape_side_left = True
         self._turn_loop_counter = 0
+        self._last_field_map_version = -1
 
     def _touch_map(self) -> None:
         self._map_version += 1
@@ -1305,6 +1652,41 @@ class UGVNavigator:
         if changed:
             self._touch_map()
         return changed
+
+    def _mark_rect_world(self, cx: float, cy: float, w: float, h: float) -> int:
+        gx0, gy0 = self.known_costmap.world_to_grid(cx - 0.5 * w, cy - 0.5 * h)
+        gx1, gy1 = self.known_costmap.world_to_grid(cx + 0.5 * w, cy + 0.5 * h)
+        gx0 = max(0, gx0)
+        gy0 = max(0, gy0)
+        gx1 = min(self.known_costmap.spec.width - 1, gx1)
+        gy1 = min(self.known_costmap.spec.height - 1, gy1)
+        if gx1 < gx0 or gy1 < gy0:
+            return 0
+        patch_before = self.known_costmap.data[gy0:gy1+1, gx0:gx1+1].copy()
+        self.known_costmap.data[gy0:gy1+1, gx0:gx1+1] = 1
+        patch_after = self.known_costmap.data[gy0:gy1+1, gx0:gx1+1]
+        changed = int(np.any(patch_after > patch_before))
+        if changed:
+            self._touch_map()
+        return changed
+
+    def apply_field_map(self, packet: Optional[FieldMapPacket]) -> int:
+        if packet is None or packet.version == self._last_field_map_version:
+            return 0
+
+        added = 0
+        for row, col in packet.obstacle_cells:
+            cx, cy = field_cell_to_world(row, col, packet.size, packet.cell_size_m)
+            added += self._mark_rect_world(cx, cy, packet.cell_size_m, packet.cell_size_m)
+
+        if packet.start_xy is not None:
+            self.known_costmap.clear_disk_world(packet.start_xy[0], packet.start_xy[1], packet.cell_size_m * 0.45)
+        if packet.goal_xy is not None:
+            self.known_costmap.clear_disk_world(packet.goal_xy[0], packet.goal_xy[1], packet.cell_size_m * 0.45)
+
+        self._last_field_map_version = packet.version
+        self._plan_costmap_dirty = True
+        return added
 
     def _solidify_world_clusters(self, world_pts: Sequence[Tuple[float, float]]) -> int:
         if len(world_pts) < 4:
@@ -1557,7 +1939,11 @@ class UGVNavigator:
 
     def step(self, frame: SensorFrame) -> ControlCommand:
         self.state.finish_reason = 'running'
-        self.state.goal_pose = Pose2D(frame.goal.x, frame.goal.y, 0.0)
+        map_added = self.apply_field_map(frame.field_map)
+        if map_added:
+            self.state.discovered_points += map_added
+        if math.isfinite(frame.goal.x) and math.isfinite(frame.goal.y):
+            self.state.goal_pose = Pose2D(frame.goal.x, frame.goal.y, 0.0)
         moved_m = self._update_pose_from_encoders(frame.encoder)
 
         self.blocked_memory.step()
@@ -1602,7 +1988,10 @@ class UGVNavigator:
         p = self.state.estimated_pose
         g = self.state.goal_pose
         if math.hypot(g.x - p.x, g.y - p.y) <= self.nav_cfg.goal_tol_m:
-            cmd = ControlCommand('STOP', reason='goal reached')
+            if self.nav_cfg.allow_stop_at_goal:
+                cmd = ControlCommand('STOP', reason='goal reached')
+            else:
+                cmd = ControlCommand('TURN_LEFT', turn_deg=10.0, raw_left=-0.24, raw_right=0.24, reason='goal reached loiter scan')
             self.state.finish_reason = 'goal reached'
             self.state.latest_cmd = cmd
             return cmd
@@ -1778,6 +2167,101 @@ class SimVisualizer:
 
 
 # =========================================================
+# Competition mission manager
+# =========================================================
+
+class CompetitionMission:
+    def __init__(
+        self,
+        enabled: bool,
+        start_corner: str,
+        field_w_m: float,
+        field_h_m: float,
+        center_loiter_radius_m: float = 0.75,
+        waypoint_switch_radius_m: float = 0.35,
+    ):
+        self.enabled = bool(enabled)
+        self.start_corner = normalize_corner_name(start_corner)
+        self.field_w_m = field_w_m
+        self.field_h_m = field_h_m
+        self.center = (0.5 * field_w_m, 0.5 * field_h_m)
+        self.center_loiter_radius_m = center_loiter_radius_m
+        self.waypoint_switch_radius_m = waypoint_switch_radius_m
+        self.final_goal: Optional[Tuple[float, float]] = None
+        self.final_goal_source = "none"
+        self.phase = "manual"
+        self._loiter_index = 0
+        self._active_loiter_center = self.center
+
+    def update_frame(self, frame: SensorFrame, pose: Pose2D) -> dict:
+        if frame.marker_goal is not None and math.isfinite(frame.marker_goal.x) and math.isfinite(frame.marker_goal.y):
+            self.final_goal = (frame.marker_goal.x, frame.marker_goal.y)
+            self.final_goal_source = "camera_marker"
+        elif frame.field_map is not None and frame.field_map.goal_xy is not None:
+            self.final_goal = frame.field_map.goal_xy
+            self.final_goal_source = frame.field_map.source
+        elif math.isfinite(frame.goal.x) and math.isfinite(frame.goal.y):
+            self.final_goal = (frame.goal.x, frame.goal.y)
+            self.final_goal_source = "manual_point"
+
+        if not self.enabled:
+            self.phase = "manual"
+            return self._status_dict(frame.goal)
+
+        if self.final_goal is not None:
+            dist_to_target = math.hypot(self.final_goal[0] - pose.x, self.final_goal[1] - pose.y)
+            if dist_to_target <= self.waypoint_switch_radius_m:
+                self.phase = "target_loiter"
+                goal = self._loiter_goal(self.final_goal, pose)
+            else:
+                self.phase = "target_nav"
+                goal = GoalPacket(self.final_goal[0], self.final_goal[1], frame.encoder.timestamp)
+        else:
+            dist_to_center = math.hypot(self.center[0] - pose.x, self.center[1] - pose.y)
+            if dist_to_center <= self.waypoint_switch_radius_m:
+                self.phase = "center_loiter"
+                goal = self._loiter_goal(self.center, pose)
+            else:
+                self.phase = "startup_to_center"
+                goal = GoalPacket(self.center[0], self.center[1], frame.encoder.timestamp)
+
+        frame.goal = goal
+        return self._status_dict(goal)
+
+    def _loiter_goal(self, center: Tuple[float, float], pose: Pose2D) -> GoalPacket:
+        if center != self._active_loiter_center:
+            self._active_loiter_center = center
+            self._loiter_index = 0
+        points = [
+            (center[0] + self.center_loiter_radius_m, center[1]),
+            (center[0], center[1] + self.center_loiter_radius_m),
+            (center[0] - self.center_loiter_radius_m, center[1]),
+            (center[0], center[1] - self.center_loiter_radius_m),
+        ]
+        cur = points[self._loiter_index % len(points)]
+        if math.hypot(cur[0] - pose.x, cur[1] - pose.y) <= self.waypoint_switch_radius_m:
+            self._loiter_index = (self._loiter_index + 1) % len(points)
+            cur = points[self._loiter_index]
+        return GoalPacket(cur[0], cur[1], time.time())
+
+    def _status_dict(self, active_goal: GoalPacket) -> dict:
+        return {
+            "enabled": self.enabled,
+            "phase": self.phase,
+            "start_corner": self.start_corner,
+            "active_goal_m": [
+                round(active_goal.x, 3) if math.isfinite(active_goal.x) else None,
+                round(active_goal.y, 3) if math.isfinite(active_goal.y) else None,
+            ],
+            "final_goal_m": [
+                round(self.final_goal[0], 3),
+                round(self.final_goal[1], 3),
+            ] if self.final_goal is not None else None,
+            "final_goal_source": self.final_goal_source,
+        }
+
+
+# =========================================================
 # Running modes
 # =========================================================
 
@@ -1788,8 +2272,8 @@ def run_simulation(show_gui: bool = True, max_steps: int = 900) -> dict:
     nav_cfg = NavConfig()
     sim_cfg = SimConfig(show_gui=show_gui, max_steps=max_steps)
 
-    start = Pose2D(ft(1.2), ft(1.2), 0.0)
-    goal = Pose2D(ft(13.4), ft(13.0), 0.0)
+    start = Pose2D(yd(0.5), yd(0.5), 0.0)
+    goal = Pose2D(yd(13.4), yd(13.0), 0.0)
 
     world = VirtualWorld(sim_cfg, nav_cfg)
     robot = SimulatedRobot(robot_cfg, start)
@@ -1870,41 +2354,111 @@ def run_simulation(show_gui: bool = True, max_steps: int = 900) -> dict:
     }
 
 
-def run_real_mode(replay_json: Optional[str] = None) -> None:
+def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCommand, mission_status: dict) -> dict:
+    pose = navigator.state.estimated_pose
+    goal = navigator.state.goal_pose
+    field_map = frame.field_map
+    return {
+        "stamp": round(frame.encoder.timestamp, 3),
+        "mission": mission_status,
+        "pose_m": [round(pose.x, 3), round(pose.y, 3), round(math.degrees(pose.yaw), 1)],
+        "goal_m": [round(goal.x, 3), round(goal.y, 3)],
+        "distance_to_goal_m": round(math.hypot(goal.x - pose.x, goal.y - pose.y), 3),
+        "cmd": cmd.as_dict(),
+        "planner": navigator.state.planner_name,
+        "replans": navigator.state.replans,
+        "plan_time_ms": round(navigator.state.plan_time_ms, 2),
+        "known_obstacle_updates": navigator.state.discovered_points,
+        "path_points": len(navigator.state.path),
+        "path_idx": navigator.state.path_idx,
+        "sectors_m": {
+            "front": None if math.isinf(navigator.state.sectors.front_m) else round(navigator.state.sectors.front_m, 3),
+            "left": None if math.isinf(navigator.state.sectors.left_m) else round(navigator.state.sectors.left_m, 3),
+            "right": None if math.isinf(navigator.state.sectors.right_m) else round(navigator.state.sectors.right_m, 3),
+            "rear": None if math.isinf(navigator.state.sectors.rear_m) else round(navigator.state.sectors.rear_m, 3),
+        },
+        "encoder_ticks": [frame.encoder.left_total, frame.encoder.right_total],
+        "lidar_hit_count": len(frame.lidar.hit_points_local),
+        "zed_hit_count": len(frame.zed.hit_points_local),
+        "field_map": {
+            "version": field_map.version,
+            "source": field_map.source,
+            "obstacle_cells": len(field_map.obstacle_cells),
+            "goal_m": [round(field_map.goal_xy[0], 3), round(field_map.goal_xy[1], 3)] if field_map and field_map.goal_xy else None,
+        } if field_map else None,
+        "finish_reason": navigator.state.finish_reason,
+    }
+
+
+def run_real_mode(
+    replay_json: Optional[str] = None,
+    competition_mode: bool = False,
+    start_corner: str = "lower_left",
+    center_loiter_radius_m: float = 0.75,
+    field_map_topic: str = "/ugv/field_map",
+    marker_topic: str = "/ugv/marker_detection",
+    nav_status_period_s: float = 1.0,
+) -> None:
     robot_cfg = RobotConfig()
     sensor_cfg = SensorConfig()
     nav_cfg = NavConfig()
-    field_w_m = ft(15.0)
-    field_h_m = ft(15.0)
-    init_pose = Pose2D(ft(1.2), ft(1.2), 0.0)
-    init_goal = Pose2D(ft(13.4), ft(13.0), 0.0)
+    nav_cfg.allow_stop_at_goal = not competition_mode
+    field_w_m = yd(15.0)
+    field_h_m = yd(15.0)
+    init_pose = start_pose_for_corner(start_corner, field_w_m, field_h_m) if competition_mode else Pose2D(yd(0.5), yd(0.5), 0.0)
+    init_goal = Pose2D(0.5 * field_w_m, 0.5 * field_h_m, 0.0) if competition_mode else Pose2D(yd(13.4), yd(13.0), 0.0)
     navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, field_w_m, field_h_m, init_pose, init_goal)
+    mission = CompetitionMission(
+        enabled=competition_mode,
+        start_corner=start_corner,
+        field_w_m=field_w_m,
+        field_h_m=field_h_m,
+        center_loiter_radius_m=center_loiter_radius_m,
+    )
 
     if replay_json:
         bridge: RealRobotBridgeBase = JsonReplayBridge(replay_json)
     else:
-        bridge = Ros2Bridge()
+        bridge = Ros2Bridge(
+            allow_missing_goal=competition_mode,
+            field_map_topic=field_map_topic,
+            marker_topic=marker_topic,
+        )
 
     print("Running REAL mode. No GUI. Printing and sending control commands.")
+    print(f"Competition mode: {competition_mode}, start_corner={normalize_corner_name(start_corner)}")
     print("Expected ROS2 topics if using Ros2Bridge:")
     print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
     print("                        includes scan, zed obstacle points, latest encoder ticks, and clearance summaries")
     print("  /ugv_goal             geometry_msgs/PointStamped in map frame")
+    print(f"  {field_map_topic}       std_msgs/String JSON 15x15 matrix with obstacles/start/marker")
+    print(f"  {marker_topic}  geometry_msgs/PointStamped marker found by camera/CV")
     print("Publishing:")
     print("  /ugv_nav_cmd          std_msgs/String with JSON control command")
+    print("  /ugv_nav_status       std_msgs/String live nav/debug status")
+    print("  /ugv/uav_flag         std_msgs/String target-found flag for ESP/UAV handoff")
 
+    last_status_s = 0.0
     while True:
         frame = bridge.read_frame()
         if frame is None:
             time.sleep(0.02)
             continue
+        mission_status = mission.update_frame(frame, navigator.state.estimated_pose)
         cmd = navigator.step(frame)
         bridge.send_control(cmd)
+        now_s = time.monotonic()
+        if now_s - last_status_s >= max(nav_status_period_s, 0.2):
+            bridge.publish_nav_status(build_nav_status(navigator, frame, cmd, mission_status))
+            last_status_s = now_s
 
 
 # =========================================================
 # CLI
 # =========================================================
+
+def str_to_bool(value: str) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def main() -> None:
@@ -1913,12 +2467,26 @@ def main() -> None:
     parser.add_argument("--headless", action="store_true", help="sim mode without matplotlib GUI")
     parser.add_argument("--max-steps", type=int, default=900)
     parser.add_argument("--replay-json", type=str, default=None, help="use JSONL replay file for real mode testing")
+    parser.add_argument("--competition-mode", type=str_to_bool, default=False, help="enable corner startup/search mission logic in real mode")
+    parser.add_argument("--start-corner", type=str, default="lower_left", help="one of lower_left, lower_right, upper_left, upper_right")
+    parser.add_argument("--center-loiter-radius-m", type=float, default=0.75)
+    parser.add_argument("--field-map-topic", type=str, default="/ugv/field_map")
+    parser.add_argument("--marker-topic", type=str, default="/ugv/marker_detection")
+    parser.add_argument("--nav-status-period-s", type=float, default=1.0)
     args = parser.parse_args()
 
     if args.mode == "sim":
         run_simulation(show_gui=not args.headless, max_steps=args.max_steps)
     else:
-        run_real_mode(replay_json=args.replay_json)
+        run_real_mode(
+            replay_json=args.replay_json,
+            competition_mode=args.competition_mode,
+            start_corner=args.start_corner,
+            center_loiter_radius_m=args.center_loiter_radius_m,
+            field_map_topic=args.field_map_topic,
+            marker_topic=args.marker_topic,
+            nav_status_period_s=args.nav_status_period_s,
+        )
 
 
 if __name__ == "__main__":

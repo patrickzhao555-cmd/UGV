@@ -42,7 +42,7 @@ class FusionNode(Node):
         self.declare_parameter('max_frame_age_s', 0.40)
         self.declare_parameter('zed_frame_buffer_duration_s', 2.0)
         self.declare_parameter('sync_slop_s', DEFAULT_SLOP_S)
-        self.declare_parameter('zed_fresh_timeout_s', 0.40)
+        self.declare_parameter('zed_fresh_timeout_s', 0.75)
         self.declare_parameter('depth_warning_threshold_m', 0.30)
         self.declare_parameter('depth_min_valid_m', 0.05)
         self.declare_parameter('depth_max_valid_m', 10.0)
@@ -50,6 +50,7 @@ class FusionNode(Node):
         self.declare_parameter('depth_roi_h_frac', 0.40)
         self.declare_parameter('depth_roi_y_center_frac', 0.55)
         self.declare_parameter('depth_near_percentile', 10.0)
+        self.declare_parameter('depth_invalid_warn_frames', 2)
         self.declare_parameter('depth_projection_hfov_deg', 110.0)
         self.declare_parameter('depth_projection_stride_px', 16)
         self.declare_parameter('depth_obstacle_max_m', 3.5)
@@ -84,6 +85,7 @@ class FusionNode(Node):
         self.depth_roi_h_frac = float(self.get_parameter('depth_roi_h_frac').value)
         self.depth_roi_y_center_frac = float(self.get_parameter('depth_roi_y_center_frac').value)
         self.depth_near_percentile = float(self.get_parameter('depth_near_percentile').value)
+        self.depth_invalid_warn_frames = max(1, int(self.get_parameter('depth_invalid_warn_frames').value))
         self.depth_projection_hfov_rad = math.radians(
             float(self.get_parameter('depth_projection_hfov_deg').value)
         )
@@ -99,6 +101,7 @@ class FusionNode(Node):
         self.last_encoder_warning_s = 0.0
         self.last_frame_age_warning_s = 0.0
         self.last_zed_warning_s = 0.0
+        self.depth_invalid_streak = 0
         self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, qos_profile_sensor_data)
         if self.use_legacy_encoder_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, qos_profile_sensor_data)
@@ -192,9 +195,16 @@ class FusionNode(Node):
 
         lidar_min_range_m = self._compute_lidar_min_range(scan_msg)
         depth_min_range_m, depth_warning, valid_depth_samples = self._compute_depth_stats(depth_msg)
+        if valid_depth_samples > 0:
+            self.depth_invalid_streak = 0
+        else:
+            self.depth_invalid_streak += 1
+        depth_blind_hazard = self.depth_invalid_streak >= self.depth_invalid_warn_frames
         zed_obstacle_points = self._build_depth_obstacle_pose_array(depth_msg)
         front_clearance_m = min(lidar_min_range_m, depth_min_range_m)
-        near_obstacle = math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
+        near_obstacle = depth_blind_hazard or (
+            math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
+        )
         encoder_left, encoder_right, encoder_available, encoder_age_s, encoder_source = self._select_encoder_for_frame(
             scan_msg.header
         )
@@ -245,15 +255,27 @@ class FusionNode(Node):
             'scan_points': len(scan_msg.ranges),
             'zed_obstacle_points': len(zed_obstacle_points.poses),
             'valid_depth_samples': valid_depth_samples,
+            'depth_invalid_streak': self.depth_invalid_streak,
             'encoder_available': bool(bundle.encoder_available),
             'left_encoder_ticks': int(bundle.left_encoder_ticks),
             'right_encoder_ticks': int(bundle.right_encoder_ticks),
             'encoder_age_s': self._finite_or_none(encoder_age_s),
             'encoder_source': encoder_source,
+            'imu_linear_accel_mps2': [
+                round(float(imu_msg.linear_acceleration.x), 4),
+                round(float(imu_msg.linear_acceleration.y), 4),
+                round(float(imu_msg.linear_acceleration.z), 4),
+            ],
+            'imu_angular_velocity_rps': [
+                round(float(imu_msg.angular_velocity.x), 4),
+                round(float(imu_msg.angular_velocity.y), 4),
+                round(float(imu_msg.angular_velocity.z), 4),
+            ],
             'min_lidar_range_m': self._finite_or_none(lidar_min_range_m),
             'min_depth_range_m': self._finite_or_none(depth_min_range_m),
             'front_clearance_m': self._finite_or_none(front_clearance_m),
             'depth_warning': bool(depth_warning),
+            'depth_blind_hazard': bool(depth_blind_hazard),
             'near_obstacle': bool(near_obstacle),
         }
         self.summary_pub.publish(String(data=json.dumps(summary)))
@@ -321,6 +343,7 @@ class FusionNode(Node):
         best_age_s = float('inf')
         freshest = None
         freshest_receive_age_s = float('inf')
+        freshest_stamp_age_s = float('inf')
         for _, frame in self.zed_frame_history:
             if frame.get('depth') is None or frame.get('imu') is None:
                 continue
@@ -332,6 +355,7 @@ class FusionNode(Node):
             if receive_age_s < freshest_receive_age_s:
                 freshest = frame
                 freshest_receive_age_s = receive_age_s
+                freshest_stamp_age_s = age_s
 
         if best is None:
             self._warn_zed_gap('no complete ZED frame available yet for scan fusion')
@@ -341,12 +365,13 @@ class FusionNode(Node):
             if freshest is not None and freshest_receive_age_s <= self.zed_fresh_timeout_s:
                 self._warn_zed_gap(
                     'using freshest complete ZED frame despite header mismatch '
-                    f'(stamp_age={best_age_s:.3f}s, recv_age={freshest_receive_age_s:.3f}s)'
+                    f'(stamp_age={freshest_stamp_age_s:.3f}s, recv_age={freshest_receive_age_s:.3f}s)'
                 )
-                return freshest, best_age_s, freshest_receive_age_s
+                return freshest, freshest_stamp_age_s, freshest_receive_age_s
             self._warn_zed_gap(
                 'no fresh ZED frame available for scan fusion '
-                f'(best_stamp_age={best_age_s:.3f}s, freshest_recv_age={freshest_receive_age_s:.3f}s)'
+                f'(best_stamp_age={best_age_s:.3f}s, freshest_stamp_age={freshest_stamp_age_s:.3f}s, '
+                f'freshest_recv_age={freshest_receive_age_s:.3f}s)'
             )
             return None
 
@@ -360,13 +385,13 @@ class FusionNode(Node):
     def _compute_depth_stats(self, depth_msg: Image):
         depth = self._depth_image_to_numpy(depth_msg)
         if depth is None:
-            return float('inf'), True, 0
+            return float('inf'), False, 0
 
         roi = self._extract_depth_roi(depth)
         valid = roi[np.isfinite(roi)]
         valid = valid[(valid >= self.depth_min_valid_m) & (valid <= self.depth_max_valid_m)]
         if valid.size == 0:
-            return float('inf'), True, 0
+            return float('inf'), False, 0
 
         near_distance_m = float(np.percentile(valid, self.depth_near_percentile))
         depth_warning = near_distance_m < self.depth_warning_threshold_m
@@ -532,7 +557,8 @@ def main(args=None):
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

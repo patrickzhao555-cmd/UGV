@@ -8,6 +8,8 @@ What it does now:
 - bundles synced lidar + ZED image + ZED depth + ZED IMU into one ROS message
 - publishes a slimmer navigation contract so nav does not depend on raw sensor internals
 - publishes pathing-friendly ZED obstacle points and front clearance summaries
+- can publish a mock 15x15 yard field map for testing before ESP/UAV integration
+- can publish a combined SSH-friendly debug status topic
 
 Main topics:
 
@@ -22,6 +24,9 @@ Main topics:
 - `/sensors/front_clearance_m`
 - `/sensors/near_obstacle`
 - `/sensors/synced_summary`
+- `/zed/status`
+- `/ugv/field_map`
+- `/ugv/debug_status`
 
 Contract layers:
 
@@ -56,6 +61,9 @@ ros2 launch ugv_sensor_sync sensor_sync_launch.py start_uwb:=false
 Useful debug commands:
 
 ```bash
+ros2 topic echo /ugv/debug_status
+ros2 topic echo /ugv_nav_status
+ros2 topic echo /zed/status
 ros2 topic echo /scan/synced --field header.stamp
 ros2 topic echo /zed/imu --field header.stamp
 ros2 topic echo /encoder_ticks_stamped --once
@@ -66,4 +74,16 @@ ros2 topic echo /sensors/synced_summary
 ros2 interface show ugv_sensor_sync/msg/EncoderTicksStamped
 ros2 interface show ugv_sensor_sync/msg/NavSensorFrame
 ros2 interface show ugv_sensor_sync/msg/SyncedSensorPacket
+```
+
+Mock ESP/UAV field map:
+
+```bash
+ros2 run ugv_sensor_sync mock_field_map_node --ros-args -p start_corner:=lower_left -p marker_cell:=7,7
+```
+
+Competition bring-up with the startup-to-center mission:
+
+```bash
+ros2 launch ugv_sensor_sync competition_bringup.launch.py competition_mode:=true start_corner:=lower_left
 ```

@@ -6,6 +6,7 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchD
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -36,9 +37,20 @@ def generate_launch_description():
     start_uwb = LaunchConfiguration('start_uwb')
     start_motor_controller = LaunchConfiguration('start_motor_controller')
     start_nav = LaunchConfiguration('start_nav')
+    start_debug_status = LaunchConfiguration('start_debug_status')
+    start_mock_field_map = LaunchConfiguration('start_mock_field_map')
+    competition_mode = LaunchConfiguration('competition_mode')
+    start_corner = LaunchConfiguration('start_corner')
+    center_loiter_radius_m = LaunchConfiguration('center_loiter_radius_m')
+    mock_marker_cell = LaunchConfiguration('mock_marker_cell')
+    mock_obstacles_json = LaunchConfiguration('mock_obstacles_json')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
+    zed_publish_rate_hz = LaunchConfiguration('zed_publish_rate_hz')
+    zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
+    fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
+    fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     motor_port = LaunchConfiguration('motor_port')
     motor_baud = LaunchConfiguration('motor_baud')
     motor_raw_command_scale_us = LaunchConfiguration('motor_raw_command_scale_us')
@@ -60,6 +72,10 @@ def generate_launch_description():
             'lidar_port': lidar_port,
             'lidar_baud': lidar_baud,
             'lidar_scan_freq_hz': lidar_scan_freq_hz,
+            'zed_publish_rate_hz': zed_publish_rate_hz,
+            'zed_depth_downsample_factor': zed_depth_downsample_factor,
+            'fusion_zed_fresh_timeout_s': fusion_zed_fresh_timeout_s,
+            'fusion_depth_invalid_warn_frames': fusion_depth_invalid_warn_frames,
         }.items(),
     )
 
@@ -89,6 +105,12 @@ def generate_launch_description():
             nav_script,
             '--mode',
             'real',
+            '--competition-mode',
+            competition_mode,
+            '--start-corner',
+            start_corner,
+            '--center-loiter-radius-m',
+            center_loiter_radius_m,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -98,9 +120,20 @@ def generate_launch_description():
         DeclareLaunchArgument('start_uwb', default_value='false'),
         DeclareLaunchArgument('start_motor_controller', default_value='true'),
         DeclareLaunchArgument('start_nav', default_value='true'),
+        DeclareLaunchArgument('start_debug_status', default_value='true'),
+        DeclareLaunchArgument('start_mock_field_map', default_value='false'),
+        DeclareLaunchArgument('competition_mode', default_value='false'),
+        DeclareLaunchArgument('start_corner', default_value='lower_left'),
+        DeclareLaunchArgument('center_loiter_radius_m', default_value='0.75'),
+        DeclareLaunchArgument('mock_marker_cell', default_value='7,7'),
+        DeclareLaunchArgument('mock_obstacles_json', default_value=''),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('lidar_baud', default_value='115200'),
         DeclareLaunchArgument('lidar_scan_freq_hz', default_value='10.0'),
+        DeclareLaunchArgument('zed_publish_rate_hz', default_value='10.0'),
+        DeclareLaunchArgument('zed_depth_downsample_factor', default_value='2'),
+        DeclareLaunchArgument('fusion_zed_fresh_timeout_s', default_value='0.75'),
+        DeclareLaunchArgument('fusion_depth_invalid_warn_frames', default_value='2'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),
@@ -110,5 +143,24 @@ def generate_launch_description():
         DeclareLaunchArgument('invert_right_encoder', default_value='false'),
         sensor_sync_launch,
         motor_controller_launch,
+        Node(
+            package='ugv_sensor_sync',
+            executable='mock_field_map_node',
+            name='mock_field_map_node',
+            output='screen',
+            condition=IfCondition(start_mock_field_map),
+            parameters=[{
+                'start_corner': start_corner,
+                'marker_cell': mock_marker_cell,
+                'obstacles_json': mock_obstacles_json,
+            }],
+        ),
+        Node(
+            package='ugv_sensor_sync',
+            executable='debug_status_node',
+            name='ugv_debug_status_node',
+            output='screen',
+            condition=IfCondition(start_debug_status),
+        ),
         nav_process,
     ])

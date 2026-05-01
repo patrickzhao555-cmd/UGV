@@ -40,6 +40,8 @@ Rule of thumb:
 
 - `/sensors/nav_frame`
 - `/ugv_goal`
+- `/ugv/field_map` as a `std_msgs/String` JSON 15x15 matrix when ESP/UAV map data is available
+- `/ugv/marker_detection` as a `geometry_msgs/PointStamped` when camera/CV finds the marker first
 
 It should not subscribe to raw lidar, raw ZED, or raw encoder topics directly.
 
@@ -58,6 +60,14 @@ and publish:
 - `/motor_controller/status`
 
 This is the last bridge between ROS and the Teensy 4.1.
+
+## 5. Competition/debug helper topics
+
+- `/ugv/field_map`: JSON field map. Matrix cells use `0` unknown/free, `1` known obstacle, `2` UGV start, `3` marker destination. Matrix row `0` is the upper edge of the field and col `0` is the left edge.
+- `/ugv_nav_status`: navigation pose, phase, active goal, planner, command, encoder, and sensor-hit summary.
+- `/ugv/debug_status`: combined one-line status from ZED, fusion, motor, navigation, and UAV flag topics.
+- `/zed/status`: ZED depth health summary, including valid depth sample count and p10 depth.
+- `/ugv/uav_flag`: target-found handoff flag for ESP/UAV integration.
 
 ## How to add a new sensor later
 

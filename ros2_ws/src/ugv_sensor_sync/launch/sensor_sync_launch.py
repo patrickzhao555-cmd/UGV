@@ -15,6 +15,7 @@ def generate_launch_description():
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
+    fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -56,6 +57,11 @@ def generate_launch_description():
             'fusion_depth_invalid_warn_frames',
             default_value='2',
             description='Number of consecutive invalid ZED depth ROIs before fusion marks the forward view unsafe.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_lidar_front_fov_deg',
+            default_value='70.0',
+            description='LiDAR angle window centered on 0 rad used for front clearance.',
         ),
 
         Node(
@@ -118,6 +124,7 @@ def generate_launch_description():
                 parameters=[{
                     'zed_fresh_timeout_s': ParameterValue(fusion_zed_fresh_timeout_s, value_type=float),
                     'depth_invalid_warn_frames': ParameterValue(fusion_depth_invalid_warn_frames, value_type=int),
+                    'lidar_front_fov_deg': ParameterValue(fusion_lidar_front_fov_deg, value_type=float),
                 }],
             ),
         ]),

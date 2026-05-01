@@ -34,6 +34,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('serial_retry_period_s', 1.0)
         self.declare_parameter('poll_period_s', 0.02)
         self.declare_parameter('status_period_s', 0.5)
+        self.declare_parameter('dry_run', False)
         self.declare_parameter('invert_left_command', False)
         self.declare_parameter('invert_right_command', False)
         self.declare_parameter('invert_left_encoder', False)
@@ -58,6 +59,7 @@ class MotorControllerBridge(Node):
         self.serial_retry_period_s = float(self.get_parameter('serial_retry_period_s').value)
         self.poll_period_s = float(self.get_parameter('poll_period_s').value)
         self.status_period_s = float(self.get_parameter('status_period_s').value)
+        self.dry_run = bool(self.get_parameter('dry_run').value)
         self.invert_left_command = bool(self.get_parameter('invert_left_command').value)
         self.invert_right_command = bool(self.get_parameter('invert_right_command').value)
         self.invert_left_encoder = bool(self.get_parameter('invert_left_encoder').value)
@@ -93,7 +95,7 @@ class MotorControllerBridge(Node):
         self.get_logger().info(
             f'Motor controller bridge starting '
             f'(port={self.port}, baud={self.baud}, command_topic={self.command_topic}, '
-            f'encoder_stamped_topic={self.encoder_stamped_topic})'
+            f'encoder_stamped_topic={self.encoder_stamped_topic}, dry_run={self.dry_run})'
         )
 
     def command_callback(self, msg: String) -> None:
@@ -341,6 +343,12 @@ class MotorControllerBridge(Node):
         if self.serial_device is None:
             return
 
+        self.last_pwm_command = (left_pwm, right_pwm)
+        if self.dry_run:
+            self.last_pwm_send_time = time.monotonic()
+            self._throttled_info(f'DRY RUN motor command ({reason}): {left_pwm}, {right_pwm}')
+            return
+
         line = f'M{left_pwm},{right_pwm}\n'
         try:
             self.serial_device.write(line.encode('utf-8'))
@@ -367,6 +375,7 @@ class MotorControllerBridge(Node):
             'connected': connected,
             'port': self.port,
             'baud': self.baud,
+            'dry_run': self.dry_run,
             'last_pwm': list(self.last_pwm_command),
             'command_age_s': self._command_age_s(),
         }

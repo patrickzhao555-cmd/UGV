@@ -51,9 +51,11 @@ def generate_launch_description():
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
+    fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
     motor_port = LaunchConfiguration('motor_port')
     motor_baud = LaunchConfiguration('motor_baud')
     motor_raw_command_scale_us = LaunchConfiguration('motor_raw_command_scale_us')
+    motor_dry_run = LaunchConfiguration('motor_dry_run')
     invert_left_command = LaunchConfiguration('invert_left_command')
     invert_right_command = LaunchConfiguration('invert_right_command')
     invert_left_encoder = LaunchConfiguration('invert_left_encoder')
@@ -76,6 +78,7 @@ def generate_launch_description():
             'zed_depth_downsample_factor': zed_depth_downsample_factor,
             'fusion_zed_fresh_timeout_s': fusion_zed_fresh_timeout_s,
             'fusion_depth_invalid_warn_frames': fusion_depth_invalid_warn_frames,
+            'fusion_lidar_front_fov_deg': fusion_lidar_front_fov_deg,
         }.items(),
     )
 
@@ -92,6 +95,7 @@ def generate_launch_description():
             'port': motor_port,
             'baud': motor_baud,
             'raw_command_scale_us': motor_raw_command_scale_us,
+            'dry_run': motor_dry_run,
             'invert_left_command': invert_left_command,
             'invert_right_command': invert_right_command,
             'invert_left_encoder': invert_left_encoder,
@@ -134,9 +138,11 @@ def generate_launch_description():
         DeclareLaunchArgument('zed_depth_downsample_factor', default_value='2'),
         DeclareLaunchArgument('fusion_zed_fresh_timeout_s', default_value='0.75'),
         DeclareLaunchArgument('fusion_depth_invalid_warn_frames', default_value='2'),
+        DeclareLaunchArgument('fusion_lidar_front_fov_deg', default_value='70.0'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),
+        DeclareLaunchArgument('motor_dry_run', default_value='false'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
         DeclareLaunchArgument('invert_right_command', default_value='false'),
         DeclareLaunchArgument('invert_left_encoder', default_value='false'),

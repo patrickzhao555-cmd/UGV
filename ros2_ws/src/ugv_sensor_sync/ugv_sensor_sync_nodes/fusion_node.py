@@ -51,6 +51,7 @@ class FusionNode(Node):
         self.declare_parameter('depth_roi_y_center_frac', 0.55)
         self.declare_parameter('depth_near_percentile', 10.0)
         self.declare_parameter('depth_invalid_warn_frames', 2)
+        self.declare_parameter('lidar_front_fov_deg', 70.0)
         self.declare_parameter('depth_projection_hfov_deg', 110.0)
         self.declare_parameter('depth_projection_stride_px', 16)
         self.declare_parameter('depth_obstacle_max_m', 3.5)
@@ -86,6 +87,9 @@ class FusionNode(Node):
         self.depth_roi_y_center_frac = float(self.get_parameter('depth_roi_y_center_frac').value)
         self.depth_near_percentile = float(self.get_parameter('depth_near_percentile').value)
         self.depth_invalid_warn_frames = max(1, int(self.get_parameter('depth_invalid_warn_frames').value))
+        self.lidar_front_half_fov_rad = 0.5 * math.radians(
+            float(self.get_parameter('lidar_front_fov_deg').value)
+        )
         self.depth_projection_hfov_rad = math.radians(
             float(self.get_parameter('depth_projection_hfov_deg').value)
         )
@@ -194,6 +198,7 @@ class FusionNode(Node):
             return
 
         lidar_min_range_m = self._compute_lidar_min_range(scan_msg)
+        front_lidar_range_m = self._compute_front_lidar_min_range(scan_msg)
         depth_min_range_m, depth_warning, valid_depth_samples = self._compute_depth_stats(depth_msg)
         if valid_depth_samples > 0:
             self.depth_invalid_streak = 0
@@ -201,7 +206,7 @@ class FusionNode(Node):
             self.depth_invalid_streak += 1
         depth_blind_hazard = self.depth_invalid_streak >= self.depth_invalid_warn_frames
         zed_obstacle_points = self._build_depth_obstacle_pose_array(depth_msg)
-        front_clearance_m = min(lidar_min_range_m, depth_min_range_m)
+        front_clearance_m = min(front_lidar_range_m, depth_min_range_m)
         near_obstacle = depth_blind_hazard or (
             math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
         )
@@ -272,6 +277,7 @@ class FusionNode(Node):
                 round(float(imu_msg.angular_velocity.z), 4),
             ],
             'min_lidar_range_m': self._finite_or_none(lidar_min_range_m),
+            'front_lidar_range_m': self._finite_or_none(front_lidar_range_m),
             'min_depth_range_m': self._finite_or_none(depth_min_range_m),
             'front_clearance_m': self._finite_or_none(front_clearance_m),
             'depth_warning': bool(depth_warning),
@@ -380,6 +386,16 @@ class FusionNode(Node):
 
     def _compute_lidar_min_range(self, scan_msg: LaserScan) -> float:
         valid = [r for r in scan_msg.ranges if scan_msg.range_min < r < scan_msg.range_max]
+        return min(valid) if valid else float('inf')
+
+    def _compute_front_lidar_min_range(self, scan_msg: LaserScan) -> float:
+        valid = []
+        angle = float(scan_msg.angle_min)
+        for r in scan_msg.ranges:
+            if abs(self._wrap_to_pi(angle)) <= self.lidar_front_half_fov_rad:
+                if math.isfinite(r) and scan_msg.range_min < r < scan_msg.range_max:
+                    valid.append(float(r))
+            angle += float(scan_msg.angle_increment)
         return min(valid) if valid else float('inf')
 
     def _compute_depth_stats(self, depth_msg: Image):
@@ -544,6 +560,14 @@ class FusionNode(Node):
     @staticmethod
     def _finite_or_none(value: float):
         return value if math.isfinite(value) else None
+
+    @staticmethod
+    def _wrap_to_pi(value: float) -> float:
+        while value > math.pi:
+            value -= 2.0 * math.pi
+        while value < -math.pi:
+            value += 2.0 * math.pi
+        return value
 
     @staticmethod
     def _header_stamp_key(header):

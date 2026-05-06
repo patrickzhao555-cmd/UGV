@@ -49,6 +49,12 @@ cd ~/ugv_project/ros2_ws
 source install/setup.bash
 ```
 
+如果要用 marker vision，先确认 OpenCV 可用：
+
+```bash
+sudo apt install python3-opencv ros-humble-cv-bridge
+```
+
 ## 3. 一条命令启动整套 stack
 
 主入口：
@@ -179,7 +185,8 @@ ros2 topic echo /ugv/debug_status --full-length
 
 Competition mode 支持从四个角落开始。如果还不知道 final target，UGV 会先用较低速度去场地中心。
 如果到达中心时还没有 target，它会从中心开始逐渐向外扩展搜索，同时继续用 LiDAR/ZED 规避现场新障碍。
-收到 ESP/UAV map、camera marker detection 或手动 goal 后，会立刻切换到最终目标点。
+收到 ESP/UAV map、确认后的 camera marker detection 或手动 goal 后，会立刻切换到最终目标点。
+Competition mode 下进入 `TARGET_ACCEPT_RADIUS_M` 就算到达 marker，默认是 `0.9144` 米，也就是约 1 yard，然后 UGV 会在目标附近 loiter/扫描，不会停死。
 
 可选角落：
 
@@ -253,6 +260,10 @@ ros2 topic pub --once /ugv/field_map std_msgs/msg/String \
 
 ## 10. 模拟 Camera Marker Detection
 
+真正的 marker vision node 也会发布到同一个 topic。Navigation 会把
+`/ugv/marker_detection` 当作最高优先级目标来源，切到 `target_nav`，并发布
+`/ugv/uav_flag` 给 ESP/UAV，用来通知 UAV 停止扫描或准备 landing。
+
 如果 CV 比 ESP/UAV map 更早找到 marker，可以发布：
 
 ```bash
@@ -265,6 +276,44 @@ UGV 应该发布 target-found flag：
 ```bash
 ros2 topic echo /ugv/uav_flag --once --full-length
 ```
+
+### 训练并运行 Marker Vision Baseline
+
+把 marker 不同角度、不同距离、不同光照的照片放到：
+
+```text
+ros2_ws/src/ugv_perception/training/marker_images/
+```
+
+build 并 source workspace 后，训练轻量 ORB model：
+
+```bash
+cd ~/ugv_project/ros2_ws
+ros2 run ugv_perception train_marker_model \
+  --image-dir src/ugv_perception/training/marker_images \
+  --model-out src/ugv_perception/models/marker_orb_model.npz
+```
+
+dry-run 启动 marker vision：
+
+```bash
+START_MARKER_VISION=true MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+检查 marker vision debug：
+
+```bash
+ros2 topic echo /ugv/marker_vision_debug --full-length
+ros2 topic echo /ugv/marker_detection --once
+ros2 topic echo /ugv/uav_flag --once --full-length
+```
+
+调参思路：
+
+- false positive 多，就提高 `MARKER_MIN_GOOD_MATCHES` 或 `MARKER_CONFIRMATION_FRAMES`
+- marker 看得到但一直不 confirm，就谨慎降低它们
+- bench test 建议先保持 `MARKER_CONFIRMATION_FRAMES=2`，基本是几帧内确认，不会拖慢很多
 
 ## 11. Debug Topics
 
@@ -305,6 +354,7 @@ ros2 topic echo /motor_controller/status --once --full-length
 - `pose_m`: encoder odometry 估计 pose
 - `mission.phase`: competition 阶段，比如 `startup_to_center`、`search_expand`、`target_nav`
 - `mission.speed_scale`: mission 层速度缩放
+- `mission.target_accept_radius_m`: competition target 到达半径，默认约 1 yard
 - `imu_yaw_fusion`: 是否把 gyro yaw 融合进 pose 控制
 - `imu_angular_velocity_smoothed_rps`: 低通滤波后的 ZED IMU angular velocity
 
@@ -487,13 +537,20 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 | `BENCH_GOAL_Y_M` | `12.0` | 自动 bench goal y，单位 meter |
 | `COMPETITION_MODE` | `false` | 打开四角开局和 startup-to-center mission |
 | `START_CORNER` | `lower_left` | 四个 competition start corner 之一 |
+| `TARGET_ACCEPT_RADIUS_M` | `0.9144` | Competition target 到达半径，约 1 yard |
 | `START_MOCK_FIELD_MAP` | `false` | 发布 mock 15x15 field map |
 | `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col |
+| `START_MARKER_VISION` | `false` | 启动 marker CV node，并自动发布 ZED image |
+| `MARKER_MODEL_PATH` | `src/ugv_perception/models/marker_orb_model.npz` | 训练好的 marker model 路径 |
+| `MARKER_MIN_GOOD_MATCHES` | `18` | marker candidate 所需 ORB match 数 |
+| `MARKER_CONFIRMATION_FRAMES` | `2` | 发布 marker target 前需要连续确认的帧数 |
+| `MARKER_CONFIRMATION_RADIUS_M` | `0.75` | 连续确认时允许的 map-frame 位置偏差 |
+| `ZED_PUBLISH_IMAGE` | `false` | 发布 `/zed/image`；`START_MARKER_VISION=true` 时会自动打开 |
 | `LIDAR_PORT` | `/dev/ttyUSB0` | LiDAR serial device |
 | `MOTOR_PORT` | `/dev/ttyACM0` | Teensy serial device |
 | `FUSION_LIDAR_FRONT_FOV_DEG` | `70.0` | LiDAR front sector 宽度 |
 | `FUSION_IMU_SMOOTHING_ALPHA` | `0.25` | nav/debug summary 里的 IMU 低通滤波 alpha |
-| `MOTOR_PWM_SLEW_RATE_US_PER_S` | `1600.0` | PWM 最大变化速度，让 tank-drive command 更平滑；设成 `0` 可关闭 |
+| `MOTOR_PWM_SLEW_RATE_US_PER_S` | `2400.0` | PWM 最大变化速度，让 tank-drive command 更平滑；设成 `0` 可关闭 |
 | `USE_IMU_YAW` | `false` | 轴向/正负号确认后，把 ZED gyro yaw 融合进 encoder odometry |
 | `IMU_YAW_AXIS` | `z` | 用于 yaw fusion 的 IMU angular velocity 轴 |
 | `IMU_YAW_SIGN` | `1.0` | 如果 yaw 方向反了，改成 `-1.0` |

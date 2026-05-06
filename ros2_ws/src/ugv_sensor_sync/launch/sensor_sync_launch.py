@@ -13,6 +13,7 @@ def generate_launch_description():
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
     zed_publish_rate_hz = LaunchConfiguration('zed_publish_rate_hz')
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
+    zed_publish_image = LaunchConfiguration('zed_publish_image')
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
@@ -48,6 +49,11 @@ def generate_launch_description():
             'zed_depth_downsample_factor',
             default_value='2',
             description='Integer decimation factor applied before publishing ZED depth frames.',
+        ),
+        DeclareLaunchArgument(
+            'zed_publish_image',
+            default_value='false',
+            description='Publish ZED left image on /zed/image. Enable when marker vision is running.',
         ),
         DeclareLaunchArgument(
             'fusion_zed_fresh_timeout_s',
@@ -93,6 +99,7 @@ def generate_launch_description():
             parameters=[{
                 'publish_rate_hz': ParameterValue(zed_publish_rate_hz, value_type=float),
                 'depth_downsample_factor': ParameterValue(zed_depth_downsample_factor, value_type=int),
+                'publish_image': ParameterValue(zed_publish_image, value_type=bool),
             }],
         ),
 

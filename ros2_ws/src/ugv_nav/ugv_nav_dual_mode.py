@@ -2358,6 +2358,7 @@ class CompetitionMission:
         field_h_m: float,
         center_loiter_radius_m: float = 0.75,
         waypoint_switch_radius_m: float = 0.35,
+        target_accept_radius_m: float = YARD_TO_M,
         search_radius_step_m: float = 0.75,
     ):
         self.enabled = bool(enabled)
@@ -2367,6 +2368,7 @@ class CompetitionMission:
         self.center = (0.5 * field_w_m, 0.5 * field_h_m)
         self.center_loiter_radius_m = center_loiter_radius_m
         self.waypoint_switch_radius_m = waypoint_switch_radius_m
+        self.target_accept_radius_m = max(0.35, float(target_accept_radius_m))
         self.search_radius_step_m = max(0.25, search_radius_step_m)
         self.search_max_radius_m = max(0.5, min(field_w_m, field_h_m) * 0.5 - 0.65)
         self.final_goal: Optional[Tuple[float, float]] = None
@@ -2401,7 +2403,7 @@ class CompetitionMission:
 
         if self.final_goal is not None:
             dist_to_target = math.hypot(self.final_goal[0] - pose.x, self.final_goal[1] - pose.y)
-            if dist_to_target <= self.waypoint_switch_radius_m:
+            if dist_to_target <= self.target_accept_radius_m:
                 self.phase = "target_loiter"
                 goal = self._loiter_goal(self.final_goal, pose)
             else:
@@ -2491,6 +2493,7 @@ class CompetitionMission:
             "speed_scale": round(speed_scale, 3),
             "speed_reason": speed_reason,
             "search_radius_m": round(self._current_search_radius_m, 3),
+            "target_accept_radius_m": round(self.target_accept_radius_m, 3),
             "active_goal_m": [
                 round(active_goal.x, 3) if math.isfinite(active_goal.x) else None,
                 round(active_goal.y, 3) if math.isfinite(active_goal.y) else None,
@@ -2648,6 +2651,7 @@ def run_real_mode(
     competition_mode: bool = False,
     start_corner: str = "lower_left",
     center_loiter_radius_m: float = 0.75,
+    target_accept_radius_m: float = YARD_TO_M,
     field_map_topic: str = "/ugv/field_map",
     marker_topic: str = "/ugv/marker_detection",
     mission_flag_topic: str = "/ugv/mission_flag",
@@ -2676,6 +2680,7 @@ def run_real_mode(
         field_w_m=field_w_m,
         field_h_m=field_h_m,
         center_loiter_radius_m=center_loiter_radius_m,
+        target_accept_radius_m=target_accept_radius_m,
     )
 
     if replay_json:
@@ -2736,6 +2741,7 @@ def main() -> None:
     parser.add_argument("--competition-mode", type=str_to_bool, default=False, help="enable corner startup/search mission logic in real mode")
     parser.add_argument("--start-corner", type=str, default="lower_left", help="one of lower_left, lower_right, upper_left, upper_right")
     parser.add_argument("--center-loiter-radius-m", type=float, default=0.75)
+    parser.add_argument("--target-accept-radius-m", type=float, default=YARD_TO_M, help="competition-mode radius that counts as reaching the marker")
     parser.add_argument("--field-map-topic", type=str, default="/ugv/field_map")
     parser.add_argument("--marker-topic", type=str, default="/ugv/marker_detection")
     parser.add_argument("--mission-flag-topic", type=str, default="/ugv/mission_flag")
@@ -2754,6 +2760,7 @@ def main() -> None:
             competition_mode=args.competition_mode,
             start_corner=args.start_corner,
             center_loiter_radius_m=args.center_loiter_radius_m,
+            target_accept_radius_m=args.target_accept_radius_m,
             field_map_topic=args.field_map_topic,
             marker_topic=args.marker_topic,
             mission_flag_topic=args.mission_flag_topic,

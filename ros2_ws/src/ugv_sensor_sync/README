@@ -2,7 +2,7 @@ ugv_sensor_sync is the middle layer between raw sensors and navigation.
 
 What it does now:
 
-- publishes ZED left image, depth image, and IMU with a shared timestamp
+- publishes ZED depth and IMU with a shared timestamp; ZED left image is optional for marker vision
 - republishes lidar scans with a midpoint-corrected timestamp
 - accepts timestamped encoder ticks from the motor controller bridge
 - bundles synced lidar + ZED image + ZED depth + ZED IMU into one ROS message
@@ -34,6 +34,7 @@ Contract layers:
 - device adapters publish normalized per-sensor topics
 - `fusion_node` owns the cross-sensor time alignment and publishes stable outputs
 - `ugv_nav` should read `/sensors/nav_frame`, not the raw sensor topics
+- `START_MARKER_VISION=true` turns on `/zed/image` for `ugv_perception/marker_vision_node`
 - if you add a new sensor later, try to keep the change inside the adapter node and `fusion_node`
 - only change nav when the stable pathing contract itself truly needs new information
 

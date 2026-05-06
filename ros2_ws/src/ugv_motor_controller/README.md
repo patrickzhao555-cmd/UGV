@@ -31,7 +31,7 @@ ros2 launch ugv_motor_controller motor_controller.launch.py \
   port:=/dev/ttyACM0 \
   baud:=115200 \
   raw_command_scale_us:=900.0 \
-  pwm_slew_rate_us_per_s:=1600.0 \
+  pwm_slew_rate_us_per_s:=2400.0 \
   invert_left_command:=false \
   invert_right_command:=false
 ```

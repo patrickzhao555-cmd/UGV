@@ -28,7 +28,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('pwm_min_us', 1100)
         self.declare_parameter('pwm_max_us', 1900)
         self.declare_parameter('raw_command_scale_us', 900.0)
-        self.declare_parameter('pwm_slew_rate_us_per_s', 1600.0)
+        self.declare_parameter('pwm_slew_rate_us_per_s', 2400.0)
         self.declare_parameter('command_deadband', 0.03)
         self.declare_parameter('command_timeout_s', 0.75)
         self.declare_parameter('command_refresh_period_s', 0.1)
@@ -127,7 +127,8 @@ class MotorControllerBridge(Node):
             )
             return
 
-        self._send_pwm_command(left_pwm, right_pwm, reason='nav command')
+        send_reason = 'nav stop command' if self.last_command_mode == 'STOP' else 'nav command'
+        self._send_pwm_command(left_pwm, right_pwm, reason=send_reason)
         self._publish_status(
             connected=True,
             extra={

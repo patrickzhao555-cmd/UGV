@@ -49,6 +49,12 @@ cd ~/ugv_project/ros2_ws
 source install/setup.bash
 ```
 
+If marker vision will be used, make sure OpenCV is available:
+
+```bash
+sudo apt install python3-opencv ros-humble-cv-bridge
+```
+
 ## 3. One-Command Stack Launcher
 
 The main entry point is:
@@ -184,8 +190,10 @@ Competition mode can start from any corner. If no final target is known yet,
 the UGV drives toward the field center at reduced speed. If it reaches the
 center before a target is known, it expands a search pattern outward from the
 center while still using live LiDAR/ZED obstacle avoidance. When it receives a
-map, marker detection, or manual goal, it switches immediately to the final
-target.
+map, confirmed marker detection, or manual goal, it switches immediately to the
+final target. In competition mode the marker counts as reached inside
+`TARGET_ACCEPT_RADIUS_M` (default `0.9144`, about 1 yard), then the UGV loiters
+around the marker instead of stopping.
 
 Corners:
 
@@ -259,6 +267,11 @@ ros2 topic pub --once /ugv/field_map std_msgs/msg/String \
 
 ## 10. Simulate Camera Marker Detection
 
+The real marker vision node publishes to this same topic after it confirms a
+marker detection. Navigation treats `/ugv/marker_detection` as the highest
+priority target source, switches to `target_nav`, and publishes `/ugv/uav_flag`
+for the ESP/UAV handoff.
+
 If CV finds the marker before the UAV/ESP map is available, publish:
 
 ```bash
@@ -271,6 +284,45 @@ The UGV should publish a target-found flag:
 ```bash
 ros2 topic echo /ugv/uav_flag --once --full-length
 ```
+
+### Train and Run Marker Vision Baseline
+
+Collect marker photos from multiple angles, distances, and lighting conditions
+and place them here:
+
+```text
+ros2_ws/src/ugv_perception/training/marker_images/
+```
+
+After building and sourcing the workspace, train the lightweight ORB model:
+
+```bash
+cd ~/ugv_project/ros2_ws
+ros2 run ugv_perception train_marker_model \
+  --image-dir src/ugv_perception/training/marker_images \
+  --model-out src/ugv_perception/models/marker_orb_model.npz
+```
+
+Run marker vision in dry-run:
+
+```bash
+START_MARKER_VISION=true MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Check marker vision debug output:
+
+```bash
+ros2 topic echo /ugv/marker_vision_debug --full-length
+ros2 topic echo /ugv/marker_detection --once
+ros2 topic echo /ugv/uav_flag --once --full-length
+```
+
+Useful tuning:
+
+- raise `MARKER_MIN_GOOD_MATCHES` or `MARKER_CONFIRMATION_FRAMES` if there are false positives
+- lower them carefully if the marker is visible but never confirms
+- keep `MARKER_CONFIRMATION_FRAMES=2` for fast bench testing; it confirms in roughly a few camera frames, not seconds
 
 ## 11. Debug Topics
 
@@ -311,6 +363,7 @@ Important fields:
 - `pose_m`: estimated odometry pose
 - `mission.phase`: competition behavior, such as `startup_to_center`, `search_expand`, or `target_nav`
 - `mission.speed_scale`: mission-level command speed scaling
+- `mission.target_accept_radius_m`: competition target radius, default about 1 yard
 - `imu_yaw_fusion`: whether gyro yaw is blended into pose control
 - `imu_angular_velocity_smoothed_rps`: low-pass filtered ZED IMU angular velocity
 
@@ -503,13 +556,20 @@ Environment variables for `jetson_bringup.sh`:
 | `BENCH_GOAL_Y_M` | `12.0` | Auto bench goal y in meters |
 | `COMPETITION_MODE` | `false` | Enable corner/startup-to-center mission logic |
 | `START_CORNER` | `lower_left` | One of the four competition start corners |
+| `TARGET_ACCEPT_RADIUS_M` | `0.9144` | Competition target reached radius, about 1 yard |
 | `START_MOCK_FIELD_MAP` | `false` | Publish mock 15x15 field map |
 | `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col |
+| `START_MARKER_VISION` | `false` | Start marker CV node and publish ZED image frames |
+| `MARKER_MODEL_PATH` | `src/ugv_perception/models/marker_orb_model.npz` | Trained marker model path |
+| `MARKER_MIN_GOOD_MATCHES` | `18` | ORB match threshold for marker candidate |
+| `MARKER_CONFIRMATION_FRAMES` | `2` | Consecutive detections needed before publishing marker target |
+| `MARKER_CONFIRMATION_RADIUS_M` | `0.75` | Max map-frame distance between confirmation detections |
+| `ZED_PUBLISH_IMAGE` | `false` | Publish `/zed/image`; automatically set true by `START_MARKER_VISION=true` |
 | `LIDAR_PORT` | `/dev/ttyUSB0` | LiDAR serial device |
 | `MOTOR_PORT` | `/dev/ttyACM0` | Teensy serial device |
 | `FUSION_LIDAR_FRONT_FOV_DEG` | `70.0` | LiDAR front sector width |
 | `FUSION_IMU_SMOOTHING_ALPHA` | `0.25` | Low-pass alpha for IMU values in nav/debug summaries |
-| `MOTOR_PWM_SLEW_RATE_US_PER_S` | `1600.0` | Max PWM change rate for smoother tank-drive commands; set `0` to disable |
+| `MOTOR_PWM_SLEW_RATE_US_PER_S` | `2400.0` | Max PWM change rate for smoother tank-drive commands; set `0` to disable |
 | `USE_IMU_YAW` | `false` | Blend ZED gyro yaw into encoder odometry after axis/sign calibration |
 | `IMU_YAW_AXIS` | `z` | IMU angular velocity axis used for yaw fusion |
 | `IMU_YAW_SIGN` | `1.0` | Flip to `-1.0` if fused yaw turns the wrong direction |

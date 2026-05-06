@@ -22,7 +22,7 @@ def generate_launch_description():
         DeclareLaunchArgument('port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('baud', default_value='115200'),
         DeclareLaunchArgument('raw_command_scale_us', default_value='900.0'),
-        DeclareLaunchArgument('pwm_slew_rate_us_per_s', default_value='1600.0'),
+        DeclareLaunchArgument('pwm_slew_rate_us_per_s', default_value='2400.0'),
         DeclareLaunchArgument('command_timeout_s', default_value='0.75'),
         DeclareLaunchArgument('status_period_s', default_value='0.5'),
         DeclareLaunchArgument('dry_run', default_value='false'),

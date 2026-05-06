@@ -56,6 +56,7 @@ class FusionNode(Node):
         self.declare_parameter('depth_projection_stride_px', 16)
         self.declare_parameter('depth_obstacle_max_m', 3.5)
         self.declare_parameter('depth_obstacle_max_points', 160)
+        self.declare_parameter('imu_smoothing_alpha', 0.25)
 
         scan_topic = self.get_parameter('scan_topic').value
         image_topic = self.get_parameter('image_topic').value
@@ -96,6 +97,7 @@ class FusionNode(Node):
         self.depth_projection_stride_px = max(1, int(self.get_parameter('depth_projection_stride_px').value))
         self.depth_obstacle_max_m = float(self.get_parameter('depth_obstacle_max_m').value)
         self.depth_obstacle_max_points = max(1, int(self.get_parameter('depth_obstacle_max_points').value))
+        self.imu_smoothing_alpha = min(1.0, max(0.0, float(self.get_parameter('imu_smoothing_alpha').value)))
 
         self.latest_encoder_stamped: Optional[dict] = None
         self.encoder_stamped_history = deque()
@@ -106,6 +108,7 @@ class FusionNode(Node):
         self.last_frame_age_warning_s = 0.0
         self.last_zed_warning_s = 0.0
         self.depth_invalid_streak = 0
+        self.smoothed_imu_msg: Optional[Imu] = None
         self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, qos_profile_sensor_data)
         if self.use_legacy_encoder_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, qos_profile_sensor_data)
@@ -210,6 +213,7 @@ class FusionNode(Node):
         near_obstacle = depth_blind_hazard or (
             math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
         )
+        smoothed_imu_msg = self._smooth_imu(imu_msg)
         encoder_left, encoder_right, encoder_available, encoder_age_s, encoder_source = self._select_encoder_for_frame(
             scan_msg.header
         )
@@ -234,6 +238,7 @@ class FusionNode(Node):
         nav_frame = NavSensorFrame()
         nav_frame.header = bundle.header
         nav_frame.scan = scan_msg
+        nav_frame.imu = smoothed_imu_msg
         nav_frame.zed_obstacle_points = zed_obstacle_points
         nav_frame.left_encoder_ticks = int(encoder_left)
         nav_frame.right_encoder_ticks = int(encoder_right)
@@ -276,6 +281,16 @@ class FusionNode(Node):
                 round(float(imu_msg.angular_velocity.y), 4),
                 round(float(imu_msg.angular_velocity.z), 4),
             ],
+            'imu_linear_accel_smoothed_mps2': [
+                round(float(smoothed_imu_msg.linear_acceleration.x), 4),
+                round(float(smoothed_imu_msg.linear_acceleration.y), 4),
+                round(float(smoothed_imu_msg.linear_acceleration.z), 4),
+            ],
+            'imu_angular_velocity_smoothed_rps': [
+                round(float(smoothed_imu_msg.angular_velocity.x), 4),
+                round(float(smoothed_imu_msg.angular_velocity.y), 4),
+                round(float(smoothed_imu_msg.angular_velocity.z), 4),
+            ],
             'min_lidar_range_m': self._finite_or_none(lidar_min_range_m),
             'front_lidar_range_m': self._finite_or_none(front_lidar_range_m),
             'min_depth_range_m': self._finite_or_none(depth_min_range_m),
@@ -285,6 +300,43 @@ class FusionNode(Node):
             'near_obstacle': bool(near_obstacle),
         }
         self.summary_pub.publish(String(data=json.dumps(summary)))
+
+    def _smooth_imu(self, imu_msg: Imu) -> Imu:
+        alpha = self.imu_smoothing_alpha
+        if self.smoothed_imu_msg is None or alpha >= 1.0:
+            out = Imu()
+            out.header = imu_msg.header
+            out.orientation = imu_msg.orientation
+            out.orientation_covariance = imu_msg.orientation_covariance
+            out.linear_acceleration = imu_msg.linear_acceleration
+            out.linear_acceleration_covariance = imu_msg.linear_acceleration_covariance
+            out.angular_velocity = imu_msg.angular_velocity
+            out.angular_velocity_covariance = imu_msg.angular_velocity_covariance
+            self.smoothed_imu_msg = out
+            return out
+        if alpha <= 0.0:
+            self.smoothed_imu_msg.header = imu_msg.header
+            return self.smoothed_imu_msg
+
+        prev = self.smoothed_imu_msg
+        out = Imu()
+        out.header = imu_msg.header
+        out.orientation = imu_msg.orientation
+        out.orientation_covariance = imu_msg.orientation_covariance
+        out.linear_acceleration_covariance = imu_msg.linear_acceleration_covariance
+        out.angular_velocity_covariance = imu_msg.angular_velocity_covariance
+        out.linear_acceleration.x = self._low_pass(prev.linear_acceleration.x, imu_msg.linear_acceleration.x, alpha)
+        out.linear_acceleration.y = self._low_pass(prev.linear_acceleration.y, imu_msg.linear_acceleration.y, alpha)
+        out.linear_acceleration.z = self._low_pass(prev.linear_acceleration.z, imu_msg.linear_acceleration.z, alpha)
+        out.angular_velocity.x = self._low_pass(prev.angular_velocity.x, imu_msg.angular_velocity.x, alpha)
+        out.angular_velocity.y = self._low_pass(prev.angular_velocity.y, imu_msg.angular_velocity.y, alpha)
+        out.angular_velocity.z = self._low_pass(prev.angular_velocity.z, imu_msg.angular_velocity.z, alpha)
+        self.smoothed_imu_msg = out
+        return out
+
+    @staticmethod
+    def _low_pass(prev: float, cur: float, alpha: float) -> float:
+        return (1.0 - alpha) * float(prev) + alpha * float(cur)
 
     def _select_encoder_for_frame(self, frame_header):
         frame_stamp_s = self._header_stamp_to_seconds(frame_header)

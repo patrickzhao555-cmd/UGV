@@ -16,6 +16,7 @@ def generate_launch_description():
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
+    fusion_imu_smoothing_alpha = LaunchConfiguration('fusion_imu_smoothing_alpha')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -62,6 +63,11 @@ def generate_launch_description():
             'fusion_lidar_front_fov_deg',
             default_value='70.0',
             description='LiDAR angle window centered on 0 rad used for front clearance.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_imu_smoothing_alpha',
+            default_value='0.25',
+            description='Low-pass alpha for IMU values copied into NavSensorFrame and debug summaries.',
         ),
 
         Node(
@@ -125,6 +131,7 @@ def generate_launch_description():
                     'zed_fresh_timeout_s': ParameterValue(fusion_zed_fresh_timeout_s, value_type=float),
                     'depth_invalid_warn_frames': ParameterValue(fusion_depth_invalid_warn_frames, value_type=int),
                     'lidar_front_fov_deg': ParameterValue(fusion_lidar_front_fov_deg, value_type=float),
+                    'imu_smoothing_alpha': ParameterValue(fusion_imu_smoothing_alpha, value_type=float),
                 }],
             ),
         ]),

@@ -101,6 +101,20 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 Use `START_CORNER=upper_left`, `upper_right`, `lower_left`, or `lower_right`
 to match the corner where the UGV is placed.
 
+Competition behavior:
+
+- no target yet: drive from the selected corner toward field center at reduced speed
+- center reached, still no target: expand the search pattern outward from center while avoiding live LiDAR/ZED obstacles
+- field map, marker detection, or manual goal received: switch immediately to target navigation
+- UAV landing flag received: reduce command speed while continuing obstacle avoidance
+
+Simulate an ESP/UAV mission flag:
+
+```bash
+ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
+"{data: '{\"state\":\"landing\",\"source\":\"bench\"}'}"
+```
+
 ## Real Run Warning
 
 Only run without `MOTOR_DRY_RUN=true` when the mechanical team has cleared the
@@ -118,6 +132,7 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 - `/ugv_goal`: manual goal input in map coordinates
 - `/ugv/field_map`: ESP/UAV or mock 15 x 15 field-map JSON
 - `/ugv/marker_detection`: future camera/CV marker goal input
+- `/ugv/mission_flag`: manual/ESP/UAV mission state such as `landing`, `leaving`, or `scanning`
 - `/ugv_nav_cmd`: navigation command JSON sent to the motor bridge
 - `/ugv_nav_status`: navigation, mission, pose, planner, and command status
 - `/ugv/debug_status`: compact one-line debug status
@@ -163,6 +178,22 @@ ros2 topic echo /ugv/debug_status --once --full-length
 ros2 topic echo /ugv_nav_status --once --full-length
 ros2 topic echo /motor_controller/status --once --full-length
 ```
+
+Useful tuning overrides:
+
+```bash
+MOTOR_PWM_SLEW_RATE_US_PER_S=1600.0
+FUSION_IMU_SMOOTHING_ALPHA=0.25
+USE_IMU_YAW=false
+IMU_YAW_AXIS=z
+IMU_YAW_SIGN=1.0
+IMU_YAW_BLEND=0.25
+```
+
+IMU yaw fusion is available but disabled by default until the ZED IMU axis and
+sign are confirmed on the physical robot. Encoder odometry remains the default
+pose source; enabling `USE_IMU_YAW=true` blends gyro yaw rate into the tank-drive
+heading estimate.
 
 For detailed test procedures, expected outputs, parameter overrides, and bench
 test recipes, use the full Jetson guide:

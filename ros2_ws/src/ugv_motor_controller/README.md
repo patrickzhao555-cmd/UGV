@@ -31,6 +31,7 @@ ros2 launch ugv_motor_controller motor_controller.launch.py \
   port:=/dev/ttyACM0 \
   baud:=115200 \
   raw_command_scale_us:=900.0 \
+  pwm_slew_rate_us_per_s:=1600.0 \
   invert_left_command:=false \
   invert_right_command:=false
 ```
@@ -51,5 +52,6 @@ The bridge keeps a ROS-side failsafe too:
 
 - if `/ugv_nav_cmd` stops arriving, it sends neutral PWM
 - if Teensy serial drops, it reconnects and republishes connection status
+- normal navigation commands are slew-limited by `pwm_slew_rate_us_per_s` so tank-drive direction changes are less abrupt; timeout/startup/shutdown stops still go straight to neutral
 
 Default Jetson-side serial port is `/dev/ttyACM0` because the current UGV wiring uses Teensy USB directly to the Nano. Change it in launch if your wiring is different.

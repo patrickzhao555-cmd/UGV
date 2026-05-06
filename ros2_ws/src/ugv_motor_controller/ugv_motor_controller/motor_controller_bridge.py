@@ -28,6 +28,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('pwm_min_us', 1100)
         self.declare_parameter('pwm_max_us', 1900)
         self.declare_parameter('raw_command_scale_us', 900.0)
+        self.declare_parameter('pwm_slew_rate_us_per_s', 1600.0)
         self.declare_parameter('command_deadband', 0.03)
         self.declare_parameter('command_timeout_s', 0.75)
         self.declare_parameter('command_refresh_period_s', 0.1)
@@ -53,6 +54,7 @@ class MotorControllerBridge(Node):
         self.pwm_min_us = int(self.get_parameter('pwm_min_us').value)
         self.pwm_max_us = int(self.get_parameter('pwm_max_us').value)
         self.raw_command_scale_us = float(self.get_parameter('raw_command_scale_us').value)
+        self.pwm_slew_rate_us_per_s = float(self.get_parameter('pwm_slew_rate_us_per_s').value)
         self.command_deadband = float(self.get_parameter('command_deadband').value)
         self.command_timeout_s = float(self.get_parameter('command_timeout_s').value)
         self.command_refresh_period_s = float(self.get_parameter('command_refresh_period_s').value)
@@ -69,6 +71,7 @@ class MotorControllerBridge(Node):
         self.last_serial_attempt = 0.0
         self.last_command_received = 0.0
         self.last_stop_sent = False
+        self.target_pwm_command = (self.pwm_neutral_us, self.pwm_neutral_us)
         self.last_pwm_command = (self.pwm_neutral_us, self.pwm_neutral_us)
         self.last_encoder_pair: Optional[Tuple[int, int]] = None
         self.last_raw_encoder_quad: Optional[Tuple[int, int, int, int]] = None
@@ -111,7 +114,7 @@ class MotorControllerBridge(Node):
 
         self.last_command_received = time.monotonic()
         self.last_stop_sent = False
-        self.last_pwm_command = (left_pwm, right_pwm)
+        self.target_pwm_command = (left_pwm, right_pwm)
         self.last_command_mode = str(obj.get('mode', 'RAW'))
 
         if self.serial_device is None:
@@ -189,7 +192,7 @@ class MotorControllerBridge(Node):
             return
         if now - self.last_pwm_send_time < self.command_refresh_period_s:
             return
-        self._send_pwm_command(*self.last_pwm_command, reason='command refresh')
+        self._send_pwm_command(*self.target_pwm_command, reason='command refresh')
 
     def _drain_serial(self) -> None:
         if self.serial_device is None:
@@ -312,6 +315,7 @@ class MotorControllerBridge(Node):
                 'raw_ticks': [fl, fr, rl, rr],
                 'teensy_ms': teensy_ms,
                 'last_pwm': list(self.last_pwm_command),
+                'target_pwm': list(self.target_pwm_command),
             },
         )
 
@@ -343,6 +347,8 @@ class MotorControllerBridge(Node):
         if self.serial_device is None:
             return
 
+        self.target_pwm_command = (left_pwm, right_pwm)
+        left_pwm, right_pwm = self._apply_pwm_slew(left_pwm, right_pwm, reason)
         self.last_pwm_command = (left_pwm, right_pwm)
         if self.dry_run:
             self.last_pwm_send_time = time.monotonic()
@@ -377,6 +383,8 @@ class MotorControllerBridge(Node):
             'baud': self.baud,
             'dry_run': self.dry_run,
             'last_pwm': list(self.last_pwm_command),
+            'target_pwm': list(self.target_pwm_command),
+            'pwm_slew_rate_us_per_s': self.pwm_slew_rate_us_per_s,
             'command_age_s': self._command_age_s(),
         }
         if self.last_encoder_pair is not None:
@@ -420,6 +428,23 @@ class MotorControllerBridge(Node):
         if self.last_command_received <= 0.0:
             return None
         return round(max(0.0, time.monotonic() - self.last_command_received), 3)
+
+    def _apply_pwm_slew(self, left_pwm: int, right_pwm: int, reason: str) -> Tuple[int, int]:
+        immediate_reasons = ('stop', 'timeout', 'shutdown', 'startup', 'initial hold')
+        if self.pwm_slew_rate_us_per_s <= 0.0 or any(token in reason for token in immediate_reasons):
+            return left_pwm, right_pwm
+
+        now = time.monotonic()
+        dt = self.command_refresh_period_s if self.last_pwm_send_time <= 0.0 else max(0.0, now - self.last_pwm_send_time)
+        max_delta = max(1, int(round(self.pwm_slew_rate_us_per_s * dt)))
+
+        def step(prev: int, target: int) -> int:
+            delta = target - prev
+            if abs(delta) <= max_delta:
+                return target
+            return prev + max_delta if delta > 0 else prev - max_delta
+
+        return step(self.last_pwm_command[0], left_pwm), step(self.last_pwm_command[1], right_pwm)
 
     def destroy_node(self) -> None:
         try:

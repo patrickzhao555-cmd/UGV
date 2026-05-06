@@ -177,8 +177,9 @@ ros2 topic echo /ugv/debug_status --full-length
 
 ## 8. Competition Mode
 
-Competition mode 支持从四个角落开始。如果还不知道 final target，UGV 会先去场地中心。
-收到 ESP/UAV map 或 camera marker detection 后，会切换到最终目标点。
+Competition mode 支持从四个角落开始。如果还不知道 final target，UGV 会先用较低速度去场地中心。
+如果到达中心时还没有 target，它会从中心开始逐渐向外扩展搜索，同时继续用 LiDAR/ZED 规避现场新障碍。
+收到 ESP/UAV map、camera marker detection 或手动 goal 后，会立刻切换到最终目标点。
 
 可选角落：
 
@@ -209,6 +210,26 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 COMPETITION_MODE=true START_CORNER=lower_left \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
+
+Mission 速度逻辑：
+
+- `startup_to_center`: 较低速度，边走边等 UAV/ESP map
+- `search_expand`: 中等速度，从中心向外搜索
+- `target_nav`: 已知目标后使用完整 nav 速度
+- `target_loiter` 或 UAV `landing`: 降低速度，方便靠近目标或配合 UAV landing
+
+模拟 ESP/UAV mission flag：
+
+```bash
+ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
+"{data: '{\"state\":\"landing\",\"source\":\"bench\"}'}"
+```
+
+常用 flag state：
+
+- `scanning`
+- `leaving`
+- `landing`
 
 ## 9. 手动发送 Field Map
 
@@ -282,6 +303,10 @@ ros2 topic echo /motor_controller/status --once --full-length
 - `encoder_available`: fusion 是否拿到新鲜 encoder ticks
 - `cmd`: 当前 navigation command
 - `pose_m`: encoder odometry 估计 pose
+- `mission.phase`: competition 阶段，比如 `startup_to_center`、`search_expand`、`target_nav`
+- `mission.speed_scale`: mission 层速度缩放
+- `imu_yaw_fusion`: 是否把 gyro yaw 融合进 pose 控制
+- `imu_angular_velocity_smoothed_rps`: 低通滤波后的 ZED IMU angular velocity
 
 ## 12. Bench Test 流程
 
@@ -404,8 +429,46 @@ MOTOR_DRY_RUN=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jets
 预期：
 
 - 不需要手动发布 `/ugv_goal`
-- `/ugv_nav_status` 显示 competition phase，比如 `startup_to_center`、`target_nav` 或 `center_loiter`
+- `/ugv_nav_status` 显示 competition phase，比如 `startup_to_center`、`search_expand` 或 `target_nav`
 - motor 输出显示 `DRY RUN`
+
+### ESP/UAV Mission Flag 测试
+
+competition mode 运行时发布：
+
+```bash
+ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
+"{data: '{\"state\":\"landing\",\"source\":\"bench_test\"}'}"
+```
+
+预期：
+
+- `/ugv_nav_status` 显示 `mission.uav_state: landing`
+- `/ugv_nav_status` 显示降低后的 `mission.speed_scale`
+- `/motor_controller/status` 显示 `target_pwm` 和经过 slew 平滑后的 `last_pwm`
+
+### IMU Yaw Fusion Bench Test
+
+默认情况下，ZED IMU 会被平滑并显示在 debug 里，但 yaw fusion 先关闭，等确认 camera IMU 轴向和正负号后再开。dry-run 开启 gyro yaw：
+
+```bash
+USE_IMU_YAW=true IMU_YAW_AXIS=z IMU_YAW_SIGN=1.0 MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+检查：
+
+```bash
+ros2 topic echo /ugv_nav_status --once --full-length
+ros2 topic echo /sensors/synced_summary --once --full-length
+```
+
+如果架空转轮时 yaw 方向反了，改成：
+
+```bash
+USE_IMU_YAW=true IMU_YAW_AXIS=z IMU_YAW_SIGN=-1.0 MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
 
 ## 13. 参数速查
 
@@ -429,6 +492,12 @@ MOTOR_DRY_RUN=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jets
 | `LIDAR_PORT` | `/dev/ttyUSB0` | LiDAR serial device |
 | `MOTOR_PORT` | `/dev/ttyACM0` | Teensy serial device |
 | `FUSION_LIDAR_FRONT_FOV_DEG` | `70.0` | LiDAR front sector 宽度 |
+| `FUSION_IMU_SMOOTHING_ALPHA` | `0.25` | nav/debug summary 里的 IMU 低通滤波 alpha |
+| `MOTOR_PWM_SLEW_RATE_US_PER_S` | `1600.0` | PWM 最大变化速度，让 tank-drive command 更平滑；设成 `0` 可关闭 |
+| `USE_IMU_YAW` | `false` | 轴向/正负号确认后，把 ZED gyro yaw 融合进 encoder odometry |
+| `IMU_YAW_AXIS` | `z` | 用于 yaw fusion 的 IMU angular velocity 轴 |
+| `IMU_YAW_SIGN` | `1.0` | 如果 yaw 方向反了，改成 `-1.0` |
+| `IMU_YAW_BLEND` | `0.25` | gyro yaw rate 相对 encoder yaw rate 的权重 |
 | `INVERT_LEFT_COMMAND` | `false` | 翻转 left motor command |
 | `INVERT_RIGHT_COMMAND` | `false` | 翻转 right motor command |
 | `INVERT_LEFT_ENCODER` | `false` | 翻转 left encoder sign |

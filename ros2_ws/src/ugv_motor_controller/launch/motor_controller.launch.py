@@ -9,6 +9,7 @@ def generate_launch_description():
     port = LaunchConfiguration('port')
     baud = LaunchConfiguration('baud')
     raw_command_scale_us = LaunchConfiguration('raw_command_scale_us')
+    pwm_slew_rate_us_per_s = LaunchConfiguration('pwm_slew_rate_us_per_s')
     command_timeout_s = LaunchConfiguration('command_timeout_s')
     status_period_s = LaunchConfiguration('status_period_s')
     dry_run = LaunchConfiguration('dry_run')
@@ -21,6 +22,7 @@ def generate_launch_description():
         DeclareLaunchArgument('port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('baud', default_value='115200'),
         DeclareLaunchArgument('raw_command_scale_us', default_value='900.0'),
+        DeclareLaunchArgument('pwm_slew_rate_us_per_s', default_value='1600.0'),
         DeclareLaunchArgument('command_timeout_s', default_value='0.75'),
         DeclareLaunchArgument('status_period_s', default_value='0.5'),
         DeclareLaunchArgument('dry_run', default_value='false'),
@@ -37,6 +39,7 @@ def generate_launch_description():
                 'port': ParameterValue(port, value_type=str),
                 'baud': ParameterValue(baud, value_type=int),
                 'raw_command_scale_us': ParameterValue(raw_command_scale_us, value_type=float),
+                'pwm_slew_rate_us_per_s': ParameterValue(pwm_slew_rate_us_per_s, value_type=float),
                 'command_timeout_s': ParameterValue(command_timeout_s, value_type=float),
                 'status_period_s': ParameterValue(status_period_s, value_type=float),
                 'dry_run': ParameterValue(dry_run, value_type=bool),

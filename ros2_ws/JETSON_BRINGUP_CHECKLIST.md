@@ -181,8 +181,11 @@ ros2 topic echo /ugv/debug_status --full-length
 ## 8. Competition Mode
 
 Competition mode can start from any corner. If no final target is known yet,
-the UGV drives toward the field center. When it receives a map or marker
-detection, it switches to the final target.
+the UGV drives toward the field center at reduced speed. If it reaches the
+center before a target is known, it expands a search pattern outward from the
+center while still using live LiDAR/ZED obstacle avoidance. When it receives a
+map, marker detection, or manual goal, it switches immediately to the final
+target.
 
 Corners:
 
@@ -213,6 +216,26 @@ Actual competition-style run without mock map:
 COMPETITION_MODE=true START_CORNER=lower_left \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
+
+Mission speed behavior:
+
+- `startup_to_center`: reduced speed while waiting for UAV/ESP map data
+- `search_expand`: medium speed while searching from the center outward
+- `target_nav`: full configured navigation speed after a target is known
+- `target_loiter` or UAV `landing`: reduced speed around the target/landing event
+
+Simulate an ESP/UAV mission flag:
+
+```bash
+ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
+"{data: '{\"state\":\"landing\",\"source\":\"bench\"}'}"
+```
+
+Other useful flag states:
+
+- `scanning`
+- `leaving`
+- `landing`
 
 ## 9. Send a Field Map Manually
 
@@ -286,6 +309,10 @@ Important fields:
 - `encoder_available`: fused sensor packet includes fresh encoder ticks
 - `cmd`: current nav command
 - `pose_m`: estimated odometry pose
+- `mission.phase`: competition behavior, such as `startup_to_center`, `search_expand`, or `target_nav`
+- `mission.speed_scale`: mission-level command speed scaling
+- `imu_yaw_fusion`: whether gyro yaw is blended into pose control
+- `imu_angular_velocity_smoothed_rps`: low-pass filtered ZED IMU angular velocity
 
 ## 12. Bench Test Procedures
 
@@ -417,8 +444,47 @@ Expected:
 
 - no manual `/ugv_goal` is needed
 - `/ugv_nav_status` shows a competition phase such as `startup_to_center`,
-  `target_nav`, or `center_loiter`
+  `search_expand`, or `target_nav`
 - motor output says `DRY RUN`
+
+### ESP/UAV Mission Flag Test
+
+While competition mode is running, publish:
+
+```bash
+ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
+"{data: '{\"state\":\"landing\",\"source\":\"bench_test\"}'}"
+```
+
+Expected:
+
+- `/ugv_nav_status` shows `mission.uav_state: landing`
+- `/ugv_nav_status` shows a reduced `mission.speed_scale`
+- `/motor_controller/status` shows `target_pwm` and slewed `last_pwm`
+
+### IMU Yaw Fusion Bench Test
+
+By default, ZED IMU values are smoothed and exposed for debug, but yaw fusion is
+off until the camera axis/sign is verified. Start dry-run with gyro yaw enabled:
+
+```bash
+USE_IMU_YAW=true IMU_YAW_AXIS=z IMU_YAW_SIGN=1.0 MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Check:
+
+```bash
+ros2 topic echo /ugv_nav_status --once --full-length
+ros2 topic echo /sensors/synced_summary --once --full-length
+```
+
+If yaw changes in the wrong direction during a lifted wheel turn, restart with:
+
+```bash
+USE_IMU_YAW=true IMU_YAW_AXIS=z IMU_YAW_SIGN=-1.0 MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
 
 ## 13. Parameter Cheat Sheet
 
@@ -442,6 +508,12 @@ Environment variables for `jetson_bringup.sh`:
 | `LIDAR_PORT` | `/dev/ttyUSB0` | LiDAR serial device |
 | `MOTOR_PORT` | `/dev/ttyACM0` | Teensy serial device |
 | `FUSION_LIDAR_FRONT_FOV_DEG` | `70.0` | LiDAR front sector width |
+| `FUSION_IMU_SMOOTHING_ALPHA` | `0.25` | Low-pass alpha for IMU values in nav/debug summaries |
+| `MOTOR_PWM_SLEW_RATE_US_PER_S` | `1600.0` | Max PWM change rate for smoother tank-drive commands; set `0` to disable |
+| `USE_IMU_YAW` | `false` | Blend ZED gyro yaw into encoder odometry after axis/sign calibration |
+| `IMU_YAW_AXIS` | `z` | IMU angular velocity axis used for yaw fusion |
+| `IMU_YAW_SIGN` | `1.0` | Flip to `-1.0` if fused yaw turns the wrong direction |
+| `IMU_YAW_BLEND` | `0.25` | Weight of gyro yaw rate vs encoder yaw rate |
 | `INVERT_LEFT_COMMAND` | `false` | Flip left motor command |
 | `INVERT_RIGHT_COMMAND` | `false` | Flip right motor command |
 | `INVERT_LEFT_ENCODER` | `false` | Flip left encoder sign |

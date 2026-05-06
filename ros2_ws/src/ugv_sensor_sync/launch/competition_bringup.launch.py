@@ -56,14 +56,21 @@ def generate_launch_description():
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
+    fusion_imu_smoothing_alpha = LaunchConfiguration('fusion_imu_smoothing_alpha')
     motor_port = LaunchConfiguration('motor_port')
     motor_baud = LaunchConfiguration('motor_baud')
     motor_raw_command_scale_us = LaunchConfiguration('motor_raw_command_scale_us')
+    motor_pwm_slew_rate_us_per_s = LaunchConfiguration('motor_pwm_slew_rate_us_per_s')
     motor_dry_run = LaunchConfiguration('motor_dry_run')
     invert_left_command = LaunchConfiguration('invert_left_command')
     invert_right_command = LaunchConfiguration('invert_right_command')
     invert_left_encoder = LaunchConfiguration('invert_left_encoder')
     invert_right_encoder = LaunchConfiguration('invert_right_encoder')
+    mission_flag_topic = LaunchConfiguration('mission_flag_topic')
+    use_imu_yaw = LaunchConfiguration('use_imu_yaw')
+    imu_yaw_blend = LaunchConfiguration('imu_yaw_blend')
+    imu_yaw_axis = LaunchConfiguration('imu_yaw_axis')
+    imu_yaw_sign = LaunchConfiguration('imu_yaw_sign')
 
     sensor_sync_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -83,6 +90,7 @@ def generate_launch_description():
             'fusion_zed_fresh_timeout_s': fusion_zed_fresh_timeout_s,
             'fusion_depth_invalid_warn_frames': fusion_depth_invalid_warn_frames,
             'fusion_lidar_front_fov_deg': fusion_lidar_front_fov_deg,
+            'fusion_imu_smoothing_alpha': fusion_imu_smoothing_alpha,
         }.items(),
     )
 
@@ -99,6 +107,7 @@ def generate_launch_description():
             'port': motor_port,
             'baud': motor_baud,
             'raw_command_scale_us': motor_raw_command_scale_us,
+            'pwm_slew_rate_us_per_s': motor_pwm_slew_rate_us_per_s,
             'dry_run': motor_dry_run,
             'invert_left_command': invert_left_command,
             'invert_right_command': invert_right_command,
@@ -119,6 +128,16 @@ def generate_launch_description():
             start_corner,
             '--center-loiter-radius-m',
             center_loiter_radius_m,
+            '--mission-flag-topic',
+            mission_flag_topic,
+            '--use-imu-yaw',
+            use_imu_yaw,
+            '--imu-yaw-blend',
+            imu_yaw_blend,
+            '--imu-yaw-axis',
+            imu_yaw_axis,
+            '--imu-yaw-sign',
+            imu_yaw_sign,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -147,9 +166,16 @@ def generate_launch_description():
         DeclareLaunchArgument('fusion_zed_fresh_timeout_s', default_value='0.75'),
         DeclareLaunchArgument('fusion_depth_invalid_warn_frames', default_value='2'),
         DeclareLaunchArgument('fusion_lidar_front_fov_deg', default_value='70.0'),
+        DeclareLaunchArgument('fusion_imu_smoothing_alpha', default_value='0.25'),
+        DeclareLaunchArgument('mission_flag_topic', default_value='/ugv/mission_flag'),
+        DeclareLaunchArgument('use_imu_yaw', default_value='false'),
+        DeclareLaunchArgument('imu_yaw_blend', default_value='0.25'),
+        DeclareLaunchArgument('imu_yaw_axis', default_value='z'),
+        DeclareLaunchArgument('imu_yaw_sign', default_value='1.0'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),
+        DeclareLaunchArgument('motor_pwm_slew_rate_us_per_s', default_value='1600.0'),
         DeclareLaunchArgument('motor_dry_run', default_value='false'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
         DeclareLaunchArgument('invert_right_command', default_value='false'),

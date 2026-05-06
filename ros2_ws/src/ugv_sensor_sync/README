@@ -6,6 +6,7 @@ What it does now:
 - republishes lidar scans with a midpoint-corrected timestamp
 - accepts timestamped encoder ticks from the motor controller bridge
 - bundles synced lidar + ZED image + ZED depth + ZED IMU into one ROS message
+- publishes a smoothed ZED IMU copy inside the navigation frame for optional yaw fusion
 - publishes a slimmer navigation contract so nav does not depend on raw sensor internals
 - publishes pathing-friendly ZED obstacle points and front clearance summaries
 - can publish a mock 15x15 yard field map for testing before ESP/UAV integration
@@ -66,6 +67,7 @@ ros2 topic echo /ugv_nav_status
 ros2 topic echo /zed/status
 ros2 topic echo /scan/synced --field header.stamp
 ros2 topic echo /zed/imu --field header.stamp
+ros2 topic echo /sensors/synced_summary --once --full-length
 ros2 topic echo /encoder_ticks_stamped --once
 ros2 topic echo /sensors/nav_frame --once
 ros2 topic echo /sensors/front_clearance_m
@@ -86,4 +88,10 @@ Competition bring-up with the startup-to-center mission:
 
 ```bash
 ros2 launch ugv_sensor_sync competition_bringup.launch.py competition_mode:=true start_corner:=lower_left
+```
+
+Manual ESP/UAV mission flag simulation:
+
+```bash
+ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String "{data: '{\"state\":\"landing\",\"source\":\"bench\"}'}"
 ```

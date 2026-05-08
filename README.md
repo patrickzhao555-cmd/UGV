@@ -119,7 +119,9 @@ ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
 Marker vision baseline:
 
 1. Put marker photos in `ros2_ws/src/ugv_perception/training/marker_images/`.
-2. Train the lightweight ORB model after building/sourcing the workspace:
+2. Train the lightweight ORB model after building/sourcing the workspace. The
+   trainer now tries to crop the black/white marker region first, so it avoids
+   learning classroom floor or chair features when possible:
 
 ```bash
 cd ~/ugv_project/ros2_ws
@@ -138,9 +140,13 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 The marker vision node publishes confirmed detections to `/ugv/marker_detection`.
 Navigation already consumes that topic as the highest-priority target source and
 publishes `/ugv/uav_flag` so the ESP/UAV side can stop scanning or prepare
-landing. Tune `MARKER_MIN_GOOD_MATCHES`, `MARKER_CONFIRMATION_FRAMES`, and
-`MARKER_CONFIRMATION_RADIUS_M` if bench data shows missed detections or false
-positives.
+landing. Runtime detection is hybrid: it first looks for a generic high-contrast
+dark/light marker shape using both region and edge cues, then falls back to ORB
+model matching. This keeps it useful when the exact black/white pattern changes
+between practice and competition. Tune
+`MARKER_GENERIC_MIN_AREA_FRAC`, `MARKER_GENERIC_MIN_CONTRAST`,
+`MARKER_MIN_GOOD_MATCHES`, `MARKER_CONFIRMATION_FRAMES`, and
+`MARKER_CONFIRMATION_RADIUS_M` if bench data shows missed detections or false positives.
 
 ## Real Run Warning
 

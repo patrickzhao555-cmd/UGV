@@ -55,6 +55,9 @@ def generate_launch_description():
     marker_min_good_matches = LaunchConfiguration('marker_min_good_matches')
     marker_confirmation_frames = LaunchConfiguration('marker_confirmation_frames')
     marker_confirmation_radius_m = LaunchConfiguration('marker_confirmation_radius_m')
+    marker_enable_generic_detector = LaunchConfiguration('marker_enable_generic_detector')
+    marker_generic_min_area_frac = LaunchConfiguration('marker_generic_min_area_frac')
+    marker_generic_min_contrast = LaunchConfiguration('marker_generic_min_contrast')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
@@ -178,6 +181,9 @@ def generate_launch_description():
         DeclareLaunchArgument('marker_min_good_matches', default_value='18'),
         DeclareLaunchArgument('marker_confirmation_frames', default_value='2'),
         DeclareLaunchArgument('marker_confirmation_radius_m', default_value='0.75'),
+        DeclareLaunchArgument('marker_enable_generic_detector', default_value='true'),
+        DeclareLaunchArgument('marker_generic_min_area_frac', default_value='0.002'),
+        DeclareLaunchArgument('marker_generic_min_contrast', default_value='55.0'),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('lidar_baud', default_value='115200'),
         DeclareLaunchArgument('lidar_scan_freq_hz', default_value='10.0'),
@@ -239,6 +245,9 @@ def generate_launch_description():
                 'min_good_matches': ParameterValue(marker_min_good_matches, value_type=int),
                 'confirmation_frames': ParameterValue(marker_confirmation_frames, value_type=int),
                 'confirmation_radius_m': ParameterValue(marker_confirmation_radius_m, value_type=float),
+                'enable_generic_detector': ParameterValue(marker_enable_generic_detector, value_type=bool),
+                'generic_min_area_frac': ParameterValue(marker_generic_min_area_frac, value_type=float),
+                'generic_min_contrast': ParameterValue(marker_generic_min_contrast, value_type=float),
             }],
         ),
         Node(

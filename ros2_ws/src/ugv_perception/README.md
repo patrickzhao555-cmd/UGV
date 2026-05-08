@@ -51,9 +51,11 @@ ros2 run ugv_perception zed_obj_distance
 
 ## Marker Vision Baseline
 
-This is a lightweight feature-matching scaffold, not a final trained detector.
-It lets the team collect marker photos now and connect confirmed detections into
-the existing navigation handoff path.
+This is a hybrid marker detector. It first looks for a generic high-contrast
+dark/light marker shape using both region and edge cues, then uses the trained
+ORB model as an additional appearance check/fallback. That matters because the
+exact black/white pattern can change while the marker size and style stay the
+same.
 
 Dependency on the Jetson/Nano:
 
@@ -67,7 +69,8 @@ Training input:
 training/marker_images/
 ```
 
-Put marker photos there from different angles, distances, and lighting. Then run:
+Put marker photos there from different angles, distances, and lighting. The
+trainer tries to crop the marker region before extracting ORB features. Then run:
 
 ```bash
 cd ~/ugv_project/ros2_ws
@@ -98,6 +101,9 @@ Useful launch environment variables:
 - `MARKER_MIN_GOOD_MATCHES`
 - `MARKER_CONFIRMATION_FRAMES`
 - `MARKER_CONFIRMATION_RADIUS_M`
+- `MARKER_ENABLE_GENERIC_DETECTOR`
+- `MARKER_GENERIC_MIN_AREA_FRAC`
+- `MARKER_GENERIC_MIN_CONTRAST`
 
 ## Kept vs removed
 

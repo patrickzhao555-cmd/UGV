@@ -38,6 +38,12 @@ class MarkerVisionNode(Node):
         self.declare_parameter('confirmation_radius_m', 0.75)
         self.declare_parameter('max_depth_stamp_delta_s', 0.35)
         self.declare_parameter('max_pose_age_s', 1.5)
+        self.declare_parameter('enable_generic_detector', True)
+        self.declare_parameter('generic_min_area_frac', 0.002)
+        self.declare_parameter('generic_max_area_frac', 0.65)
+        self.declare_parameter('generic_min_y_frac', 0.20)
+        self.declare_parameter('generic_min_contrast', 55.0)
+        self.declare_parameter('generic_min_score', 0.55)
 
         self.image_topic = self.get_parameter('image_topic').value
         self.depth_topic = self.get_parameter('depth_topic').value
@@ -57,6 +63,12 @@ class MarkerVisionNode(Node):
         self.confirmation_radius_m = max(0.05, float(self.get_parameter('confirmation_radius_m').value))
         self.max_depth_stamp_delta_s = max(0.0, float(self.get_parameter('max_depth_stamp_delta_s').value))
         self.max_pose_age_s = max(0.0, float(self.get_parameter('max_pose_age_s').value))
+        self.enable_generic_detector = bool(self.get_parameter('enable_generic_detector').value)
+        self.generic_min_area_frac = max(0.0, float(self.get_parameter('generic_min_area_frac').value))
+        self.generic_max_area_frac = min(1.0, max(self.generic_min_area_frac, float(self.get_parameter('generic_max_area_frac').value)))
+        self.generic_min_y_frac = min(1.0, max(0.0, float(self.get_parameter('generic_min_y_frac').value)))
+        self.generic_min_contrast = max(0.0, float(self.get_parameter('generic_min_contrast').value))
+        self.generic_min_score = max(0.0, float(self.get_parameter('generic_min_score').value))
 
         self.bridge = CvBridge()
         self.orb = cv2.ORB_create(nfeatures=max_features)
@@ -82,7 +94,8 @@ class MarkerVisionNode(Node):
         self.get_logger().info(
             f'Marker vision node started (image={self.image_topic}, depth={self.depth_topic}, '
             f'model={self.model_path}, marker_topic={self.marker_topic}, '
-            f'confirmation_frames={self.confirmation_frames})'
+            f'confirmation_frames={self.confirmation_frames}, '
+            f'generic_detector={self.enable_generic_detector})'
         )
 
     def _load_model(self) -> None:
@@ -142,11 +155,6 @@ class MarkerVisionNode(Node):
         now_s = time.monotonic()
         if now_s - self.last_publish_s < self.max_publish_period_s:
             return
-        if self.model_descriptors is None:
-            if now_s - self.last_missing_model_log_s > 5.0:
-                self.get_logger().warn('Marker model missing; train it before enabling marker vision.')
-                self.last_missing_model_log_s = now_s
-            return
 
         try:
             image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
@@ -161,24 +169,23 @@ class MarkerVisionNode(Node):
         except Exception as exc:
             self.get_logger().warn(f'Could not convert marker image to grayscale: {exc}')
             return
-        keypoints, descriptors = self.orb.detectAndCompute(gray, None)
-        if descriptors is None or keypoints is None or len(keypoints) == 0:
-            self._publish_debug({'detected': False, 'reason': 'no_keypoints'})
-            return
 
-        good = self._good_matches(descriptors)
-        detected = len(good) >= self.min_good_matches
+        generic_center, generic_debug = self._detect_generic_marker(gray)
+        orb_center, orb_debug = self._detect_orb_marker(gray, now_s)
+        center_px = generic_center if generic_center is not None else orb_center
+        method = 'generic_dark_light_marker' if generic_center is not None else 'orb_model'
+
         debug = {
-            'detected': detected,
-            'good_matches': len(good),
-            'min_good_matches': self.min_good_matches,
-            'keypoints': len(keypoints),
+            'detected': center_px is not None,
+            'method': method if center_px is not None else None,
+            'generic': generic_debug,
+            'orb': orb_debug,
         }
-        if not detected:
+        if center_px is None:
+            debug.update({'reason': 'no_marker_candidate'})
             self._publish_debug(debug)
             return
 
-        center_px = self._matched_center_px(keypoints, good)
         depth_m = self._depth_at(center_px)
         debug.update({
             'center_px': [round(center_px[0], 1), round(center_px[1], 1)],
@@ -227,6 +234,165 @@ class MarkerVisionNode(Node):
         self.last_publish_s = now_s
         debug.update({'published_marker_m': [round(publish_xy[0], 3), round(publish_xy[1], 3)]})
         self._publish_debug(debug)
+
+    def _detect_orb_marker(self, gray: np.ndarray, now_s: float):
+        debug = {
+            'model_loaded': self.model_descriptors is not None,
+            'good_matches': 0,
+            'min_good_matches': self.min_good_matches,
+            'keypoints': 0,
+        }
+        if self.model_descriptors is None:
+            if not self.enable_generic_detector and now_s - self.last_missing_model_log_s > 5.0:
+                self.get_logger().warn('Marker model missing; train it before enabling ORB-only marker vision.')
+                self.last_missing_model_log_s = now_s
+            return None, debug
+
+        keypoints, descriptors = self.orb.detectAndCompute(gray, None)
+        debug['keypoints'] = 0 if keypoints is None else len(keypoints)
+        if descriptors is None or keypoints is None or len(keypoints) == 0:
+            debug['reason'] = 'no_keypoints'
+            return None, debug
+
+        good = self._good_matches(descriptors)
+        debug['good_matches'] = len(good)
+        if len(good) < self.min_good_matches:
+            debug['reason'] = 'not_enough_good_matches'
+            return None, debug
+        return self._matched_center_px(keypoints, good), debug
+
+    def _detect_generic_marker(self, gray: np.ndarray):
+        debug = {'enabled': self.enable_generic_detector, 'candidates': 0, 'sources': {}}
+        if not self.enable_generic_detector:
+            return None, debug
+
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        _, dark_mask = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        kernel = np.ones((5, 5), np.uint8)
+        dark_mask = cv2.morphologyEx(dark_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+        dark_contours, _ = cv2.findContours(dark_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        median = float(np.median(blur))
+        lower = int(max(20.0, 0.55 * median))
+        upper = int(min(255.0, max(lower + 30.0, 1.35 * median)))
+        edges = cv2.Canny(blur, lower, upper)
+        edge_kernel = np.ones((5, 5), np.uint8)
+        edge_mask = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, edge_kernel, iterations=2)
+        edge_mask = cv2.dilate(edge_mask, edge_kernel, iterations=1)
+        edge_contours, _ = cv2.findContours(edge_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        candidate_sets = (
+            ('dark_region', dark_contours),
+            ('edge_region', edge_contours),
+        )
+        best = None
+        best_score = -1.0
+        for source, contours in candidate_sets:
+            source_candidates = 0
+            for contour in contours:
+                candidate = self._score_generic_candidate(gray, contour, source)
+                if candidate is None:
+                    continue
+                source_candidates += 1
+                if candidate['score'] > best_score:
+                    best_score = candidate['score']
+                    best = candidate
+            debug['sources'][source] = source_candidates
+            debug['candidates'] += source_candidates
+
+        if best is None or best_score < self.generic_min_score:
+            debug['best_score'] = None if best is None else round(best_score, 3)
+            return None, debug
+
+        debug.update({
+            'best_score': round(best['score'], 3),
+            'bbox': best['bbox'],
+            'area_frac': round(best['area_frac'], 4),
+            'aspect': round(best['aspect'], 3),
+            'contrast': round(best['contrast'], 1),
+            'dark_ratio': round(best['dark_ratio'], 3),
+            'light_ratio': round(best['light_ratio'], 3),
+            'source': best['source'],
+        })
+        return best['center'], debug
+
+    def _score_generic_candidate(self, gray: np.ndarray, contour, source: str):
+        h, w = gray.shape[:2]
+        image_area = float(max(1, h * w))
+        area = float(cv2.contourArea(contour))
+        area_frac = area / image_area
+        if area_frac < self.generic_min_area_frac or area_frac > self.generic_max_area_frac:
+            return None
+
+        x, y, bw, bh = cv2.boundingRect(contour)
+        if bw <= 0 or bh <= 0:
+            return None
+        center_y_frac = (y + 0.5 * bh) / max(1.0, float(h))
+        if center_y_frac < self.generic_min_y_frac:
+            return None
+
+        aspect = bw / float(bh)
+        if aspect < 0.25 or aspect > 4.5:
+            return None
+
+        touches_borders = int(x <= 2) + int(y <= 2) + int(x + bw >= w - 2) + int(y + bh >= h - 2)
+        if touches_borders >= 3 and area_frac > 0.15:
+            return None
+
+        roi = gray[y:y + bh, x:x + bw]
+        if roi.size == 0:
+            return None
+        p10, p90 = np.percentile(roi, [10.0, 90.0])
+        contrast = float(p90 - p10)
+        if contrast < self.generic_min_contrast:
+            return None
+
+        dark_cut = float(p10 + 0.30 * contrast)
+        light_cut = float(p90 - 0.25 * contrast)
+        dark_ratio = max(float(np.mean(roi < 85)), float(np.mean(roi <= dark_cut)))
+        light_ratio = max(float(np.mean(roi > 170)), float(np.mean(roi >= light_cut)))
+        if dark_ratio < 0.10 or light_ratio < 0.04:
+            return None
+
+        rect_area = float(max(1, bw * bh))
+        extent = area / rect_area
+        perimeter = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.045 * perimeter, True) if perimeter > 0 else []
+        corner_bonus = 0.15 if 4 <= len(approx) <= 10 else 0.0
+        if source == 'edge_region':
+            corner_bonus += 0.05
+        square_score = max(0.0, 1.0 - min(abs(math.log(max(aspect, 1e-6))), 1.15))
+        contrast_score = min(1.0, contrast / 150.0)
+        area_score = min(1.0, area_frac / 0.08)
+        balance_score = min(1.0, dark_ratio + light_ratio)
+        extent_target = 0.35 if source == 'edge_region' else 0.60
+        score = (
+            0.30 * contrast_score
+            + 0.18 * square_score
+            + 0.20 * area_score
+            + 0.17 * min(1.0, extent / extent_target)
+            + 0.15 * balance_score
+            + corner_bonus
+        )
+
+        m = cv2.moments(contour)
+        if abs(m.get('m00', 0.0)) > 1e-6:
+            cx = float(m['m10'] / m['m00'])
+            cy = float(m['m01'] / m['m00'])
+        else:
+            cx = float(x + 0.5 * bw)
+            cy = float(y + 0.5 * bh)
+        return {
+            'center': (cx, cy),
+            'bbox': [int(x), int(y), int(bw), int(bh)],
+            'area_frac': area_frac,
+            'aspect': aspect,
+            'contrast': contrast,
+            'dark_ratio': dark_ratio,
+            'light_ratio': light_ratio,
+            'score': score,
+            'source': source,
+        }
 
     def _good_matches(self, descriptors: np.ndarray):
         raw_matches = self.matcher.knnMatch(descriptors.astype(np.uint8, copy=False), self.model_descriptors, k=2)

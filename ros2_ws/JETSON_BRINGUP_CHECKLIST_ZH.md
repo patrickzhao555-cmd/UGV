@@ -285,7 +285,7 @@ ros2 topic echo /ugv/uav_flag --once --full-length
 ros2_ws/src/ugv_perception/training/marker_images/
 ```
 
-build 并 source workspace 后，训练轻量 ORB model：
+build 并 source workspace 后，训练轻量 ORB model。trainer 会先尝试从每张照片里裁出黑白 marker 区域，再在 crop 上提 ORB 特征，尽量避免学到教室地板或椅子的特征：
 
 ```bash
 cd ~/ugv_project/ros2_ws
@@ -311,6 +311,9 @@ ros2 topic echo /ugv/uav_flag --once --full-length
 
 调参思路：
 
+- 比赛时黑白图案可能变化，所以保持 `MARKER_ENABLE_GENERIC_DETECTOR=true`；generic path 会同时看深/浅区域对比和边缘轮廓
+- 如果 detector 锁到地板/椅子的小细节，就提高 `MARKER_GENERIC_MIN_AREA_FRAC`
+- 如果 marker 看得到但对比度偏低，可以谨慎降低 `MARKER_GENERIC_MIN_CONTRAST`
 - false positive 多，就提高 `MARKER_MIN_GOOD_MATCHES` 或 `MARKER_CONFIRMATION_FRAMES`
 - marker 看得到但一直不 confirm，就谨慎降低它们
 - bench test 建议先保持 `MARKER_CONFIRMATION_FRAMES=2`，基本是几帧内确认，不会拖慢很多
@@ -545,6 +548,9 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 | `MARKER_MIN_GOOD_MATCHES` | `18` | marker candidate 所需 ORB match 数 |
 | `MARKER_CONFIRMATION_FRAMES` | `2` | 发布 marker target 前需要连续确认的帧数 |
 | `MARKER_CONFIRMATION_RADIUS_M` | `0.75` | 连续确认时允许的 map-frame 位置偏差 |
+| `MARKER_ENABLE_GENERIC_DETECTOR` | `true` | 即使具体图案变化，也用区域对比和边缘轮廓检测通用深/浅 marker 形状 |
+| `MARKER_GENERIC_MIN_AREA_FRAC` | `0.002` | 通用 marker candidate 的最小图像面积比例 |
+| `MARKER_GENERIC_MIN_CONTRAST` | `55.0` | 通用 marker candidate 的最小深/浅对比度 |
 | `ZED_PUBLISH_IMAGE` | `false` | 发布 `/zed/image`；`START_MARKER_VISION=true` 时会自动打开 |
 | `LIDAR_PORT` | `/dev/ttyUSB0` | LiDAR serial device |
 | `MOTOR_PORT` | `/dev/ttyACM0` | Teensy serial device |

@@ -294,7 +294,9 @@ and place them here:
 ros2_ws/src/ugv_perception/training/marker_images/
 ```
 
-After building and sourcing the workspace, train the lightweight ORB model:
+After building and sourcing the workspace, train the lightweight ORB model. The
+trainer first tries to crop the black/white marker region from each photo, then
+uses ORB on that crop:
 
 ```bash
 cd ~/ugv_project/ros2_ws
@@ -320,6 +322,9 @@ ros2 topic echo /ugv/uav_flag --once --full-length
 
 Useful tuning:
 
+- leave `MARKER_ENABLE_GENERIC_DETECTOR=true` when the black/white pattern can change between practice and competition; the generic path uses both dark/light region contrast and edge contours
+- increase `MARKER_GENERIC_MIN_AREA_FRAC` if the detector locks onto small floor/chair details
+- lower `MARKER_GENERIC_MIN_CONTRAST` only if the marker is visible but low contrast
 - raise `MARKER_MIN_GOOD_MATCHES` or `MARKER_CONFIRMATION_FRAMES` if there are false positives
 - lower them carefully if the marker is visible but never confirms
 - keep `MARKER_CONFIRMATION_FRAMES=2` for fast bench testing; it confirms in roughly a few camera frames, not seconds
@@ -564,6 +569,9 @@ Environment variables for `jetson_bringup.sh`:
 | `MARKER_MIN_GOOD_MATCHES` | `18` | ORB match threshold for marker candidate |
 | `MARKER_CONFIRMATION_FRAMES` | `2` | Consecutive detections needed before publishing marker target |
 | `MARKER_CONFIRMATION_RADIUS_M` | `0.75` | Max map-frame distance between confirmation detections |
+| `MARKER_ENABLE_GENERIC_DETECTOR` | `true` | Detect generic dark/light marker shape with region and edge cues even if the exact pattern changes |
+| `MARKER_GENERIC_MIN_AREA_FRAC` | `0.002` | Minimum image area for generic marker candidate |
+| `MARKER_GENERIC_MIN_CONTRAST` | `55.0` | Minimum dark/light contrast for generic marker candidate |
 | `ZED_PUBLISH_IMAGE` | `false` | Publish `/zed/image`; automatically set true by `START_MARKER_VISION=true` |
 | `LIDAR_PORT` | `/dev/ttyUSB0` | LiDAR serial device |
 | `MOTOR_PORT` | `/dev/ttyACM0` | Teensy serial device |

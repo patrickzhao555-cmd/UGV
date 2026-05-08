@@ -1,3 +1,1 @@
-ros2_ws/src/ugv_perception/training/marker_images/*
-!ros2_ws/src/ugv_perception/training/marker_images/.gitkeep
 ros2_ws/src/ugv_perception/models/*.npz

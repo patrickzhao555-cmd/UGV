@@ -6,6 +6,9 @@ setup(
     name=package_name,
     version="0.0.0",
     packages=find_packages(exclude=["test"]),
+    scripts=[
+        "scripts/train_marker_model",
+    ],
     data_files=[
         (
             "share/ament_index/resource_index/packages",

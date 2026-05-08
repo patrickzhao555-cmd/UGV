@@ -294,6 +294,23 @@ ros2 run ugv_perception train_marker_model \
   --model-out src/ugv_perception/models/marker_orb_model.npz
 ```
 
+如果 `ros2 run` 显示 `No executable found`，一般是这个 package 的 install cache 没刷新。
+只 clean rebuild `ugv_perception`：
+
+```bash
+rm -rf build/ugv_perception install/ugv_perception
+colcon build --symlink-install --packages-select ugv_perception
+source install/setup.bash
+```
+
+也可以直接绕过 ROS executable，直接跑 trainer：
+
+```bash
+python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
+  --image-dir src/ugv_perception/training/marker_images \
+  --model-out src/ugv_perception/models/marker_orb_model.npz
+```
+
 dry-run 启动 marker vision：
 
 ```bash

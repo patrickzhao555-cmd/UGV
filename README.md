@@ -130,6 +130,22 @@ ros2 run ugv_perception train_marker_model \
   --model-out src/ugv_perception/models/marker_orb_model.npz
 ```
 
+If `ros2 run` says `No executable found`, rebuild only this package cleanly:
+
+```bash
+rm -rf build/ugv_perception install/ugv_perception
+colcon build --symlink-install --packages-select ugv_perception
+source install/setup.bash
+```
+
+Or run the trainer directly:
+
+```bash
+python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
+  --image-dir src/ugv_perception/training/marker_images \
+  --model-out src/ugv_perception/models/marker_orb_model.npz
+```
+
 3. Run with marker vision enabled:
 
 ```bash

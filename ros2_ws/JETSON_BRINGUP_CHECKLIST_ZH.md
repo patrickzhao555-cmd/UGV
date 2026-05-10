@@ -218,6 +218,13 @@ COMPETITION_MODE=true START_CORNER=lower_left \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
+带训练好的 marker CV 的真实 competition-style run：
+
+```bash
+COMPETITION_MODE=true START_CORNER=lower_left START_MARKER_VISION=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
 Mission 速度逻辑：
 
 - `startup_to_center`: 较低速度，边走边等 UAV/ESP map
@@ -289,27 +296,13 @@ build 并 source workspace 后，训练轻量 ORB model。trainer 会先尝试�
 
 ```bash
 cd ~/ugv_project/ros2_ws
-ros2 run ugv_perception train_marker_model \
-  --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
-```
-
-如果 `ros2 run` 显示 `No executable found`，一般是这个 package 的 install cache 没刷新。
-只 clean rebuild `ugv_perception`：
-
-```bash
-rm -rf build/ugv_perception install/ugv_perception
-colcon build --symlink-install --packages-select ugv_perception
-source install/setup.bash
-```
-
-也可以直接绕过 ROS executable，直接跑 trainer：
-
-```bash
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
   --model-out src/ugv_perception/models/marker_orb_model.npz
 ```
+
+Nano 上建议直接用这个 `python3` 命令。它和 `ros2 run` 跑的是同一份 trainer
+代码，但不会被 `~/ugv_ws_albert` 里的旧 `ugv_perception` executable 影响。
 
 dry-run 启动 marker vision：
 
@@ -317,6 +310,9 @@ dry-run 启动 marker vision：
 START_MARKER_VISION=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
+
+launch 会从 `UGV_WS/src/ugv_perception/...` 直接启动 marker vision，所以不会被
+underlay 里的旧 package shadow 掉。
 
 检查 marker vision debug：
 

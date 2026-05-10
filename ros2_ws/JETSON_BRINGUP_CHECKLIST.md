@@ -225,6 +225,13 @@ COMPETITION_MODE=true START_CORNER=lower_left \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
+Actual competition-style run with trained marker CV:
+
+```bash
+COMPETITION_MODE=true START_CORNER=lower_left START_MARKER_VISION=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
 Mission speed behavior:
 
 - `startup_to_center`: reduced speed while waiting for UAV/ESP map data
@@ -300,27 +307,13 @@ uses ORB on that crop:
 
 ```bash
 cd ~/ugv_project/ros2_ws
-ros2 run ugv_perception train_marker_model \
-  --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
-```
-
-If `ros2 run` says `No executable found`, the package install cache is stale.
-Clean-rebuild just `ugv_perception`:
-
-```bash
-rm -rf build/ugv_perception install/ugv_perception
-colcon build --symlink-install --packages-select ugv_perception
-source install/setup.bash
-```
-
-Direct fallback:
-
-```bash
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
   --model-out src/ugv_perception/models/marker_orb_model.npz
 ```
+
+Use the direct Python command on the Jetson. It runs the same trainer code as
+`ros2 run`, but avoids old `ugv_perception` executables from `~/ugv_ws_albert`.
 
 Run marker vision in dry-run:
 
@@ -328,6 +321,9 @@ Run marker vision in dry-run:
 START_MARKER_VISION=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
+
+The launch starts marker vision from `UGV_WS/src/ugv_perception/...`, so an
+older underlay package cannot shadow it.
 
 Check marker vision debug output:
 

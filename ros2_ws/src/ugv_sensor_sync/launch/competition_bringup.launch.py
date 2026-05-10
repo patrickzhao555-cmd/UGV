@@ -5,7 +5,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import FindExecutable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -34,6 +34,9 @@ def _resolve_workspace_root() -> Path:
 def generate_launch_description():
     workspace_root = _resolve_workspace_root()
     nav_script = str(workspace_root / 'src' / 'ugv_nav' / 'ugv_nav_dual_mode.py')
+    marker_vision_script = str(
+        workspace_root / 'src' / 'ugv_perception' / 'ugv_perception' / 'marker_vision_node.py'
+    )
 
     start_uwb = LaunchConfiguration('start_uwb')
     start_motor_controller = LaunchConfiguration('start_motor_controller')
@@ -157,6 +160,33 @@ def generate_launch_description():
         condition=IfCondition(start_nav),
     )
 
+    def ros_param_arg(name: str, value):
+        return [TextSubstitution(text=f'{name}:='), value]
+
+    marker_vision_process = ExecuteProcess(
+        cmd=[
+            FindExecutable(name='python3'),
+            marker_vision_script,
+            '--ros-args',
+            '-p',
+            ros_param_arg('model_path', marker_model_path),
+            '-p',
+            ros_param_arg('min_good_matches', marker_min_good_matches),
+            '-p',
+            ros_param_arg('confirmation_frames', marker_confirmation_frames),
+            '-p',
+            ros_param_arg('confirmation_radius_m', marker_confirmation_radius_m),
+            '-p',
+            ros_param_arg('enable_generic_detector', marker_enable_generic_detector),
+            '-p',
+            ros_param_arg('generic_min_area_frac', marker_generic_min_area_frac),
+            '-p',
+            ros_param_arg('generic_min_contrast', marker_generic_min_contrast),
+        ],
+        output='screen',
+        condition=IfCondition(start_marker_vision),
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('start_uwb', default_value='false'),
         DeclareLaunchArgument('start_motor_controller', default_value='true'),
@@ -234,22 +264,7 @@ def generate_launch_description():
                 'publish_period_s': bench_goal_period_s,
             }],
         ),
-        Node(
-            package='ugv_perception',
-            executable='marker_vision_node',
-            name='marker_vision_node',
-            output='screen',
-            condition=IfCondition(start_marker_vision),
-            parameters=[{
-                'model_path': ParameterValue(marker_model_path, value_type=str),
-                'min_good_matches': ParameterValue(marker_min_good_matches, value_type=int),
-                'confirmation_frames': ParameterValue(marker_confirmation_frames, value_type=int),
-                'confirmation_radius_m': ParameterValue(marker_confirmation_radius_m, value_type=float),
-                'enable_generic_detector': ParameterValue(marker_enable_generic_detector, value_type=bool),
-                'generic_min_area_frac': ParameterValue(marker_generic_min_area_frac, value_type=float),
-                'generic_min_contrast': ParameterValue(marker_generic_min_contrast, value_type=float),
-            }],
-        ),
+        marker_vision_process,
         Node(
             package='ugv_sensor_sync',
             executable='debug_status_node',

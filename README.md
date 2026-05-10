@@ -125,26 +125,14 @@ Marker vision baseline:
 
 ```bash
 cd ~/ugv_project/ros2_ws
-ros2 run ugv_perception train_marker_model \
-  --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
-```
-
-If `ros2 run` says `No executable found`, rebuild only this package cleanly:
-
-```bash
-rm -rf build/ugv_perception install/ugv_perception
-colcon build --symlink-install --packages-select ugv_perception
-source install/setup.bash
-```
-
-Or run the trainer directly:
-
-```bash
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
   --model-out src/ugv_perception/models/marker_orb_model.npz
 ```
+
+The direct Python command is preferred on the Jetson because `~/ugv_ws_albert`
+may also contain an older `ugv_perception` package that shadows ROS executable
+lookup.
 
 3. Run with marker vision enabled:
 
@@ -152,6 +140,9 @@ python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
 START_MARKER_VISION=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
+
+The bring-up launch starts marker vision from this workspace's source path, so
+it is not affected by older `ugv_perception` executables in `~/ugv_ws_albert`.
 
 The marker vision node publishes confirmed detections to `/ugv/marker_detection`.
 Navigation already consumes that topic as the highest-priority target source and
@@ -171,6 +162,14 @@ vehicle for motion and the wheels are safe to command.
 
 ```bash
 cd ~/ugv_project/ros2_ws
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Competition-style ground run with CV enabled:
+
+```bash
+cd ~/ugv_project/ros2_ws
+COMPETITION_MODE=true START_CORNER=lower_left START_MARKER_VISION=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 

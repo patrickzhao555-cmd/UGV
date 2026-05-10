@@ -74,23 +74,13 @@ trainer tries to crop the marker region before extracting ORB features. Then run
 
 ```bash
 cd ~/ugv_project/ros2_ws
-ros2 run ugv_perception train_marker_model \
-  --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
-```
-
-If `ros2 run` says `No executable found`, clean-rebuild this package or run
-the trainer directly:
-
-```bash
-rm -rf build/ugv_perception install/ugv_perception
-colcon build --symlink-install --packages-select ugv_perception
-source install/setup.bash
-
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
   --model-out src/ugv_perception/models/marker_orb_model.npz
 ```
+
+The direct Python command is preferred on the Jetson when another underlay also
+contains `ugv_perception`.
 
 Run through the normal Jetson launcher:
 

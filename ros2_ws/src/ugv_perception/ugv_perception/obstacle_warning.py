@@ -16,7 +16,7 @@ class ObstacleWarning(Node):
     def __init__(self):
         super().__init__("obstacle_warning")
 
-        self.declare_parameter("depth_topic", "/zed/zed_node/depth/depth_registered")
+        self.declare_parameter("depth_topic", "/zed/depth")
         self.declare_parameter("warning_topic", "/ugv/obstacle_warning")
         self.declare_parameter("distance_topic", "/ugv/obstacle_distance_m")
         self.declare_parameter("debug_topic", "/ugv/obstacle_depth_debug")

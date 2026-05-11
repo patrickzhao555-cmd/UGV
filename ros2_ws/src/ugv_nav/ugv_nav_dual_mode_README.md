@@ -23,6 +23,10 @@ If you use the built-in ROS 2 bridge, the script expects:
   - includes lidar scan, ZED obstacle points, latest encoder ticks, and clearance summaries
 - `/ugv_goal` as `geometry_msgs/PointStamped`
   - point in the map frame
+- `/ugv/target` as `std_msgs/String`
+  - ESP/UAV marker target coordinate in meters from the lower-left field origin
+- `/ugv/field_map` as `std_msgs/String`
+  - legacy optional 15 x 15 matrix for old bench tests
 
 It publishes:
 

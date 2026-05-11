@@ -8,7 +8,7 @@ It also contains the marker-vision training scaffold used by competition mode.
 
 `obstacle_warning`
 
-- Subscribes to: `/zed/zed_node/depth/depth_registered`
+- Subscribes to: `/zed/depth`
 - Publishes: `/ugv/obstacle_warning` as `std_msgs/Bool`
 - Publishes: `/ugv/obstacle_distance_m` as `std_msgs/Float32`
 

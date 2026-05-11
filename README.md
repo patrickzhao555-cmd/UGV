@@ -89,25 +89,26 @@ ros2 topic pub --once /ugv_goal geometry_msgs/msg/PointStamped \
 "{header: {frame_id: 'map'}, point: {x: 12.2, y: 12.0, z: 0.0}}"
 ```
 
-Competition mock-map dry run:
+Competition mock-target dry run:
 
 ```bash
 cd ~/ugv_project/ros2_ws
 COMPETITION_MODE=true START_MOCK_FIELD_MAP=true MOTOR_DRY_RUN=true \
-START_CORNER=lower_left MOCK_MARKER_CELL=7,7 \
+UGV_START_X_M=0.46 UGV_START_Y_M=0.46 MOCK_MARKER_CELL=7,7 \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Use `START_CORNER=upper_left`, `upper_right`, `lower_left`, or `lower_right`
-to match the corner where the UGV is placed.
+Set `UGV_START_X_M` and `UGV_START_Y_M` in meters from the field lower-left
+corner (`x=0, y=0`). If those are omitted, `START_CORNER=upper_left`,
+`upper_right`, `lower_left`, or `lower_right` is still used as a fallback.
 
 Competition behavior:
 
-- no target yet: drive from the selected corner toward field center at reduced speed
+- no target yet: drive from the measured start point or fallback corner toward field center
 - center reached, still no target: expand the search pattern outward from center while avoiding live LiDAR/ZED obstacles
-- field map, confirmed marker detection, or manual goal received: switch immediately to target navigation
+- ESP/UAV target coordinate, confirmed marker detection, legacy field map target, or manual goal received: switch immediately to target navigation
 - target reached: treat the marker as reached inside `TARGET_ACCEPT_RADIUS_M` (default `0.9144`, about 1 yard), then loiter/scan instead of stopping in competition mode
-- UAV landing flag received: reduce command speed while continuing obstacle avoidance
+- UAV landing flag received: reduce command speed while continuing obstacle avoidance; active motion commands are floored by `MIN_MOTION_RAW`
 
 Round shortcuts for actual ground runs:
 
@@ -118,8 +119,8 @@ ROUND_MODE=round1 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetso
 # Round 2: straight line while UAV takes off/lands; CV or UAV marker switches to target nav
 ROUND_MODE=round2 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 
-# Round 3: full 15 x 15 yard competition behavior from a selected corner
-ROUND_MODE=round3 START_CORNER=lower_left \
+# Round 3: full 15 x 15 yard competition behavior from a measured start point
+ROUND_MODE=round3 UGV_START_X_M=0.46 UGV_START_Y_M=0.46 \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
@@ -132,6 +133,22 @@ Simulate an ESP/UAV mission flag:
 ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
 "{data: '{\"state\":\"landing\",\"source\":\"bench\"}'}"
 ```
+
+ESP/UAV target format:
+
+The primary ESP/UAV target topic is `/ugv/target` as `std_msgs/String`. The
+coordinate frame is the 15 yard x 15 yard field with the lower-left corner as
+`x=0, y=0`; units are meters.
+
+```bash
+ros2 topic pub --once /ugv/target std_msgs/msg/String \
+"{data: '{\"type\":\"ugv_target_v1\",\"source\":\"uav\",\"x\":6.86,\"y\":6.86,\"unit\":\"m\"}'}"
+```
+
+The nav bridge also accepts compact forms such as `{"x":6.86,"y":6.86}`,
+`{"target":{"x_m":6.86,"y_m":6.86}}`, `[6.86,6.86]`, or `6.86,6.86`. It keeps
+backward compatibility with the older `/ugv/field_map` matrix input, but the
+UAV/ESP side no longer needs to send obstacle or UGV-current-position data.
 
 Marker vision baseline:
 
@@ -204,7 +221,7 @@ Competition-style ground run with CV enabled:
 
 ```bash
 cd ~/ugv_project/ros2_ws
-ROUND_MODE=round3 START_CORNER=lower_left START_MARKER_VISION=true \
+ROUND_MODE=round3 UGV_START_X_M=0.46 UGV_START_Y_M=0.46 START_MARKER_VISION=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
@@ -213,7 +230,8 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 - `/sensors/synced_summary`: fused LiDAR/ZED/encoder debug summary
 - `/sensors/nav_frame`: synchronized nav input frame
 - `/ugv_goal`: manual goal input in map coordinates
-- `/ugv/field_map`: ESP/UAV or mock 15 x 15 field-map JSON
+- `/ugv/target`: ESP/UAV target marker coordinate in meters from the field lower-left corner
+- `/ugv/field_map`: legacy optional 15 x 15 field-map JSON, still accepted for older tests
 - `/ugv/marker_detection`: camera/CV marker goal input consumed by navigation
 - `/ugv/mission_flag`: manual/ESP/UAV mission state such as `landing`, `leaving`, or `scanning`
 - `/ugv/uav_flag`: target-found flag for ESP/UAV handoff
@@ -230,46 +248,36 @@ Current competition data flow:
 2. `lidar_sync_node` publishes timestamp-corrected `/scan/synced`.
 3. `motor_controller_bridge` publishes `/encoder_ticks_stamped`.
 4. `fusion_node` aligns LiDAR, ZED depth/IMU, and encoder ticks into `/sensors/nav_frame`.
-5. `ugv_nav_dual_mode.py` uses `/sensors/nav_frame` plus `/ugv/field_map`, `/ugv/marker_detection`, `/ugv_goal`, and `/ugv/mission_flag`.
+5. `ugv_nav_dual_mode.py` uses `/sensors/nav_frame` plus `/ugv/target`, `/ugv/field_map`, `/ugv/marker_detection`, `/ugv_goal`, and `/ugv/mission_flag`.
 6. Marker vision, when enabled, publishes confirmed target detections to `/ugv/marker_detection`.
-7. Navigation publishes `/ugv_nav_cmd`, `/ugv_nav_status`, and `/ugv/uav_flag` when the marker is found locally.
+7. Navigation publishes `/ugv_nav_cmd`, `/ugv_nav_status`, and `/ugv/uav_flag` when a target coordinate or local marker detection is accepted.
 
-Target priority is: confirmed camera marker, then ESP/UAV field-map marker, then
-manual `/ugv_goal`. Live LiDAR/ZED obstacles are always allowed to add new
-obstacles during pathing because the field map may be incomplete. When a live
+Target priority is: confirmed camera marker, then ESP/UAV target coordinate,
+then legacy field-map marker, then manual `/ugv_goal`. Live LiDAR/ZED obstacles are always allowed to add new
+obstacles during pathing because the target coordinate does not include obstacles. When a live
 obstacle blocks the current route, it is inserted into the costmap; the planner
 checks whether the near-future path conflicts, replans around the obstacle, and
 then naturally follows the new shortest available route back toward the target.
 
-## Field Map Format
+## Target Format
 
-The competition pathing input is a 15 x 15 matrix for a 15 x 15 yard field,
-where each cell is currently treated as 1 x 1 yard:
+The competition target input is a meter coordinate in a bottom-left-origin field
+frame. The field is still 15 yards x 15 yards internally (`13.716 m x 13.716 m`).
 
 ```json
 {
-  "type": "ugv_field_map_v1",
-  "size": 15,
-  "cell_size_yard": 1.0,
-  "matrix_origin": "top_left",
-  "world_origin": "lower_left",
-  "matrix": [
-    [2, 0, 0],
-    [0, 1, 0],
-    [0, 0, 3]
-  ]
+  "type": "ugv_target_v1",
+  "source": "uav",
+  "unit": "m",
+  "frame": "field_bottom_left",
+  "x": 6.86,
+  "y": 6.86
 }
 ```
 
-Legend:
-
-- `0`: unknown or free
-- `1`: obstacle
-- `2`: UGV start/current cell
-- `3`: marker destination
-
-The field map is helpful but not trusted as complete. The navigation stack still
-uses live LiDAR and ZED depth data to detect unmarked obstacles during motion.
+The old matrix field map is still accepted for bench testing, but obstacles from
+UAV/ESP are no longer required or expected. The navigation stack uses live LiDAR
+and ZED depth data to detect obstacles during motion.
 
 ## Safety and Debug Checks
 
@@ -286,6 +294,8 @@ Useful tuning overrides:
 
 ```bash
 MOTOR_PWM_SLEW_RATE_US_PER_S=2400.0
+MIN_SPEED_MPS=0.178816
+MIN_MOTION_RAW=0.22
 TARGET_ACCEPT_RADIUS_M=0.9144
 MARKER_MIN_GOOD_MATCHES=18
 MARKER_MODEL_MAX_DESCRIPTORS=65000

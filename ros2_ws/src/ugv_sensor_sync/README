@@ -9,7 +9,7 @@ What it does now:
 - publishes a smoothed ZED IMU copy inside the navigation frame for optional yaw fusion
 - publishes a slimmer navigation contract so nav does not depend on raw sensor internals
 - publishes pathing-friendly ZED obstacle points and front clearance summaries
-- can publish a mock 15x15 yard field map for testing before ESP/UAV integration
+- can publish a mock ESP/UAV target coordinate for testing before ESP/UAV integration
 - can publish a combined SSH-friendly debug status topic
 
 Main topics:
@@ -26,7 +26,8 @@ Main topics:
 - `/sensors/near_obstacle`
 - `/sensors/synced_summary`
 - `/zed/status`
-- `/ugv/field_map`
+- `/ugv/target`
+- `/ugv/field_map` (legacy only)
 - `/ugv/debug_status`
 
 Contract layers:
@@ -79,7 +80,7 @@ ros2 interface show ugv_sensor_sync/msg/NavSensorFrame
 ros2 interface show ugv_sensor_sync/msg/SyncedSensorPacket
 ```
 
-Mock ESP/UAV field map:
+Mock ESP/UAV target:
 
 ```bash
 ros2 run ugv_sensor_sync mock_field_map_node --ros-args -p start_corner:=lower_left -p marker_cell:=7,7
@@ -88,7 +89,7 @@ ros2 run ugv_sensor_sync mock_field_map_node --ros-args -p start_corner:=lower_l
 Competition bring-up with the startup-to-center mission:
 
 ```bash
-ros2 launch ugv_sensor_sync competition_bringup.launch.py competition_mode:=true start_corner:=lower_left
+ros2 launch ugv_sensor_sync competition_bringup.launch.py competition_mode:=true ugv_start_x_m:=0.46 ugv_start_y_m:=0.46
 ```
 
 Manual ESP/UAV mission flag simulation:

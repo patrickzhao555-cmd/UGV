@@ -52,14 +52,19 @@ def generate_launch_description():
     competition_mode = LaunchConfiguration('competition_mode')
     mission_mode = LaunchConfiguration('mission_mode')
     start_corner = LaunchConfiguration('start_corner')
+    ugv_start_x_m = LaunchConfiguration('ugv_start_x_m')
+    ugv_start_y_m = LaunchConfiguration('ugv_start_y_m')
+    ugv_start_yaw_deg = LaunchConfiguration('ugv_start_yaw_deg')
     center_loiter_radius_m = LaunchConfiguration('center_loiter_radius_m')
     target_accept_radius_m = LaunchConfiguration('target_accept_radius_m')
+    min_speed_mps = LaunchConfiguration('min_speed_mps')
     straight_distance_m = LaunchConfiguration('straight_distance_m')
     bench_goal_x_m = LaunchConfiguration('bench_goal_x_m')
     bench_goal_y_m = LaunchConfiguration('bench_goal_y_m')
     bench_goal_period_s = LaunchConfiguration('bench_goal_period_s')
     mock_marker_cell = LaunchConfiguration('mock_marker_cell')
     mock_obstacles_json = LaunchConfiguration('mock_obstacles_json')
+    target_topic = LaunchConfiguration('target_topic')
     start_marker_vision = LaunchConfiguration('start_marker_vision')
     start_marker_vision_test = LaunchConfiguration('start_marker_vision_test')
     marker_model_path = LaunchConfiguration('marker_model_path')
@@ -86,6 +91,7 @@ def generate_launch_description():
     motor_raw_command_scale_us = LaunchConfiguration('motor_raw_command_scale_us')
     motor_pwm_slew_rate_us_per_s = LaunchConfiguration('motor_pwm_slew_rate_us_per_s')
     motor_dry_run = LaunchConfiguration('motor_dry_run')
+    min_motion_raw = LaunchConfiguration('min_motion_raw')
     invert_left_command = LaunchConfiguration('invert_left_command')
     invert_right_command = LaunchConfiguration('invert_right_command')
     invert_left_encoder = LaunchConfiguration('invert_left_encoder')
@@ -155,12 +161,20 @@ def generate_launch_description():
             mission_mode,
             '--start-corner',
             start_corner,
+            '--start-x-m',
+            ugv_start_x_m,
+            '--start-y-m',
+            ugv_start_y_m,
+            '--start-yaw-deg',
+            ugv_start_yaw_deg,
             '--center-loiter-radius-m',
             center_loiter_radius_m,
             '--target-accept-radius-m',
             target_accept_radius_m,
             '--straight-distance-m',
             straight_distance_m,
+            '--target-topic',
+            target_topic,
             '--mission-flag-topic',
             mission_flag_topic,
             '--use-imu-yaw',
@@ -171,6 +185,10 @@ def generate_launch_description():
             imu_yaw_axis,
             '--imu-yaw-sign',
             imu_yaw_sign,
+            '--min-motion-raw',
+            min_motion_raw,
+            '--min-speed-mps',
+            min_speed_mps,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -233,14 +251,19 @@ def generate_launch_description():
         DeclareLaunchArgument('competition_mode', default_value='false'),
         DeclareLaunchArgument('mission_mode', default_value='manual'),
         DeclareLaunchArgument('start_corner', default_value='lower_left'),
+        DeclareLaunchArgument('ugv_start_x_m', default_value='nan'),
+        DeclareLaunchArgument('ugv_start_y_m', default_value='nan'),
+        DeclareLaunchArgument('ugv_start_yaw_deg', default_value='nan'),
         DeclareLaunchArgument('center_loiter_radius_m', default_value='0.75'),
         DeclareLaunchArgument('target_accept_radius_m', default_value='0.9144'),
+        DeclareLaunchArgument('min_speed_mps', default_value='0.178816'),
         DeclareLaunchArgument('straight_distance_m', default_value='11.8872'),
         DeclareLaunchArgument('bench_goal_x_m', default_value='12.2'),
         DeclareLaunchArgument('bench_goal_y_m', default_value='12.0'),
         DeclareLaunchArgument('bench_goal_period_s', default_value='1.0'),
         DeclareLaunchArgument('mock_marker_cell', default_value='7,7'),
         DeclareLaunchArgument('mock_obstacles_json', default_value=''),
+        DeclareLaunchArgument('target_topic', default_value='/ugv/target'),
         DeclareLaunchArgument(
             'marker_model_path',
             default_value=str(workspace_root / 'src' / 'ugv_perception' / 'models' / 'marker_orb_model.npz'),
@@ -273,6 +296,7 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),
         DeclareLaunchArgument('motor_pwm_slew_rate_us_per_s', default_value='2400.0'),
         DeclareLaunchArgument('motor_dry_run', default_value='false'),
+        DeclareLaunchArgument('min_motion_raw', default_value='0.22'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
         DeclareLaunchArgument('invert_right_command', default_value='false'),
         DeclareLaunchArgument('invert_left_encoder', default_value='false'),
@@ -286,8 +310,10 @@ def generate_launch_description():
             output='screen',
             condition=IfCondition(start_mock_field_map),
             parameters=[{
+                'topic': target_topic,
                 'start_corner': start_corner,
                 'marker_cell': mock_marker_cell,
+                'publish_format': 'target_xy',
                 'obstacles_json': mock_obstacles_json,
             }],
         ),

@@ -253,19 +253,38 @@ class ControlCommand:
         }
 
 
-def scale_control_command(cmd: ControlCommand, scale: float, reason: str) -> ControlCommand:
+def scale_control_command(cmd: ControlCommand, scale: float, reason: str, min_motion_raw: float = 0.0) -> ControlCommand:
     scale = clamp(float(scale), 0.10, 1.0)
-    if cmd.mode == "STOP" or abs(scale - 1.0) < 1e-3:
+    if cmd.mode == "STOP":
         return cmd
-    suffix = f"; speed_scale={scale:.2f}"
-    if reason:
+    suffix = ""
+    if abs(scale - 1.0) >= 1e-3:
+        suffix = f"; speed_scale={scale:.2f}"
+    if reason and suffix:
         suffix += f" {reason}"
+    elif reason:
+        suffix = f"; {reason}"
+    raw_left = cmd.raw_left * scale
+    raw_right = cmd.raw_right * scale
+    min_raw = max(0.0, float(min_motion_raw))
+    if min_raw > 0.0 and cmd.mode in {"FORWARD", "BACKWARD", "TURN_LEFT", "TURN_RIGHT"}:
+        before = (raw_left, raw_right)
+
+        def floor_raw(value: float) -> float:
+            if abs(value) < 1e-9:
+                return 0.0
+            return math.copysign(min(1.0, max(abs(value), min_raw)), value)
+
+        raw_left = floor_raw(raw_left)
+        raw_right = floor_raw(raw_right)
+        if (raw_left, raw_right) != before:
+            suffix += f"; min_motion_raw={min_raw:.2f}"
     return ControlCommand(
         mode=cmd.mode,
         turn_deg=cmd.turn_deg,
         move_m=cmd.move_m,
-        raw_left=cmd.raw_left * scale,
-        raw_right=cmd.raw_right * scale,
+        raw_left=raw_left,
+        raw_right=raw_right,
         reason=f"{cmd.reason}{suffix}",
     )
 
@@ -323,6 +342,7 @@ class NavConfig:
     imu_yaw_axis: str = "z"
     imu_yaw_sign: float = 1.0
     imu_yaw_max_rate_rps: float = 4.0
+    min_motion_raw: float = 0.22
 
 
 @dataclass
@@ -421,6 +441,33 @@ def start_pose_for_corner(
     return Pose2D(x, y, yaw)
 
 
+def start_pose_from_xy(
+    x_m: float,
+    y_m: float,
+    field_w_m: float = yd(15.0),
+    field_h_m: float = yd(15.0),
+    yaw_deg: Optional[float] = None,
+    inset_m: float = 0.05,
+) -> Pose2D:
+    x = clamp(float(x_m), inset_m, max(inset_m, field_w_m - inset_m))
+    y = clamp(float(y_m), inset_m, max(inset_m, field_h_m - inset_m))
+    if yaw_deg is not None and math.isfinite(float(yaw_deg)):
+        yaw = math.radians(float(yaw_deg))
+    else:
+        yaw = math.atan2(0.5 * field_h_m - y, 0.5 * field_w_m - x)
+    return Pose2D(x, y, yaw)
+
+
+def finite_optional(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
 def _cell_value_role(value: Any) -> Optional[str]:
     if isinstance(value, str):
         token = value.strip().lower()
@@ -455,6 +502,80 @@ def _coerce_cell(value: Any) -> Optional[Tuple[int, int]]:
     return None
 
 
+def _coerce_xy_m(value: Any) -> Optional[Tuple[float, float]]:
+    if isinstance(value, dict):
+        key_pairs = (
+            ("x", "y"),
+            ("x_m", "y_m"),
+            ("target_x", "target_y"),
+            ("target_x_m", "target_y_m"),
+            ("marker_x", "marker_y"),
+            ("marker_x_m", "marker_y_m"),
+            ("goal_x", "goal_y"),
+            ("goal_x_m", "goal_y_m"),
+        )
+        for x_key, y_key in key_pairs:
+            if x_key in value and y_key in value:
+                return float(value[x_key]), float(value[y_key])
+        if "coordinates" in value:
+            return _coerce_xy_m(value["coordinates"])
+        if "coord" in value:
+            return _coerce_xy_m(value["coord"])
+        if "point" in value:
+            return _coerce_xy_m(value["point"])
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        if isinstance(value[0], (int, float)) and isinstance(value[1], (int, float)):
+            return float(value[0]), float(value[1])
+    if isinstance(value, str):
+        text = value.strip()
+        if "," in text:
+            parts = [p.strip() for p in text.split(",")]
+            if len(parts) >= 2:
+                return float(parts[0]), float(parts[1])
+    return None
+
+
+def _find_named_xy_m(obj: Dict[str, Any], names: Sequence[str]) -> Optional[Tuple[float, float]]:
+    for name in names:
+        if name in obj:
+            xy = _coerce_xy_m(obj[name])
+            if xy is not None:
+                return xy
+    return None
+
+
+def _find_target_xy_m(obj: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    xy = _find_named_xy_m(obj, ("target", "marker", "goal", "destination", "target_location", "marker_location"))
+    if xy is not None:
+        return xy
+    return _coerce_xy_m(obj)
+
+
+def _find_start_xy_m(obj: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    xy = _find_named_xy_m(obj, ("start", "ugv", "robot", "current", "start_location", "ugv_start"))
+    if xy is not None:
+        return xy
+    for x_key, y_key in (
+        ("start_x", "start_y"),
+        ("start_x_m", "start_y_m"),
+        ("ugv_x", "ugv_y"),
+        ("ugv_x_m", "ugv_y_m"),
+        ("robot_x", "robot_y"),
+        ("robot_x_m", "robot_y_m"),
+    ):
+        if x_key in obj and y_key in obj:
+            return float(obj[x_key]), float(obj[y_key])
+    return None
+
+
+def _clamp_xy_to_field(xy: Tuple[float, float], size: int, cell_size_m: float, margin_m: float = 0.05) -> Tuple[float, float]:
+    field_extent_m = max(margin_m, float(size) * float(cell_size_m))
+    return (
+        clamp(float(xy[0]), margin_m, max(margin_m, field_extent_m - margin_m)),
+        clamp(float(xy[1]), margin_m, max(margin_m, field_extent_m - margin_m)),
+    )
+
+
 def _find_named_cell(obj: Dict[str, Any], names: Sequence[str]) -> Optional[Tuple[int, int]]:
     for name in names:
         if name in obj:
@@ -465,15 +586,77 @@ def _find_named_cell(obj: Dict[str, Any], names: Sequence[str]) -> Optional[Tupl
 
 
 def field_map_from_json(raw: str, timestamp: float, version: int) -> FieldMapPacket:
-    obj = json.loads(raw)
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError:
+        target_xy = _coerce_xy_m(raw)
+        if target_xy is None:
+            raise
+        target_xy = _clamp_xy_to_field(target_xy, FIELD_CELLS_DEFAULT, YARD_TO_M)
+        return FieldMapPacket(
+            size=FIELD_CELLS_DEFAULT,
+            cell_size_m=YARD_TO_M,
+            obstacle_cells=[],
+            start_xy=None,
+            goal_xy=target_xy,
+            timestamp=timestamp,
+            version=version,
+            source="uav_target_xy",
+        )
+
     if isinstance(obj, list):
+        target_xy = _coerce_xy_m(obj)
+        if target_xy is not None and not any(isinstance(item, list) for item in obj[:2]):
+            target_xy = _clamp_xy_to_field(target_xy, FIELD_CELLS_DEFAULT, YARD_TO_M)
+            return FieldMapPacket(
+                size=FIELD_CELLS_DEFAULT,
+                cell_size_m=YARD_TO_M,
+                obstacle_cells=[],
+                start_xy=None,
+                goal_xy=target_xy,
+                timestamp=timestamp,
+                version=version,
+                source="uav_target_xy",
+            )
         obj = {"matrix": obj}
+    if isinstance(obj, str):
+        target_xy = _coerce_xy_m(obj)
+        if target_xy is not None:
+            target_xy = _clamp_xy_to_field(target_xy, FIELD_CELLS_DEFAULT, YARD_TO_M)
+            return FieldMapPacket(
+                size=FIELD_CELLS_DEFAULT,
+                cell_size_m=YARD_TO_M,
+                obstacle_cells=[],
+                start_xy=None,
+                goal_xy=target_xy,
+                timestamp=timestamp,
+                version=version,
+                source="uav_target_xy",
+            )
     if not isinstance(obj, dict):
-        raise ValueError("field map JSON must be an object or a 2D array")
+        raise ValueError("target/map JSON must be an object, an [x,y] target, or a 2D array")
 
     matrix = obj.get("matrix", obj.get("grid", obj.get("map")))
     if matrix is None:
-        raise ValueError("field map JSON needs a matrix/grid/map field")
+        target_xy = _find_target_xy_m(obj)
+        if target_xy is None:
+            raise ValueError("target JSON needs x/y meter fields, or field map JSON needs a matrix/grid/map field")
+        size = int(obj.get("size", FIELD_CELLS_DEFAULT))
+        cell_size_m = float(obj.get("cell_size_m", YARD_TO_M))
+        target_xy = _clamp_xy_to_field(target_xy, size, cell_size_m)
+        start_xy = _find_start_xy_m(obj)
+        if start_xy is not None:
+            start_xy = _clamp_xy_to_field(start_xy, size, cell_size_m)
+        return FieldMapPacket(
+            size=size,
+            cell_size_m=cell_size_m,
+            obstacle_cells=[],
+            start_xy=start_xy,
+            goal_xy=target_xy,
+            timestamp=timestamp,
+            version=version,
+            source=str(obj.get("source", "uav_target_xy")),
+        )
     if not isinstance(matrix, list) or not matrix:
         raise ValueError("field map matrix must be a non-empty 2D list")
 
@@ -1452,6 +1635,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         self,
         allow_missing_goal: bool = False,
         field_map_topic: str = "/ugv/field_map",
+        target_topic: str = "/ugv/target",
         marker_topic: str = "/ugv/marker_detection",
         mission_flag_topic: str = "/ugv/mission_flag",
         nav_status_topic: str = "/ugv_nav_status",
@@ -1475,6 +1659,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         self._NavSensorFrame = NavSensorFrame
         self.allow_missing_goal = bool(allow_missing_goal)
         self.field_map_topic = field_map_topic
+        self.target_topic = target_topic
         self.marker_topic = marker_topic
         self.mission_flag_topic = mission_flag_topic
         self.nav_status_topic = nav_status_topic
@@ -1514,6 +1699,8 @@ class Ros2Bridge(RealRobotBridgeBase):
         self.node.create_subscription(NavSensorFrame, "/sensors/nav_frame", self._synced_cb, 10)
         self.node.create_subscription(PointStamped, "/ugv_goal", self._goal_cb, 10)
         self.node.create_subscription(String, self.field_map_topic, self._field_map_cb, 10)
+        if self.target_topic != self.field_map_topic:
+            self.node.create_subscription(String, self.target_topic, self._field_map_cb, 10)
         self.node.create_subscription(PointStamped, self.marker_topic, self._marker_cb, 10)
         self.node.create_subscription(String, self.mission_flag_topic, self._mission_flag_cb, 10)
         self.pub = self.node.create_publisher(String, "/ugv_nav_cmd", 10)
@@ -1522,7 +1709,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         self.node.get_logger().info(
             "UGV nav bridge ready "
             f"(allow_missing_goal={self.allow_missing_goal}, field_map={self.field_map_topic}, "
-            f"marker={self.marker_topic}, mission_flag={self.mission_flag_topic}, "
+            f"target={self.target_topic}, marker={self.marker_topic}, mission_flag={self.mission_flag_topic}, "
             f"nav_status={self.nav_status_topic}, uav_flag={self.uav_flag_topic})"
         )
 
@@ -1589,7 +1776,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         try:
             packet = field_map_from_json(msg.data, now_s, next_version)
         except Exception as exc:
-            self.node.get_logger().warn(f"Rejected /ugv/field_map JSON: {exc}")
+            self.node.get_logger().warn(f"Rejected target/map JSON: {exc}")
             return
         packet_key = field_map_content_key(packet)
         if packet_key == self._field_map_key:
@@ -1598,10 +1785,17 @@ class Ros2Bridge(RealRobotBridgeBase):
         self._field_map_version = next_version
         self._field_map_key = packet_key
         self.node.get_logger().info(
-            "Received field map "
+            "Received target/map "
             f"v{packet.version}: size={packet.size}, obstacles={len(packet.obstacle_cells)}, "
             f"start={packet.start_xy}, goal={packet.goal_xy}, source={packet.source}"
         )
+        if packet.goal_xy is not None:
+            self.send_uav_flag({
+                "target_found": True,
+                "source": packet.source,
+                "target_m": [round(packet.goal_xy[0], 3), round(packet.goal_xy[1], 3)],
+                "stamp": round(now_s, 3),
+            })
 
     def _marker_cb(self, msg):
         stamp_now = self.node.get_clock().now().to_msg()
@@ -2385,9 +2579,11 @@ class CompetitionMission:
         start_corner: str,
         field_w_m: float,
         field_h_m: float,
+        start_pose: Optional[Pose2D] = None,
         center_loiter_radius_m: float = 0.75,
         waypoint_switch_radius_m: float = 0.35,
         target_accept_radius_m: float = YARD_TO_M,
+        min_speed_mps: float = 0.178816,
         search_radius_step_m: float = 0.75,
         straight_distance_m: float = yd(13.0),
     ):
@@ -2397,13 +2593,17 @@ class CompetitionMission:
         self.field_w_m = field_w_m
         self.field_h_m = field_h_m
         self.center = (0.5 * field_w_m, 0.5 * field_h_m)
+        self.start_xy_m = None if start_pose is None else (start_pose.x, start_pose.y)
+        straight_start_x = yd(0.5) if start_pose is None else start_pose.x
+        straight_start_y = yd(0.5) if start_pose is None else start_pose.y
         self.straight_goal = (
-            clamp(yd(0.5) + max(0.5, float(straight_distance_m)), 0.45, field_w_m - 0.45),
-            yd(0.5),
+            clamp(straight_start_x + max(0.5, float(straight_distance_m)), 0.45, field_w_m - 0.45),
+            clamp(straight_start_y, 0.45, field_h_m - 0.45),
         )
         self.center_loiter_radius_m = center_loiter_radius_m
         self.waypoint_switch_radius_m = waypoint_switch_radius_m
         self.target_accept_radius_m = max(0.35, float(target_accept_radius_m))
+        self.min_speed_mps = max(0.0, float(min_speed_mps))
         self.search_radius_step_m = max(0.25, search_radius_step_m)
         self.search_max_radius_m = max(0.5, min(field_w_m, field_h_m) * 0.5 - 0.65)
         self.final_goal: Optional[Tuple[float, float]] = None
@@ -2562,10 +2762,15 @@ class CompetitionMission:
             "phase": self.phase,
             "stop_requested": self.stop_requested,
             "start_corner": self.start_corner,
+            "start_m": [
+                round(self.start_xy_m[0], 3),
+                round(self.start_xy_m[1], 3),
+            ] if self.start_xy_m is not None else None,
             "uav_state": self.uav_state,
             "uav_state_source": self.uav_state_source,
             "speed_scale": round(speed_scale, 3),
             "speed_reason": speed_reason,
+            "min_speed_mps": round(self.min_speed_mps, 6),
             "search_radius_m": round(self._current_search_radius_m, 3),
             "target_accept_radius_m": round(self.target_accept_radius_m, 3),
             "marker_distance_m": None if self.latest_marker_distance_m is None else round(self.latest_marker_distance_m, 3),
@@ -2726,10 +2931,14 @@ def run_real_mode(
     competition_mode: bool = False,
     mission_mode: str = "manual",
     start_corner: str = "lower_left",
+    start_x_m: Optional[float] = None,
+    start_y_m: Optional[float] = None,
+    start_yaw_deg: Optional[float] = None,
     center_loiter_radius_m: float = 0.75,
     target_accept_radius_m: float = YARD_TO_M,
     straight_distance_m: float = yd(13.0),
     field_map_topic: str = "/ugv/field_map",
+    target_topic: str = "/ugv/target",
     marker_topic: str = "/ugv/marker_detection",
     mission_flag_topic: str = "/ugv/mission_flag",
     nav_status_period_s: float = 1.0,
@@ -2737,6 +2946,8 @@ def run_real_mode(
     imu_yaw_blend: float = 0.25,
     imu_yaw_axis: str = "z",
     imu_yaw_sign: float = 1.0,
+    min_motion_raw: float = 0.22,
+    min_speed_mps: float = 0.178816,
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
     competition_mode = mission_mode == "round3"
@@ -2748,20 +2959,31 @@ def run_real_mode(
     nav_cfg.imu_yaw_blend = clamp(float(imu_yaw_blend), 0.0, 1.0)
     nav_cfg.imu_yaw_axis = str(imu_yaw_axis).lower()
     nav_cfg.imu_yaw_sign = 1.0 if float(imu_yaw_sign) >= 0.0 else -1.0
+    nav_cfg.min_motion_raw = clamp(float(min_motion_raw), 0.0, 1.0)
     field_w_m = yd(15.0)
     field_h_m = yd(15.0)
-    if mission_mode == "round3":
+    custom_start_x = finite_optional(start_x_m)
+    custom_start_y = finite_optional(start_y_m)
+    custom_start_yaw = finite_optional(start_yaw_deg)
+    if (custom_start_x is None) != (custom_start_y is None):
+        raise ValueError("Both --start-x-m and --start-y-m are required when overriding the UGV start pose.")
+    if custom_start_x is not None and custom_start_y is not None:
+        init_pose = start_pose_from_xy(custom_start_x, custom_start_y, field_w_m, field_h_m, custom_start_yaw)
+    elif mission_mode == "round3":
         init_pose = start_pose_for_corner(start_corner, field_w_m, field_h_m)
+    if mission_mode == "round3":
         init_goal = Pose2D(0.5 * field_w_m, 0.5 * field_h_m, 0.0)
     elif mission_mode in {"round1", "round2"}:
-        init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
+        if custom_start_x is None or custom_start_y is None:
+            init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
         init_goal = Pose2D(
-            clamp(yd(0.5) + max(0.5, float(straight_distance_m)), 0.45, field_w_m - 0.45),
-            yd(0.5),
+            clamp(init_pose.x + max(0.5, float(straight_distance_m)), 0.45, field_w_m - 0.45),
+            clamp(init_pose.y, 0.45, field_h_m - 0.45),
             0.0,
         )
     else:
-        init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
+        if custom_start_x is None or custom_start_y is None:
+            init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
         init_goal = Pose2D(yd(13.4), yd(13.0), 0.0)
     navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, field_w_m, field_h_m, init_pose, init_goal)
     mission = CompetitionMission(
@@ -2770,8 +2992,10 @@ def run_real_mode(
         start_corner=start_corner,
         field_w_m=field_w_m,
         field_h_m=field_h_m,
+        start_pose=init_pose,
         center_loiter_radius_m=center_loiter_radius_m,
         target_accept_radius_m=target_accept_radius_m,
+        min_speed_mps=min_speed_mps,
         straight_distance_m=straight_distance_m,
     )
 
@@ -2781,6 +3005,7 @@ def run_real_mode(
         bridge = Ros2Bridge(
             allow_missing_goal=mission_mode != "manual",
             field_map_topic=field_map_topic,
+            target_topic=target_topic,
             marker_topic=marker_topic,
             mission_flag_topic=mission_flag_topic,
         )
@@ -2788,13 +3013,16 @@ def run_real_mode(
     print("Running REAL mode. No GUI. Printing and sending control commands.")
     print(
         f"Mission mode: {mission_mode}, competition_mode={competition_mode}, "
-        f"start_corner={normalize_corner_name(start_corner)}, straight_distance_m={straight_distance_m:.2f}"
+        f"start_corner={normalize_corner_name(start_corner)}, "
+        f"start_pose=({init_pose.x:.2f}, {init_pose.y:.2f}, {math.degrees(init_pose.yaw):.1f}deg), "
+        f"straight_distance_m={straight_distance_m:.2f}"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
     print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
     print("                        includes scan, zed obstacle points, latest encoder ticks, and clearance summaries")
     print("  /ugv_goal             geometry_msgs/PointStamped in map frame")
-    print(f"  {field_map_topic}       std_msgs/String JSON 15x15 matrix with obstacles/start/marker")
+    print(f"  {target_topic}       std_msgs/String JSON target x/y in meters from bottom-left field origin")
+    print(f"  {field_map_topic}       optional legacy std_msgs/String JSON 15x15 matrix")
     print(f"  {marker_topic}  geometry_msgs/PointStamped marker found by camera/CV")
     print(f"  {mission_flag_topic}     std_msgs/String JSON/plain UAV state, e.g. landing/leaving/scanning")
     print("Publishing:")
@@ -2813,7 +3041,7 @@ def run_real_mode(
         if mission_status.get("stop_requested"):
             cmd = ControlCommand("STOP", reason=f"{mission_status.get('phase', 'target')} reached inside accept radius")
         speed_scale, speed_reason = mission.command_speed_scale()
-        cmd = scale_control_command(cmd, speed_scale, speed_reason)
+        cmd = scale_control_command(cmd, speed_scale, speed_reason, nav_cfg.min_motion_raw)
         bridge.send_control(cmd)
         now_s = time.monotonic()
         if now_s - last_status_s >= max(nav_status_period_s, 0.2):
@@ -2838,10 +3066,14 @@ def main() -> None:
     parser.add_argument("--competition-mode", type=str_to_bool, default=False, help="enable corner startup/search mission logic in real mode")
     parser.add_argument("--mission-mode", choices=["manual", "round1", "round2", "round3"], default="manual")
     parser.add_argument("--start-corner", type=str, default="lower_left", help="one of lower_left, lower_right, upper_left, upper_right")
+    parser.add_argument("--start-x-m", type=float, default=float("nan"), help="optional UGV start x in meters from the lower-left field origin")
+    parser.add_argument("--start-y-m", type=float, default=float("nan"), help="optional UGV start y in meters from the lower-left field origin")
+    parser.add_argument("--start-yaw-deg", type=float, default=float("nan"), help="optional UGV initial yaw in degrees; defaults to facing field center")
     parser.add_argument("--center-loiter-radius-m", type=float, default=0.75)
     parser.add_argument("--target-accept-radius-m", type=float, default=YARD_TO_M, help="competition-mode radius that counts as reaching the marker")
     parser.add_argument("--straight-distance-m", type=float, default=yd(13.0), help="round1/round2 straight-ahead runout goal distance")
     parser.add_argument("--field-map-topic", type=str, default="/ugv/field_map")
+    parser.add_argument("--target-topic", type=str, default="/ugv/target")
     parser.add_argument("--marker-topic", type=str, default="/ugv/marker_detection")
     parser.add_argument("--mission-flag-topic", type=str, default="/ugv/mission_flag")
     parser.add_argument("--nav-status-period-s", type=float, default=1.0)
@@ -2849,6 +3081,8 @@ def main() -> None:
     parser.add_argument("--imu-yaw-blend", type=float, default=0.25)
     parser.add_argument("--imu-yaw-axis", type=str, default="z")
     parser.add_argument("--imu-yaw-sign", type=float, default=1.0)
+    parser.add_argument("--min-motion-raw", type=float, default=0.22, help="floor applied to non-stop raw wheel commands after mission speed scaling")
+    parser.add_argument("--min-speed-mps", type=float, default=0.178816, help="mission minimum moving-speed requirement, 0.4 mph expressed in m/s")
     args = parser.parse_args()
 
     if args.mode == "sim":
@@ -2859,10 +3093,14 @@ def main() -> None:
             competition_mode=args.competition_mode,
             mission_mode=args.mission_mode,
             start_corner=args.start_corner,
+            start_x_m=args.start_x_m,
+            start_y_m=args.start_y_m,
+            start_yaw_deg=args.start_yaw_deg,
             center_loiter_radius_m=args.center_loiter_radius_m,
             target_accept_radius_m=args.target_accept_radius_m,
             straight_distance_m=args.straight_distance_m,
             field_map_topic=args.field_map_topic,
+            target_topic=args.target_topic,
             marker_topic=args.marker_topic,
             mission_flag_topic=args.mission_flag_topic,
             nav_status_period_s=args.nav_status_period_s,
@@ -2870,6 +3108,8 @@ def main() -> None:
             imu_yaw_blend=args.imu_yaw_blend,
             imu_yaw_axis=args.imu_yaw_axis,
             imu_yaw_sign=args.imu_yaw_sign,
+            min_motion_raw=args.min_motion_raw,
+            min_speed_mps=args.min_speed_mps,
         )
 
 

@@ -186,12 +186,15 @@ ros2 topic echo /ugv/debug_status --full-length
 
 ## 8. Competition Mode
 
-Competition mode can start from any corner. If no final target is known yet,
-the UGV drives toward the field center at reduced speed. If it reaches the
-center before a target is known, it expands a search pattern outward from the
-center while still using live LiDAR/ZED obstacle avoidance. When it receives a
-map, confirmed marker detection, or manual goal, it switches immediately to the
-final target. In competition mode the marker counts as reached inside
+Competition mode can start from a measured field coordinate. Set
+`UGV_START_X_M` and `UGV_START_Y_M` in meters from the lower-left field corner
+(`x=0, y=0`). If those are not provided, the old `START_CORNER` fallback is
+used. If no final target is known yet, the UGV drives toward the field center.
+If it reaches the center before a target is known, it expands a search pattern
+outward from the center while still using live LiDAR/ZED obstacle avoidance.
+When it receives an ESP/UAV target coordinate, confirmed marker detection,
+legacy map target, or manual goal, it switches immediately to the final target.
+In competition mode the marker counts as reached inside
 `TARGET_ACCEPT_RADIUS_M` (default `0.9144`, about 1 yard), then the UGV loiters
 around the marker instead of stopping.
 
@@ -202,42 +205,44 @@ Corners:
 - `upper_left`
 - `upper_right`
 
-Dry-run competition with a mock ESP/UAV map:
+Dry-run competition with a mock ESP/UAV target:
 
 ```bash
 cd ~/ugv_project/ros2_ws
-COMPETITION_MODE=true START_CORNER=lower_left START_MOCK_FIELD_MAP=true \
+COMPETITION_MODE=true UGV_START_X_M=0.46 UGV_START_Y_M=0.46 START_MOCK_FIELD_MAP=true \
 MOTOR_DRY_RUN=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
 Change mock marker cell:
 
 ```bash
-COMPETITION_MODE=true START_CORNER=upper_right START_MOCK_FIELD_MAP=true \
+COMPETITION_MODE=true UGV_START_X_M=12.8 UGV_START_Y_M=12.8 START_MOCK_FIELD_MAP=true \
 MOCK_MARKER_CELL=7,7 MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Actual competition-style run without mock map:
+Actual competition-style run without mock target:
 
 ```bash
-COMPETITION_MODE=true START_CORNER=lower_left \
+COMPETITION_MODE=true UGV_START_X_M=0.46 UGV_START_Y_M=0.46 \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
 Actual competition-style run with trained marker CV:
 
 ```bash
-ROUND_MODE=round3 START_CORNER=lower_left START_MARKER_VISION=true \
+ROUND_MODE=round3 UGV_START_X_M=0.46 UGV_START_Y_M=0.46 START_MARKER_VISION=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
 Mission speed behavior:
 
-- `startup_to_center`: reduced speed while waiting for UAV/ESP map data
+- `startup_to_center`: reduced speed while waiting for UAV/ESP target data
 - `search_expand`: medium speed while searching from the center outward
 - `target_nav`: full configured navigation speed after a target is known
 - `target_loiter` or UAV `landing`: reduced speed around the target/landing event
+- active non-stop motion commands are floored by `MIN_MOTION_RAW`; emergency
+  STOP and target reached STOP are still allowed for safety
 
 ## 8A. Official Round Shortcuts
 
@@ -267,7 +272,7 @@ Round 3, full 15 x 15 yard competition behavior:
 
 ```bash
 cd ~/ugv_project/ros2_ws
-ROUND_MODE=round3 START_CORNER=lower_left \
+ROUND_MODE=round3 UGV_START_X_M=0.46 UGV_START_Y_M=0.46 \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
@@ -276,6 +281,8 @@ Useful round overrides:
 ```bash
 ROUND_STRAIGHT_DISTANCE_M=11.8872   # default straight runout, about 13 yards
 TARGET_ACCEPT_RADIUS_M=0.9144       # default marker reached radius, 1 yard
+MIN_SPEED_MPS=0.178816              # 0.4 mph mission minimum speed requirement
+MIN_MOTION_RAW=0.22                 # raw wheel-command floor for non-stop motion
 ```
 
 Simulate an ESP/UAV mission flag:
@@ -291,25 +298,22 @@ Other useful flag states:
 - `leaving`
 - `landing`
 
-## 9. Send a Field Map Manually
+## 9. Send ESP/UAV Target Manually
 
-The ESP/UAV map topic is `/ugv/field_map` as `std_msgs/String`.
-
-Cell legend:
-
-- `0`: unknown or free
-- `1`: known obstacle
-- `2`: UGV start
-- `3`: marker destination
-
-Matrix row `0` is the top/north edge. Column `0` is the left/west edge.
-
-Example:
+The ESP/UAV target topic is `/ugv/target` as `std_msgs/String`. Coordinates are
+meters in the field frame whose lower-left corner is `x=0, y=0`.
 
 ```bash
-ros2 topic pub --once /ugv/field_map std_msgs/msg/String \
-"{data: '{\"type\":\"ugv_field_map_v1\",\"source\":\"manual_test\",\"size\":15,\"cell_size_yard\":1.0,\"matrix\":[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,3,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[2,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]}'}"
+ros2 topic pub --once /ugv/target std_msgs/msg/String \
+"{data: '{\"type\":\"ugv_target_v1\",\"source\":\"manual_test\",\"unit\":\"m\",\"frame\":\"field_bottom_left\",\"x\":6.86,\"y\":6.86}'}"
 ```
+
+Accepted compact forms include `{"x":6.86,"y":6.86}`,
+`{"target":{"x_m":6.86,"y_m":6.86}}`, `[6.86,6.86]`, and `6.86,6.86`.
+The legacy `/ugv/field_map` matrix parser remains available only for old bench
+tests; UAV/ESP no longer needs to send obstacles or UGV current position.
+After accepting a target, nav publishes `/ugv/uav_flag` with `target_found=true`
+so the ESP side can notify the UAV.
 
 ## 10. Simulate Camera Marker Detection
 
@@ -318,7 +322,7 @@ marker detection. Navigation treats `/ugv/marker_detection` as the highest
 priority target source, switches to `target_nav`, and publishes `/ugv/uav_flag`
 for the ESP/UAV handoff.
 
-If CV finds the marker before the UAV/ESP map is available, publish:
+If CV finds the marker before the UAV/ESP target is available, publish:
 
 ```bash
 ros2 topic pub --once /ugv/marker_detection geometry_msgs/msg/PointStamped \
@@ -560,10 +564,10 @@ Expected:
 - bridge sends or reports neutral PWM near `[1500, 1500]`
 - command age is greater than the timeout
 
-### Competition Mock Map Test
+### Competition Mock Target Test
 
 ```bash
-COMPETITION_MODE=true START_CORNER=lower_left START_MOCK_FIELD_MAP=true \
+COMPETITION_MODE=true UGV_START_X_M=0.46 UGV_START_Y_M=0.46 START_MOCK_FIELD_MAP=true \
 MOTOR_DRY_RUN=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
@@ -631,10 +635,16 @@ Environment variables for `jetson_bringup.sh`:
 | `ROUND_MODE` | `manual` | One-command mission mode: `manual`, `round1`, `round2`, or `round3` |
 | `ROUND_STRAIGHT_DISTANCE_M` | `11.8872` | Round 1/2 straight-ahead runout goal, about 13 yards |
 | `COMPETITION_MODE` | `false` | Enable corner/startup-to-center mission logic |
-| `START_CORNER` | `lower_left` | One of the four competition start corners |
+| `START_CORNER` | `lower_left` | Fallback corner if no measured start coordinate is supplied |
+| `UGV_START_X_M` | `nan` | Optional measured UGV start x in meters from lower-left field origin |
+| `UGV_START_Y_M` | `nan` | Optional measured UGV start y in meters from lower-left field origin |
+| `UGV_START_YAW_DEG` | `nan` | Optional initial yaw; defaults to facing field center |
 | `TARGET_ACCEPT_RADIUS_M` | `0.9144` | Competition target reached radius, about 1 yard |
-| `START_MOCK_FIELD_MAP` | `false` | Publish mock 15x15 field map |
-| `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col |
+| `MIN_SPEED_MPS` | `0.178816` | 0.4 mph mission minimum speed requirement recorded in nav status |
+| `MIN_MOTION_RAW` | `0.22` | Raw wheel-command floor for non-stop nav commands after speed scaling |
+| `TARGET_TOPIC` | `/ugv/target` | ESP/UAV target coordinate topic |
+| `START_MOCK_FIELD_MAP` | `false` | Publish mock target coordinate for bench testing |
+| `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col converted to meter target coordinate |
 | `START_MARKER_VISION` | `false` | Start marker CV node and publish ZED image frames |
 | `MARKER_VISION_TEST` | `false` | CV-only live test: starts ZED image/depth, marker vision, and terminal reporter; disables motor/nav/LiDAR/fusion |
 | `MARKER_VISION_TEST_PERIOD_S` | `3.0` | How often the CV test prints searching/health messages |

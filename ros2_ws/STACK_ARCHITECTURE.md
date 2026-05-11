@@ -40,7 +40,8 @@ Rule of thumb:
 
 - `/sensors/nav_frame`
 - `/ugv_goal`
-- `/ugv/field_map` as a `std_msgs/String` JSON 15x15 matrix when ESP/UAV map data is available
+- `/ugv/target` as a `std_msgs/String` JSON marker coordinate from ESP/UAV. Coordinates are meters from the field lower-left origin
+- `/ugv/field_map` as a legacy optional `std_msgs/String` JSON 15x15 matrix for older bench tests
 - `/ugv/marker_detection` as a `geometry_msgs/PointStamped` when camera/CV confirms the marker first
 - `/ugv/mission_flag` as a `std_msgs/String` for ESP/UAV state simulation, such as `landing`, `leaving`, or `scanning`
 
@@ -83,7 +84,8 @@ This is the last bridge between ROS and the Teensy 4.1.
 
 ## 6. Competition/debug helper topics
 
-- `/ugv/field_map`: JSON field map. Matrix cells use `0` unknown/free, `1` known obstacle, `2` UGV start, `3` marker destination. Matrix row `0` is the upper edge of the field and col `0` is the left edge.
+- `/ugv/target`: ESP/UAV marker target coordinate. Preferred payload is `{"type":"ugv_target_v1","x":6.86,"y":6.86,"unit":"m"}` in a lower-left-origin field frame.
+- `/ugv/field_map`: legacy optional JSON field map. Matrix cells use `0` unknown/free, `1` known obstacle, `2` UGV start, `3` marker destination. Matrix row `0` is the upper edge of the field and col `0` is the left edge.
 - `/ugv/mission_flag`: manual or ESP/UAV mission state. A `landing` flag reduces command speed while nav continues obstacle avoidance.
 - `/ugv_nav_status`: navigation pose, phase, active goal, planner, command, encoder, and sensor-hit summary.
 - `/ugv/debug_status`: combined one-line status from ZED, fusion, motor, navigation, and UAV flag topics.

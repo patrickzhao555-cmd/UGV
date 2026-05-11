@@ -99,13 +99,13 @@ if [[ "${MARKER_VISION_TEST}" == "true" ]]; then
 fi
 
 case "${ROUND_MODE}" in
-  r1|round_1|straight|straight_line)
+  round1|r1|round_1|straight|straight_line)
     ROUND_MODE="round1"
     ;;
-  r2|round_2|uav_landing|marker_landing)
+  round2|r2|round_2|uav_landing|marker_landing)
     ROUND_MODE="round2"
     ;;
-  r3|round_3|competition)
+  round3|r3|round_3|competition)
     ROUND_MODE="round3"
     ;;
   manual|normal|manual_goal)

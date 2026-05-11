@@ -337,6 +337,7 @@ class NavConfig:
     local_goal_progress_weight: float = 4.5
     local_heading_weight: float = 0.95
     allow_stop_at_goal: bool = True
+    nonstop_when_blocked: bool = False
     use_imu_yaw: bool = False
     imu_yaw_blend: float = 0.25
     imu_yaw_axis: str = "z"
@@ -1342,7 +1343,34 @@ class LocalPlanner:
                 return cmd
         if sectors.rear_m > self.robot_cfg.length_m * 0.45 + 0.08:
             return ControlCommand('BACKWARD', move_m=min(self.nav_cfg.backward_step_choices_m), raw_left=-0.34, raw_right=-0.34, reason='local emergency reverse')
+        if self.nav_cfg.nonstop_when_blocked:
+            return self._nonstop_blocked_escape(sectors)
         return ControlCommand('STOP', reason='local no safe motion')
+
+    def _nonstop_blocked_escape(self, sectors: SectorSnapshot) -> ControlCommand:
+        if sectors.rear_m > self.robot_cfg.length_m * 0.25:
+            return ControlCommand(
+                'BACKWARD',
+                move_m=min(self.nav_cfg.backward_step_choices_m),
+                raw_left=-0.30,
+                raw_right=-0.30,
+                reason='local no-stop reverse; no fully safe motion',
+            )
+        if sectors.left_m + sectors.front_left_m >= sectors.right_m + sectors.front_right_m:
+            return ControlCommand(
+                'TURN_LEFT',
+                turn_deg=28.0,
+                raw_left=-0.30,
+                raw_right=0.30,
+                reason='local no-stop turn left; no fully safe motion',
+            )
+        return ControlCommand(
+            'TURN_RIGHT',
+            turn_deg=28.0,
+            raw_left=0.30,
+            raw_right=-0.30,
+            reason='local no-stop turn right; no fully safe motion',
+        )
 
 
 # =========================================================
@@ -2955,6 +2983,7 @@ def run_real_mode(
     sensor_cfg = SensorConfig()
     nav_cfg = NavConfig()
     nav_cfg.allow_stop_at_goal = mission_mode != "round3"
+    nav_cfg.nonstop_when_blocked = mission_mode == "round3"
     nav_cfg.use_imu_yaw = bool(use_imu_yaw)
     nav_cfg.imu_yaw_blend = clamp(float(imu_yaw_blend), 0.0, 1.0)
     nav_cfg.imu_yaw_axis = str(imu_yaw_axis).lower()

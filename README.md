@@ -296,6 +296,10 @@ Useful tuning overrides:
 MOTOR_PWM_SLEW_RATE_US_PER_S=2400.0
 MIN_SPEED_MPS=0.178816
 MIN_MOTION_RAW=0.22
+INVERT_LEFT_COMMAND=false
+INVERT_RIGHT_COMMAND=false
+INVERT_LEFT_ENCODER=false
+INVERT_RIGHT_ENCODER=false
 TARGET_ACCEPT_RADIUS_M=0.9144
 MARKER_MIN_GOOD_MATCHES=18
 MARKER_MODEL_MAX_DESCRIPTORS=65000
@@ -305,6 +309,18 @@ USE_IMU_YAW=false
 IMU_YAW_AXIS=z
 IMU_YAW_SIGN=1.0
 IMU_YAW_BLEND=0.25
+```
+
+If one side drives backward when a positive command should move it forward,
+invert that side's motor command at launch. After changing command inversion,
+lift the robot and check `/encoder_ticks_stamped`; if a physically forward wheel
+motion makes that side's ticks decrease, invert that encoder side too.
+
+Example for a reversed left drivetrain:
+
+```bash
+INVERT_LEFT_COMMAND=true
+# Add INVERT_LEFT_ENCODER=true only if forward left-wheel rotation reports negative ticks.
 ```
 
 If ZED is temporarily failing to open but LiDAR and encoders are healthy, the

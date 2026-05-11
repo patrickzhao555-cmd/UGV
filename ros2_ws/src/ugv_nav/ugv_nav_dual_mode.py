@@ -2976,6 +2976,9 @@ def run_real_mode(
     imu_yaw_sign: float = 1.0,
     min_motion_raw: float = 0.22,
     min_speed_mps: float = 0.178816,
+    front_safety_margin_m: float = 0.10,
+    rear_safety_margin_m: float = 0.08,
+    local_plan_inflation_m: float = 0.08,
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
     competition_mode = mission_mode == "round3"
@@ -2989,6 +2992,9 @@ def run_real_mode(
     nav_cfg.imu_yaw_axis = str(imu_yaw_axis).lower()
     nav_cfg.imu_yaw_sign = 1.0 if float(imu_yaw_sign) >= 0.0 else -1.0
     nav_cfg.min_motion_raw = clamp(float(min_motion_raw), 0.0, 1.0)
+    nav_cfg.front_safety_margin_m = clamp(float(front_safety_margin_m), 0.0, 1.0)
+    nav_cfg.rear_safety_margin_m = clamp(float(rear_safety_margin_m), 0.0, 1.0)
+    nav_cfg.local_plan_inflation_m = clamp(float(local_plan_inflation_m), 0.0, 1.0)
     field_w_m = yd(15.0)
     field_h_m = yd(15.0)
     custom_start_x = finite_optional(start_x_m)
@@ -3112,6 +3118,9 @@ def main() -> None:
     parser.add_argument("--imu-yaw-sign", type=float, default=1.0)
     parser.add_argument("--min-motion-raw", type=float, default=0.22, help="floor applied to non-stop raw wheel commands after mission speed scaling")
     parser.add_argument("--min-speed-mps", type=float, default=0.178816, help="mission minimum moving-speed requirement, 0.4 mph expressed in m/s")
+    parser.add_argument("--front-safety-margin-m", type=float, default=0.10, help="extra front clearance required before forward commands")
+    parser.add_argument("--rear-safety-margin-m", type=float, default=0.08, help="extra rear clearance required before reverse commands")
+    parser.add_argument("--local-plan-inflation-m", type=float, default=0.08, help="local costmap obstacle inflation for immediate safety checks")
     args = parser.parse_args()
 
     if args.mode == "sim":
@@ -3139,6 +3148,9 @@ def main() -> None:
             imu_yaw_sign=args.imu_yaw_sign,
             min_motion_raw=args.min_motion_raw,
             min_speed_mps=args.min_speed_mps,
+            front_safety_margin_m=args.front_safety_margin_m,
+            rear_safety_margin_m=args.rear_safety_margin_m,
+            local_plan_inflation_m=args.local_plan_inflation_m,
         )
 
 

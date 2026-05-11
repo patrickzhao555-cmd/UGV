@@ -296,6 +296,9 @@ Useful tuning overrides:
 MOTOR_PWM_SLEW_RATE_US_PER_S=2400.0
 MIN_SPEED_MPS=0.178816
 MIN_MOTION_RAW=0.22
+NAV_FRONT_SAFETY_MARGIN_M=0.10
+NAV_REAR_SAFETY_MARGIN_M=0.08
+NAV_LOCAL_PLAN_INFLATION_M=0.08
 INVERT_LEFT_COMMAND=false
 INVERT_RIGHT_COMMAND=false
 INVERT_LEFT_ENCODER=false
@@ -321,6 +324,16 @@ Example for a reversed left drivetrain:
 ```bash
 INVERT_LEFT_COMMAND=true
 # Add INVERT_LEFT_ENCODER=true only if forward left-wheel rotation reports negative ticks.
+```
+
+If LiDAR/control latency makes the robot feel too close to obstacles, increase
+the local safety margins before the run. A conservative indoor/lifted test
+profile is:
+
+```bash
+NAV_FRONT_SAFETY_MARGIN_M=0.25
+NAV_REAR_SAFETY_MARGIN_M=0.14
+NAV_LOCAL_PLAN_INFLATION_M=0.16
 ```
 
 If ZED is temporarily failing to open but LiDAR and encoders are healthy, the

@@ -103,6 +103,9 @@ def generate_launch_description():
     imu_yaw_blend = LaunchConfiguration('imu_yaw_blend')
     imu_yaw_axis = LaunchConfiguration('imu_yaw_axis')
     imu_yaw_sign = LaunchConfiguration('imu_yaw_sign')
+    front_safety_margin_m = LaunchConfiguration('front_safety_margin_m')
+    rear_safety_margin_m = LaunchConfiguration('rear_safety_margin_m')
+    local_plan_inflation_m = LaunchConfiguration('local_plan_inflation_m')
 
     sensor_sync_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -193,6 +196,12 @@ def generate_launch_description():
             min_motion_raw,
             '--min-speed-mps',
             min_speed_mps,
+            '--front-safety-margin-m',
+            front_safety_margin_m,
+            '--rear-safety-margin-m',
+            rear_safety_margin_m,
+            '--local-plan-inflation-m',
+            local_plan_inflation_m,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -297,6 +306,9 @@ def generate_launch_description():
         DeclareLaunchArgument('imu_yaw_blend', default_value='0.25'),
         DeclareLaunchArgument('imu_yaw_axis', default_value='z'),
         DeclareLaunchArgument('imu_yaw_sign', default_value='1.0'),
+        DeclareLaunchArgument('front_safety_margin_m', default_value='0.10'),
+        DeclareLaunchArgument('rear_safety_margin_m', default_value='0.08'),
+        DeclareLaunchArgument('local_plan_inflation_m', default_value='0.08'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),

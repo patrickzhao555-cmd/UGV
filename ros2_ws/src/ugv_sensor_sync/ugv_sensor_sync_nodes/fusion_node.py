@@ -109,6 +109,7 @@ class FusionNode(Node):
         self.last_encoder_warning_s = 0.0
         self.last_frame_age_warning_s = 0.0
         self.last_zed_warning_s = 0.0
+        self.last_lidar_only_notice_s = 0.0
         self.depth_invalid_streak = 0
         self.smoothed_imu_msg: Optional[Imu] = None
         self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, qos_profile_sensor_data)
@@ -169,11 +170,14 @@ class FusionNode(Node):
         frame['imu'] = msg
 
     def scan_callback(self, scan_msg: LaserScan) -> None:
-        zed_selection = self._select_zed_frame_for_scan(scan_msg.header)
+        zed_selection = self._select_zed_frame_for_scan(
+            scan_msg.header,
+            warn_if_missing=not self.allow_lidar_only_fallback,
+        )
         if zed_selection is None:
             if not self.allow_lidar_only_fallback:
                 return
-            self._warn_zed_gap('using LiDAR-only fusion fallback because no complete ZED frame is available')
+            self._notice_lidar_only_fallback()
             self.fused_callback(
                 scan_msg,
                 self._empty_image_like(scan_msg.header),
@@ -419,7 +423,7 @@ class FusionNode(Node):
         self._trim_zed_history(stamp_s)
         return frame
 
-    def _select_zed_frame_for_scan(self, scan_header):
+    def _select_zed_frame_for_scan(self, scan_header, warn_if_missing: bool = True):
         frame_stamp_s = self._header_stamp_to_seconds(scan_header)
         now_s = self._clock_now_seconds()
         best = None
@@ -441,21 +445,24 @@ class FusionNode(Node):
                 freshest_stamp_age_s = age_s
 
         if best is None:
-            self._warn_zed_gap('no complete ZED frame available yet for scan fusion')
+            if warn_if_missing:
+                self._warn_zed_gap('no complete ZED frame available yet for scan fusion')
             return None
 
         if best_age_s > self.sync_slop_s:
             if freshest is not None and freshest_receive_age_s <= self.zed_fresh_timeout_s:
-                self._warn_zed_gap(
-                    'using freshest complete ZED frame despite header mismatch '
-                    f'(stamp_age={freshest_stamp_age_s:.3f}s, recv_age={freshest_receive_age_s:.3f}s)'
-                )
+                if warn_if_missing:
+                    self._warn_zed_gap(
+                        'using freshest complete ZED frame despite header mismatch '
+                        f'(stamp_age={freshest_stamp_age_s:.3f}s, recv_age={freshest_receive_age_s:.3f}s)'
+                    )
                 return freshest, freshest_stamp_age_s, freshest_receive_age_s
-            self._warn_zed_gap(
-                'no fresh ZED frame available for scan fusion '
-                f'(best_stamp_age={best_age_s:.3f}s, freshest_stamp_age={freshest_stamp_age_s:.3f}s, '
-                f'freshest_recv_age={freshest_receive_age_s:.3f}s)'
-            )
+            if warn_if_missing:
+                self._warn_zed_gap(
+                    'no fresh ZED frame available for scan fusion '
+                    f'(best_stamp_age={best_age_s:.3f}s, freshest_stamp_age={freshest_stamp_age_s:.3f}s, '
+                    f'freshest_recv_age={freshest_receive_age_s:.3f}s)'
+                )
             return None
 
         best_receive_age_s = max(0.0, now_s - float(best.get('received_s', best['stamp_s'])))
@@ -657,6 +664,12 @@ class FusionNode(Node):
         if now_s - self.last_zed_warning_s >= period_s:
             self.get_logger().warn(message)
             self.last_zed_warning_s = now_s
+
+    def _notice_lidar_only_fallback(self, period_s: float = 10.0) -> None:
+        now_s = self._clock_now_seconds()
+        if now_s - self.last_lidar_only_notice_s >= period_s:
+            self.get_logger().info('using LiDAR-only fusion fallback; no complete ZED frame is available')
+            self.last_lidar_only_notice_s = now_s
 
     @staticmethod
     def _finite_or_none(value: float):

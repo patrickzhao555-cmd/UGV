@@ -1,1 +1,3 @@
 ros2_ws/src/ugv_perception/models/*.npz
+__pycache__/
+*.pyc

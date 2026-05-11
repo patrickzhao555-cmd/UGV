@@ -221,7 +221,7 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 带训练好的 marker CV 的真实 competition-style run：
 
 ```bash
-COMPETITION_MODE=true START_CORNER=lower_left START_MARKER_VISION=true \
+ROUND_MODE=round3 START_CORNER=lower_left START_MARKER_VISION=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
@@ -231,6 +231,44 @@ Mission 速度逻辑：
 - `search_expand`: 中等速度，从中心向外搜索
 - `target_nav`: 已知目标后使用完整 nav 速度
 - `target_loiter` 或 UAV `landing`: 降低速度，方便靠近目标或配合 UAV landing
+
+## 8A. 比赛三个 Round 的一键模式
+
+这些是真实下地跑的模式，不是 bench-only helper。架车测试时，在任意命令前加
+`MOTOR_DRY_RUN=true`。
+
+Round 1，直线前进。launcher 会默认打开 marker vision，UGV 直线向前跑；marker
+进入 `TARGET_ACCEPT_RADIUS_M` 后请求停止：
+
+```bash
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=round1 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Round 2，直线前进 + UAV 起飞/降落配合。UGV 会先直线向前跑，等待 CV/UAV 给出
+marker；收到 `landing` mission flag 后降速；知道 marker 后切到 target navigation；
+进入目标半径后停止：
+
+```bash
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=round2 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Round 3，完整 15 x 15 yard 场地、四角出发、中心搜索、避障、UAV/ESP/CV target
+handoff：
+
+```bash
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=round3 START_CORNER=lower_left \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+常用 round 参数：
+
+```bash
+ROUND_STRAIGHT_DISTANCE_M=11.8872   # 默认直线 runout，约 13 yards
+TARGET_ACCEPT_RADIUS_M=0.9144       # 默认 marker 到达半径，1 yard
+```
 
 模拟 ESP/UAV mission flag：
 
@@ -298,7 +336,8 @@ build 并 source workspace 后，训练轻量 ORB model。trainer 会先尝试�
 cd ~/ugv_project/ros2_ws
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
+  --model-out src/ugv_perception/models/marker_orb_model.npz \
+  --max-descriptors 65000
 ```
 
 Nano 上建议直接用这个 `python3` 命令。它和 `ros2 run` 跑的是同一份 trainer
@@ -324,7 +363,8 @@ ros2 topic echo /ugv/uav_flag --once --full-length
 
 调参思路：
 
-- 比赛时黑白图案可能变化，所以保持 `MARKER_ENABLE_GENERIC_DETECTOR=true`；generic path 会同时看深/浅区域对比和边缘轮廓
+- 比赛时黑白图案可能变化，所以保持 `MARKER_ENABLE_GENERIC_DETECTOR=true`；generic path 会同时看深/浅区域对比、边缘轮廓，以及草地环境下有帮助的低饱和度/非绿色特征
+- `MARKER_MODEL_MAX_DESCRIPTORS=65000` 会限制 ORB model 的描述子数量，照片很多时 runtime matching 不会明显变慢
 - 如果 detector 锁到地板/椅子的小细节，就提高 `MARKER_GENERIC_MIN_AREA_FRAC`
 - 如果 marker 看得到但对比度偏低，可以谨慎降低 `MARKER_GENERIC_MIN_CONTRAST`
 - false positive 多，就提高 `MARKER_MIN_GOOD_MATCHES` 或 `MARKER_CONFIRMATION_FRAMES`
@@ -371,6 +411,7 @@ ros2 topic echo /motor_controller/status --once --full-length
 - `mission.phase`: competition 阶段，比如 `startup_to_center`、`search_expand`、`target_nav`
 - `mission.speed_scale`: mission 层速度缩放
 - `mission.target_accept_radius_m`: competition target 到达半径，默认约 1 yard
+- `mission.marker_distance_m`: 如果 CV 提供了 depth，这里会显示 camera 到 marker 的距离
 - `imu_yaw_fusion`: 是否把 gyro yaw 融合进 pose 控制
 - `imu_angular_velocity_smoothed_rps`: 低通滤波后的 ZED IMU angular velocity
 
@@ -551,6 +592,8 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 | `START_BENCH_GOAL` | `false` | 是否自动发布 `/ugv_goal` |
 | `BENCH_GOAL_X_M` | `12.2` | 自动 bench goal x，单位 meter |
 | `BENCH_GOAL_Y_M` | `12.0` | 自动 bench goal y，单位 meter |
+| `ROUND_MODE` | `manual` | 一键比赛模式：`manual`、`round1`、`round2`、`round3` |
+| `ROUND_STRAIGHT_DISTANCE_M` | `11.8872` | Round 1/2 直线 runout goal，约 13 yards |
 | `COMPETITION_MODE` | `false` | 打开四角开局和 startup-to-center mission |
 | `START_CORNER` | `lower_left` | 四个 competition start corner 之一 |
 | `TARGET_ACCEPT_RADIUS_M` | `0.9144` | Competition target 到达半径，约 1 yard |
@@ -558,6 +601,7 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 | `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col |
 | `START_MARKER_VISION` | `false` | 启动 marker CV node，并自动发布 ZED image |
 | `MARKER_MODEL_PATH` | `src/ugv_perception/models/marker_orb_model.npz` | 训练好的 marker model 路径 |
+| `MARKER_MODEL_MAX_DESCRIPTORS` | `65000` | runtime 从 ORB model 中加载的最大描述子数量，用来保证速度 |
 | `MARKER_MIN_GOOD_MATCHES` | `18` | marker candidate 所需 ORB match 数 |
 | `MARKER_CONFIRMATION_FRAMES` | `2` | 发布 marker target 前需要连续确认的帧数 |
 | `MARKER_CONFIRMATION_RADIUS_M` | `0.75` | 连续确认时允许的 map-frame 位置偏差 |

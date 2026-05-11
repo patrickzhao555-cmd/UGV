@@ -109,6 +109,23 @@ Competition behavior:
 - target reached: treat the marker as reached inside `TARGET_ACCEPT_RADIUS_M` (default `0.9144`, about 1 yard), then loiter/scan instead of stopping in competition mode
 - UAV landing flag received: reduce command speed while continuing obstacle avoidance
 
+Round shortcuts for actual ground runs:
+
+```bash
+# Round 1: straight line, marker vision enabled by default, stop inside 1 yard of marker
+ROUND_MODE=round1 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+
+# Round 2: straight line while UAV takes off/lands; CV or UAV marker switches to target nav
+ROUND_MODE=round2 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+
+# Round 3: full 15 x 15 yard competition behavior from a selected corner
+ROUND_MODE=round3 START_CORNER=lower_left \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+For lifted or bench testing, add `MOTOR_DRY_RUN=true` to any of the round
+commands.
+
 Simulate an ESP/UAV mission flag:
 
 ```bash
@@ -127,7 +144,8 @@ Marker vision baseline:
 cd ~/ugv_project/ros2_ws
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
+  --model-out src/ugv_perception/models/marker_orb_model.npz \
+  --max-descriptors 65000
 ```
 
 The direct Python command is preferred on the Jetson because `~/ugv_ws_albert`
@@ -148,9 +166,13 @@ The marker vision node publishes confirmed detections to `/ugv/marker_detection`
 Navigation already consumes that topic as the highest-priority target source and
 publishes `/ugv/uav_flag` so the ESP/UAV side can stop scanning or prepare
 landing. Runtime detection is hybrid: it first looks for a generic high-contrast
-dark/light marker shape using both region and edge cues, then falls back to ORB
-model matching. This keeps it useful when the exact black/white pattern changes
-between practice and competition. Tune
+dark/light marker shape using region, edge, and color-neutrality cues, then
+falls back to ORB model matching. This keeps it useful when the exact black/white
+pattern changes between practice and competition. `/ugv/marker_detection` uses
+map-frame `x/y` for navigation and carries camera depth distance in `point.z`;
+the nav bridge includes that distance in `/ugv/uav_flag` and can treat the
+marker as reached inside `TARGET_ACCEPT_RADIUS_M` even if map-frame odometry is
+slightly noisy. Tune
 `MARKER_GENERIC_MIN_AREA_FRAC`, `MARKER_GENERIC_MIN_CONTRAST`,
 `MARKER_MIN_GOOD_MATCHES`, `MARKER_CONFIRMATION_FRAMES`, and
 `MARKER_CONFIRMATION_RADIUS_M` if bench data shows missed detections or false positives.
@@ -169,7 +191,7 @@ Competition-style ground run with CV enabled:
 
 ```bash
 cd ~/ugv_project/ros2_ws
-COMPETITION_MODE=true START_CORNER=lower_left START_MARKER_VISION=true \
+ROUND_MODE=round3 START_CORNER=lower_left START_MARKER_VISION=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
@@ -201,7 +223,10 @@ Current competition data flow:
 
 Target priority is: confirmed camera marker, then ESP/UAV field-map marker, then
 manual `/ugv_goal`. Live LiDAR/ZED obstacles are always allowed to add new
-obstacles during pathing because the field map may be incomplete.
+obstacles during pathing because the field map may be incomplete. When a live
+obstacle blocks the current route, it is inserted into the costmap; the planner
+checks whether the near-future path conflicts, replans around the obstacle, and
+then naturally follows the new shortest available route back toward the target.
 
 ## Field Map Format
 
@@ -250,6 +275,7 @@ Useful tuning overrides:
 MOTOR_PWM_SLEW_RATE_US_PER_S=2400.0
 TARGET_ACCEPT_RADIUS_M=0.9144
 MARKER_MIN_GOOD_MATCHES=18
+MARKER_MODEL_MAX_DESCRIPTORS=65000
 MARKER_CONFIRMATION_FRAMES=2
 FUSION_IMU_SMOOTHING_ALPHA=0.25
 USE_IMU_YAW=false

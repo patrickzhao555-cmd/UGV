@@ -30,11 +30,14 @@ START_DEBUG_STATUS="${START_DEBUG_STATUS:-true}"
 BENCH_TEST="${BENCH_TEST:-false}"
 START_BENCH_GOAL="${START_BENCH_GOAL:-false}"
 START_MOCK_FIELD_MAP="${START_MOCK_FIELD_MAP:-false}"
+START_MARKER_VISION_WAS_SET="${START_MARKER_VISION+x}"
 START_MARKER_VISION="${START_MARKER_VISION:-false}"
+ROUND_MODE="${ROUND_MODE:-manual}"
 COMPETITION_MODE="${COMPETITION_MODE:-false}"
 START_CORNER="${START_CORNER:-lower_left}"
 CENTER_LOITER_RADIUS_M="${CENTER_LOITER_RADIUS_M:-0.75}"
 TARGET_ACCEPT_RADIUS_M="${TARGET_ACCEPT_RADIUS_M:-0.9144}"
+ROUND_STRAIGHT_DISTANCE_M="${ROUND_STRAIGHT_DISTANCE_M:-11.8872}"
 BENCH_GOAL_X_M="${BENCH_GOAL_X_M:-12.2}"
 BENCH_GOAL_Y_M="${BENCH_GOAL_Y_M:-12.0}"
 BENCH_GOAL_PERIOD_S="${BENCH_GOAL_PERIOD_S:-1.0}"
@@ -53,6 +56,7 @@ IMU_YAW_BLEND="${IMU_YAW_BLEND:-0.25}"
 IMU_YAW_AXIS="${IMU_YAW_AXIS:-z}"
 IMU_YAW_SIGN="${IMU_YAW_SIGN:-1.0}"
 MARKER_MODEL_PATH="${MARKER_MODEL_PATH:-${WORKSPACE_DIR}/src/ugv_perception/models/marker_orb_model.npz}"
+MARKER_MODEL_MAX_DESCRIPTORS="${MARKER_MODEL_MAX_DESCRIPTORS:-65000}"
 MARKER_MIN_GOOD_MATCHES="${MARKER_MIN_GOOD_MATCHES:-18}"
 MARKER_CONFIRMATION_FRAMES="${MARKER_CONFIRMATION_FRAMES:-2}"
 MARKER_CONFIRMATION_RADIUS_M="${MARKER_CONFIRMATION_RADIUS_M:-0.75}"
@@ -71,6 +75,33 @@ if [[ "${BENCH_TEST}" == "true" ]]; then
   MOTOR_DRY_RUN=true
   START_DEBUG_STATUS=true
   START_BENCH_GOAL=true
+fi
+
+case "${ROUND_MODE}" in
+  r1|round_1|straight|straight_line)
+    ROUND_MODE="round1"
+    ;;
+  r2|round_2|uav_landing|marker_landing)
+    ROUND_MODE="round2"
+    ;;
+  r3|round_3|competition)
+    ROUND_MODE="round3"
+    ;;
+  manual|normal|manual_goal)
+    ROUND_MODE="manual"
+    ;;
+  *)
+    echo "Unsupported ROUND_MODE=${ROUND_MODE}. Use manual, round1, round2, or round3."
+    exit 1
+    ;;
+esac
+
+if [[ "${ROUND_MODE}" == "round3" ]]; then
+  COMPETITION_MODE=true
+fi
+
+if [[ -z "${START_MARKER_VISION_WAS_SET}" && "${ROUND_MODE}" =~ ^round[123]$ ]]; then
+  START_MARKER_VISION=true
 fi
 
 if [[ "${START_MARKER_VISION}" == "true" ]]; then
@@ -109,15 +140,18 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   start_mock_field_map:="${START_MOCK_FIELD_MAP}" \
   start_marker_vision:="${START_MARKER_VISION}" \
   competition_mode:="${COMPETITION_MODE}" \
+  mission_mode:="${ROUND_MODE}" \
   start_corner:="${START_CORNER}" \
   center_loiter_radius_m:="${CENTER_LOITER_RADIUS_M}" \
   target_accept_radius_m:="${TARGET_ACCEPT_RADIUS_M}" \
+  straight_distance_m:="${ROUND_STRAIGHT_DISTANCE_M}" \
   bench_goal_x_m:="${BENCH_GOAL_X_M}" \
   bench_goal_y_m:="${BENCH_GOAL_Y_M}" \
   bench_goal_period_s:="${BENCH_GOAL_PERIOD_S}" \
   mock_marker_cell:="${MOCK_MARKER_CELL}" \
   mock_obstacles_json:="${MOCK_OBSTACLES_JSON}" \
   marker_model_path:="${MARKER_MODEL_PATH}" \
+  marker_model_max_descriptors:="${MARKER_MODEL_MAX_DESCRIPTORS}" \
   marker_min_good_matches:="${MARKER_MIN_GOOD_MATCHES}" \
   marker_confirmation_frames:="${MARKER_CONFIRMATION_FRAMES}" \
   marker_confirmation_radius_m:="${MARKER_CONFIRMATION_RADIUS_M}" \

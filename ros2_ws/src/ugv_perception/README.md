@@ -52,10 +52,10 @@ ros2 run ugv_perception zed_obj_distance
 ## Marker Vision Baseline
 
 This is a hybrid marker detector. It first looks for a generic high-contrast
-dark/light marker shape using both region and edge cues, then uses the trained
-ORB model as an additional appearance check/fallback. That matters because the
-exact black/white pattern can change while the marker size and style stay the
-same.
+dark/light marker shape using region, edge, and color-neutrality cues, then uses
+the trained ORB model as an additional appearance check/fallback. That matters
+because the exact black/white pattern can change while the marker size and style
+stay the same.
 
 Dependency on the Jetson/Nano:
 
@@ -76,7 +76,8 @@ trainer tries to crop the marker region before extracting ORB features. Then run
 cd ~/ugv_project/ros2_ws
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
+  --model-out src/ugv_perception/models/marker_orb_model.npz \
+  --max-descriptors 65000
 ```
 
 The direct Python command is preferred on the Jetson when another underlay also
@@ -92,15 +93,19 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 Topics:
 
 - subscribes to `/zed/image`, `/zed/depth`, and `/ugv_nav_status`
-- publishes confirmed marker points to `/ugv/marker_detection`
+- publishes confirmed marker points to `/ugv/marker_detection`; `x/y` are
+  map-frame target coordinates and `z` carries camera/depth distance in meters
 - publishes JSON debug status on `/ugv/marker_vision_debug`
 
 Navigation already consumes `/ugv/marker_detection` and publishes
-`/ugv/uav_flag` for the ESP/UAV handoff.
+`/ugv/uav_flag` for the ESP/UAV handoff. Round 1 and Round 2 use the depth
+distance to request stop once the marker is inside the configured 1-yard target
+radius. Round 3 loiters near the marker instead of stopping.
 
 Useful launch environment variables:
 
 - `MARKER_MODEL_PATH`
+- `MARKER_MODEL_MAX_DESCRIPTORS`
 - `MARKER_MIN_GOOD_MATCHES`
 - `MARKER_CONFIRMATION_FRAMES`
 - `MARKER_CONFIRMATION_RADIUS_M`

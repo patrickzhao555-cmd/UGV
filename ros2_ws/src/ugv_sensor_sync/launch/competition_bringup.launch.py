@@ -45,9 +45,11 @@ def generate_launch_description():
     start_bench_goal = LaunchConfiguration('start_bench_goal')
     start_mock_field_map = LaunchConfiguration('start_mock_field_map')
     competition_mode = LaunchConfiguration('competition_mode')
+    mission_mode = LaunchConfiguration('mission_mode')
     start_corner = LaunchConfiguration('start_corner')
     center_loiter_radius_m = LaunchConfiguration('center_loiter_radius_m')
     target_accept_radius_m = LaunchConfiguration('target_accept_radius_m')
+    straight_distance_m = LaunchConfiguration('straight_distance_m')
     bench_goal_x_m = LaunchConfiguration('bench_goal_x_m')
     bench_goal_y_m = LaunchConfiguration('bench_goal_y_m')
     bench_goal_period_s = LaunchConfiguration('bench_goal_period_s')
@@ -55,6 +57,7 @@ def generate_launch_description():
     mock_obstacles_json = LaunchConfiguration('mock_obstacles_json')
     start_marker_vision = LaunchConfiguration('start_marker_vision')
     marker_model_path = LaunchConfiguration('marker_model_path')
+    marker_model_max_descriptors = LaunchConfiguration('marker_model_max_descriptors')
     marker_min_good_matches = LaunchConfiguration('marker_min_good_matches')
     marker_confirmation_frames = LaunchConfiguration('marker_confirmation_frames')
     marker_confirmation_radius_m = LaunchConfiguration('marker_confirmation_radius_m')
@@ -139,12 +142,16 @@ def generate_launch_description():
             'real',
             '--competition-mode',
             competition_mode,
+            '--mission-mode',
+            mission_mode,
             '--start-corner',
             start_corner,
             '--center-loiter-radius-m',
             center_loiter_radius_m,
             '--target-accept-radius-m',
             target_accept_radius_m,
+            '--straight-distance-m',
+            straight_distance_m,
             '--mission-flag-topic',
             mission_flag_topic,
             '--use-imu-yaw',
@@ -171,11 +178,15 @@ def generate_launch_description():
             '-p',
             ros_param_arg('model_path', marker_model_path),
             '-p',
+            ros_param_arg('model_max_descriptors', marker_model_max_descriptors),
+            '-p',
             ros_param_arg('min_good_matches', marker_min_good_matches),
             '-p',
             ros_param_arg('confirmation_frames', marker_confirmation_frames),
             '-p',
             ros_param_arg('confirmation_radius_m', marker_confirmation_radius_m),
+            '-p',
+            ros_param_arg('target_reached_radius_m', target_accept_radius_m),
             '-p',
             ros_param_arg('enable_generic_detector', marker_enable_generic_detector),
             '-p',
@@ -196,9 +207,11 @@ def generate_launch_description():
         DeclareLaunchArgument('start_mock_field_map', default_value='false'),
         DeclareLaunchArgument('start_marker_vision', default_value='false'),
         DeclareLaunchArgument('competition_mode', default_value='false'),
+        DeclareLaunchArgument('mission_mode', default_value='manual'),
         DeclareLaunchArgument('start_corner', default_value='lower_left'),
         DeclareLaunchArgument('center_loiter_radius_m', default_value='0.75'),
         DeclareLaunchArgument('target_accept_radius_m', default_value='0.9144'),
+        DeclareLaunchArgument('straight_distance_m', default_value='11.8872'),
         DeclareLaunchArgument('bench_goal_x_m', default_value='12.2'),
         DeclareLaunchArgument('bench_goal_y_m', default_value='12.0'),
         DeclareLaunchArgument('bench_goal_period_s', default_value='1.0'),
@@ -208,6 +221,7 @@ def generate_launch_description():
             'marker_model_path',
             default_value=str(workspace_root / 'src' / 'ugv_perception' / 'models' / 'marker_orb_model.npz'),
         ),
+        DeclareLaunchArgument('marker_model_max_descriptors', default_value='65000'),
         DeclareLaunchArgument('marker_min_good_matches', default_value='18'),
         DeclareLaunchArgument('marker_confirmation_frames', default_value='2'),
         DeclareLaunchArgument('marker_confirmation_radius_m', default_value='0.75'),

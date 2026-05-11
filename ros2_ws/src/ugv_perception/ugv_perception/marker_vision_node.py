@@ -34,8 +34,10 @@ class MarkerVisionNode(Node):
         self.declare_parameter('min_depth_m', 0.15)
         self.declare_parameter('max_depth_m', 6.0)
         self.declare_parameter('max_features', 900)
+        self.declare_parameter('model_max_descriptors', 65000)
         self.declare_parameter('confirmation_frames', 2)
         self.declare_parameter('confirmation_radius_m', 0.75)
+        self.declare_parameter('target_reached_radius_m', 0.9144)
         self.declare_parameter('max_depth_stamp_delta_s', 0.35)
         self.declare_parameter('max_pose_age_s', 1.5)
         self.declare_parameter('enable_generic_detector', True)
@@ -59,8 +61,10 @@ class MarkerVisionNode(Node):
         self.min_depth_m = float(self.get_parameter('min_depth_m').value)
         self.max_depth_m = float(self.get_parameter('max_depth_m').value)
         max_features = int(self.get_parameter('max_features').value)
+        self.model_max_descriptors = max(0, int(self.get_parameter('model_max_descriptors').value))
         self.confirmation_frames = max(1, int(self.get_parameter('confirmation_frames').value))
         self.confirmation_radius_m = max(0.05, float(self.get_parameter('confirmation_radius_m').value))
+        self.target_reached_radius_m = max(0.05, float(self.get_parameter('target_reached_radius_m').value))
         self.max_depth_stamp_delta_s = max(0.0, float(self.get_parameter('max_depth_stamp_delta_s').value))
         self.max_pose_age_s = max(0.0, float(self.get_parameter('max_pose_age_s').value))
         self.enable_generic_detector = bool(self.get_parameter('enable_generic_detector').value)
@@ -111,7 +115,12 @@ class MarkerVisionNode(Node):
         if descriptors is None or descriptors.size == 0:
             self.get_logger().warn(f'Marker model has no descriptors: {self.model_path}')
             return
-        self.model_descriptors = descriptors.astype(np.uint8, copy=False)
+        descriptors = descriptors.astype(np.uint8, copy=False)
+        if self.model_max_descriptors > 0 and len(descriptors) > self.model_max_descriptors:
+            indices = np.linspace(0, len(descriptors) - 1, num=self.model_max_descriptors)
+            indices = np.unique(np.round(indices).astype(np.int64))
+            descriptors = descriptors[indices[: self.model_max_descriptors]]
+        self.model_descriptors = descriptors
         try:
             metadata_raw = data['metadata'].item() if 'metadata' in data.files else '{}'
             self.model_metadata = json.loads(metadata_raw)
@@ -170,7 +179,8 @@ class MarkerVisionNode(Node):
             self.get_logger().warn(f'Could not convert marker image to grayscale: {exc}')
             return
 
-        generic_center, generic_debug = self._detect_generic_marker(gray)
+        bgr = self._to_bgr(image)
+        generic_center, generic_debug = self._detect_generic_marker(gray, bgr)
         orb_center, orb_debug = self._detect_orb_marker(gray, now_s)
         center_px = generic_center if generic_center is not None else orb_center
         method = 'generic_dark_light_marker' if generic_center is not None else 'orb_model'
@@ -187,9 +197,16 @@ class MarkerVisionNode(Node):
             return
 
         depth_m = self._depth_at(center_px)
+        offset_x_frac = (center_px[0] - 0.5 * gray.shape[1]) / max(1.0, 0.5 * gray.shape[1])
+        bearing_rad = offset_x_frac * (0.5 * self.camera_hfov_rad)
         debug.update({
             'center_px': [round(center_px[0], 1), round(center_px[1], 1)],
             'depth_m': None if depth_m is None else round(depth_m, 3),
+            'distance_m': None if depth_m is None else round(depth_m, 3),
+            'bearing_deg': round(math.degrees(bearing_rad), 2),
+            'offset_x_frac': round(offset_x_frac, 3),
+            'target_reached_by_depth': bool(depth_m is not None and depth_m <= self.target_reached_radius_m),
+            'target_reached_radius_m': round(self.target_reached_radius_m, 3),
             'pose_available': self.latest_pose is not None,
         })
 
@@ -229,10 +246,14 @@ class MarkerVisionNode(Node):
         point_msg.header.frame_id = 'map'
         point_msg.point.x = float(publish_xy[0])
         point_msg.point.y = float(publish_xy[1])
-        point_msg.point.z = 0.0
+        # z carries camera/depth distance for the nav bridge; x/y remain map-frame target position.
+        point_msg.point.z = float(depth_m)
         self.marker_pub.publish(point_msg)
         self.last_publish_s = now_s
-        debug.update({'published_marker_m': [round(publish_xy[0], 3), round(publish_xy[1], 3)]})
+        debug.update({
+            'published_marker_m': [round(publish_xy[0], 3), round(publish_xy[1], 3)],
+            'published_distance_m': round(depth_m, 3),
+        })
         self._publish_debug(debug)
 
     def _detect_orb_marker(self, gray: np.ndarray, now_s: float):
@@ -261,7 +282,7 @@ class MarkerVisionNode(Node):
             return None, debug
         return self._matched_center_px(keypoints, good), debug
 
-    def _detect_generic_marker(self, gray: np.ndarray):
+    def _detect_generic_marker(self, gray: np.ndarray, bgr: Optional[np.ndarray]):
         debug = {'enabled': self.enable_generic_detector, 'candidates': 0, 'sources': {}}
         if not self.enable_generic_detector:
             return None, debug
@@ -290,7 +311,7 @@ class MarkerVisionNode(Node):
         for source, contours in candidate_sets:
             source_candidates = 0
             for contour in contours:
-                candidate = self._score_generic_candidate(gray, contour, source)
+                candidate = self._score_generic_candidate(gray, bgr, contour, source)
                 if candidate is None:
                     continue
                 source_candidates += 1
@@ -312,11 +333,13 @@ class MarkerVisionNode(Node):
             'contrast': round(best['contrast'], 1),
             'dark_ratio': round(best['dark_ratio'], 3),
             'light_ratio': round(best['light_ratio'], 3),
+            'neutral_ratio': None if best['neutral_ratio'] is None else round(best['neutral_ratio'], 3),
+            'green_ratio': None if best['green_ratio'] is None else round(best['green_ratio'], 3),
             'source': best['source'],
         })
         return best['center'], debug
 
-    def _score_generic_candidate(self, gray: np.ndarray, contour, source: str):
+    def _score_generic_candidate(self, gray: np.ndarray, bgr: Optional[np.ndarray], contour, source: str):
         h, w = gray.shape[:2]
         image_area = float(max(1, h * w))
         area = float(cv2.contourArea(contour))
@@ -353,6 +376,20 @@ class MarkerVisionNode(Node):
         light_ratio = max(float(np.mean(roi > 170)), float(np.mean(roi >= light_cut)))
         if dark_ratio < 0.10 or light_ratio < 0.04:
             return None
+        neutral_ratio = None
+        green_ratio = None
+        color_score = 0.0
+        if bgr is not None:
+            color_roi = bgr[y:y + bh, x:x + bw]
+            if color_roi.size:
+                hsv = cv2.cvtColor(color_roi, cv2.COLOR_BGR2HSV)
+                sat = hsv[:, :, 1]
+                blue = color_roi[:, :, 0].astype(np.int16)
+                green = color_roi[:, :, 1].astype(np.int16)
+                red = color_roi[:, :, 2].astype(np.int16)
+                neutral_ratio = float(np.mean(sat < 78))
+                green_ratio = float(np.mean((green > red + 14) & (green > blue + 14)))
+                color_score = clamp01(0.75 * neutral_ratio + 0.25 * (1.0 - green_ratio))
 
         rect_area = float(max(1, bw * bh))
         extent = area / rect_area
@@ -372,6 +409,7 @@ class MarkerVisionNode(Node):
             + 0.20 * area_score
             + 0.17 * min(1.0, extent / extent_target)
             + 0.15 * balance_score
+            + 0.12 * color_score
             + corner_bonus
         )
 
@@ -390,6 +428,8 @@ class MarkerVisionNode(Node):
             'contrast': contrast,
             'dark_ratio': dark_ratio,
             'light_ratio': light_ratio,
+            'neutral_ratio': neutral_ratio,
+            'green_ratio': green_ratio,
             'score': score,
             'source': source,
         }
@@ -480,12 +520,27 @@ class MarkerVisionNode(Node):
             return cv2.cvtColor(arr, cv2.COLOR_BGRA2GRAY)
         return cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
 
+    @staticmethod
+    def _to_bgr(image) -> Optional[np.ndarray]:
+        arr = np.asarray(image)
+        if arr.ndim != 3:
+            return None
+        if arr.shape[2] == 3:
+            return arr
+        if arr.shape[2] == 4:
+            return cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
+        return None
+
     def _publish_debug(self, debug: dict) -> None:
         self.debug_pub.publish(String(data=json.dumps(debug)))
 
     @staticmethod
     def _stamp_to_seconds(stamp) -> float:
         return float(stamp.sec) + float(stamp.nanosec) * 1e-9
+
+
+def clamp01(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
 
 
 def main(args=None):

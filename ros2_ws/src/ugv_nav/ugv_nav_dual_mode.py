@@ -127,6 +127,7 @@ class GoalPacket:
     x: float
     y: float
     timestamp: float
+    distance_m: Optional[float] = None
 
 
 @dataclass
@@ -373,6 +374,31 @@ def normalize_corner_name(name: str) -> str:
     value = aliases.get(value, value)
     if value not in {"lower_left", "upper_left", "lower_right", "upper_right"}:
         raise ValueError(f"Unsupported start corner {name!r}")
+    return value
+
+
+def normalize_mission_mode(mode: str, competition_mode: bool = False) -> str:
+    value = str(mode or "manual").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "r1": "round1",
+        "round_1": "round1",
+        "straight": "round1",
+        "straight_line": "round1",
+        "r2": "round2",
+        "round_2": "round2",
+        "uav_landing": "round2",
+        "marker_landing": "round2",
+        "r3": "round3",
+        "round_3": "round3",
+        "competition": "round3",
+        "manual_goal": "manual",
+        "normal": "manual",
+    }
+    value = aliases.get(value, value)
+    if competition_mode and value == "manual":
+        value = "round3"
+    if value not in {"manual", "round1", "round2", "round3"}:
+        raise ValueError(f"Unsupported mission mode {mode!r}")
     return value
 
 
@@ -1580,16 +1606,18 @@ class Ros2Bridge(RealRobotBridgeBase):
     def _marker_cb(self, msg):
         stamp_now = self.node.get_clock().now().to_msg()
         ts = self._stamp_to_seconds(stamp_now)
-        self._latest_marker_goal = GoalPacket(float(msg.point.x), float(msg.point.y), ts)
+        distance_m = float(msg.point.z) if math.isfinite(float(msg.point.z)) and float(msg.point.z) > 0.0 else None
+        self._latest_marker_goal = GoalPacket(float(msg.point.x), float(msg.point.y), ts, distance_m)
         self._marker_version += 1
-        self.send_uav_flag(
-            {
-                "target_found": True,
-                "source": "zed_marker_detection",
-                "target_m": [round(float(msg.point.x), 3), round(float(msg.point.y), 3)],
-                "stamp": round(ts, 3),
-            }
-        )
+        flag = {
+            "target_found": True,
+            "source": "zed_marker_detection",
+            "target_m": [round(float(msg.point.x), 3), round(float(msg.point.y), 3)],
+            "stamp": round(ts, 3),
+        }
+        if distance_m is not None:
+            flag["distance_m"] = round(distance_m, 3)
+        self.send_uav_flag(flag)
 
     def _mission_flag_cb(self, msg):
         now_s = self._stamp_to_seconds(self.node.get_clock().now().to_msg())
@@ -1641,7 +1669,7 @@ class Ros2Bridge(RealRobotBridgeBase):
             encoder=EncoderPacket(left, right, ts),
             lidar=LidarPacket(scan_hits, ranges_m, angles_rad, ts),
             zed=ZedPacket(zed_hits, ts),
-            goal=GoalPacket(goal_packet.x, goal_packet.y, ts),
+            goal=GoalPacket(goal_packet.x, goal_packet.y, ts, goal_packet.distance_m),
             imu=imu_packet,
             field_map=self._latest_field_map,
             marker_goal=self._latest_marker_goal,
@@ -2353,6 +2381,7 @@ class CompetitionMission:
     def __init__(
         self,
         enabled: bool,
+        mission_mode: str,
         start_corner: str,
         field_w_m: float,
         field_h_m: float,
@@ -2360,12 +2389,18 @@ class CompetitionMission:
         waypoint_switch_radius_m: float = 0.35,
         target_accept_radius_m: float = YARD_TO_M,
         search_radius_step_m: float = 0.75,
+        straight_distance_m: float = yd(13.0),
     ):
         self.enabled = bool(enabled)
+        self.mission_mode = normalize_mission_mode(mission_mode)
         self.start_corner = normalize_corner_name(start_corner)
         self.field_w_m = field_w_m
         self.field_h_m = field_h_m
         self.center = (0.5 * field_w_m, 0.5 * field_h_m)
+        self.straight_goal = (
+            clamp(yd(0.5) + max(0.5, float(straight_distance_m)), 0.45, field_w_m - 0.45),
+            yd(0.5),
+        )
         self.center_loiter_radius_m = center_loiter_radius_m
         self.waypoint_switch_radius_m = waypoint_switch_radius_m
         self.target_accept_radius_m = max(0.35, float(target_accept_radius_m))
@@ -2373,7 +2408,9 @@ class CompetitionMission:
         self.search_max_radius_m = max(0.5, min(field_w_m, field_h_m) * 0.5 - 0.65)
         self.final_goal: Optional[Tuple[float, float]] = None
         self.final_goal_source = "none"
+        self.latest_marker_distance_m: Optional[float] = None
         self.phase = "manual"
+        self.stop_requested = False
         self.uav_state = "unknown"
         self.uav_state_source = "none"
         self._loiter_index = 0
@@ -2390,6 +2427,7 @@ class CompetitionMission:
         if frame.marker_goal is not None and math.isfinite(frame.marker_goal.x) and math.isfinite(frame.marker_goal.y):
             self.final_goal = (frame.marker_goal.x, frame.marker_goal.y)
             self.final_goal_source = "camera_marker"
+            self.latest_marker_distance_m = frame.marker_goal.distance_m
         elif frame.field_map is not None and frame.field_map.goal_xy is not None:
             self.final_goal = frame.field_map.goal_xy
             self.final_goal_source = frame.field_map.source
@@ -2399,27 +2437,55 @@ class CompetitionMission:
 
         if not self.enabled:
             self.phase = "manual"
+            self.stop_requested = False
             return self._status_dict(frame.goal)
 
-        if self.final_goal is not None:
-            dist_to_target = math.hypot(self.final_goal[0] - pose.x, self.final_goal[1] - pose.y)
-            if dist_to_target <= self.target_accept_radius_m:
-                self.phase = "target_loiter"
-                goal = self._loiter_goal(self.final_goal, pose)
-            else:
-                self.phase = "target_nav"
-                goal = GoalPacket(self.final_goal[0], self.final_goal[1], frame.encoder.timestamp)
+        self.stop_requested = False
+        if self.mission_mode in {"round1", "round2"}:
+            goal = self._update_straight_round(frame, pose)
         else:
-            dist_to_center = math.hypot(self.center[0] - pose.x, self.center[1] - pose.y)
-            if dist_to_center <= self.waypoint_switch_radius_m:
-                self.phase = "search_expand"
-                goal = self._search_goal(pose)
-            else:
-                self.phase = "startup_to_center"
-                goal = GoalPacket(self.center[0], self.center[1], frame.encoder.timestamp)
+            goal = self._update_round3(frame, pose)
 
         frame.goal = goal
         return self._status_dict(goal)
+
+    def _target_reached(self, pose: Pose2D) -> bool:
+        map_reached = False
+        if self.final_goal is not None:
+            map_reached = math.hypot(self.final_goal[0] - pose.x, self.final_goal[1] - pose.y) <= self.target_accept_radius_m
+        depth_reached = (
+            self.latest_marker_distance_m is not None
+            and math.isfinite(self.latest_marker_distance_m)
+            and self.latest_marker_distance_m <= self.target_accept_radius_m
+        )
+        return bool(map_reached or depth_reached)
+
+    def _update_straight_round(self, frame: SensorFrame, pose: Pose2D) -> GoalPacket:
+        if self.final_goal is not None:
+            if self._target_reached(pose):
+                self.phase = "target_stop"
+                self.stop_requested = True
+                return GoalPacket(pose.x, pose.y, frame.encoder.timestamp, self.latest_marker_distance_m)
+            self.phase = "target_nav"
+            return GoalPacket(self.final_goal[0], self.final_goal[1], frame.encoder.timestamp, self.latest_marker_distance_m)
+
+        self.phase = "round1_straight" if self.mission_mode == "round1" else "round2_search_straight"
+        return GoalPacket(self.straight_goal[0], self.straight_goal[1], frame.encoder.timestamp)
+
+    def _update_round3(self, frame: SensorFrame, pose: Pose2D) -> GoalPacket:
+        if self.final_goal is not None:
+            if self._target_reached(pose):
+                self.phase = "target_loiter"
+                return self._loiter_goal(self.final_goal, pose)
+            self.phase = "target_nav"
+            return GoalPacket(self.final_goal[0], self.final_goal[1], frame.encoder.timestamp, self.latest_marker_distance_m)
+
+        dist_to_center = math.hypot(self.center[0] - pose.x, self.center[1] - pose.y)
+        if dist_to_center <= self.waypoint_switch_radius_m:
+            self.phase = "search_expand"
+            return self._search_goal(pose)
+        self.phase = "startup_to_center"
+        return GoalPacket(self.center[0], self.center[1], frame.encoder.timestamp)
 
     def _loiter_goal(self, center: Tuple[float, float], pose: Pose2D) -> GoalPacket:
         if center != self._active_loiter_center:
@@ -2470,8 +2536,14 @@ class CompetitionMission:
         return GoalPacket(cur[0], cur[1], time.time())
 
     def command_speed_scale(self) -> Tuple[float, str]:
+        if self.phase == "target_stop":
+            return 0.0, "target_reached"
         if self.uav_state in {"landing", "landed"}:
             return 0.35, "uav_landing"
+        if self.phase == "round1_straight":
+            return 0.85, "round1_straight"
+        if self.phase == "round2_search_straight":
+            return 0.65, "round2_waiting_for_marker_or_uav"
         if self.phase == "startup_to_center":
             return 0.55, "waiting_for_uav_scan"
         if self.phase == "search_expand":
@@ -2486,7 +2558,9 @@ class CompetitionMission:
         speed_scale, speed_reason = self.command_speed_scale()
         return {
             "enabled": self.enabled,
+            "mode": self.mission_mode,
             "phase": self.phase,
+            "stop_requested": self.stop_requested,
             "start_corner": self.start_corner,
             "uav_state": self.uav_state,
             "uav_state_source": self.uav_state_source,
@@ -2494,6 +2568,7 @@ class CompetitionMission:
             "speed_reason": speed_reason,
             "search_radius_m": round(self._current_search_radius_m, 3),
             "target_accept_radius_m": round(self.target_accept_radius_m, 3),
+            "marker_distance_m": None if self.latest_marker_distance_m is None else round(self.latest_marker_distance_m, 3),
             "active_goal_m": [
                 round(active_goal.x, 3) if math.isfinite(active_goal.x) else None,
                 round(active_goal.y, 3) if math.isfinite(active_goal.y) else None,
@@ -2649,9 +2724,11 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
 def run_real_mode(
     replay_json: Optional[str] = None,
     competition_mode: bool = False,
+    mission_mode: str = "manual",
     start_corner: str = "lower_left",
     center_loiter_radius_m: float = 0.75,
     target_accept_radius_m: float = YARD_TO_M,
+    straight_distance_m: float = yd(13.0),
     field_map_topic: str = "/ugv/field_map",
     marker_topic: str = "/ugv/marker_detection",
     mission_flag_topic: str = "/ugv/mission_flag",
@@ -2661,40 +2738,58 @@ def run_real_mode(
     imu_yaw_axis: str = "z",
     imu_yaw_sign: float = 1.0,
 ) -> None:
+    mission_mode = normalize_mission_mode(mission_mode, competition_mode)
+    competition_mode = mission_mode == "round3"
     robot_cfg = RobotConfig()
     sensor_cfg = SensorConfig()
     nav_cfg = NavConfig()
-    nav_cfg.allow_stop_at_goal = not competition_mode
+    nav_cfg.allow_stop_at_goal = mission_mode != "round3"
     nav_cfg.use_imu_yaw = bool(use_imu_yaw)
     nav_cfg.imu_yaw_blend = clamp(float(imu_yaw_blend), 0.0, 1.0)
     nav_cfg.imu_yaw_axis = str(imu_yaw_axis).lower()
     nav_cfg.imu_yaw_sign = 1.0 if float(imu_yaw_sign) >= 0.0 else -1.0
     field_w_m = yd(15.0)
     field_h_m = yd(15.0)
-    init_pose = start_pose_for_corner(start_corner, field_w_m, field_h_m) if competition_mode else Pose2D(yd(0.5), yd(0.5), 0.0)
-    init_goal = Pose2D(0.5 * field_w_m, 0.5 * field_h_m, 0.0) if competition_mode else Pose2D(yd(13.4), yd(13.0), 0.0)
+    if mission_mode == "round3":
+        init_pose = start_pose_for_corner(start_corner, field_w_m, field_h_m)
+        init_goal = Pose2D(0.5 * field_w_m, 0.5 * field_h_m, 0.0)
+    elif mission_mode in {"round1", "round2"}:
+        init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
+        init_goal = Pose2D(
+            clamp(yd(0.5) + max(0.5, float(straight_distance_m)), 0.45, field_w_m - 0.45),
+            yd(0.5),
+            0.0,
+        )
+    else:
+        init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
+        init_goal = Pose2D(yd(13.4), yd(13.0), 0.0)
     navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, field_w_m, field_h_m, init_pose, init_goal)
     mission = CompetitionMission(
-        enabled=competition_mode,
+        enabled=mission_mode != "manual",
+        mission_mode=mission_mode,
         start_corner=start_corner,
         field_w_m=field_w_m,
         field_h_m=field_h_m,
         center_loiter_radius_m=center_loiter_radius_m,
         target_accept_radius_m=target_accept_radius_m,
+        straight_distance_m=straight_distance_m,
     )
 
     if replay_json:
         bridge: RealRobotBridgeBase = JsonReplayBridge(replay_json)
     else:
         bridge = Ros2Bridge(
-            allow_missing_goal=competition_mode,
+            allow_missing_goal=mission_mode != "manual",
             field_map_topic=field_map_topic,
             marker_topic=marker_topic,
             mission_flag_topic=mission_flag_topic,
         )
 
     print("Running REAL mode. No GUI. Printing and sending control commands.")
-    print(f"Competition mode: {competition_mode}, start_corner={normalize_corner_name(start_corner)}")
+    print(
+        f"Mission mode: {mission_mode}, competition_mode={competition_mode}, "
+        f"start_corner={normalize_corner_name(start_corner)}, straight_distance_m={straight_distance_m:.2f}"
+    )
     print("Expected ROS2 topics if using Ros2Bridge:")
     print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
     print("                        includes scan, zed obstacle points, latest encoder ticks, and clearance summaries")
@@ -2715,6 +2810,8 @@ def run_real_mode(
             continue
         mission_status = mission.update_frame(frame, navigator.state.estimated_pose)
         cmd = navigator.step(frame)
+        if mission_status.get("stop_requested"):
+            cmd = ControlCommand("STOP", reason=f"{mission_status.get('phase', 'target')} reached inside accept radius")
         speed_scale, speed_reason = mission.command_speed_scale()
         cmd = scale_control_command(cmd, speed_scale, speed_reason)
         bridge.send_control(cmd)
@@ -2739,9 +2836,11 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=900)
     parser.add_argument("--replay-json", type=str, default=None, help="use JSONL replay file for real mode testing")
     parser.add_argument("--competition-mode", type=str_to_bool, default=False, help="enable corner startup/search mission logic in real mode")
+    parser.add_argument("--mission-mode", choices=["manual", "round1", "round2", "round3"], default="manual")
     parser.add_argument("--start-corner", type=str, default="lower_left", help="one of lower_left, lower_right, upper_left, upper_right")
     parser.add_argument("--center-loiter-radius-m", type=float, default=0.75)
     parser.add_argument("--target-accept-radius-m", type=float, default=YARD_TO_M, help="competition-mode radius that counts as reaching the marker")
+    parser.add_argument("--straight-distance-m", type=float, default=yd(13.0), help="round1/round2 straight-ahead runout goal distance")
     parser.add_argument("--field-map-topic", type=str, default="/ugv/field_map")
     parser.add_argument("--marker-topic", type=str, default="/ugv/marker_detection")
     parser.add_argument("--mission-flag-topic", type=str, default="/ugv/mission_flag")
@@ -2758,9 +2857,11 @@ def main() -> None:
         run_real_mode(
             replay_json=args.replay_json,
             competition_mode=args.competition_mode,
+            mission_mode=args.mission_mode,
             start_corner=args.start_corner,
             center_loiter_radius_m=args.center_loiter_radius_m,
             target_accept_radius_m=args.target_accept_radius_m,
+            straight_distance_m=args.straight_distance_m,
             field_map_topic=args.field_map_topic,
             marker_topic=args.marker_topic,
             mission_flag_topic=args.mission_flag_topic,

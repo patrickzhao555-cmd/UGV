@@ -98,7 +98,22 @@ def _find_marker_crop(cv2, gray):
     return best
 
 
-def train_marker_model(image_dir: Path, model_out: Path, max_features: int) -> dict:
+def _cap_descriptors(descriptors: np.ndarray, max_descriptors: int) -> tuple[np.ndarray, int]:
+    before_count = int(descriptors.shape[0])
+    if max_descriptors <= 0 or before_count <= max_descriptors:
+        return descriptors, before_count
+
+    # Deterministic spread through the merged descriptor bank. This keeps older
+    # classroom images and newer grass images represented without adding a
+    # random seed dependency to runtime behavior.
+    indices = np.linspace(0, before_count - 1, num=max_descriptors)
+    indices = np.unique(np.round(indices).astype(np.int64))
+    if indices.size > max_descriptors:
+        indices = indices[:max_descriptors]
+    return descriptors[indices], before_count
+
+
+def train_marker_model(image_dir: Path, model_out: Path, max_features: int, max_descriptors: int) -> dict:
     try:
         import cv2
     except ImportError as exc:
@@ -146,13 +161,16 @@ def train_marker_model(image_dir: Path, model_out: Path, max_features: int) -> d
         )
 
     merged = np.vstack(descriptors).astype(np.uint8, copy=False)
+    merged, descriptor_count_before_cap = _cap_descriptors(merged, int(max_descriptors))
     metadata = {
         'type': 'ugv_marker_orb_v1',
         'image_dir': str(image_dir),
         'image_count': len(image_summaries),
         'descriptor_count': int(merged.shape[0]),
+        'descriptor_count_before_cap': int(descriptor_count_before_cap),
         'descriptor_width': int(merged.shape[1]),
         'max_features': int(max_features),
+        'max_descriptors': int(max_descriptors),
         'images': image_summaries,
     }
 
@@ -176,9 +194,20 @@ def main(args=None) -> None:
         help='Output .npz model used by marker_vision_node.',
     )
     parser.add_argument('--max-features', type=int, default=900)
+    parser.add_argument(
+        '--max-descriptors',
+        type=int,
+        default=65000,
+        help='Maximum ORB descriptors stored in the model. Use 0 to keep all descriptors.',
+    )
     parsed = parser.parse_args(args=args)
 
-    metadata = train_marker_model(parsed.image_dir.expanduser(), parsed.model_out.expanduser(), parsed.max_features)
+    metadata = train_marker_model(
+        parsed.image_dir.expanduser(),
+        parsed.model_out.expanduser(),
+        parsed.max_features,
+        parsed.max_descriptors,
+    )
     print(json.dumps(metadata, indent=2))
 
 

@@ -228,7 +228,7 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 Actual competition-style run with trained marker CV:
 
 ```bash
-COMPETITION_MODE=true START_CORNER=lower_left START_MARKER_VISION=true \
+ROUND_MODE=round3 START_CORNER=lower_left START_MARKER_VISION=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
@@ -238,6 +238,45 @@ Mission speed behavior:
 - `search_expand`: medium speed while searching from the center outward
 - `target_nav`: full configured navigation speed after a target is known
 - `target_loiter` or UAV `landing`: reduced speed around the target/landing event
+
+## 8A. Official Round Shortcuts
+
+These are real ground-run modes, not bench-only helpers. Add
+`MOTOR_DRY_RUN=true` to any command when testing on a stand.
+
+Round 1, straight line. The launcher enables marker vision by default, drives
+straight ahead, and requests stop when the marker is inside
+`TARGET_ACCEPT_RADIUS_M`:
+
+```bash
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=round1 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Round 2, straight line plus UAV takeoff/landing coordination. The UGV drives
+straight while waiting for CV/UAV target information, slows for a `landing`
+mission flag, switches to target navigation when a marker is known, and stops
+inside the target radius:
+
+```bash
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=round2 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Round 3, full 15 x 15 yard competition behavior:
+
+```bash
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=round3 START_CORNER=lower_left \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Useful round overrides:
+
+```bash
+ROUND_STRAIGHT_DISTANCE_M=11.8872   # default straight runout, about 13 yards
+TARGET_ACCEPT_RADIUS_M=0.9144       # default marker reached radius, 1 yard
+```
 
 Simulate an ESP/UAV mission flag:
 
@@ -309,7 +348,8 @@ uses ORB on that crop:
 cd ~/ugv_project/ros2_ws
 python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
-  --model-out src/ugv_perception/models/marker_orb_model.npz
+  --model-out src/ugv_perception/models/marker_orb_model.npz \
+  --max-descriptors 65000
 ```
 
 Use the direct Python command on the Jetson. It runs the same trainer code as
@@ -335,7 +375,8 @@ ros2 topic echo /ugv/uav_flag --once --full-length
 
 Useful tuning:
 
-- leave `MARKER_ENABLE_GENERIC_DETECTOR=true` when the black/white pattern can change between practice and competition; the generic path uses both dark/light region contrast and edge contours
+- leave `MARKER_ENABLE_GENERIC_DETECTOR=true` when the black/white pattern can change between practice and competition; the generic path uses dark/light region contrast, edge contours, and color-neutrality cues that help on grass
+- `MARKER_MODEL_MAX_DESCRIPTORS=65000` keeps ORB matching fast after adding many grass photos
 - increase `MARKER_GENERIC_MIN_AREA_FRAC` if the detector locks onto small floor/chair details
 - lower `MARKER_GENERIC_MIN_CONTRAST` only if the marker is visible but low contrast
 - raise `MARKER_MIN_GOOD_MATCHES` or `MARKER_CONFIRMATION_FRAMES` if there are false positives
@@ -382,6 +423,7 @@ Important fields:
 - `mission.phase`: competition behavior, such as `startup_to_center`, `search_expand`, or `target_nav`
 - `mission.speed_scale`: mission-level command speed scaling
 - `mission.target_accept_radius_m`: competition target radius, default about 1 yard
+- `mission.marker_distance_m`: camera/depth distance to the confirmed marker, if CV provided it
 - `imu_yaw_fusion`: whether gyro yaw is blended into pose control
 - `imu_angular_velocity_smoothed_rps`: low-pass filtered ZED IMU angular velocity
 
@@ -572,6 +614,8 @@ Environment variables for `jetson_bringup.sh`:
 | `START_BENCH_GOAL` | `false` | Auto-publish `/ugv_goal` |
 | `BENCH_GOAL_X_M` | `12.2` | Auto bench goal x in meters |
 | `BENCH_GOAL_Y_M` | `12.0` | Auto bench goal y in meters |
+| `ROUND_MODE` | `manual` | One-command mission mode: `manual`, `round1`, `round2`, or `round3` |
+| `ROUND_STRAIGHT_DISTANCE_M` | `11.8872` | Round 1/2 straight-ahead runout goal, about 13 yards |
 | `COMPETITION_MODE` | `false` | Enable corner/startup-to-center mission logic |
 | `START_CORNER` | `lower_left` | One of the four competition start corners |
 | `TARGET_ACCEPT_RADIUS_M` | `0.9144` | Competition target reached radius, about 1 yard |
@@ -579,6 +623,7 @@ Environment variables for `jetson_bringup.sh`:
 | `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col |
 | `START_MARKER_VISION` | `false` | Start marker CV node and publish ZED image frames |
 | `MARKER_MODEL_PATH` | `src/ugv_perception/models/marker_orb_model.npz` | Trained marker model path |
+| `MARKER_MODEL_MAX_DESCRIPTORS` | `65000` | Max descriptors loaded from the ORB model for runtime speed |
 | `MARKER_MIN_GOOD_MATCHES` | `18` | ORB match threshold for marker candidate |
 | `MARKER_CONFIRMATION_FRAMES` | `2` | Consecutive detections needed before publishing marker target |
 | `MARKER_CONFIRMATION_RADIUS_M` | `0.75` | Max map-frame distance between confirmation detections |

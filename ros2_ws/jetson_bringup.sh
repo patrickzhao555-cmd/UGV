@@ -24,6 +24,8 @@ LIDAR_BAUD="${LIDAR_BAUD:-115200}"
 MOTOR_BAUD="${MOTOR_BAUD:-115200}"
 MOTOR_RAW_COMMAND_SCALE_US="${MOTOR_RAW_COMMAND_SCALE_US:-900.0}"
 START_UWB="${START_UWB:-false}"
+START_LIDAR="${START_LIDAR:-true}"
+START_FUSION="${START_FUSION:-true}"
 START_MOTOR_CONTROLLER="${START_MOTOR_CONTROLLER:-true}"
 START_NAV="${START_NAV:-true}"
 START_DEBUG_STATUS="${START_DEBUG_STATUS:-true}"
@@ -32,6 +34,8 @@ START_BENCH_GOAL="${START_BENCH_GOAL:-false}"
 START_MOCK_FIELD_MAP="${START_MOCK_FIELD_MAP:-false}"
 START_MARKER_VISION_WAS_SET="${START_MARKER_VISION+x}"
 START_MARKER_VISION="${START_MARKER_VISION:-false}"
+MARKER_VISION_TEST="${MARKER_VISION_TEST:-false}"
+MARKER_VISION_TEST_PERIOD_S="${MARKER_VISION_TEST_PERIOD_S:-3.0}"
 ROUND_MODE="${ROUND_MODE:-manual}"
 COMPETITION_MODE="${COMPETITION_MODE:-false}"
 START_CORNER="${START_CORNER:-lower_left}"
@@ -75,6 +79,17 @@ if [[ "${BENCH_TEST}" == "true" ]]; then
   MOTOR_DRY_RUN=true
   START_DEBUG_STATUS=true
   START_BENCH_GOAL=true
+fi
+
+if [[ "${MARKER_VISION_TEST}" == "true" ]]; then
+  START_MARKER_VISION=true
+  START_NAV=false
+  START_MOTOR_CONTROLLER=false
+  START_DEBUG_STATUS=false
+  START_BENCH_GOAL=false
+  START_MOCK_FIELD_MAP=false
+  START_LIDAR=false
+  START_FUSION=false
 fi
 
 case "${ROUND_MODE}" in
@@ -133,12 +148,15 @@ export UGV_WS="${WORKSPACE_DIR}"
 
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   start_uwb:="${START_UWB}" \
+  start_lidar:="${START_LIDAR}" \
+  start_fusion:="${START_FUSION}" \
   start_motor_controller:="${START_MOTOR_CONTROLLER}" \
   start_nav:="${START_NAV}" \
   start_debug_status:="${START_DEBUG_STATUS}" \
   start_bench_goal:="${START_BENCH_GOAL}" \
   start_mock_field_map:="${START_MOCK_FIELD_MAP}" \
   start_marker_vision:="${START_MARKER_VISION}" \
+  start_marker_vision_test:="${MARKER_VISION_TEST}" \
   competition_mode:="${COMPETITION_MODE}" \
   mission_mode:="${ROUND_MODE}" \
   start_corner:="${START_CORNER}" \
@@ -158,6 +176,7 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   marker_enable_generic_detector:="${MARKER_ENABLE_GENERIC_DETECTOR}" \
   marker_generic_min_area_frac:="${MARKER_GENERIC_MIN_AREA_FRAC}" \
   marker_generic_min_contrast:="${MARKER_GENERIC_MIN_CONTRAST}" \
+  marker_vision_test_period_s:="${MARKER_VISION_TEST_PERIOD_S}" \
   lidar_port:="${LIDAR_PORT}" \
   lidar_baud:="${LIDAR_BAUD}" \
   zed_publish_rate_hz:="${ZED_PUBLISH_RATE_HZ}" \

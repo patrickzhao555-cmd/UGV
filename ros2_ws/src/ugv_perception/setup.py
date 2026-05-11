@@ -31,6 +31,7 @@ setup(
         "console_scripts": [
             "obstacle_warning = ugv_perception.obstacle_warning:main",
             "marker_vision_node = ugv_perception.marker_vision_node:main",
+            "test_marker_vision = ugv_perception.marker_vision_test_node:main",
             "train_marker_model = ugv_perception.marker_model_trainer:main",
             "zed_obj_distance = ugv_perception.zed_obj_distance:main",
         ],

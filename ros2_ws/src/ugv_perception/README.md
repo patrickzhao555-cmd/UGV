@@ -90,6 +90,26 @@ START_MARKER_VISION=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
+Standalone live CV test, with no motor/nav/LiDAR stack:
+
+```bash
+cd ~/ugv_project/ros2_ws
+MARKER_VISION_TEST=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+This starts ZED image/depth publishing, `marker_vision_node`, and a small
+terminal reporter. Expected output looks like:
+
+```text
+SEARCHING no marker yet frames=42 detections=0 last_reason=no_marker_candidate
+MARKER DETECTED method=generic_dark_light_marker frames=4/53 distance=1.82m bearing=-6.2deg center=(391,442)px
+```
+
+If it prints `not_published_reason=stale_pose_or_missing`, CV is still seeing
+the marker; it simply has no navigation pose because this standalone test does
+not run nav. That is fine for checking detection accuracy and depth distance.
+
 Topics:
 
 - subscribes to `/zed/image`, `/zed/depth`, and `/ugv_nav_status`
@@ -112,6 +132,8 @@ Useful launch environment variables:
 - `MARKER_ENABLE_GENERIC_DETECTOR`
 - `MARKER_GENERIC_MIN_AREA_FRAC`
 - `MARKER_GENERIC_MIN_CONTRAST`
+- `MARKER_VISION_TEST`
+- `MARKER_VISION_TEST_PERIOD_S`
 
 ## Kept vs removed
 

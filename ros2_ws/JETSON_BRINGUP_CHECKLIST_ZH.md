@@ -350,6 +350,19 @@ START_MARKER_VISION=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
+单独测试 live CV，不启动 motor/nav/LiDAR：
+
+```bash
+cd ~/ugv_project/ros2_ws
+MARKER_VISION_TEST=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+没有看到 marker 时，terminal 会每隔几秒打印 `SEARCHING ...`；看到 marker 后会打印
+`MARKER DETECTED ... distance=... bearing=...`。这个模式适合在正式 pathing 前快速检查
+CV 模型够不够准。如果看到 `not_published_reason=stale_pose_or_missing`，说明 CV 其实已经识别到了
+marker，只是 standalone test 没有启动 nav pose，所以不会发布 map-frame target，这是正常的。
+
 launch 会从 `UGV_WS/src/ugv_perception/...` 直接启动 marker vision，所以不会被
 underlay 里的旧 package shadow 掉。
 
@@ -600,6 +613,8 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 | `START_MOCK_FIELD_MAP` | `false` | 发布 mock 15x15 field map |
 | `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col |
 | `START_MARKER_VISION` | `false` | 启动 marker CV node，并自动发布 ZED image |
+| `MARKER_VISION_TEST` | `false` | 只测试 CV：启动 ZED image/depth、marker vision 和 terminal reporter，并关闭 motor/nav/LiDAR/fusion |
+| `MARKER_VISION_TEST_PERIOD_S` | `3.0` | CV test 打印 searching/health message 的周期 |
 | `MARKER_MODEL_PATH` | `src/ugv_perception/models/marker_orb_model.npz` | 训练好的 marker model 路径 |
 | `MARKER_MODEL_MAX_DESCRIPTORS` | `65000` | runtime 从 ORB model 中加载的最大描述子数量，用来保证速度 |
 | `MARKER_MIN_GOOD_MATCHES` | `18` | marker candidate 所需 ORB match 数 |

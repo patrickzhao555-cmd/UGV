@@ -8,6 +8,8 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     start_uwb = LaunchConfiguration('start_uwb')
+    start_lidar = LaunchConfiguration('start_lidar')
+    start_fusion = LaunchConfiguration('start_fusion')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
@@ -24,6 +26,16 @@ def generate_launch_description():
             'start_uwb',
             default_value='false',
             description='Launch the UWB serial bridge as part of the sensor sync stack.',
+        ),
+        DeclareLaunchArgument(
+            'start_lidar',
+            default_value='true',
+            description='Launch the lidar driver and lidar timestamp sync node.',
+        ),
+        DeclareLaunchArgument(
+            'start_fusion',
+            default_value='true',
+            description='Launch the fused sensor frame node.',
         ),
         DeclareLaunchArgument(
             'lidar_port',
@@ -81,6 +93,7 @@ def generate_launch_description():
             executable='sllidar_node',
             name='sllidar_node',
             output='screen',
+            condition=IfCondition(start_lidar),
             parameters=[{
                 'serial_port': ParameterValue(lidar_port, value_type=str),
                 'serial_baudrate': ParameterValue(lidar_baud, value_type=int),
@@ -109,6 +122,7 @@ def generate_launch_description():
                 executable='lidar_sync_node',
                 name='lidar_sync_node',
                 output='screen',
+                condition=IfCondition(start_lidar),
                 parameters=[{
                     'scan_freq_hz': ParameterValue(lidar_scan_freq_hz, value_type=float),
                 }],
@@ -134,6 +148,7 @@ def generate_launch_description():
                 executable='fusion_node',
                 name='fusion_node',
                 output='screen',
+                condition=IfCondition(start_fusion),
                 parameters=[{
                     'zed_fresh_timeout_s': ParameterValue(fusion_zed_fresh_timeout_s, value_type=float),
                     'depth_invalid_warn_frames': ParameterValue(fusion_depth_invalid_warn_frames, value_type=int),

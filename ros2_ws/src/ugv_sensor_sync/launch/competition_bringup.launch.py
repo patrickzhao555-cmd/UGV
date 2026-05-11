@@ -37,8 +37,13 @@ def generate_launch_description():
     marker_vision_script = str(
         workspace_root / 'src' / 'ugv_perception' / 'ugv_perception' / 'marker_vision_node.py'
     )
+    marker_vision_test_script = str(
+        workspace_root / 'src' / 'ugv_perception' / 'ugv_perception' / 'marker_vision_test_node.py'
+    )
 
     start_uwb = LaunchConfiguration('start_uwb')
+    start_lidar = LaunchConfiguration('start_lidar')
+    start_fusion = LaunchConfiguration('start_fusion')
     start_motor_controller = LaunchConfiguration('start_motor_controller')
     start_nav = LaunchConfiguration('start_nav')
     start_debug_status = LaunchConfiguration('start_debug_status')
@@ -56,6 +61,7 @@ def generate_launch_description():
     mock_marker_cell = LaunchConfiguration('mock_marker_cell')
     mock_obstacles_json = LaunchConfiguration('mock_obstacles_json')
     start_marker_vision = LaunchConfiguration('start_marker_vision')
+    start_marker_vision_test = LaunchConfiguration('start_marker_vision_test')
     marker_model_path = LaunchConfiguration('marker_model_path')
     marker_model_max_descriptors = LaunchConfiguration('marker_model_max_descriptors')
     marker_min_good_matches = LaunchConfiguration('marker_min_good_matches')
@@ -64,6 +70,7 @@ def generate_launch_description():
     marker_enable_generic_detector = LaunchConfiguration('marker_enable_generic_detector')
     marker_generic_min_area_frac = LaunchConfiguration('marker_generic_min_area_frac')
     marker_generic_min_contrast = LaunchConfiguration('marker_generic_min_contrast')
+    marker_vision_test_period_s = LaunchConfiguration('marker_vision_test_period_s')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
@@ -99,6 +106,8 @@ def generate_launch_description():
         ),
         launch_arguments={
             'start_uwb': start_uwb,
+            'start_lidar': start_lidar,
+            'start_fusion': start_fusion,
             'lidar_port': lidar_port,
             'lidar_baud': lidar_baud,
             'lidar_scan_freq_hz': lidar_scan_freq_hz,
@@ -198,14 +207,29 @@ def generate_launch_description():
         condition=IfCondition(start_marker_vision),
     )
 
+    marker_vision_test_process = ExecuteProcess(
+        cmd=[
+            FindExecutable(name='python3'),
+            marker_vision_test_script,
+            '--ros-args',
+            '-p',
+            ros_param_arg('searching_period_s', marker_vision_test_period_s),
+        ],
+        output='screen',
+        condition=IfCondition(start_marker_vision_test),
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('start_uwb', default_value='false'),
+        DeclareLaunchArgument('start_lidar', default_value='true'),
+        DeclareLaunchArgument('start_fusion', default_value='true'),
         DeclareLaunchArgument('start_motor_controller', default_value='true'),
         DeclareLaunchArgument('start_nav', default_value='true'),
         DeclareLaunchArgument('start_debug_status', default_value='true'),
         DeclareLaunchArgument('start_bench_goal', default_value='false'),
         DeclareLaunchArgument('start_mock_field_map', default_value='false'),
         DeclareLaunchArgument('start_marker_vision', default_value='false'),
+        DeclareLaunchArgument('start_marker_vision_test', default_value='false'),
         DeclareLaunchArgument('competition_mode', default_value='false'),
         DeclareLaunchArgument('mission_mode', default_value='manual'),
         DeclareLaunchArgument('start_corner', default_value='lower_left'),
@@ -228,6 +252,7 @@ def generate_launch_description():
         DeclareLaunchArgument('marker_enable_generic_detector', default_value='true'),
         DeclareLaunchArgument('marker_generic_min_area_frac', default_value='0.002'),
         DeclareLaunchArgument('marker_generic_min_contrast', default_value='55.0'),
+        DeclareLaunchArgument('marker_vision_test_period_s', default_value='3.0'),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('lidar_baud', default_value='115200'),
         DeclareLaunchArgument('lidar_scan_freq_hz', default_value='10.0'),
@@ -279,6 +304,7 @@ def generate_launch_description():
             }],
         ),
         marker_vision_process,
+        marker_vision_test_process,
         Node(
             package='ugv_sensor_sync',
             executable='debug_status_node',

@@ -362,6 +362,20 @@ START_MARKER_VISION=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
+Standalone live CV test, with no motor/nav/LiDAR stack:
+
+```bash
+cd ~/ugv_project/ros2_ws
+MARKER_VISION_TEST=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+The terminal should print `SEARCHING ...` every few seconds while no marker is
+detected, then `MARKER DETECTED ... distance=... bearing=...` once the marker is
+visible. This mode is meant for quick model accuracy checks before running
+pathing. If it prints `not_published_reason=stale_pose_or_missing`, the CV
+detection is still working; standalone test mode simply does not run nav pose.
+
 The launch starts marker vision from `UGV_WS/src/ugv_perception/...`, so an
 older underlay package cannot shadow it.
 
@@ -622,6 +636,8 @@ Environment variables for `jetson_bringup.sh`:
 | `START_MOCK_FIELD_MAP` | `false` | Publish mock 15x15 field map |
 | `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col |
 | `START_MARKER_VISION` | `false` | Start marker CV node and publish ZED image frames |
+| `MARKER_VISION_TEST` | `false` | CV-only live test: starts ZED image/depth, marker vision, and terminal reporter; disables motor/nav/LiDAR/fusion |
+| `MARKER_VISION_TEST_PERIOD_S` | `3.0` | How often the CV test prints searching/health messages |
 | `MARKER_MODEL_PATH` | `src/ugv_perception/models/marker_orb_model.npz` | Trained marker model path |
 | `MARKER_MODEL_MAX_DESCRIPTORS` | `65000` | Max descriptors loaded from the ORB model for runtime speed |
 | `MARKER_MIN_GOOD_MATCHES` | `18` | ORB match threshold for marker candidate |

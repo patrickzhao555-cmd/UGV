@@ -159,6 +159,19 @@ START_MARKER_VISION=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
+Standalone live CV test, no motor/nav movement:
+
+```bash
+cd ~/ugv_project/ros2_ws
+MARKER_VISION_TEST=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+The tester prints `SEARCHING ...` every few seconds when no marker is visible
+and `MARKER DETECTED ... distance=... bearing=...` when the CV node sees the
+marker. This is the fastest way to bench-check whether the current model and
+generic dark/light detector are good enough before running pathing.
+
 The bring-up launch starts marker vision from this workspace's source path, so
 it is not affected by older `ugv_perception` executables in `~/ugv_ws_albert`.
 

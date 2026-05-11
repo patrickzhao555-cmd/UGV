@@ -8,6 +8,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     start_uwb = LaunchConfiguration('start_uwb')
+    start_zed = LaunchConfiguration('start_zed')
     start_lidar = LaunchConfiguration('start_lidar')
     start_fusion = LaunchConfiguration('start_fusion')
     lidar_port = LaunchConfiguration('lidar_port')
@@ -17,6 +18,7 @@ def generate_launch_description():
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
     zed_publish_image = LaunchConfiguration('zed_publish_image')
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
+    fusion_allow_lidar_only = LaunchConfiguration('fusion_allow_lidar_only')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
     fusion_imu_smoothing_alpha = LaunchConfiguration('fusion_imu_smoothing_alpha')
@@ -26,6 +28,11 @@ def generate_launch_description():
             'start_uwb',
             default_value='false',
             description='Launch the UWB serial bridge as part of the sensor sync stack.',
+        ),
+        DeclareLaunchArgument(
+            'start_zed',
+            default_value='true',
+            description='Launch the ZED depth/IMU sync node.',
         ),
         DeclareLaunchArgument(
             'start_lidar',
@@ -73,6 +80,11 @@ def generate_launch_description():
             description='Maximum receive age allowed when fusion falls back to the freshest ZED frame.',
         ),
         DeclareLaunchArgument(
+            'fusion_allow_lidar_only',
+            default_value='true',
+            description='Allow nav-frame fusion from LiDAR and encoders when no complete ZED frame is available.',
+        ),
+        DeclareLaunchArgument(
             'fusion_depth_invalid_warn_frames',
             default_value='2',
             description='Number of consecutive invalid ZED depth ROIs before fusion marks the forward view unsafe.',
@@ -109,6 +121,7 @@ def generate_launch_description():
             executable='zed_sync_node',
             name='zed_sync_node',
             output='screen',
+            condition=IfCondition(start_zed),
             parameters=[{
                 'publish_rate_hz': ParameterValue(zed_publish_rate_hz, value_type=float),
                 'depth_downsample_factor': ParameterValue(zed_depth_downsample_factor, value_type=int),
@@ -151,6 +164,7 @@ def generate_launch_description():
                 condition=IfCondition(start_fusion),
                 parameters=[{
                     'zed_fresh_timeout_s': ParameterValue(fusion_zed_fresh_timeout_s, value_type=float),
+                    'allow_lidar_only_fallback': ParameterValue(fusion_allow_lidar_only, value_type=bool),
                     'depth_invalid_warn_frames': ParameterValue(fusion_depth_invalid_warn_frames, value_type=int),
                     'lidar_front_fov_deg': ParameterValue(fusion_lidar_front_fov_deg, value_type=float),
                     'imu_smoothing_alpha': ParameterValue(fusion_imu_smoothing_alpha, value_type=float),

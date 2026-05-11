@@ -42,6 +42,7 @@ def generate_launch_description():
     )
 
     start_uwb = LaunchConfiguration('start_uwb')
+    start_zed = LaunchConfiguration('start_zed')
     start_lidar = LaunchConfiguration('start_lidar')
     start_fusion = LaunchConfiguration('start_fusion')
     start_motor_controller = LaunchConfiguration('start_motor_controller')
@@ -83,6 +84,7 @@ def generate_launch_description():
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
     zed_publish_image = LaunchConfiguration('zed_publish_image')
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
+    fusion_allow_lidar_only = LaunchConfiguration('fusion_allow_lidar_only')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
     fusion_imu_smoothing_alpha = LaunchConfiguration('fusion_imu_smoothing_alpha')
@@ -112,6 +114,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             'start_uwb': start_uwb,
+            'start_zed': start_zed,
             'start_lidar': start_lidar,
             'start_fusion': start_fusion,
             'lidar_port': lidar_port,
@@ -121,6 +124,7 @@ def generate_launch_description():
             'zed_depth_downsample_factor': zed_depth_downsample_factor,
             'zed_publish_image': zed_publish_image,
             'fusion_zed_fresh_timeout_s': fusion_zed_fresh_timeout_s,
+            'fusion_allow_lidar_only': fusion_allow_lidar_only,
             'fusion_depth_invalid_warn_frames': fusion_depth_invalid_warn_frames,
             'fusion_lidar_front_fov_deg': fusion_lidar_front_fov_deg,
             'fusion_imu_smoothing_alpha': fusion_imu_smoothing_alpha,
@@ -239,6 +243,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('start_uwb', default_value='false'),
+        DeclareLaunchArgument('start_zed', default_value='true'),
         DeclareLaunchArgument('start_lidar', default_value='true'),
         DeclareLaunchArgument('start_fusion', default_value='true'),
         DeclareLaunchArgument('start_motor_controller', default_value='true'),
@@ -283,6 +288,7 @@ def generate_launch_description():
         DeclareLaunchArgument('zed_depth_downsample_factor', default_value='2'),
         DeclareLaunchArgument('zed_publish_image', default_value='false'),
         DeclareLaunchArgument('fusion_zed_fresh_timeout_s', default_value='0.75'),
+        DeclareLaunchArgument('fusion_allow_lidar_only', default_value='true'),
         DeclareLaunchArgument('fusion_depth_invalid_warn_frames', default_value='2'),
         DeclareLaunchArgument('fusion_lidar_front_fov_deg', default_value='70.0'),
         DeclareLaunchArgument('fusion_imu_smoothing_alpha', default_value='0.25'),

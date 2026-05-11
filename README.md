@@ -307,6 +307,18 @@ IMU_YAW_SIGN=1.0
 IMU_YAW_BLEND=0.25
 ```
 
+If ZED is temporarily failing to open but LiDAR and encoders are healthy, the
+fusion node can still publish nav frames from LiDAR + encoder data. This is
+enabled by default through `FUSION_ALLOW_LIDAR_ONLY=true`. For a chassis/pathing
+dry run without ZED or marker vision:
+
+```bash
+ROUND_MODE=round3 UGV_START_X_M=0.46 UGV_START_Y_M=0.46 \
+MOTOR_PORT=/dev/ttyACM0 LIDAR_PORT=/dev/ttyUSB0 \
+START_ZED=false START_MARKER_VISION=false MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
 IMU yaw fusion is available but disabled by default until the ZED IMU axis and
 sign are confirmed on the physical robot. Encoder odometry remains the default
 pose source; enabling `USE_IMU_YAW=true` blends gyro yaw rate into the tank-drive

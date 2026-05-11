@@ -43,6 +43,7 @@ class FusionNode(Node):
         self.declare_parameter('zed_frame_buffer_duration_s', 2.0)
         self.declare_parameter('sync_slop_s', DEFAULT_SLOP_S)
         self.declare_parameter('zed_fresh_timeout_s', 0.75)
+        self.declare_parameter('allow_lidar_only_fallback', True)
         self.declare_parameter('depth_warning_threshold_m', 0.30)
         self.declare_parameter('depth_min_valid_m', 0.05)
         self.declare_parameter('depth_max_valid_m', 10.0)
@@ -79,6 +80,7 @@ class FusionNode(Node):
         self.zed_frame_buffer_duration_s = float(self.get_parameter('zed_frame_buffer_duration_s').value)
         self.sync_slop_s = float(self.get_parameter('sync_slop_s').value)
         self.zed_fresh_timeout_s = float(self.get_parameter('zed_fresh_timeout_s').value)
+        self.allow_lidar_only_fallback = bool(self.get_parameter('allow_lidar_only_fallback').value)
 
         self.depth_warning_threshold_m = float(self.get_parameter('depth_warning_threshold_m').value)
         self.depth_min_valid_m = float(self.get_parameter('depth_min_valid_m').value)
@@ -169,6 +171,18 @@ class FusionNode(Node):
     def scan_callback(self, scan_msg: LaserScan) -> None:
         zed_selection = self._select_zed_frame_for_scan(scan_msg.header)
         if zed_selection is None:
+            if not self.allow_lidar_only_fallback:
+                return
+            self._warn_zed_gap('using LiDAR-only fusion fallback because no complete ZED frame is available')
+            self.fused_callback(
+                scan_msg,
+                self._empty_image_like(scan_msg.header),
+                self._empty_depth_like(scan_msg.header),
+                self._empty_imu_like(scan_msg.header),
+                zed_stamp_age_s=float('inf'),
+                zed_receive_age_s=float('inf'),
+                zed_available=False,
+            )
             return
         zed_frame, zed_stamp_age_s, zed_receive_age_s = zed_selection
         image_msg = zed_frame.get('image')
@@ -181,6 +195,7 @@ class FusionNode(Node):
             zed_frame['imu'],
             zed_stamp_age_s=zed_stamp_age_s,
             zed_receive_age_s=zed_receive_age_s,
+            zed_available=True,
         )
 
     def fused_callback(
@@ -191,6 +206,7 @@ class FusionNode(Node):
         imu_msg: Imu,
         zed_stamp_age_s: float = 0.0,
         zed_receive_age_s: float = 0.0,
+        zed_available: bool = True,
     ) -> None:
         frame_stamp_s = self._header_stamp_to_seconds(scan_msg.header)
         frame_age_s = max(0.0, self._clock_now_seconds() - frame_stamp_s)
@@ -202,13 +218,21 @@ class FusionNode(Node):
 
         lidar_min_range_m = self._compute_lidar_min_range(scan_msg)
         front_lidar_range_m = self._compute_front_lidar_min_range(scan_msg)
-        depth_min_range_m, depth_warning, valid_depth_samples = self._compute_depth_stats(depth_msg)
-        if valid_depth_samples > 0:
-            self.depth_invalid_streak = 0
+        if zed_available:
+            depth_min_range_m, depth_warning, valid_depth_samples = self._compute_depth_stats(depth_msg)
+            if valid_depth_samples > 0:
+                self.depth_invalid_streak = 0
+            else:
+                self.depth_invalid_streak += 1
+            depth_blind_hazard = self.depth_invalid_streak >= self.depth_invalid_warn_frames
+            zed_obstacle_points = self._build_depth_obstacle_pose_array(depth_msg)
         else:
-            self.depth_invalid_streak += 1
-        depth_blind_hazard = self.depth_invalid_streak >= self.depth_invalid_warn_frames
-        zed_obstacle_points = self._build_depth_obstacle_pose_array(depth_msg)
+            depth_min_range_m = float('inf')
+            depth_warning = False
+            valid_depth_samples = 0
+            self.depth_invalid_streak = 0
+            depth_blind_hazard = False
+            zed_obstacle_points = self._empty_obstacle_pose_array(scan_msg.header)
         front_clearance_m = min(front_lidar_range_m, depth_min_range_m)
         near_obstacle = depth_blind_hazard or (
             math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
@@ -256,6 +280,7 @@ class FusionNode(Node):
         summary = {
             'stamp_sec': self._stamp_to_seconds(scan_msg),
             'frame_age_s': round(frame_age_s, 3),
+            'zed_available': bool(zed_available),
             'zed_stamp_age_s': self._finite_or_none(zed_stamp_age_s),
             'zed_receive_age_s': self._finite_or_none(zed_receive_age_s),
             'scan_frame': scan_msg.header.frame_id,
@@ -567,6 +592,30 @@ class FusionNode(Node):
         msg.step = 0
         msg.data = b''
         return msg
+
+    @staticmethod
+    def _empty_depth_like(header) -> Image:
+        msg = Image()
+        msg.header = header
+        msg.height = 0
+        msg.width = 0
+        msg.encoding = '32FC1'
+        msg.is_bigendian = 0
+        msg.step = 0
+        msg.data = b''
+        return msg
+
+    @staticmethod
+    def _empty_imu_like(header) -> Imu:
+        msg = Imu()
+        msg.header = header
+        return msg
+
+    def _empty_obstacle_pose_array(self, header) -> PoseArray:
+        pose_array = PoseArray()
+        pose_array.header = header
+        pose_array.header.frame_id = self.obstacle_points_frame_id or header.frame_id
+        return pose_array
 
     @staticmethod
     def _stamp_to_seconds(msg: LaserScan) -> float:

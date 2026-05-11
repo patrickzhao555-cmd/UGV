@@ -24,6 +24,7 @@ LIDAR_BAUD="${LIDAR_BAUD:-115200}"
 MOTOR_BAUD="${MOTOR_BAUD:-115200}"
 MOTOR_RAW_COMMAND_SCALE_US="${MOTOR_RAW_COMMAND_SCALE_US:-900.0}"
 START_UWB="${START_UWB:-false}"
+START_ZED="${START_ZED:-true}"
 START_LIDAR="${START_LIDAR:-true}"
 START_FUSION="${START_FUSION:-true}"
 START_MOTOR_CONTROLLER="${START_MOTOR_CONTROLLER:-true}"
@@ -56,6 +57,7 @@ ZED_PUBLISH_RATE_HZ="${ZED_PUBLISH_RATE_HZ:-10.0}"
 ZED_DEPTH_DOWNSAMPLE_FACTOR="${ZED_DEPTH_DOWNSAMPLE_FACTOR:-2}"
 ZED_PUBLISH_IMAGE="${ZED_PUBLISH_IMAGE:-false}"
 FUSION_ZED_FRESH_TIMEOUT_S="${FUSION_ZED_FRESH_TIMEOUT_S:-0.75}"
+FUSION_ALLOW_LIDAR_ONLY="${FUSION_ALLOW_LIDAR_ONLY:-true}"
 FUSION_DEPTH_INVALID_WARN_FRAMES="${FUSION_DEPTH_INVALID_WARN_FRAMES:-2}"
 FUSION_LIDAR_FRONT_FOV_DEG="${FUSION_LIDAR_FRONT_FOV_DEG:-70.0}"
 FUSION_IMU_SMOOTHING_ALPHA="${FUSION_IMU_SMOOTHING_ALPHA:-0.25}"
@@ -154,6 +156,7 @@ export UGV_WS="${WORKSPACE_DIR}"
 
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   start_uwb:="${START_UWB}" \
+  start_zed:="${START_ZED}" \
   start_lidar:="${START_LIDAR}" \
   start_fusion:="${START_FUSION}" \
   start_motor_controller:="${START_MOTOR_CONTROLLER}" \
@@ -194,6 +197,7 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   zed_depth_downsample_factor:="${ZED_DEPTH_DOWNSAMPLE_FACTOR}" \
   zed_publish_image:="${ZED_PUBLISH_IMAGE}" \
   fusion_zed_fresh_timeout_s:="${FUSION_ZED_FRESH_TIMEOUT_S}" \
+  fusion_allow_lidar_only:="${FUSION_ALLOW_LIDAR_ONLY}" \
   fusion_depth_invalid_warn_frames:="${FUSION_DEPTH_INVALID_WARN_FRAMES}" \
   fusion_lidar_front_fov_deg:="${FUSION_LIDAR_FRONT_FOV_DEG}" \
   fusion_imu_smoothing_alpha:="${FUSION_IMU_SMOOTHING_ALPHA}" \

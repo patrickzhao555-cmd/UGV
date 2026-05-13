@@ -29,6 +29,11 @@ It publishes two main outputs:
 - `/sensors/nav_frame`
   - stable pathing contract that navigation should use; includes scan, smoothed IMU, depth obstacle points, encoder ticks, and front clearance
 
+Fusion can also merge optional semantic obstacle points from
+`/sensors/yolo_semantic_obstacle_points` into the existing obstacle point stream.
+Those points are advisory map inflation; LiDAR and ZED depth remain the hard
+collision-safety sources.
+
 Rule of thumb:
 
 - if you add a new sensor and it only helps perception or debugging, keep the change inside the adapter node and `fusion_node`
@@ -67,6 +72,11 @@ and publishes:
 
 Navigation already treats `/ugv/marker_detection` as the highest-priority target
 source and publishes `/ugv/uav_flag` for the UAV handoff.
+
+`ugv_perception/yolo_semantic_obstacle_node.py` is another optional perception
+node. It starts with `START_YOLO_OBSTACLES=true`, reads `/zed/image` and
+`/zed/depth`, and publishes `/sensors/yolo_semantic_obstacle_points` for
+chair/table/person-style obstacle inflation.
 
 ## 5. Actuation layer
 

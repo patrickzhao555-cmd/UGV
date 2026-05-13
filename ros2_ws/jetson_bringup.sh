@@ -37,6 +37,7 @@ START_MARKER_VISION_WAS_SET="${START_MARKER_VISION+x}"
 START_MARKER_VISION="${START_MARKER_VISION:-true}"
 MARKER_VISION_TEST="${MARKER_VISION_TEST:-false}"
 MARKER_VISION_TEST_PERIOD_S="${MARKER_VISION_TEST_PERIOD_S:-3.0}"
+START_YOLO_OBSTACLES="${START_YOLO_OBSTACLES:-false}"
 ROUND_MODE="${ROUND_MODE:-manual}"
 COMPETITION_MODE="${COMPETITION_MODE:-false}"
 START_CORNER="${START_CORNER:-lower_left}"
@@ -72,7 +73,7 @@ ROBOT_WIDTH_M="${ROBOT_WIDTH_M:-0.762}"
 ROBOT_TRACK_WIDTH_M="${ROBOT_TRACK_WIDTH_M:-0.6096}"
 LIDAR_OFFSET_X_M="${LIDAR_OFFSET_X_M:-0.30}"
 LIDAR_OFFSET_Y_M="${LIDAR_OFFSET_Y_M:-0.0}"
-LIDAR_USED_FOV_DEG="${LIDAR_USED_FOV_DEG:-250.0}"
+LIDAR_USED_FOV_DEG="${LIDAR_USED_FOV_DEG:-180.0}"
 NAV_ALLOW_REVERSE="${NAV_ALLOW_REVERSE:-false}"
 NAV_FRONT_SAFETY_MARGIN_M="${NAV_FRONT_SAFETY_MARGIN_M:-0.10}"
 NAV_REAR_SAFETY_MARGIN_M="${NAV_REAR_SAFETY_MARGIN_M:-0.08}"
@@ -90,6 +91,12 @@ MARKER_GENERIC_MIN_AREA_FRAC="${MARKER_GENERIC_MIN_AREA_FRAC:-0.002}"
 MARKER_GENERIC_MIN_CONTRAST="${MARKER_GENERIC_MIN_CONTRAST:-55.0}"
 MARKER_GENERIC_MIN_GRID_SCORE="${MARKER_GENERIC_MIN_GRID_SCORE:-0.18}"
 MARKER_GENERIC_MIN_BORDER_LIGHT_RATIO="${MARKER_GENERIC_MIN_BORDER_LIGHT_RATIO:-0.12}"
+YOLO_MODEL_PATH="${YOLO_MODEL_PATH:-yolov8n.pt}"
+YOLO_DEVICE="${YOLO_DEVICE:-}"
+YOLO_IMGSZ="${YOLO_IMGSZ:-416}"
+YOLO_CONFIDENCE="${YOLO_CONFIDENCE:-0.35}"
+YOLO_MAX_HZ="${YOLO_MAX_HZ:-2.0}"
+YOLO_OBSTACLE_CLASSES="${YOLO_OBSTACLE_CLASSES:-person,chair,couch,dining table,bench,potted plant,backpack,suitcase}"
 EXTRA_SETUP_BASH="${EXTRA_SETUP_BASH:-}"
 MOTOR_DRY_RUN="${MOTOR_DRY_RUN:-false}"
 MOTOR_PWM_SLEW_RATE_US_PER_S="${MOTOR_PWM_SLEW_RATE_US_PER_S:-2400.0}"
@@ -114,6 +121,7 @@ if [[ "${MARKER_VISION_TEST}" == "true" ]]; then
   START_MOCK_FIELD_MAP=false
   START_LIDAR=false
   START_FUSION=false
+  START_YOLO_OBSTACLES=false
 fi
 
 case "${ROUND_MODE}" in
@@ -155,7 +163,7 @@ if [[ -z "${START_MARKER_VISION_WAS_SET}" && "${ROUND_MODE}" =~ ^round[123]$ ]];
   START_MARKER_VISION=true
 fi
 
-if [[ "${START_MARKER_VISION}" == "true" ]]; then
+if [[ "${START_MARKER_VISION}" == "true" || "${START_YOLO_OBSTACLES}" == "true" ]]; then
   ZED_PUBLISH_IMAGE=true
 fi
 
@@ -194,6 +202,7 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   start_mock_field_map:="${START_MOCK_FIELD_MAP}" \
   start_marker_vision:="${START_MARKER_VISION}" \
   start_marker_vision_test:="${MARKER_VISION_TEST}" \
+  start_yolo_obstacles:="${START_YOLO_OBSTACLES}" \
   competition_mode:="${COMPETITION_MODE}" \
   mission_mode:="${ROUND_MODE}" \
   start_corner:="${START_CORNER}" \
@@ -225,6 +234,12 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   marker_generic_min_grid_score:="${MARKER_GENERIC_MIN_GRID_SCORE}" \
   marker_generic_min_border_light_ratio:="${MARKER_GENERIC_MIN_BORDER_LIGHT_RATIO}" \
   marker_vision_test_period_s:="${MARKER_VISION_TEST_PERIOD_S}" \
+  yolo_model_path:="${YOLO_MODEL_PATH}" \
+  yolo_device:="${YOLO_DEVICE}" \
+  yolo_imgsz:="${YOLO_IMGSZ}" \
+  yolo_confidence:="${YOLO_CONFIDENCE}" \
+  yolo_max_hz:="${YOLO_MAX_HZ}" \
+  yolo_obstacle_classes:="${YOLO_OBSTACLE_CLASSES}" \
   lidar_port:="${LIDAR_PORT}" \
   lidar_baud:="${LIDAR_BAUD}" \
   zed_publish_rate_hz:="${ZED_PUBLISH_RATE_HZ}" \

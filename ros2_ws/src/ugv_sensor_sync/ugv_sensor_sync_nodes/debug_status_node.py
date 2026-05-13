@@ -60,17 +60,25 @@ class DebugStatusNode(Node):
         nav = self._data(status, 'nav')
         mission = nav.get('mission', {}) if isinstance(nav, dict) else {}
         cmd = nav.get('cmd', {}) if isinstance(nav, dict) else {}
+        sectors = nav.get('sectors_m', {}) if isinstance(nav, dict) else {}
+        odom_delta = nav.get('odom_delta', {}) if isinstance(nav, dict) else {}
 
         self.get_logger().info(
             'debug '
             f"zed_valid={zed.get('valid_depth_samples')} "
             f"depth_p10={zed.get('depth_p10_m')} "
+            f"front_lidar={fusion.get('front_lidar_range_m')} "
+            f"depth_roi={fusion.get('min_depth_range_m')} "
             f"front_clearance={fusion.get('front_clearance_m')} "
+            f"clear_src={fusion.get('front_clearance_source')} "
+            f"semantic_pts={fusion.get('semantic_obstacle_points')} "
             f"encoder={fusion.get('encoder_available')} "
             f"motor_connected={motor.get('connected')} "
             f"phase={mission.get('phase')} "
             f"cmd={cmd.get('mode')} "
-            f"pose={nav.get('pose_m')}"
+            f"odom_warn={odom_delta.get('warning')} "
+            f"pose={nav.get('pose_m')} "
+            f"sectors={self._sector_text(sectors)}"
         )
 
     @staticmethod
@@ -80,6 +88,19 @@ class DebugStatusNode(Node):
             return {}
         data = item.get('data')
         return data if isinstance(data, dict) else {}
+
+    @staticmethod
+    def _sector_text(sectors: dict) -> str:
+        if not isinstance(sectors, dict) or not sectors:
+            return 'None'
+        return (
+            f"f={sectors.get('front')},"
+            f"fl={sectors.get('front_left')},"
+            f"fr={sectors.get('front_right')},"
+            f"l={sectors.get('left')},"
+            f"r={sectors.get('right')},"
+            f"rear={sectors.get('rear')}"
+        )
 
     def _now_s(self) -> float:
         return self.get_clock().now().nanoseconds / 1e9

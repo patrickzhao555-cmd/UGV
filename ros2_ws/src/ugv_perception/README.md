@@ -49,6 +49,34 @@ Run it with:
 ros2 run ugv_perception zed_obj_distance
 ```
 
+## YOLO Semantic Obstacle Assist
+
+`yolo_semantic_obstacles` is optional. It does not replace LiDAR or ZED depth
+clearance. It uses YOLO only to add semantic obstacle points for things like
+chairs, tables, people, benches, and bags so navigation can inflate those areas
+more conservatively.
+
+Install the optional Python dependency on the Jetson if you want to run it:
+
+```bash
+python3 -m pip install ultralytics
+```
+
+Run through the normal launcher:
+
+```bash
+START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt bash jetson_bringup.sh
+```
+
+Topics:
+
+- subscribes to `/zed/image` and `/zed/depth`
+- publishes semantic points to `/sensors/yolo_semantic_obstacle_points`
+- publishes JSON debug status on `/sensors/yolo_semantic_debug`
+
+Fusion merges these semantic points into the existing navigation obstacle point
+stream. If YOLO misses an object, LiDAR/ZED depth still provide the safety layer.
+
 ## Marker Vision Baseline
 
 This is a hybrid marker detector. It first looks for a generic high-contrast

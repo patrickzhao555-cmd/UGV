@@ -32,6 +32,8 @@ class FusionNode(Node):
         self.declare_parameter('nav_frame_topic', '/sensors/nav_frame')
         self.declare_parameter('obstacle_points_topic', '/sensors/zed_obstacle_points')
         self.declare_parameter('obstacle_points_frame_id', 'base_link')
+        self.declare_parameter('semantic_obstacle_points_topic', '/sensors/yolo_semantic_obstacle_points')
+        self.declare_parameter('semantic_obstacle_timeout_s', 0.75)
         self.declare_parameter('front_clearance_topic', '/sensors/front_clearance_m')
         self.declare_parameter('near_obstacle_topic', '/sensors/near_obstacle')
         self.declare_parameter('summary_topic', '/sensors/synced_summary')
@@ -69,6 +71,8 @@ class FusionNode(Node):
         nav_frame_topic = self.get_parameter('nav_frame_topic').value
         obstacle_points_topic = self.get_parameter('obstacle_points_topic').value
         self.obstacle_points_frame_id = self.get_parameter('obstacle_points_frame_id').value
+        semantic_obstacle_points_topic = self.get_parameter('semantic_obstacle_points_topic').value
+        self.semantic_obstacle_timeout_s = float(self.get_parameter('semantic_obstacle_timeout_s').value)
         front_clearance_topic = self.get_parameter('front_clearance_topic').value
         near_obstacle_topic = self.get_parameter('near_obstacle_topic').value
         summary_topic = self.get_parameter('summary_topic').value
@@ -106,6 +110,7 @@ class FusionNode(Node):
         self.latest_encoder_legacy: Optional[dict] = None
         self.zed_frame_history = deque()
         self.zed_frame_map = {}
+        self.latest_semantic_obstacles: Optional[dict] = None
         self.last_encoder_warning_s = 0.0
         self.last_frame_age_warning_s = 0.0
         self.last_zed_warning_s = 0.0
@@ -116,6 +121,13 @@ class FusionNode(Node):
         if self.use_legacy_encoder_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, qos_profile_sensor_data)
         self.create_subscription(LaserScan, scan_topic, self.scan_callback, qos_profile_sensor_data)
+        if semantic_obstacle_points_topic:
+            self.create_subscription(
+                PoseArray,
+                semantic_obstacle_points_topic,
+                self.semantic_obstacles_callback,
+                qos_profile_sensor_data,
+            )
         if self.subscribe_image_topic:
             self.create_subscription(Image, image_topic, self.image_callback, qos_profile_sensor_data)
         self.create_subscription(Image, depth_topic, self.depth_callback, qos_profile_sensor_data)
@@ -133,7 +145,8 @@ class FusionNode(Node):
             f'(scan={scan_topic}, image={"disabled" if not self.subscribe_image_topic else image_topic}, '
             f'depth={depth_topic}, imu={imu_topic}, '
             f'encoder_stamped={encoder_stamped_topic}, encoder_legacy={encoder_topic}, '
-            f'out={output_topic}, nav_frame={nav_frame_topic}, obstacle_points={obstacle_points_topic})'
+            f'out={output_topic}, nav_frame={nav_frame_topic}, obstacle_points={obstacle_points_topic}, '
+            f'semantic_obstacles={semantic_obstacle_points_topic or "disabled"})'
         )
 
     def encoder_stamped_callback(self, msg: EncoderTicksStamped) -> None:
@@ -168,6 +181,12 @@ class FusionNode(Node):
     def imu_callback(self, msg: Imu) -> None:
         frame = self._upsert_zed_frame(msg.header)
         frame['imu'] = msg
+
+    def semantic_obstacles_callback(self, msg: PoseArray) -> None:
+        self.latest_semantic_obstacles = {
+            'msg': msg,
+            'received_s': self._clock_now_seconds(),
+        }
 
     def scan_callback(self, scan_msg: LaserScan) -> None:
         zed_selection = self._select_zed_frame_for_scan(
@@ -237,7 +256,17 @@ class FusionNode(Node):
             self.depth_invalid_streak = 0
             depth_blind_hazard = False
             zed_obstacle_points = self._empty_obstacle_pose_array(scan_msg.header)
+        depth_obstacle_point_count = len(zed_obstacle_points.poses)
+        semantic_obstacle_points = self._select_semantic_obstacles(scan_msg.header)
+        semantic_obstacle_point_count = len(semantic_obstacle_points.poses)
+        if semantic_obstacle_point_count:
+            zed_obstacle_points = self._merge_pose_arrays(
+                zed_obstacle_points,
+                semantic_obstacle_points,
+                scan_msg.header,
+            )
         front_clearance_m = min(front_lidar_range_m, depth_min_range_m)
+        front_clearance_source = self._clearance_source(front_lidar_range_m, depth_min_range_m)
         near_obstacle = depth_blind_hazard or (
             math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
         )
@@ -293,6 +322,8 @@ class FusionNode(Node):
             'imu_frame': imu_msg.header.frame_id,
             'scan_points': len(scan_msg.ranges),
             'zed_obstacle_points': len(zed_obstacle_points.poses),
+            'depth_obstacle_points': depth_obstacle_point_count,
+            'semantic_obstacle_points': semantic_obstacle_point_count,
             'valid_depth_samples': valid_depth_samples,
             'depth_invalid_streak': self.depth_invalid_streak,
             'encoder_available': bool(bundle.encoder_available),
@@ -324,11 +355,29 @@ class FusionNode(Node):
             'front_lidar_range_m': self._finite_or_none(front_lidar_range_m),
             'min_depth_range_m': self._finite_or_none(depth_min_range_m),
             'front_clearance_m': self._finite_or_none(front_clearance_m),
+            'front_clearance_source': front_clearance_source,
             'depth_warning': bool(depth_warning),
             'depth_blind_hazard': bool(depth_blind_hazard),
             'near_obstacle': bool(near_obstacle),
         }
         self.summary_pub.publish(String(data=json.dumps(summary)))
+
+    def _select_semantic_obstacles(self, header) -> PoseArray:
+        if self.latest_semantic_obstacles is None:
+            return self._empty_obstacle_pose_array(header)
+        msg = self.latest_semantic_obstacles['msg']
+        receive_age_s = max(0.0, self._clock_now_seconds() - float(self.latest_semantic_obstacles['received_s']))
+        if receive_age_s > self.semantic_obstacle_timeout_s:
+            return self._empty_obstacle_pose_array(header)
+        return msg
+
+    def _merge_pose_arrays(self, primary: PoseArray, semantic: PoseArray, header) -> PoseArray:
+        merged = PoseArray()
+        merged.header.stamp = header.stamp
+        merged.header.frame_id = self.obstacle_points_frame_id or primary.header.frame_id or semantic.header.frame_id
+        merged.poses.extend(primary.poses)
+        merged.poses.extend(semantic.poses)
+        return merged
 
     def _smooth_imu(self, imu_msg: Imu) -> Imu:
         alpha = self.imu_smoothing_alpha
@@ -471,6 +520,20 @@ class FusionNode(Node):
     def _compute_lidar_min_range(self, scan_msg: LaserScan) -> float:
         valid = [r for r in scan_msg.ranges if scan_msg.range_min < r < scan_msg.range_max]
         return min(valid) if valid else float('inf')
+
+    @staticmethod
+    def _clearance_source(front_lidar_range_m: float, depth_min_range_m: float) -> str:
+        lidar_ok = math.isfinite(front_lidar_range_m)
+        depth_ok = math.isfinite(depth_min_range_m)
+        if lidar_ok and depth_ok:
+            if abs(front_lidar_range_m - depth_min_range_m) < 0.03:
+                return 'lidar+zed'
+            return 'lidar' if front_lidar_range_m < depth_min_range_m else 'zed'
+        if lidar_ok:
+            return 'lidar'
+        if depth_ok:
+            return 'zed'
+        return 'none'
 
     def _compute_front_lidar_min_range(self, scan_msg: LaserScan) -> float:
         valid = []

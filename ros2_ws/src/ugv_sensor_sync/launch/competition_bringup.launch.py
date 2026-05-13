@@ -40,6 +40,9 @@ def generate_launch_description():
     marker_vision_test_script = str(
         workspace_root / 'src' / 'ugv_perception' / 'ugv_perception' / 'marker_vision_test_node.py'
     )
+    yolo_semantic_obstacle_script = str(
+        workspace_root / 'src' / 'ugv_perception' / 'ugv_perception' / 'yolo_semantic_obstacle_node.py'
+    )
 
     start_uwb = LaunchConfiguration('start_uwb')
     start_zed = LaunchConfiguration('start_zed')
@@ -69,6 +72,7 @@ def generate_launch_description():
     target_topic = LaunchConfiguration('target_topic')
     start_marker_vision = LaunchConfiguration('start_marker_vision')
     start_marker_vision_test = LaunchConfiguration('start_marker_vision_test')
+    start_yolo_obstacles = LaunchConfiguration('start_yolo_obstacles')
     marker_model_path = LaunchConfiguration('marker_model_path')
     marker_model_max_descriptors = LaunchConfiguration('marker_model_max_descriptors')
     marker_min_good_matches = LaunchConfiguration('marker_min_good_matches')
@@ -83,6 +87,12 @@ def generate_launch_description():
     marker_generic_min_grid_score = LaunchConfiguration('marker_generic_min_grid_score')
     marker_generic_min_border_light_ratio = LaunchConfiguration('marker_generic_min_border_light_ratio')
     marker_vision_test_period_s = LaunchConfiguration('marker_vision_test_period_s')
+    yolo_model_path = LaunchConfiguration('yolo_model_path')
+    yolo_device = LaunchConfiguration('yolo_device')
+    yolo_imgsz = LaunchConfiguration('yolo_imgsz')
+    yolo_confidence = LaunchConfiguration('yolo_confidence')
+    yolo_max_hz = LaunchConfiguration('yolo_max_hz')
+    yolo_obstacle_classes = LaunchConfiguration('yolo_obstacle_classes')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
@@ -289,6 +299,28 @@ def generate_launch_description():
         condition=IfCondition(start_marker_vision_test),
     )
 
+    yolo_semantic_obstacle_process = ExecuteProcess(
+        cmd=[
+            FindExecutable(name='python3'),
+            yolo_semantic_obstacle_script,
+            '--ros-args',
+            '-p',
+            ros_param_arg('model_path', yolo_model_path),
+            '-p',
+            ros_param_arg('device', yolo_device),
+            '-p',
+            ros_param_arg('imgsz', yolo_imgsz),
+            '-p',
+            ros_param_arg('confidence', yolo_confidence),
+            '-p',
+            ros_param_arg('max_hz', yolo_max_hz),
+            '-p',
+            ros_param_arg('obstacle_classes', yolo_obstacle_classes),
+        ],
+        output='screen',
+        condition=IfCondition(start_yolo_obstacles),
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('start_uwb', default_value='false'),
         DeclareLaunchArgument('start_zed', default_value='true'),
@@ -301,6 +333,7 @@ def generate_launch_description():
         DeclareLaunchArgument('start_mock_field_map', default_value='false'),
         DeclareLaunchArgument('start_marker_vision', default_value='true'),
         DeclareLaunchArgument('start_marker_vision_test', default_value='false'),
+        DeclareLaunchArgument('start_yolo_obstacles', default_value='false'),
         DeclareLaunchArgument('competition_mode', default_value='false'),
         DeclareLaunchArgument('mission_mode', default_value='manual'),
         DeclareLaunchArgument('start_corner', default_value='lower_left'),
@@ -335,6 +368,12 @@ def generate_launch_description():
         DeclareLaunchArgument('marker_generic_min_grid_score', default_value='0.18'),
         DeclareLaunchArgument('marker_generic_min_border_light_ratio', default_value='0.12'),
         DeclareLaunchArgument('marker_vision_test_period_s', default_value='3.0'),
+        DeclareLaunchArgument('yolo_model_path', default_value='yolov8n.pt'),
+        DeclareLaunchArgument('yolo_device', default_value=''),
+        DeclareLaunchArgument('yolo_imgsz', default_value='416'),
+        DeclareLaunchArgument('yolo_confidence', default_value='0.35'),
+        DeclareLaunchArgument('yolo_max_hz', default_value='2.0'),
+        DeclareLaunchArgument('yolo_obstacle_classes', default_value='person,chair,couch,dining table,bench,potted plant,backpack,suitcase'),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('lidar_baud', default_value='115200'),
         DeclareLaunchArgument('lidar_scan_freq_hz', default_value='10.0'),
@@ -356,7 +395,7 @@ def generate_launch_description():
         DeclareLaunchArgument('robot_track_width_m', default_value='0.6096'),
         DeclareLaunchArgument('lidar_offset_x_m', default_value='0.30'),
         DeclareLaunchArgument('lidar_offset_y_m', default_value='0.0'),
-        DeclareLaunchArgument('lidar_used_fov_deg', default_value='250.0'),
+        DeclareLaunchArgument('lidar_used_fov_deg', default_value='180.0'),
         DeclareLaunchArgument('allow_reverse', default_value='false'),
         DeclareLaunchArgument('front_safety_margin_m', default_value='0.10'),
         DeclareLaunchArgument('rear_safety_margin_m', default_value='0.08'),
@@ -401,6 +440,7 @@ def generate_launch_description():
         ),
         marker_vision_process,
         marker_vision_test_process,
+        yolo_semantic_obstacle_process,
         Node(
             package='ugv_sensor_sync',
             executable='debug_status_node',

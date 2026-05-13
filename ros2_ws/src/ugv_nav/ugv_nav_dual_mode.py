@@ -363,7 +363,7 @@ class NavConfig:
     allow_stop_at_goal: bool = True
     nonstop_when_blocked: bool = False
     allow_reverse: bool = False
-    lidar_used_fov_deg: float = 250.0
+    lidar_used_fov_deg: float = 180.0
     lidar_map_stride: int = 4
     use_imu_yaw: bool = False
     imu_yaw_blend: float = 0.25
@@ -1378,10 +1378,10 @@ class LocalPlanner:
         if self.nav_cfg.allow_reverse and sectors.rear_m > self.robot_cfg.length_m * 0.45 + 0.08:
             return ControlCommand('BACKWARD', move_m=min(self.nav_cfg.backward_step_choices_m), raw_left=-0.34, raw_right=-0.34, reason='local emergency reverse')
         if self.nav_cfg.nonstop_when_blocked:
-            return self._nonstop_blocked_escape(sectors)
+            return self._nonstop_blocked_escape(sectors, prev_cmd)
         return ControlCommand('STOP', reason='local no safe motion')
 
-    def _nonstop_blocked_escape(self, sectors: SectorSnapshot) -> ControlCommand:
+    def _nonstop_blocked_escape(self, sectors: SectorSnapshot, prev_cmd: ControlCommand) -> ControlCommand:
         if self.nav_cfg.allow_reverse and sectors.rear_m > self.robot_cfg.length_m * 0.25:
             return ControlCommand(
                 'BACKWARD',
@@ -1390,7 +1390,14 @@ class LocalPlanner:
                 raw_right=-0.30,
                 reason='local no-stop reverse; no fully safe motion',
             )
-        if sectors.left_m + sectors.front_left_m >= sectors.right_m + sectors.front_right_m:
+        left_score = min(sectors.left_m, 2.0) + min(sectors.front_left_m, 2.0)
+        right_score = min(sectors.right_m, 2.0) + min(sectors.front_right_m, 2.0)
+        if prev_cmd.mode == 'TURN_LEFT':
+            left_score += 0.55
+        elif prev_cmd.mode == 'TURN_RIGHT':
+            right_score += 0.55
+
+        if left_score >= right_score:
             return ControlCommand(
                 'TURN_LEFT',
                 turn_deg=28.0,
@@ -2028,6 +2035,14 @@ class UGVNavigator:
         self._turn_loop_counter = 0
         self._last_field_map_version = -1
         self._last_field_map_key = None
+        self.last_odom_delta = {
+            "left_ticks": 0,
+            "right_ticks": 0,
+            "ds_m": 0.0,
+            "dtheta_deg": 0.0,
+            "dt_s": 0.0,
+            "warning": None,
+        }
 
     def _touch_map(self) -> None:
         self._map_version += 1
@@ -2044,6 +2059,14 @@ class UGVNavigator:
             self._last_right = packet.right_total
             self._last_odom_timestamp = packet.timestamp
             self._last_pose_before_update = prev_pose
+            self.last_odom_delta = {
+                "left_ticks": 0,
+                "right_ticks": 0,
+                "ds_m": 0.0,
+                "dtheta_deg": 0.0,
+                "dt_s": 0.0,
+                "warning": None,
+            }
             return 0.0
 
         dleft_ticks = packet.left_total - self._last_left
@@ -2057,6 +2080,12 @@ class UGVNavigator:
         dtheta = (dr - dl) / max(1e-6, self.robot_cfg.track_width_m)
         dt = 0.0 if self._last_odom_timestamp is None else max(0.0, packet.timestamp - self._last_odom_timestamp)
         self._last_odom_timestamp = packet.timestamp
+        warning = None
+        prev_cmd_mode = self.state.latest_cmd.mode
+        if prev_cmd_mode in {'TURN_LEFT', 'TURN_RIGHT'} and abs(ds) > 0.035:
+            warning = 'turn_command_has_linear_odom_check_encoder_inversion'
+        elif prev_cmd_mode == 'FORWARD' and dleft_ticks * dright_ticks < 0:
+            warning = 'forward_command_has_opposite_encoder_signs'
         if self.nav_cfg.use_imu_yaw and imu is not None and 0.0 < dt <= 0.5:
             yaw_rate = imu.yaw_rate(self.nav_cfg.imu_yaw_axis, self.nav_cfg.imu_yaw_sign)
             tick_motion = abs(dleft_ticks) + abs(dright_ticks)
@@ -2064,6 +2093,14 @@ class UGVNavigator:
                 blend = clamp(self.nav_cfg.imu_yaw_blend, 0.0, 1.0)
                 dtheta_imu = yaw_rate * dt
                 dtheta = (1.0 - blend) * dtheta + blend * dtheta_imu
+        self.last_odom_delta = {
+            "left_ticks": int(dleft_ticks),
+            "right_ticks": int(dright_ticks),
+            "ds_m": round(float(ds), 4),
+            "dtheta_deg": round(math.degrees(dtheta), 2),
+            "dt_s": round(float(dt), 3),
+            "warning": warning,
+        }
 
         p = self.state.estimated_pose
         mid = p.yaw + 0.5 * dtheta
@@ -2668,6 +2705,9 @@ class CompetitionMission:
         min_speed_mps: float = 0.178816,
         search_radius_step_m: float = 0.75,
         straight_distance_m: float = yd(13.0),
+        lidar_used_fov_deg: float = 180.0,
+        lidar_offset_x_m: float = 0.30,
+        lidar_offset_y_m: float = 0.0,
     ):
         self.enabled = bool(enabled)
         self.mission_mode = normalize_mission_mode(mission_mode)
@@ -2688,6 +2728,9 @@ class CompetitionMission:
         self.min_speed_mps = max(0.0, float(min_speed_mps))
         self.search_radius_step_m = max(0.25, search_radius_step_m)
         self.search_max_radius_m = max(0.5, min(field_w_m, field_h_m) * 0.5 - 0.65)
+        self.lidar_used_fov_deg = clamp(float(lidar_used_fov_deg), 1.0, 360.0)
+        self.lidar_offset_x_m = float(lidar_offset_x_m)
+        self.lidar_offset_y_m = float(lidar_offset_y_m)
         self.final_goal: Optional[Tuple[float, float]] = None
         self.final_goal_source = "none"
         self.latest_marker_distance_m: Optional[float] = None
@@ -2797,9 +2840,11 @@ class CompetitionMission:
 
     def _indoor_search_goal(self, frame: SensorFrame, pose: Pose2D) -> GoalPacket:
         now_s = frame.encoder.timestamp
-        sectors = LocalPlanner.build_sector_snapshot(frame.lidar.hit_points_local + frame.zed.hit_points_local)
-        front_blocked = sectors.front_m < 1.15
-        need_new = self._indoor_goal_xy is None or now_s - self._indoor_goal_started_s > 4.5 or front_blocked
+        lidar_hits = self._lidar_hits_for_indoor_sectors(frame.lidar.hit_points_local)
+        sectors = LocalPlanner.build_sector_snapshot(lidar_hits + frame.zed.hit_points_local)
+        front_blocked = sectors.front_m < 0.85
+        goal_age_s = now_s - self._indoor_goal_started_s
+        need_new = self._indoor_goal_xy is None or goal_age_s > 4.5 or (front_blocked and goal_age_s > 1.0)
         if self._indoor_goal_xy is not None:
             if math.hypot(self._indoor_goal_xy[0] - pose.x, self._indoor_goal_xy[1] - pose.y) < 0.55:
                 need_new = True
@@ -2810,6 +2855,15 @@ class CompetitionMission:
 
         gx, gy = self._indoor_goal_xy
         return GoalPacket(gx, gy, now_s)
+
+    def _lidar_hits_for_indoor_sectors(self, hits_local: Sequence[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        half_fov_rad = 0.5 * math.radians(self.lidar_used_fov_deg)
+        out: List[Tuple[float, float]] = []
+        for lx, ly in hits_local:
+            if abs(wrap_to_pi(math.atan2(ly, lx))) > half_fov_rad:
+                continue
+            out.append((float(lx) + self.lidar_offset_x_m, float(ly) + self.lidar_offset_y_m))
+        return out
 
     def _choose_indoor_goal(self, frame: SensorFrame, pose: Pose2D, sectors: SectorSnapshot) -> Tuple[float, float]:
         del frame
@@ -3068,11 +3122,14 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
         "path_idx": navigator.state.path_idx,
         "sectors_m": {
             "front": None if math.isinf(navigator.state.sectors.front_m) else round(navigator.state.sectors.front_m, 3),
+            "front_left": None if math.isinf(navigator.state.sectors.front_left_m) else round(navigator.state.sectors.front_left_m, 3),
+            "front_right": None if math.isinf(navigator.state.sectors.front_right_m) else round(navigator.state.sectors.front_right_m, 3),
             "left": None if math.isinf(navigator.state.sectors.left_m) else round(navigator.state.sectors.left_m, 3),
             "right": None if math.isinf(navigator.state.sectors.right_m) else round(navigator.state.sectors.right_m, 3),
             "rear": None if math.isinf(navigator.state.sectors.rear_m) else round(navigator.state.sectors.rear_m, 3),
         },
         "encoder_ticks": [frame.encoder.left_total, frame.encoder.right_total],
+        "odom_delta": navigator.last_odom_delta,
         "lidar_hit_count": len(frame.lidar.hit_points_local),
         "zed_hit_count": len(frame.zed.hit_points_local),
         "field_map": {
@@ -3115,7 +3172,7 @@ def run_real_mode(
     robot_track_width_m: float = ft(2.0),
     lidar_offset_x_m: float = 0.30,
     lidar_offset_y_m: float = 0.0,
-    lidar_used_fov_deg: float = 250.0,
+    lidar_used_fov_deg: float = 180.0,
     allow_reverse: bool = False,
     min_motion_raw: float = 0.22,
     min_speed_mps: float = 0.178816,
@@ -3193,6 +3250,9 @@ def run_real_mode(
         target_accept_radius_m=target_accept_radius_m,
         min_speed_mps=min_speed_mps,
         straight_distance_m=straight_distance_m,
+        lidar_used_fov_deg=nav_cfg.lidar_used_fov_deg,
+        lidar_offset_x_m=robot_cfg.lidar_offset_x_m,
+        lidar_offset_y_m=robot_cfg.lidar_offset_y_m,
     )
 
     if replay_json:
@@ -3300,7 +3360,7 @@ def main() -> None:
     parser.add_argument("--robot-track-width-m", type=float, default=ft(2.0), help="wheel track width for encoder odometry")
     parser.add_argument("--lidar-offset-x-m", type=float, default=0.30, help="LiDAR x offset from robot center; positive is forward")
     parser.add_argument("--lidar-offset-y-m", type=float, default=0.0, help="LiDAR y offset from robot center; positive is left")
-    parser.add_argument("--lidar-used-fov-deg", type=float, default=250.0, help="front-centered LiDAR field of view used by nav; rear hits are ignored")
+    parser.add_argument("--lidar-used-fov-deg", type=float, default=180.0, help="front-centered LiDAR field of view used by nav; rear hits are ignored")
     parser.add_argument("--allow-reverse", type=str_to_bool, default=False, help="allow planner to command BACKWARD; default false because rear LiDAR is obstructed")
     parser.add_argument("--min-motion-raw", type=float, default=0.22, help="floor applied to non-stop raw wheel commands after mission speed scaling")
     parser.add_argument("--min-speed-mps", type=float, default=0.178816, help="mission minimum moving-speed requirement, 0.4 mph expressed in m/s")

@@ -60,6 +60,14 @@ Run real-mode logic from a JSON replay file:
 python ugv_nav_dual_mode.py --mode real --replay-json sample_log.jsonl
 ```
 
+Measure planner latency on the robot computer:
+
+```bash
+python3 src/ugv_nav/tools/benchmark_replan_latency.py --repeats 50
+```
+
+Live planner timing is also published in `/ugv_nav_status` as `plan_time_ms`.
+
 ## Why this matches your UGV better
 
 - Internal planning map grows from sensor hits instead of starting with full map knowledge

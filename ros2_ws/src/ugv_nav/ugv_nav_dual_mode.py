@@ -2112,9 +2112,11 @@ class UGVNavigator:
         dt = 0.0 if self._last_odom_timestamp is None else max(0.0, packet.timestamp - self._last_odom_timestamp)
         self._last_odom_timestamp = packet.timestamp
         warning = None
+        ds_for_pose = ds
         prev_cmd_mode = self.state.latest_cmd.mode
         if prev_cmd_mode in {'TURN_LEFT', 'TURN_RIGHT'} and abs(ds) > 0.035:
             warning = 'turn_command_has_linear_odom_check_encoder_inversion'
+            ds_for_pose = 0.0
         elif prev_cmd_mode == 'FORWARD' and dleft_ticks * dright_ticks < 0:
             warning = 'forward_command_has_opposite_encoder_signs'
         if self.nav_cfg.use_imu_yaw and imu is not None and 0.0 < dt <= 0.5:
@@ -2128,6 +2130,7 @@ class UGVNavigator:
             "left_ticks": int(dleft_ticks),
             "right_ticks": int(dright_ticks),
             "ds_m": round(float(ds), 4),
+            "ds_used_m": round(float(ds_for_pose), 4),
             "dtheta_deg": round(math.degrees(dtheta), 2),
             "dt_s": round(float(dt), 3),
             "warning": warning,
@@ -2136,8 +2139,8 @@ class UGVNavigator:
         p = self.state.estimated_pose
         mid = p.yaw + 0.5 * dtheta
         new_pose = Pose2D(
-            p.x + ds * math.cos(mid),
-            p.y + ds * math.sin(mid),
+            p.x + ds_for_pose * math.cos(mid),
+            p.y + ds_for_pose * math.sin(mid),
             wrap_to_pi(p.yaw + dtheta),
         )
         self._last_pose_before_update = prev_pose

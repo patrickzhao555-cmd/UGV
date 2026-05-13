@@ -98,7 +98,11 @@ class MotorControllerBridge(Node):
         self.get_logger().info(
             f'Motor controller bridge starting '
             f'(port={self.port}, baud={self.baud}, command_topic={self.command_topic}, '
-            f'encoder_stamped_topic={self.encoder_stamped_topic}, dry_run={self.dry_run})'
+            f'encoder_stamped_topic={self.encoder_stamped_topic}, dry_run={self.dry_run}, '
+            f'invert_left_command={self.invert_left_command}, '
+            f'invert_right_command={self.invert_right_command}, '
+            f'invert_left_encoder={self.invert_left_encoder}, '
+            f'invert_right_encoder={self.invert_right_encoder})'
         )
 
     def command_callback(self, msg: String) -> None:

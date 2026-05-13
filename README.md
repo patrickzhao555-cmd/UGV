@@ -370,8 +370,8 @@ MIN_MOTION_RAW=0.22
 NAV_FRONT_SAFETY_MARGIN_M=0.10
 NAV_REAR_SAFETY_MARGIN_M=0.08
 NAV_LOCAL_PLAN_INFLATION_M=0.08
-INVERT_LEFT_COMMAND=false
-INVERT_RIGHT_COMMAND=false
+INVERT_LEFT_COMMAND=true
+INVERT_RIGHT_COMMAND=true
 INVERT_LEFT_ENCODER=false
 INVERT_RIGHT_ENCODER=false
 TARGET_ACCEPT_RADIUS_M=0.9144
@@ -389,6 +389,15 @@ If one side drives backward when a positive command should move it forward,
 invert that side's motor command at launch. After changing command inversion,
 lift the robot and check `/encoder_ticks_stamped`; if a physically forward wheel
 motion makes that side's ticks decrease, invert that encoder side too.
+
+The current 30 inch chassis defaults both command inversions to `true` in
+`jetson_bringup.sh`, because the motor wiring maps positive PWM to physical
+reverse on both sides. If a future wiring change makes `FORWARD` go backward
+again, flip both command inversion flags together before tuning navigation:
+
+```bash
+INVERT_LEFT_COMMAND=true INVERT_RIGHT_COMMAND=true
+```
 
 Example for a reversed left drivetrain:
 

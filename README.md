@@ -63,6 +63,19 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
+If a launch still prints old-style logs such as `ULTRA is deprecated`, no
+`debug_status_node`, or `allow_missing_goal=False` during `ROUND_MODE=indoor`,
+clear the stale install overlay and rebuild once:
+
+```bash
+cd ~/ugv_project/ros2_ws
+rm -rf build install log
+source /opt/ros/humble/setup.bash
+source ~/ugv_ws_albert/install/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+```
+
 Launch indoor search with real motors:
 
 ```bash

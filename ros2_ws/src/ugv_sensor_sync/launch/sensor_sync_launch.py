@@ -1,12 +1,42 @@
+import os
+from pathlib import Path
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import FindExecutable, LaunchConfiguration, TextSubstitution
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.actions import Node
 
 
+def _resolve_workspace_root() -> Path:
+    env_ws = os.environ.get('UGV_WS')
+    candidates = []
+    if env_ws:
+        candidates.append(Path(env_ws))
+
+    here = Path(__file__).resolve()
+    candidates.extend(here.parents)
+
+    for base in candidates:
+        node_file = base / 'src' / 'ugv_sensor_sync' / 'ugv_sensor_sync_nodes' / 'fusion_node.py'
+        if node_file.exists():
+            return base
+
+    raise RuntimeError(
+        'Could not find workspace root containing src/ugv_sensor_sync/ugv_sensor_sync_nodes. '
+        'Set UGV_WS before running this launch.'
+    )
+
+
 def generate_launch_description():
+    workspace_root = _resolve_workspace_root()
+    sensor_nodes_root = workspace_root / 'src' / 'ugv_sensor_sync' / 'ugv_sensor_sync_nodes'
+    zed_sync_script = str(sensor_nodes_root / 'zed_sync_node.py')
+    lidar_sync_script = str(sensor_nodes_root / 'lidar_sync_node.py')
+    uwb_script = str(sensor_nodes_root / 'uwb_node.py')
+    fusion_script = str(sensor_nodes_root / 'fusion_node.py')
+
     start_uwb = LaunchConfiguration('start_uwb')
     start_zed = LaunchConfiguration('start_zed')
     start_lidar = LaunchConfiguration('start_lidar')
@@ -22,6 +52,9 @@ def generate_launch_description():
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
     fusion_imu_smoothing_alpha = LaunchConfiguration('fusion_imu_smoothing_alpha')
+
+    def ros_param_arg(name: str, value):
+        return [TextSubstitution(text=f'{name}:='), value]
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -116,59 +149,79 @@ def generate_launch_description():
             }],
         ),
 
-        Node(
-            package='ugv_sensor_sync',
-            executable='zed_sync_node',
-            name='zed_sync_node',
+        ExecuteProcess(
+            cmd=[
+                FindExecutable(name='python3'),
+                zed_sync_script,
+                '--ros-args',
+                '-r',
+                '__node:=zed_sync_node',
+                '-p',
+                ros_param_arg('publish_rate_hz', zed_publish_rate_hz),
+                '-p',
+                ros_param_arg('depth_downsample_factor', zed_depth_downsample_factor),
+                '-p',
+                ros_param_arg('publish_image', zed_publish_image),
+            ],
             output='screen',
             condition=IfCondition(start_zed),
-            parameters=[{
-                'publish_rate_hz': ParameterValue(zed_publish_rate_hz, value_type=float),
-                'depth_downsample_factor': ParameterValue(zed_depth_downsample_factor, value_type=int),
-                'publish_image': ParameterValue(zed_publish_image, value_type=bool),
-            }],
         ),
 
         TimerAction(period=2.0, actions=[
-            Node(
-                package='ugv_sensor_sync',
-                executable='lidar_sync_node',
-                name='lidar_sync_node',
+            ExecuteProcess(
+                cmd=[
+                    FindExecutable(name='python3'),
+                    lidar_sync_script,
+                    '--ros-args',
+                    '-r',
+                    '__node:=lidar_sync_node',
+                    '-p',
+                    ros_param_arg('scan_freq_hz', lidar_scan_freq_hz),
+                ],
                 output='screen',
                 condition=IfCondition(start_lidar),
-                parameters=[{
-                    'scan_freq_hz': ParameterValue(lidar_scan_freq_hz, value_type=float),
-                }],
             ),
         ]),
 
-        Node(
-            package='ugv_sensor_sync',
-            executable='uwb_node',
-            name='uwb_node',
+        ExecuteProcess(
+            cmd=[
+                FindExecutable(name='python3'),
+                uwb_script,
+                '--ros-args',
+                '-r',
+                '__node:=uwb_node',
+                '-p',
+                'port:=/dev/ttyUSB1',
+                '-p',
+                'baud:=115200',
+                '-p',
+                'use_esp32_timestamp:=false',
+            ],
             output='screen',
             condition=IfCondition(start_uwb),
-            parameters=[{
-                'port': '/dev/ttyUSB1',
-                'baud': 115200,
-                'use_esp32_timestamp': False,
-            }],
         ),
 
         TimerAction(period=3.0, actions=[
-            Node(
-                package='ugv_sensor_sync',
-                executable='fusion_node',
-                name='fusion_node',
+            ExecuteProcess(
+                cmd=[
+                    FindExecutable(name='python3'),
+                    fusion_script,
+                    '--ros-args',
+                    '-r',
+                    '__node:=fusion_node',
+                    '-p',
+                    ros_param_arg('zed_fresh_timeout_s', fusion_zed_fresh_timeout_s),
+                    '-p',
+                    ros_param_arg('allow_lidar_only_fallback', fusion_allow_lidar_only),
+                    '-p',
+                    ros_param_arg('depth_invalid_warn_frames', fusion_depth_invalid_warn_frames),
+                    '-p',
+                    ros_param_arg('lidar_front_fov_deg', fusion_lidar_front_fov_deg),
+                    '-p',
+                    ros_param_arg('imu_smoothing_alpha', fusion_imu_smoothing_alpha),
+                ],
                 output='screen',
                 condition=IfCondition(start_fusion),
-                parameters=[{
-                    'zed_fresh_timeout_s': ParameterValue(fusion_zed_fresh_timeout_s, value_type=float),
-                    'allow_lidar_only_fallback': ParameterValue(fusion_allow_lidar_only, value_type=bool),
-                    'depth_invalid_warn_frames': ParameterValue(fusion_depth_invalid_warn_frames, value_type=int),
-                    'lidar_front_fov_deg': ParameterValue(fusion_lidar_front_fov_deg, value_type=float),
-                    'imu_smoothing_alpha': ParameterValue(fusion_imu_smoothing_alpha, value_type=float),
-                }],
             ),
         ]),
     ])

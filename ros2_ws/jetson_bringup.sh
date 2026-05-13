@@ -190,7 +190,10 @@ fi
 source_setup_compat "${WORKSPACE_DIR}/install/setup.bash"
 export UGV_WS="${WORKSPACE_DIR}"
 
-ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+echo "UGV bringup workspace: ${WORKSPACE_DIR}"
+echo "UGV bringup launch: ${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.launch.py"
+
+ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.launch.py" \
   start_uwb:="${START_UWB}" \
   start_zed:="${START_ZED}" \
   start_lidar:="${START_LIDAR}" \

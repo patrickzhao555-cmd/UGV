@@ -6,8 +6,6 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchD
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import FindExecutable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
-from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -43,6 +41,11 @@ def generate_launch_description():
     yolo_semantic_obstacle_script = str(
         workspace_root / 'src' / 'ugv_perception' / 'ugv_perception' / 'yolo_semantic_obstacle_node.py'
     )
+    sensor_sync_launch_file = str(workspace_root / 'src' / 'ugv_sensor_sync' / 'launch' / 'sensor_sync_launch.py')
+    sensor_nodes_root = workspace_root / 'src' / 'ugv_sensor_sync' / 'ugv_sensor_sync_nodes'
+    mock_field_map_script = str(sensor_nodes_root / 'mock_field_map_node.py')
+    bench_goal_script = str(sensor_nodes_root / 'bench_goal_node.py')
+    debug_status_script = str(sensor_nodes_root / 'debug_status_node.py')
 
     start_uwb = LaunchConfiguration('start_uwb')
     start_zed = LaunchConfiguration('start_zed')
@@ -132,11 +135,7 @@ def generate_launch_description():
 
     sensor_sync_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                FindPackageShare('ugv_sensor_sync'),
-                'launch',
-                'sensor_sync_launch.py',
-            ])
+            sensor_sync_launch_file
         ),
         launch_arguments={
             'start_uwb': start_uwb,
@@ -412,39 +411,55 @@ def generate_launch_description():
         DeclareLaunchArgument('invert_right_encoder', default_value='false'),
         sensor_sync_launch,
         motor_controller_launch,
-        Node(
-            package='ugv_sensor_sync',
-            executable='mock_field_map_node',
-            name='mock_field_map_node',
+        ExecuteProcess(
+            cmd=[
+                FindExecutable(name='python3'),
+                mock_field_map_script,
+                '--ros-args',
+                '-r',
+                '__node:=mock_field_map_node',
+                '-p',
+                ros_param_arg('topic', target_topic),
+                '-p',
+                ros_param_arg('start_corner', start_corner),
+                '-p',
+                ros_param_arg('marker_cell', mock_marker_cell),
+                '-p',
+                'publish_format:=target_xy',
+                '-p',
+                ros_param_arg('obstacles_json', mock_obstacles_json),
+            ],
             output='screen',
             condition=IfCondition(start_mock_field_map),
-            parameters=[{
-                'topic': target_topic,
-                'start_corner': start_corner,
-                'marker_cell': mock_marker_cell,
-                'publish_format': 'target_xy',
-                'obstacles_json': mock_obstacles_json,
-            }],
         ),
-        Node(
-            package='ugv_sensor_sync',
-            executable='bench_goal_node',
-            name='bench_goal_node',
+        ExecuteProcess(
+            cmd=[
+                FindExecutable(name='python3'),
+                bench_goal_script,
+                '--ros-args',
+                '-r',
+                '__node:=bench_goal_node',
+                '-p',
+                ros_param_arg('goal_x_m', bench_goal_x_m),
+                '-p',
+                ros_param_arg('goal_y_m', bench_goal_y_m),
+                '-p',
+                ros_param_arg('publish_period_s', bench_goal_period_s),
+            ],
             output='screen',
             condition=IfCondition(start_bench_goal),
-            parameters=[{
-                'goal_x_m': bench_goal_x_m,
-                'goal_y_m': bench_goal_y_m,
-                'publish_period_s': bench_goal_period_s,
-            }],
         ),
         marker_vision_process,
         marker_vision_test_process,
         yolo_semantic_obstacle_process,
-        Node(
-            package='ugv_sensor_sync',
-            executable='debug_status_node',
-            name='ugv_debug_status_node',
+        ExecuteProcess(
+            cmd=[
+                FindExecutable(name='python3'),
+                debug_status_script,
+                '--ros-args',
+                '-r',
+                '__node:=ugv_debug_status_node',
+            ],
             output='screen',
             condition=IfCondition(start_debug_status),
         ),

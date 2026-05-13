@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 import json
 import math
+import sys
 import time
 from collections import Counter
 from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 import rclpy
-from cv_bridge import CvBridge
 from geometry_msgs.msg import Pose, PoseArray
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
+
+try:
+    if int(str(np.__version__).split('.', 1)[0]) >= 2:
+        raise ImportError('cv_bridge from ROS Humble is not compatible with NumPy 2.x')
+    from cv_bridge import CvBridge
+except Exception:  # pragma: no cover - depends on robot runtime packages
+    CvBridge = None
 
 
 DEFAULT_OBSTACLE_CLASSES = (
@@ -68,7 +75,7 @@ class YoloSemanticObstacleNode(Node):
         self.semantic_depth_thickness_m = max(0.05, float(self.get_parameter("semantic_depth_thickness_m").value))
         self.obstacle_classes = self._parse_classes(str(self.get_parameter("obstacle_classes").value))
 
-        self.bridge = CvBridge()
+        self.bridge = CvBridge() if CvBridge is not None else None
         self.model = None
         self.model_names = {}
         self.latest_depth: Optional[np.ndarray] = None
@@ -123,7 +130,7 @@ class YoloSemanticObstacleNode(Node):
 
     def depth_callback(self, msg: Image) -> None:
         try:
-            depth = self.bridge.imgmsg_to_cv2(msg, desired_encoding="32FC1")
+            depth = self._depth_msg_to_numpy(msg)
         except Exception as exc:
             self.get_logger().warn(f"Could not convert depth image for YOLO semantic obstacles: {exc}")
             return
@@ -150,7 +157,7 @@ class YoloSemanticObstacleNode(Node):
             return
 
         try:
-            image_bgr = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            image_bgr = self._image_msg_to_bgr(msg)
         except Exception as exc:
             self.get_logger().warn(f"Could not convert image for YOLO semantic obstacles: {exc}")
             self._publish_empty(msg, "image_convert_failed")
@@ -304,6 +311,77 @@ class YoloSemanticObstacleNode(Node):
             **debug,
         }
         self.debug_pub.publish(String(data=json.dumps(payload)))
+
+    def _depth_msg_to_numpy(self, msg: Image) -> np.ndarray:
+        if self.bridge is not None:
+            try:
+                return self.bridge.imgmsg_to_cv2(msg, desired_encoding="32FC1")
+            except Exception:
+                pass
+        return self._manual_image_msg_to_numpy(msg)
+
+    def _image_msg_to_bgr(self, msg: Image) -> np.ndarray:
+        if self.bridge is not None:
+            try:
+                return self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            except Exception:
+                pass
+        return self._manual_image_msg_to_bgr(msg)
+
+    @classmethod
+    def _manual_image_msg_to_bgr(cls, msg: Image) -> np.ndarray:
+        arr = cls._manual_image_msg_to_numpy(msg)
+        encoding = str(msg.encoding).lower()
+        if encoding == "bgr8":
+            return arr
+        if encoding == "rgb8":
+            return np.ascontiguousarray(arr[:, :, ::-1])
+        if encoding == "bgra8":
+            return np.ascontiguousarray(arr[:, :, :3])
+        if encoding == "rgba8":
+            return np.ascontiguousarray(arr[:, :, [2, 1, 0]])
+        if arr.ndim == 2:
+            return np.repeat(arr[:, :, None], 3, axis=2)
+        if arr.ndim == 3 and arr.shape[2] == 3:
+            return arr
+        if arr.ndim == 3 and arr.shape[2] == 4:
+            return np.ascontiguousarray(arr[:, :, :3])
+        raise ValueError(f"Unsupported YOLO image encoding: {msg.encoding}")
+
+    @staticmethod
+    def _manual_image_msg_to_numpy(msg: Image) -> np.ndarray:
+        encoding = str(msg.encoding).lower()
+        encoding_info = {
+            "32fc1": (np.float32, 1),
+            "16uc1": (np.uint16, 1),
+            "mono16": (np.uint16, 1),
+            "mono8": (np.uint8, 1),
+            "8uc1": (np.uint8, 1),
+            "bgr8": (np.uint8, 3),
+            "rgb8": (np.uint8, 3),
+            "bgra8": (np.uint8, 4),
+            "rgba8": (np.uint8, 4),
+        }
+        if encoding not in encoding_info:
+            raise ValueError(f"Unsupported image encoding without cv_bridge: {msg.encoding}")
+
+        dtype_raw, channels = encoding_info[encoding]
+        dtype = np.dtype(dtype_raw)
+        height = int(msg.height)
+        width = int(msg.width)
+        row_bytes = int(msg.step) if int(msg.step) > 0 else width * channels * dtype.itemsize
+        row_elems = row_bytes // dtype.itemsize
+        needed_elems = height * row_elems
+        data = np.frombuffer(msg.data, dtype=dtype, count=needed_elems)
+        if data.size < needed_elems:
+            raise ValueError(f"Image data is short for encoding {msg.encoding}")
+        if bool(msg.is_bigendian) != (sys.byteorder == "big") and dtype.itemsize > 1:
+            data = data.byteswap().view(dtype)
+        data = data.reshape((height, row_elems))
+        useful = data[:, : width * channels]
+        if channels == 1:
+            return np.ascontiguousarray(useful.reshape((height, width)))
+        return np.ascontiguousarray(useful.reshape((height, width, channels)))
 
     @staticmethod
     def _stamp_to_seconds(stamp) -> float:

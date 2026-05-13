@@ -76,7 +76,8 @@ Launch the same mode with YOLO semantic obstacle assist enabled:
 
 ```bash
 cd ~/ugv_project/ros2_ws
-python3 -m pip install ultralytics
+python3 -m pip install --user --force-reinstall "numpy==1.26.4"
+python3 -m pip install --user "ultralytics" "numpy<2"
 ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 START_YOLO_OBSTACLES=true \
 MOTOR_PORT=/dev/ttyACM0 LIDAR_PORT=/dev/ttyUSB0 MOTOR_DRY_RUN=false \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
@@ -84,7 +85,10 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 
 YOLO is optional and advisory. LiDAR and ZED depth still own collision safety;
 YOLO only adds chair/table/person-style semantic obstacle points for more
-conservative map inflation.
+conservative map inflation. Keep NumPy on the 1.x line on ROS Humble; a plain
+`pip install ultralytics` can upgrade NumPy to 2.x, which breaks Ubuntu/ROS
+`cv_bridge` and `matplotlib` binaries. If you see `_ARRAY_API not found` or
+`numpy.core.multiarray failed to import`, rerun the NumPy 1.26.4 command above.
 
 Every new terminal that uses ROS commands should source the same overlays:
 
@@ -245,7 +249,8 @@ YOLO semantic obstacle assist:
 
 - disabled by default: `START_YOLO_OBSTACLES=false`
 - enable with `START_YOLO_OBSTACLES=true`
-- optional dependency: `python3 -m pip install ultralytics`
+- optional dependency: `python3 -m pip install --user "ultralytics" "numpy<2"`
+- ROS Humble compatibility repair: `python3 -m pip install --user --force-reinstall "numpy==1.26.4"`
 - default model: `YOLO_MODEL_PATH=yolov8n.pt`
 - default device: `YOLO_DEVICE=auto`; set `YOLO_DEVICE=cpu` if the Nano CUDA/PyTorch stack is unstable
 - default classes: `person,chair,couch,dining table,bench,potted plant,backpack,suitcase`

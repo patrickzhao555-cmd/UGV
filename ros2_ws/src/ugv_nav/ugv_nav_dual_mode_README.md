@@ -84,8 +84,13 @@ installed. It publishes chair/table/person-style detections as extra obstacle
 points for map inflation while LiDAR/ZED depth still own collision safety:
 
 ```bash
+python3 -m pip install --user --force-reinstall "numpy==1.26.4"
+python3 -m pip install --user "ultralytics" "numpy<2"
 START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt YOLO_DEVICE=auto bash jetson_bringup.sh
 ```
+
+Keep NumPy on the 1.x line for ROS Humble compatibility with `cv_bridge` and
+Ubuntu `matplotlib` packages.
 
 Run real-mode logic from a JSON replay file:
 

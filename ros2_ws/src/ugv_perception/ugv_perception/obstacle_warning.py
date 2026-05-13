@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 import json
 import math
+import sys
 from collections import deque
 
 import numpy as np
 import rclpy
-from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, Float32, String
+
+try:
+    if int(str(np.__version__).split(".", 1)[0]) >= 2:
+        raise ImportError("cv_bridge from ROS Humble is not compatible with NumPy 2.x")
+    from cv_bridge import CvBridge
+except Exception:  # pragma: no cover - depends on robot runtime packages
+    CvBridge = None
 
 
 class ObstacleWarning(Node):
@@ -48,7 +55,7 @@ class ObstacleWarning(Node):
         self.smooth_window = max(1, int(self.get_parameter("smooth_window").value))
         self.invalid_warn_frames = max(1, int(self.get_parameter("invalid_warn_frames").value))
 
-        self.bridge = CvBridge()
+        self.bridge = CvBridge() if CvBridge is not None else None
         self.invalid_count = 0
         self.warn_state = False
         self.last_distance_m = float("nan")
@@ -73,7 +80,7 @@ class ObstacleWarning(Node):
 
     def depth_callback(self, msg: Image) -> None:
         self.frame_count += 1
-        depth = self.bridge.imgmsg_to_cv2(msg, desired_encoding="32FC1")
+        depth = self._depth_msg_to_numpy(msg)
         roi = self._extract_roi(depth)
 
         valid = roi[np.isfinite(roi)]
@@ -137,6 +144,38 @@ class ObstacleWarning(Node):
             "invalid_streak": int(self.invalid_count),
         }
         self.debug_pub.publish(String(data=json.dumps(status)))
+
+    def _depth_msg_to_numpy(self, msg: Image) -> np.ndarray:
+        if self.bridge is not None:
+            try:
+                return self.bridge.imgmsg_to_cv2(msg, desired_encoding="32FC1")
+            except Exception:
+                pass
+
+        encoding = str(msg.encoding).lower()
+        encoding_info = {
+            "32fc1": (np.float32, 1),
+            "16uc1": (np.uint16, 1),
+            "mono16": (np.uint16, 1),
+        }
+        if encoding not in encoding_info:
+            raise ValueError(f"Unsupported depth encoding without cv_bridge: {msg.encoding}")
+
+        dtype_raw, channels = encoding_info[encoding]
+        dtype = np.dtype(dtype_raw)
+        height = int(msg.height)
+        width = int(msg.width)
+        row_bytes = int(msg.step) if int(msg.step) > 0 else width * channels * dtype.itemsize
+        row_elems = row_bytes // dtype.itemsize
+        needed_elems = height * row_elems
+        data = np.frombuffer(msg.data, dtype=dtype, count=needed_elems)
+        if data.size < needed_elems:
+            raise ValueError(f"Depth image data is short for encoding {msg.encoding}")
+        if bool(msg.is_bigendian) != (sys.byteorder == "big") and dtype.itemsize > 1:
+            data = data.byteswap().view(dtype)
+        data = data.reshape((height, row_elems))
+        depth = data[:, : width * channels].reshape((height, width))
+        return np.ascontiguousarray(depth, dtype=np.float32)
 
 
 def main():

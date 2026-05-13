@@ -11,8 +11,10 @@ from sensor_msgs.msg import Image, Imu
 from std_msgs.msg import Header, String
 
 try:
+    if int(str(np.__version__).split('.', 1)[0]) >= 2:
+        raise ImportError('cv_bridge from ROS Humble is not compatible with NumPy 2.x')
     from cv_bridge import CvBridge
-except ImportError:  # pragma: no cover - optional runtime optimization
+except Exception:  # pragma: no cover - optional runtime optimization
     CvBridge = None
 
 

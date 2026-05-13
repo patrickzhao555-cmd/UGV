@@ -59,8 +59,13 @@ more conservatively.
 Install the optional Python dependency on the Jetson if you want to run it:
 
 ```bash
-python3 -m pip install ultralytics
+python3 -m pip install --user --force-reinstall "numpy==1.26.4"
+python3 -m pip install --user "ultralytics" "numpy<2"
 ```
+
+ROS Humble packages such as `cv_bridge` are built against NumPy 1.x on the Nano.
+If a plain `pip install ultralytics` upgrades NumPy to 2.x, nodes can fail with
+`_ARRAY_API not found`; reinstall NumPy 1.26.4 before launching again.
 
 Run through the normal launcher:
 

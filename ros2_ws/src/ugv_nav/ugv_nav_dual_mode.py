@@ -15,19 +15,45 @@ try:
 except Exception:
     cv2 = None
 
-import matplotlib
-try:
-    if os.name == "nt" or os.environ.get("DISPLAY"):
-        matplotlib.use("TkAgg")
-    else:
-        matplotlib.use("Agg")
-except Exception:
-    matplotlib.use("Agg")
+plt = None
+FuncAnimation = None
+Line2D = None
+Circle = None
+Polygon = None
+Rectangle = None
 
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from matplotlib.lines import Line2D
-from matplotlib.patches import Circle, Polygon, Rectangle
+
+def ensure_matplotlib() -> None:
+    """Import matplotlib only for simulation visualization.
+
+    Real robot mode does not need matplotlib. Keeping the import lazy prevents
+    ROS Humble deployments from dying when an optional Python package upgrades
+    NumPy beyond the ABI used by Ubuntu's matplotlib build.
+    """
+    global plt, FuncAnimation, Line2D, Circle, Polygon, Rectangle
+    if plt is not None:
+        return
+
+    import matplotlib
+    try:
+        if os.name == "nt" or os.environ.get("DISPLAY"):
+            matplotlib.use("TkAgg")
+        else:
+            matplotlib.use("Agg")
+    except Exception:
+        matplotlib.use("Agg")
+
+    import matplotlib.pyplot as _plt
+    from matplotlib.animation import FuncAnimation as _FuncAnimation
+    from matplotlib.lines import Line2D as _Line2D
+    from matplotlib.patches import Circle as _Circle, Polygon as _Polygon, Rectangle as _Rectangle
+
+    plt = _plt
+    FuncAnimation = _FuncAnimation
+    Line2D = _Line2D
+    Circle = _Circle
+    Polygon = _Polygon
+    Rectangle = _Rectangle
 
 # =========================================================
 # Unit helpers
@@ -2601,6 +2627,7 @@ def fov_polygon_points(pose: Pose2D, range_m: float, fov_deg: float, arc_points:
 
 class SimVisualizer:
     def __init__(self, world: VirtualWorld, navigator: UGVNavigator, robot: SimulatedRobot, sensor_cfg: SensorConfig):
+        ensure_matplotlib()
         self.world = world
         self.navigator = navigator
         self.robot = robot

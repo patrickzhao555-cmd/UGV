@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import math
+import sys
 import time
 from pathlib import Path
 from typing import Optional, Tuple
@@ -8,12 +9,18 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 import rclpy
-from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
+
+try:
+    if int(str(np.__version__).split('.', 1)[0]) >= 2:
+        raise ImportError('cv_bridge from ROS Humble is not compatible with NumPy 2.x')
+    from cv_bridge import CvBridge
+except Exception:  # pragma: no cover - depends on robot runtime packages
+    CvBridge = None
 
 
 class MarkerVisionNode(Node):
@@ -84,7 +91,7 @@ class MarkerVisionNode(Node):
         self.generic_min_grid_score = max(0.0, float(self.get_parameter('generic_min_grid_score').value))
         self.generic_min_border_light_ratio = max(0.0, float(self.get_parameter('generic_min_border_light_ratio').value))
 
-        self.bridge = CvBridge()
+        self.bridge = CvBridge() if CvBridge is not None else None
         self.orb = cv2.ORB_create(nfeatures=max_features)
         self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
         self.model_descriptors: Optional[np.ndarray] = None
@@ -153,7 +160,7 @@ class MarkerVisionNode(Node):
 
     def depth_callback(self, msg: Image) -> None:
         try:
-            depth = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+            depth = self._depth_msg_to_numpy(msg)
         except Exception as exc:
             self.get_logger().warn(f'Could not convert depth image: {exc}')
             return
@@ -176,13 +183,10 @@ class MarkerVisionNode(Node):
             return
 
         try:
-            image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-        except Exception:
-            try:
-                image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
-            except Exception as exc:
-                self.get_logger().warn(f'Could not convert marker image: {exc}')
-                return
+            image = self._image_msg_to_bgr(msg)
+        except Exception as exc:
+            self.get_logger().warn(f'Could not convert marker image: {exc}')
+            return
         try:
             gray = self._to_gray(image)
         except Exception as exc:
@@ -658,6 +662,77 @@ class MarkerVisionNode(Node):
         if arr.shape[2] == 4:
             return cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
         return None
+
+    def _depth_msg_to_numpy(self, msg: Image) -> np.ndarray:
+        if self.bridge is not None:
+            try:
+                return self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+            except Exception:
+                pass
+        return self._manual_image_msg_to_numpy(msg)
+
+    def _image_msg_to_bgr(self, msg: Image) -> np.ndarray:
+        if self.bridge is not None:
+            try:
+                return self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            except Exception:
+                pass
+        return self._manual_image_msg_to_bgr(msg)
+
+    @classmethod
+    def _manual_image_msg_to_bgr(cls, msg: Image) -> np.ndarray:
+        arr = cls._manual_image_msg_to_numpy(msg)
+        encoding = str(msg.encoding).lower()
+        if encoding == 'bgr8':
+            return arr
+        if encoding == 'rgb8':
+            return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+        if encoding == 'bgra8':
+            return arr[:, :, :3]
+        if encoding == 'rgba8':
+            return cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+        if arr.ndim == 2:
+            return cv2.cvtColor(arr, cv2.COLOR_GRAY2BGR)
+        if arr.ndim == 3 and arr.shape[2] == 3:
+            return arr
+        if arr.ndim == 3 and arr.shape[2] == 4:
+            return arr[:, :, :3]
+        raise ValueError(f'Unsupported marker image encoding: {msg.encoding}')
+
+    @staticmethod
+    def _manual_image_msg_to_numpy(msg: Image) -> np.ndarray:
+        encoding = str(msg.encoding).lower()
+        encoding_info = {
+            '32fc1': (np.float32, 1),
+            '16uc1': (np.uint16, 1),
+            'mono16': (np.uint16, 1),
+            'mono8': (np.uint8, 1),
+            '8uc1': (np.uint8, 1),
+            'bgr8': (np.uint8, 3),
+            'rgb8': (np.uint8, 3),
+            'bgra8': (np.uint8, 4),
+            'rgba8': (np.uint8, 4),
+        }
+        if encoding not in encoding_info:
+            raise ValueError(f'Unsupported image encoding without cv_bridge: {msg.encoding}')
+
+        dtype_raw, channels = encoding_info[encoding]
+        dtype = np.dtype(dtype_raw)
+        height = int(msg.height)
+        width = int(msg.width)
+        row_bytes = int(msg.step) if int(msg.step) > 0 else width * channels * dtype.itemsize
+        row_elems = row_bytes // dtype.itemsize
+        needed_elems = height * row_elems
+        data = np.frombuffer(msg.data, dtype=dtype, count=needed_elems)
+        if data.size < needed_elems:
+            raise ValueError(f'Image data is short for encoding {msg.encoding}')
+        if bool(msg.is_bigendian) != (sys.byteorder == 'big') and dtype.itemsize > 1:
+            data = data.byteswap().view(dtype)
+        data = data.reshape((height, row_elems))
+        useful = data[:, : width * channels]
+        if channels == 1:
+            return np.ascontiguousarray(useful.reshape((height, width)))
+        return np.ascontiguousarray(useful.reshape((height, width, channels)))
 
     def _publish_debug(self, debug: dict) -> None:
         self.debug_pub.publish(String(data=json.dumps(debug)))

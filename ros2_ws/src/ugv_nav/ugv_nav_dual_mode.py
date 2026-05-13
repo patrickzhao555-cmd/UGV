@@ -254,7 +254,7 @@ class ControlCommand:
 
 
 def scale_control_command(cmd: ControlCommand, scale: float, reason: str, min_motion_raw: float = 0.0) -> ControlCommand:
-    scale = clamp(float(scale), 0.10, 1.0)
+    scale = clamp(float(scale), 0.0, 1.0)
     if cmd.mode == "STOP":
         return cmd
     suffix = ""
@@ -287,6 +287,24 @@ def scale_control_command(cmd: ControlCommand, scale: float, reason: str, min_mo
         raw_right=raw_right,
         reason=f"{cmd.reason}{suffix}",
     )
+
+
+def normalize_drive_speed_level(value: int) -> int:
+    return int(max(1, min(4, int(value))))
+
+
+def drive_speed_factor(level: int) -> float:
+    return normalize_drive_speed_level(level) / 4.0
+
+
+def drive_speed_level_arg(value: str) -> int:
+    try:
+        level = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("drive speed level must be an integer from 1 to 4") from exc
+    if level < 1 or level > 4:
+        raise argparse.ArgumentTypeError("drive speed level must be from 1 to 4")
+    return level
 
 
 @dataclass
@@ -2976,6 +2994,7 @@ def run_real_mode(
     imu_yaw_sign: float = 1.0,
     min_motion_raw: float = 0.22,
     min_speed_mps: float = 0.178816,
+    drive_speed_level: int = 4,
     front_safety_margin_m: float = 0.10,
     rear_safety_margin_m: float = 0.08,
     local_plan_inflation_m: float = 0.08,
@@ -2995,6 +3014,8 @@ def run_real_mode(
     nav_cfg.front_safety_margin_m = clamp(float(front_safety_margin_m), 0.0, 1.0)
     nav_cfg.rear_safety_margin_m = clamp(float(rear_safety_margin_m), 0.0, 1.0)
     nav_cfg.local_plan_inflation_m = clamp(float(local_plan_inflation_m), 0.0, 1.0)
+    drive_speed_level = normalize_drive_speed_level(drive_speed_level)
+    drive_factor = drive_speed_factor(drive_speed_level)
     field_w_m = yd(15.0)
     field_h_m = yd(15.0)
     custom_start_x = finite_optional(start_x_m)
@@ -3050,7 +3071,8 @@ def run_real_mode(
         f"Mission mode: {mission_mode}, competition_mode={competition_mode}, "
         f"start_corner={normalize_corner_name(start_corner)}, "
         f"start_pose=({init_pose.x:.2f}, {init_pose.y:.2f}, {math.degrees(init_pose.yaw):.1f}deg), "
-        f"straight_distance_m={straight_distance_m:.2f}"
+        f"straight_distance_m={straight_distance_m:.2f}, "
+        f"drive_speed_level={drive_speed_level}/4 ({drive_factor:.2f}x)"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
     print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
@@ -3071,12 +3093,25 @@ def run_real_mode(
         if frame is None:
             time.sleep(0.02)
             continue
-        mission_status = mission.update_frame(frame, navigator.state.estimated_pose)
+        mission_status = dict(mission.update_frame(frame, navigator.state.estimated_pose))
         cmd = navigator.step(frame)
         if mission_status.get("stop_requested"):
             cmd = ControlCommand("STOP", reason=f"{mission_status.get('phase', 'target')} reached inside accept radius")
         speed_scale, speed_reason = mission.command_speed_scale()
-        cmd = scale_control_command(cmd, speed_scale, speed_reason, nav_cfg.min_motion_raw)
+        effective_speed_scale = speed_scale * drive_factor
+        mission_status["drive_speed_level"] = drive_speed_level
+        mission_status["drive_speed_factor"] = round(drive_factor, 3)
+        mission_status["effective_speed_scale"] = round(effective_speed_scale, 3)
+        combined_reason = speed_reason
+        if drive_speed_level != 4:
+            combined_reason = f"{combined_reason}; " if combined_reason else ""
+            combined_reason += f"drive_level_{drive_speed_level}"
+        cmd = scale_control_command(
+            cmd,
+            effective_speed_scale,
+            combined_reason,
+            nav_cfg.min_motion_raw * drive_factor,
+        )
         bridge.send_control(cmd)
         now_s = time.monotonic()
         if now_s - last_status_s >= max(nav_status_period_s, 0.2):
@@ -3118,6 +3153,7 @@ def main() -> None:
     parser.add_argument("--imu-yaw-sign", type=float, default=1.0)
     parser.add_argument("--min-motion-raw", type=float, default=0.22, help="floor applied to non-stop raw wheel commands after mission speed scaling")
     parser.add_argument("--min-speed-mps", type=float, default=0.178816, help="mission minimum moving-speed requirement, 0.4 mph expressed in m/s")
+    parser.add_argument("--drive-speed-level", type=drive_speed_level_arg, default=4, help="overall real-mode drive speed cap: 1=25%%, 2=50%%, 3=75%%, 4=100%%")
     parser.add_argument("--front-safety-margin-m", type=float, default=0.10, help="extra front clearance required before forward commands")
     parser.add_argument("--rear-safety-margin-m", type=float, default=0.08, help="extra rear clearance required before reverse commands")
     parser.add_argument("--local-plan-inflation-m", type=float, default=0.08, help="local costmap obstacle inflation for immediate safety checks")
@@ -3148,6 +3184,7 @@ def main() -> None:
             imu_yaw_sign=args.imu_yaw_sign,
             min_motion_raw=args.min_motion_raw,
             min_speed_mps=args.min_speed_mps,
+            drive_speed_level=args.drive_speed_level,
             front_safety_margin_m=args.front_safety_margin_m,
             rear_safety_margin_m=args.rear_safety_margin_m,
             local_plan_inflation_m=args.local_plan_inflation_m,

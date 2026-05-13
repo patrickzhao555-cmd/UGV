@@ -59,6 +59,7 @@ def generate_launch_description():
     center_loiter_radius_m = LaunchConfiguration('center_loiter_radius_m')
     target_accept_radius_m = LaunchConfiguration('target_accept_radius_m')
     min_speed_mps = LaunchConfiguration('min_speed_mps')
+    drive_speed_level = LaunchConfiguration('drive_speed_level')
     straight_distance_m = LaunchConfiguration('straight_distance_m')
     bench_goal_x_m = LaunchConfiguration('bench_goal_x_m')
     bench_goal_y_m = LaunchConfiguration('bench_goal_y_m')
@@ -196,6 +197,8 @@ def generate_launch_description():
             min_motion_raw,
             '--min-speed-mps',
             min_speed_mps,
+            '--drive-speed-level',
+            drive_speed_level,
             '--front-safety-margin-m',
             front_safety_margin_m,
             '--rear-safety-margin-m',
@@ -271,6 +274,7 @@ def generate_launch_description():
         DeclareLaunchArgument('center_loiter_radius_m', default_value='0.75'),
         DeclareLaunchArgument('target_accept_radius_m', default_value='0.9144'),
         DeclareLaunchArgument('min_speed_mps', default_value='0.178816'),
+        DeclareLaunchArgument('drive_speed_level', default_value='4'),
         DeclareLaunchArgument('straight_distance_m', default_value='11.8872'),
         DeclareLaunchArgument('bench_goal_x_m', default_value='12.2'),
         DeclareLaunchArgument('bench_goal_y_m', default_value='12.0'),

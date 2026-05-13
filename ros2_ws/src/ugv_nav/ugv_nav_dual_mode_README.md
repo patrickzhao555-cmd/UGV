@@ -54,6 +54,15 @@ Run real mode through ROS 2:
 python ugv_nav_dual_mode.py --mode real
 ```
 
+Cap real-mode drive speed:
+
+```bash
+python ugv_nav_dual_mode.py --mode real --drive-speed-level 1
+```
+
+Speed levels are `1=25%`, `2=50%`, `3=75%`, and `4=100%`.
+With `jetson_bringup.sh`, set `DRIVE_SPEED_LEVEL=1` before `bash jetson_bringup.sh`.
+
 Run real-mode logic from a JSON replay file:
 
 ```bash

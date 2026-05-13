@@ -46,6 +46,7 @@ UGV_START_YAW_DEG="${UGV_START_YAW_DEG:-nan}"
 CENTER_LOITER_RADIUS_M="${CENTER_LOITER_RADIUS_M:-0.75}"
 TARGET_ACCEPT_RADIUS_M="${TARGET_ACCEPT_RADIUS_M:-0.9144}"
 MIN_SPEED_MPS="${MIN_SPEED_MPS:-0.178816}"
+DRIVE_SPEED_LEVEL="${DRIVE_SPEED_LEVEL:-4}"
 ROUND_STRAIGHT_DISTANCE_M="${ROUND_STRAIGHT_DISTANCE_M:-11.8872}"
 BENCH_GOAL_X_M="${BENCH_GOAL_X_M:-12.2}"
 BENCH_GOAL_Y_M="${BENCH_GOAL_Y_M:-12.0}"
@@ -126,6 +127,15 @@ if [[ "${ROUND_MODE}" == "round3" ]]; then
   COMPETITION_MODE=true
 fi
 
+case "${DRIVE_SPEED_LEVEL}" in
+  1|2|3|4)
+    ;;
+  *)
+    echo "Unsupported DRIVE_SPEED_LEVEL=${DRIVE_SPEED_LEVEL}. Use 1, 2, 3, or 4."
+    exit 1
+    ;;
+esac
+
 if [[ -z "${START_MARKER_VISION_WAS_SET}" && "${ROUND_MODE}" =~ ^round[123]$ ]]; then
   START_MARKER_VISION=true
 fi
@@ -178,6 +188,7 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   center_loiter_radius_m:="${CENTER_LOITER_RADIUS_M}" \
   target_accept_radius_m:="${TARGET_ACCEPT_RADIUS_M}" \
   min_speed_mps:="${MIN_SPEED_MPS}" \
+  drive_speed_level:="${DRIVE_SPEED_LEVEL}" \
   straight_distance_m:="${ROUND_STRAIGHT_DISTANCE_M}" \
   bench_goal_x_m:="${BENCH_GOAL_X_M}" \
   bench_goal_y_m:="${BENCH_GOAL_Y_M}" \

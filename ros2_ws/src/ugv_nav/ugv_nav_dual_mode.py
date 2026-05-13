@@ -386,6 +386,10 @@ class NavConfig:
     local_turn_penalty: float = 0.10
     local_goal_progress_weight: float = 4.5
     local_heading_weight: float = 0.95
+    local_corridor_forward_bonus: float = 0.80
+    local_corridor_turn_penalty: float = 0.35
+    local_corridor_front_clear_m: float = 0.72
+    local_corridor_side_clear_m: float = 0.62
     allow_stop_at_goal: bool = True
     nonstop_when_blocked: bool = False
     allow_reverse: bool = False
@@ -1272,6 +1276,14 @@ class LocalPlanner:
             return False
         return True
 
+    def _corridor_forward_clear(self, sectors: SectorSnapshot) -> bool:
+        front_clear = sectors.front_m > max(
+            self.nav_cfg.local_corridor_front_clear_m,
+            self.robot_cfg.length_m * 0.50 + self.nav_cfg.front_safety_margin_m + min(self.nav_cfg.forward_step_choices_m),
+        )
+        side_clear = min(sectors.front_left_m, sectors.front_right_m) > self.nav_cfg.local_corridor_side_clear_m
+        return bool(front_clear and side_clear)
+
     def _score(self, pose: Pose2D, target: Pose2D, goal: Pose2D, cmd: ControlCommand, sectors: SectorSnapshot, prev_cmd: ControlCommand) -> float:
         end = self._simulate_cmd_end_pose(pose, cmd)
         target_before = math.hypot(target.x - pose.x, target.y - pose.y)
@@ -1294,6 +1306,11 @@ class LocalPlanner:
                 score += 0.10 * min(sectors.left_m, 1.5) + 0.07 * min(sectors.front_left_m, 1.5)
             else:
                 score += 0.10 * min(sectors.right_m, 1.5) + 0.07 * min(sectors.front_right_m, 1.5)
+        if self._corridor_forward_clear(sectors):
+            if cmd.mode == 'FORWARD':
+                score += self.nav_cfg.local_corridor_forward_bonus
+            elif cmd.mode in {'TURN_LEFT', 'TURN_RIGHT'}:
+                score -= self.nav_cfg.local_corridor_turn_penalty
         if prev_cmd.mode and prev_cmd.mode != 'STOP':
             if prev_cmd.mode != cmd.mode:
                 score -= 0.05
@@ -1337,6 +1354,7 @@ class LocalPlanner:
         desired = math.atan2(target.y - pose.y, target.x - pose.x)
         yaw_err = wrap_to_pi(desired - pose.yaw)
         reverse_yaw_err = wrap_to_pi(desired - wrap_to_pi(pose.yaw + math.pi))
+        corridor_clear = self._corridor_forward_clear(sectors)
 
         candidates: List[ControlCommand] = []
         for deg in self.nav_cfg.turn_step_choices_deg:
@@ -1347,7 +1365,8 @@ class LocalPlanner:
         best_score = -1e18
         best_cmd: Optional[ControlCommand] = None
         for cmd in candidates:
-            if cmd.mode == 'FORWARD' and abs(yaw_err) > math.radians(32.0):
+            forward_yaw_limit_deg = 68.0 if corridor_clear else 32.0
+            if cmd.mode == 'FORWARD' and abs(yaw_err) > math.radians(forward_yaw_limit_deg):
                 continue
             if cmd.mode in {'FORWARD', 'BACKWARD'} and not self._safe_on_sectors(cmd, sectors):
                 continue
@@ -2584,7 +2603,7 @@ class UGVNavigator:
                 if self.local_planner._safe_on_costmap(local_map, self.state.estimated_pose, prev_turn):
                     cmd = prev_turn
             self._turn_loop_counter += 1
-            if self._turn_loop_counter >= 6:
+            if self._turn_loop_counter >= 3:
                 probe = ControlCommand('FORWARD', move_m=min(self.nav_cfg.forward_step_choices_m), raw_left=0.34, raw_right=0.34, reason='forward probe after turn loop')
                 if self.local_planner._safe_on_costmap(local_map, self.state.estimated_pose, probe) and self.local_planner._safe_on_sectors(probe, self.state.sectors):
                     cmd = probe
@@ -2877,7 +2896,7 @@ class CompetitionMission:
         now_s = frame.encoder.timestamp
         lidar_hits = self._lidar_hits_for_indoor_sectors(frame.lidar.hit_points_local)
         sectors = LocalPlanner.build_sector_snapshot(lidar_hits + frame.zed.hit_points_local)
-        front_blocked = sectors.front_m < 0.85
+        front_blocked = sectors.front_m < 0.65
         goal_age_s = now_s - self._indoor_goal_started_s
         need_new = self._indoor_goal_xy is None or goal_age_s > 4.5 or (front_blocked and goal_age_s > 1.0)
         if self._indoor_goal_xy is not None:
@@ -2904,7 +2923,7 @@ class CompetitionMission:
         del frame
         lookahead_m = 2.0
         cell_m = 0.75
-        candidates_deg = (0.0, 35.0, -35.0, 70.0, -70.0, 110.0, -110.0)
+        candidates_deg = (0.0, 25.0, -25.0, 55.0, -55.0, 90.0, -90.0)
 
         def sector_clearance(deg: float) -> float:
             if -25.0 <= deg <= 25.0:
@@ -2934,7 +2953,11 @@ class CompetitionMission:
                 clearance = 3.0
             score = min(clearance, 3.0)
             score += 1.2 if cell not in self._indoor_visited_cells else -0.35
-            score -= 0.004 * abs(deg)
+            if abs(deg) <= 1e-6 and clearance > 0.65:
+                score += 0.95
+            if abs(deg) >= 80.0:
+                score -= 0.35
+            score -= 0.007 * abs(deg)
             if score > best_score:
                 best_score = score
                 best_xy = (gx, gy)

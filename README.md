@@ -416,6 +416,10 @@ NAV_REAR_SAFETY_MARGIN_M=0.14
 NAV_LOCAL_PLAN_INFLATION_M=0.16
 ```
 
+Indoor search is tuned to prefer slow forward/arc-forward motion when the front
+corridor is clear enough, even if a side direction looks more open. This helps
+the robot pass chair/table gaps instead of repeatedly spinning in place.
+
 If ZED is temporarily failing to open but LiDAR and encoders are healthy, the
 fusion node can still publish nav frames from LiDAR + encoder data. This is
 enabled by default through `FUSION_ALLOW_LIDAR_ONLY=true`. For a chassis/pathing

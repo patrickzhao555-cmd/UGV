@@ -51,7 +51,7 @@ class YoloSemanticObstacleNode(Node):
         self.obstacle_points_topic = self.get_parameter("obstacle_points_topic").value
         self.debug_topic = self.get_parameter("debug_topic").value
         self.model_path = str(self.get_parameter("model_path").value)
-        self.device = str(self.get_parameter("device").value).strip()
+        self.device = self._normalize_device(str(self.get_parameter("device").value))
         self.imgsz = max(64, int(self.get_parameter("imgsz").value))
         self.confidence = float(self.get_parameter("confidence").value)
         self.iou = float(self.get_parameter("iou").value)
@@ -113,6 +113,13 @@ class YoloSemanticObstacleNode(Node):
             for item in raw.split(",")
             if item.strip()
         }
+
+    @staticmethod
+    def _normalize_device(raw: str) -> str:
+        device = str(raw or "").strip()
+        if device.lower() in {"", "auto", "default", "none"}:
+            return ""
+        return device
 
     def depth_callback(self, msg: Image) -> None:
         try:

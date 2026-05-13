@@ -369,7 +369,7 @@ def generate_launch_description():
         DeclareLaunchArgument('marker_generic_min_border_light_ratio', default_value='0.12'),
         DeclareLaunchArgument('marker_vision_test_period_s', default_value='3.0'),
         DeclareLaunchArgument('yolo_model_path', default_value='yolov8n.pt'),
-        DeclareLaunchArgument('yolo_device', default_value=''),
+        DeclareLaunchArgument('yolo_device', default_value='auto'),
         DeclareLaunchArgument('yolo_imgsz', default_value='416'),
         DeclareLaunchArgument('yolo_confidence', default_value='0.35'),
         DeclareLaunchArgument('yolo_max_hz', default_value='2.0'),

@@ -247,6 +247,7 @@ YOLO semantic obstacle assist:
 - enable with `START_YOLO_OBSTACLES=true`
 - optional dependency: `python3 -m pip install ultralytics`
 - default model: `YOLO_MODEL_PATH=yolov8n.pt`
+- default device: `YOLO_DEVICE=auto`; set `YOLO_DEVICE=cpu` if the Nano CUDA/PyTorch stack is unstable
 - default classes: `person,chair,couch,dining table,bench,potted plant,backpack,suitcase`
 - output topic: `/sensors/yolo_semantic_obstacle_points`
 

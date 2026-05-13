@@ -65,8 +65,10 @@ python3 -m pip install ultralytics
 Run through the normal launcher:
 
 ```bash
-START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt bash jetson_bringup.sh
+START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt YOLO_DEVICE=auto bash jetson_bringup.sh
 ```
+
+Use `YOLO_DEVICE=cpu` if the Nano CUDA/PyTorch stack is unstable.
 
 Topics:
 

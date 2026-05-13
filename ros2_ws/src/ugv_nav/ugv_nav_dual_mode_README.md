@@ -84,7 +84,7 @@ installed. It publishes chair/table/person-style detections as extra obstacle
 points for map inflation while LiDAR/ZED depth still own collision safety:
 
 ```bash
-START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt bash jetson_bringup.sh
+START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt YOLO_DEVICE=auto bash jetson_bringup.sh
 ```
 
 Run real-mode logic from a JSON replay file:

@@ -263,7 +263,7 @@ def generate_launch_description():
         DeclareLaunchArgument('start_debug_status', default_value='true'),
         DeclareLaunchArgument('start_bench_goal', default_value='false'),
         DeclareLaunchArgument('start_mock_field_map', default_value='false'),
-        DeclareLaunchArgument('start_marker_vision', default_value='false'),
+        DeclareLaunchArgument('start_marker_vision', default_value='true'),
         DeclareLaunchArgument('start_marker_vision_test', default_value='false'),
         DeclareLaunchArgument('competition_mode', default_value='false'),
         DeclareLaunchArgument('mission_mode', default_value='manual'),

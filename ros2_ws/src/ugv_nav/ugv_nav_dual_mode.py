@@ -3102,6 +3102,7 @@ def run_real_mode(
         mission_status["drive_speed_level"] = drive_speed_level
         mission_status["drive_speed_factor"] = round(drive_factor, 3)
         mission_status["effective_speed_scale"] = round(effective_speed_scale, 3)
+        mission_status["min_motion_raw"] = round(nav_cfg.min_motion_raw, 3)
         combined_reason = speed_reason
         if drive_speed_level != 4:
             combined_reason = f"{combined_reason}; " if combined_reason else ""
@@ -3110,7 +3111,7 @@ def run_real_mode(
             cmd,
             effective_speed_scale,
             combined_reason,
-            nav_cfg.min_motion_raw * drive_factor,
+            nav_cfg.min_motion_raw,
         )
         bridge.send_control(cmd)
         now_s = time.monotonic()

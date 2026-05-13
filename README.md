@@ -76,6 +76,10 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
+After a clean build, `ros2 interface show ugv_sensor_sync/msg/NavSensorFrame`
+should show `sensor_msgs/Imu imu`. The runtime nodes tolerate older overlays
+without that field, but seeing it confirms the current interface is active.
+
 Launch indoor search with real motors:
 
 ```bash

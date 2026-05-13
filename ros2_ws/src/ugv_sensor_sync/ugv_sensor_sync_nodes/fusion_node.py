@@ -295,7 +295,8 @@ class FusionNode(Node):
         nav_frame = NavSensorFrame()
         nav_frame.header = bundle.header
         nav_frame.scan = scan_msg
-        nav_frame.imu = smoothed_imu_msg
+        if hasattr(nav_frame, 'imu'):
+            nav_frame.imu = smoothed_imu_msg
         nav_frame.zed_obstacle_points = zed_obstacle_points
         nav_frame.left_encoder_ticks = int(encoder_left)
         nav_frame.right_encoder_ticks = int(encoder_right)

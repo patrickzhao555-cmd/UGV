@@ -1832,6 +1832,23 @@ class Ros2Bridge(RealRobotBridgeBase):
                 zed_hits.append((protective_x, offset_y))
 
         ts = self._stamp_to_seconds(msg.header.stamp)
+        imu_msg = getattr(msg, "imu", None)
+        if imu_msg is None:
+            imu_packet = ImuPacket((0.0, 0.0, 0.0), (0.0, 0.0, 9.81), ts)
+        else:
+            imu_packet = ImuPacket(
+                (
+                    float(imu_msg.angular_velocity.x),
+                    float(imu_msg.angular_velocity.y),
+                    float(imu_msg.angular_velocity.z),
+                ),
+                (
+                    float(imu_msg.linear_acceleration.x),
+                    float(imu_msg.linear_acceleration.y),
+                    float(imu_msg.linear_acceleration.z),
+                ),
+                ts,
+            )
         self._latest_synced = (
             int(msg.left_encoder_ticks),
             int(msg.right_encoder_ticks),
@@ -1839,19 +1856,7 @@ class Ros2Bridge(RealRobotBridgeBase):
             ranges_m,
             angles_rad,
             zed_hits,
-            ImuPacket(
-                (
-                    float(msg.imu.angular_velocity.x),
-                    float(msg.imu.angular_velocity.y),
-                    float(msg.imu.angular_velocity.z),
-                ),
-                (
-                    float(msg.imu.linear_acceleration.x),
-                    float(msg.imu.linear_acceleration.y),
-                    float(msg.imu.linear_acceleration.z),
-                ),
-                ts,
-            ),
+            imu_packet,
             ts,
         )
         self._latest_synced_seq += 1

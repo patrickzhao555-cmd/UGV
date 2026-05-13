@@ -36,6 +36,15 @@ ros2_ws/
 
 ## Quick Start on Jetson/Nano
 
+Clone if the Nano does not have the repo yet:
+
+```bash
+cd ~
+git clone https://github.com/patrickzhao555-cmd/UGV.git ugv_project
+cd ~/ugv_project
+git checkout feature/motor-sync-nav-bringup
+```
+
 Pull the latest branch:
 
 ```bash
@@ -44,7 +53,7 @@ git checkout feature/motor-sync-nav-bringup
 git pull --ff-only origin feature/motor-sync-nav-bringup
 ```
 
-Build:
+Source and rebuild after pulling:
 
 ```bash
 cd ~/ugv_project/ros2_ws
@@ -54,11 +63,36 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-Launch the full stack:
+Launch indoor search with real motors:
 
 ```bash
 cd ~/ugv_project/ros2_ws
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 \
+MOTOR_PORT=/dev/ttyACM0 LIDAR_PORT=/dev/ttyUSB0 MOTOR_DRY_RUN=false \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Launch the same mode with YOLO semantic obstacle assist enabled:
+
+```bash
+cd ~/ugv_project/ros2_ws
+python3 -m pip install ultralytics
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 START_YOLO_OBSTACLES=true \
+MOTOR_PORT=/dev/ttyACM0 LIDAR_PORT=/dev/ttyUSB0 MOTOR_DRY_RUN=false \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+YOLO is optional and advisory. LiDAR and ZED depth still own collision safety;
+YOLO only adds chair/table/person-style semantic obstacle points for more
+conservative map inflation.
+
+Every new terminal that uses ROS commands should source the same overlays:
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/ugv_ws_albert/install/setup.bash
+cd ~/ugv_project/ros2_ws
+source install/setup.bash
 ```
 
 ## Bench Test Modes
@@ -207,6 +241,19 @@ slightly noisy. Tune
 `MARKER_MIN_GOOD_MATCHES`, `MARKER_CONFIRMATION_FRAMES`, and
 `MARKER_CONFIRMATION_RADIUS_M` if bench data shows missed detections or false positives.
 
+YOLO semantic obstacle assist:
+
+- disabled by default: `START_YOLO_OBSTACLES=false`
+- enable with `START_YOLO_OBSTACLES=true`
+- optional dependency: `python3 -m pip install ultralytics`
+- default model: `YOLO_MODEL_PATH=yolov8n.pt`
+- default classes: `person,chair,couch,dining table,bench,potted plant,backpack,suitcase`
+- output topic: `/sensors/yolo_semantic_obstacle_points`
+
+Fusion merges YOLO semantic points into the existing navigation obstacle point
+stream. A missed YOLO detection never removes a LiDAR/ZED obstacle; it only
+means navigation falls back to the normal hard safety layer.
+
 ## Real Run Warning
 
 Only run without `MOTOR_DRY_RUN=true` when the mechanical team has cleared the
@@ -229,6 +276,7 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 
 - `/sensors/synced_summary`: fused LiDAR/ZED/encoder debug summary
 - `/sensors/nav_frame`: synchronized nav input frame
+- `/sensors/yolo_semantic_obstacle_points`: optional YOLO semantic obstacle points
 - `/ugv_goal`: manual goal input in map coordinates
 - `/ugv/target`: ESP/UAV target marker coordinate in meters from the field lower-left corner
 - `/ugv/field_map`: legacy optional 15 x 15 field-map JSON, still accepted for older tests
@@ -247,7 +295,7 @@ Current competition data flow:
 1. `zed_sync_node` publishes `/zed/depth`, `/zed/imu`, and optionally `/zed/image`.
 2. `lidar_sync_node` publishes timestamp-corrected `/scan/synced`.
 3. `motor_controller_bridge` publishes `/encoder_ticks_stamped`.
-4. `fusion_node` aligns LiDAR, ZED depth/IMU, and encoder ticks into `/sensors/nav_frame`.
+4. `fusion_node` aligns LiDAR, ZED depth/IMU, optional YOLO semantic obstacle points, and encoder ticks into `/sensors/nav_frame`.
 5. `ugv_nav_dual_mode.py` uses `/sensors/nav_frame` plus `/ugv/target`, `/ugv/field_map`, `/ugv/marker_detection`, `/ugv_goal`, and `/ugv/mission_flag`.
 6. Marker vision, when enabled, publishes confirmed target detections to `/ugv/marker_detection`.
 7. Navigation publishes `/ugv_nav_cmd`, `/ugv_nav_status`, and `/ugv/uav_flag` when a target coordinate or local marker detection is accepted.

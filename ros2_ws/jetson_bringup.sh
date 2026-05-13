@@ -67,6 +67,13 @@ USE_IMU_YAW="${USE_IMU_YAW:-false}"
 IMU_YAW_BLEND="${IMU_YAW_BLEND:-0.25}"
 IMU_YAW_AXIS="${IMU_YAW_AXIS:-z}"
 IMU_YAW_SIGN="${IMU_YAW_SIGN:-1.0}"
+ROBOT_LENGTH_M="${ROBOT_LENGTH_M:-0.762}"
+ROBOT_WIDTH_M="${ROBOT_WIDTH_M:-0.762}"
+ROBOT_TRACK_WIDTH_M="${ROBOT_TRACK_WIDTH_M:-0.6096}"
+LIDAR_OFFSET_X_M="${LIDAR_OFFSET_X_M:-0.30}"
+LIDAR_OFFSET_Y_M="${LIDAR_OFFSET_Y_M:-0.0}"
+LIDAR_USED_FOV_DEG="${LIDAR_USED_FOV_DEG:-250.0}"
+NAV_ALLOW_REVERSE="${NAV_ALLOW_REVERSE:-false}"
 NAV_FRONT_SAFETY_MARGIN_M="${NAV_FRONT_SAFETY_MARGIN_M:-0.10}"
 NAV_REAR_SAFETY_MARGIN_M="${NAV_REAR_SAFETY_MARGIN_M:-0.08}"
 NAV_LOCAL_PLAN_INFLATION_M="${NAV_LOCAL_PLAN_INFLATION_M:-0.08}"
@@ -75,9 +82,14 @@ MARKER_MODEL_MAX_DESCRIPTORS="${MARKER_MODEL_MAX_DESCRIPTORS:-65000}"
 MARKER_MIN_GOOD_MATCHES="${MARKER_MIN_GOOD_MATCHES:-18}"
 MARKER_CONFIRMATION_FRAMES="${MARKER_CONFIRMATION_FRAMES:-2}"
 MARKER_CONFIRMATION_RADIUS_M="${MARKER_CONFIRMATION_RADIUS_M:-0.75}"
-MARKER_ENABLE_GENERIC_DETECTOR="${MARKER_ENABLE_GENERIC_DETECTOR:-true}"
+MARKER_SIZE_M="${MARKER_SIZE_M:-0.3048}"
+MARKER_MIN_PROJECTED_SIZE_M="${MARKER_MIN_PROJECTED_SIZE_M:-0.10}"
+MARKER_MAX_PROJECTED_SIZE_M="${MARKER_MAX_PROJECTED_SIZE_M:-0.75}"
+MARKER_ENABLE_GENERIC_DETECTOR="${MARKER_ENABLE_GENERIC_DETECTOR:-false}"
 MARKER_GENERIC_MIN_AREA_FRAC="${MARKER_GENERIC_MIN_AREA_FRAC:-0.002}"
 MARKER_GENERIC_MIN_CONTRAST="${MARKER_GENERIC_MIN_CONTRAST:-55.0}"
+MARKER_GENERIC_MIN_GRID_SCORE="${MARKER_GENERIC_MIN_GRID_SCORE:-0.18}"
+MARKER_GENERIC_MIN_BORDER_LIGHT_RATIO="${MARKER_GENERIC_MIN_BORDER_LIGHT_RATIO:-0.12}"
 EXTRA_SETUP_BASH="${EXTRA_SETUP_BASH:-}"
 MOTOR_DRY_RUN="${MOTOR_DRY_RUN:-false}"
 MOTOR_PWM_SLEW_RATE_US_PER_S="${MOTOR_PWM_SLEW_RATE_US_PER_S:-2400.0}"
@@ -114,11 +126,14 @@ case "${ROUND_MODE}" in
   round3|r3|round_3|competition)
     ROUND_MODE="round3"
     ;;
+  indoor|room|classroom|roomba|wander|indoor_search)
+    ROUND_MODE="indoor"
+    ;;
   manual|normal|manual_goal)
     ROUND_MODE="manual"
     ;;
   *)
-    echo "Unsupported ROUND_MODE=${ROUND_MODE}. Use manual, round1, round2, or round3."
+    echo "Unsupported ROUND_MODE=${ROUND_MODE}. Use manual, indoor, round1, round2, or round3."
     exit 1
     ;;
 esac
@@ -201,9 +216,14 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   marker_min_good_matches:="${MARKER_MIN_GOOD_MATCHES}" \
   marker_confirmation_frames:="${MARKER_CONFIRMATION_FRAMES}" \
   marker_confirmation_radius_m:="${MARKER_CONFIRMATION_RADIUS_M}" \
+  marker_size_m:="${MARKER_SIZE_M}" \
+  marker_min_projected_size_m:="${MARKER_MIN_PROJECTED_SIZE_M}" \
+  marker_max_projected_size_m:="${MARKER_MAX_PROJECTED_SIZE_M}" \
   marker_enable_generic_detector:="${MARKER_ENABLE_GENERIC_DETECTOR}" \
   marker_generic_min_area_frac:="${MARKER_GENERIC_MIN_AREA_FRAC}" \
   marker_generic_min_contrast:="${MARKER_GENERIC_MIN_CONTRAST}" \
+  marker_generic_min_grid_score:="${MARKER_GENERIC_MIN_GRID_SCORE}" \
+  marker_generic_min_border_light_ratio:="${MARKER_GENERIC_MIN_BORDER_LIGHT_RATIO}" \
   marker_vision_test_period_s:="${MARKER_VISION_TEST_PERIOD_S}" \
   lidar_port:="${LIDAR_PORT}" \
   lidar_baud:="${LIDAR_BAUD}" \
@@ -220,6 +240,13 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   imu_yaw_blend:="${IMU_YAW_BLEND}" \
   imu_yaw_axis:="${IMU_YAW_AXIS}" \
   imu_yaw_sign:="${IMU_YAW_SIGN}" \
+  robot_length_m:="${ROBOT_LENGTH_M}" \
+  robot_width_m:="${ROBOT_WIDTH_M}" \
+  robot_track_width_m:="${ROBOT_TRACK_WIDTH_M}" \
+  lidar_offset_x_m:="${LIDAR_OFFSET_X_M}" \
+  lidar_offset_y_m:="${LIDAR_OFFSET_Y_M}" \
+  lidar_used_fov_deg:="${LIDAR_USED_FOV_DEG}" \
+  allow_reverse:="${NAV_ALLOW_REVERSE}" \
   front_safety_margin_m:="${NAV_FRONT_SAFETY_MARGIN_M}" \
   rear_safety_margin_m:="${NAV_REAR_SAFETY_MARGIN_M}" \
   local_plan_inflation_m:="${NAV_LOCAL_PLAN_INFLATION_M}" \

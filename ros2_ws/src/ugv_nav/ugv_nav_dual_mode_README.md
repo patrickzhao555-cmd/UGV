@@ -63,6 +63,22 @@ python ugv_nav_dual_mode.py --mode real --drive-speed-level 1
 Speed levels are `1=25%`, `2=50%`, `3=75%`, and `4=100%`.
 With `jetson_bringup.sh`, set `DRIVE_SPEED_LEVEL=1` before `bash jetson_bringup.sh`.
 
+Run classroom/indoor marker search without a competition start corner:
+
+```bash
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 bash jetson_bringup.sh
+```
+
+Indoor mode keeps ZED/marker vision on by default, starts from an internal room-center pose, ignores rear LiDAR returns, and chooses short forward/turn search goals instead of driving to the round3 field center. Defaults assume a 30 inch by 30 inch UGV, front-mounted LiDAR, `LIDAR_USED_FOV_DEG=250`, `LIDAR_OFFSET_X_M=0.30`, and `NAV_ALLOW_REVERSE=false`.
+
+Generic marker detection is off by default because classroom objects can look marker-like. Re-enable it only for controlled marker tests:
+
+```bash
+MARKER_ENABLE_GENERIC_DETECTOR=true bash jetson_bringup.sh
+```
+
+The marker node also checks for a 12 inch square physical size, light border, and blocky grid-like interior before publishing generic detections. LiDAR remains the primary obstacle source; object detectors such as YOLO should stay optional because a missed table leg must not remove a collision obstacle from the safety layer.
+
 Run real-mode logic from a JSON replay file:
 
 ```bash

@@ -10,6 +10,10 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 import matplotlib
 try:
@@ -309,12 +313,14 @@ def drive_speed_level_arg(value: str) -> int:
 
 @dataclass
 class RobotConfig:
-    length_m: float = ft(25.0 / 12.0)
-    width_m: float = ft(15.0 / 12.0)
-    track_width_m: float = ft(1.35)
+    length_m: float = ft(30.0 / 12.0)
+    width_m: float = ft(30.0 / 12.0)
+    track_width_m: float = ft(2.0)
     wheel_radius_m: float = 0.06
     ticks_per_rev: int = 1000
     obstacle_buffer_m: float = 0.05
+    lidar_offset_x_m: float = 0.30
+    lidar_offset_y_m: float = 0.0
 
 
 @dataclass
@@ -356,6 +362,9 @@ class NavConfig:
     local_heading_weight: float = 0.95
     allow_stop_at_goal: bool = True
     nonstop_when_blocked: bool = False
+    allow_reverse: bool = False
+    lidar_used_fov_deg: float = 250.0
+    lidar_map_stride: int = 4
     use_imu_yaw: bool = False
     imu_yaw_blend: float = 0.25
     imu_yaw_axis: str = "z"
@@ -430,13 +439,18 @@ def normalize_mission_mode(mode: str, competition_mode: bool = False) -> str:
         "r3": "round3",
         "round_3": "round3",
         "competition": "round3",
+        "room": "indoor",
+        "classroom": "indoor",
+        "roomba": "indoor",
+        "wander": "indoor",
+        "indoor_search": "indoor",
         "manual_goal": "manual",
         "normal": "manual",
     }
     value = aliases.get(value, value)
     if competition_mode and value == "manual":
         value = "round3"
-    if value not in {"manual", "round1", "round2", "round3"}:
+    if value not in {"manual", "round1", "round2", "round3", "indoor"}:
         raise ValueError(f"Unsupported mission mode {mode!r}")
     return value
 
@@ -1222,6 +1236,8 @@ class LocalPlanner:
         return True
 
     def _safe_on_sectors(self, cmd: ControlCommand, sectors: SectorSnapshot) -> bool:
+        if cmd.mode == 'BACKWARD' and not self.nav_cfg.allow_reverse:
+            return False
         front_need = self.robot_cfg.length_m * 0.50 + self.nav_cfg.front_safety_margin_m + abs(cmd.move_m)
         rear_need = self.robot_cfg.length_m * 0.42 + self.nav_cfg.rear_safety_margin_m + abs(cmd.move_m)
         if cmd.mode == 'FORWARD' and sectors.front_m < front_need:
@@ -1359,14 +1375,14 @@ class LocalPlanner:
             cmd = ControlCommand('TURN_RIGHT', turn_deg=28.0, raw_left=0.32, raw_right=-0.32, reason='local escape turn')
             if self._safe_on_costmap(costmap, pose, cmd):
                 return cmd
-        if sectors.rear_m > self.robot_cfg.length_m * 0.45 + 0.08:
+        if self.nav_cfg.allow_reverse and sectors.rear_m > self.robot_cfg.length_m * 0.45 + 0.08:
             return ControlCommand('BACKWARD', move_m=min(self.nav_cfg.backward_step_choices_m), raw_left=-0.34, raw_right=-0.34, reason='local emergency reverse')
         if self.nav_cfg.nonstop_when_blocked:
             return self._nonstop_blocked_escape(sectors)
         return ControlCommand('STOP', reason='local no safe motion')
 
     def _nonstop_blocked_escape(self, sectors: SectorSnapshot) -> ControlCommand:
-        if sectors.rear_m > self.robot_cfg.length_m * 0.25:
+        if self.nav_cfg.allow_reverse and sectors.rear_m > self.robot_cfg.length_m * 0.25:
             return ControlCommand(
                 'BACKWARD',
                 move_m=min(self.nav_cfg.backward_step_choices_m),
@@ -2066,6 +2082,23 @@ class UGVNavigator:
         s = math.sin(pose.yaw)
         return pose.x + lx * c - ly * s, pose.y + lx * s + ly * c
 
+    def _lidar_hits_in_base_frame(self, hits_local: Sequence[Tuple[float, float]], stride: int = 1) -> List[Tuple[float, float]]:
+        half_fov_rad = 0.5 * math.radians(clamp(float(self.nav_cfg.lidar_used_fov_deg), 1.0, 360.0))
+        out: List[Tuple[float, float]] = []
+        ox = float(self.robot_cfg.lidar_offset_x_m)
+        oy = float(self.robot_cfg.lidar_offset_y_m)
+        stride = max(1, int(stride))
+        accepted = 0
+        for lx, ly in hits_local:
+            if abs(wrap_to_pi(math.atan2(ly, lx))) > half_fov_rad:
+                continue
+            if accepted % stride != 0:
+                accepted += 1
+                continue
+            accepted += 1
+            out.append((float(lx) + ox, float(ly) + oy))
+        return out
+
     def _clear_robot_footprint(self) -> None:
         pose = self.state.estimated_pose
         radius = max(self.robot_cfg.length_m, self.robot_cfg.width_m) * 0.42
@@ -2221,18 +2254,7 @@ class UGVNavigator:
 
         inflate_radius = max(self.nav_cfg.global_plan_inflation_m, self.robot_cfg.width_m * 0.52 + self.robot_cfg.obstacle_buffer_m)
         cells = max(1, int(math.ceil(inflate_radius / src.spec.resolution)))
-        occ = np.argwhere(work.data > 0)
-        for gy, gx in occ:
-            for ddy in range(-cells, cells + 1):
-                ny = gy + ddy
-                if ny < 0 or ny >= src.spec.height:
-                    continue
-                for ddx in range(-cells, cells + 1):
-                    nx = gx + ddx
-                    if nx < 0 or nx >= src.spec.width:
-                        continue
-                    if ddx * ddx + ddy * ddy <= cells * cells:
-                        inflated[ny, nx] = 1
+        inflated = self._inflate_binary_grid(work.data, cells)
 
         out_map = Costmap2D(src.spec, inflated)
         clear_r = max(0.5 * math.hypot(self.robot_cfg.length_m, self.robot_cfg.width_m) * 0.7, 0.18)
@@ -2246,25 +2268,37 @@ class UGVNavigator:
     def _planning_costmap(self) -> Costmap2D:
         return self._inflate_costmap()
 
+    @staticmethod
+    def _inflate_binary_grid(data: np.ndarray, cells: int) -> np.ndarray:
+        cells = max(1, int(cells))
+        src = (data > 0).astype(np.uint8)
+        if cv2 is not None:
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * cells + 1, 2 * cells + 1))
+            return cv2.dilate(src, kernel, iterations=1).astype(np.uint8)
+
+        inflated = src.copy()
+        height, width = src.shape[:2]
+        occ = np.argwhere(src > 0)
+        for gy, gx in occ:
+            for ddy in range(-cells, cells + 1):
+                ny = gy + ddy
+                if ny < 0 or ny >= height:
+                    continue
+                for ddx in range(-cells, cells + 1):
+                    nx = gx + ddx
+                    if nx < 0 or nx >= width:
+                        continue
+                    if ddx * ddx + ddy * ddy <= cells * cells:
+                        inflated[ny, nx] = 1
+        return inflated
+
     def _local_safety_costmap(self) -> Costmap2D:
         src = self.known_costmap
         work = Costmap2D(src.spec, src.data.copy())
         self.blocked_memory.rasterize(work)
         if self.nav_cfg.local_plan_inflation_m > 1e-6:
-            inflated = work.data.copy()
             cells = max(1, int(math.ceil(self.nav_cfg.local_plan_inflation_m / src.spec.resolution)))
-            occ = np.argwhere(work.data > 0)
-            for gy, gx in occ:
-                for ddy in range(-cells, cells + 1):
-                    ny = gy + ddy
-                    if ny < 0 or ny >= src.spec.height:
-                        continue
-                    for ddx in range(-cells, cells + 1):
-                        nx = gx + ddx
-                        if nx < 0 or nx >= src.spec.width:
-                            continue
-                        if ddx * ddx + ddy * ddy <= cells * cells:
-                            inflated[ny, nx] = 1
+            inflated = self._inflate_binary_grid(work.data, cells)
             work = Costmap2D(src.spec, inflated)
         clear_r = max(0.50, 0.5 * math.hypot(self.robot_cfg.length_m, self.robot_cfg.width_m) + 0.08)
         work.clear_disk_world(self.state.estimated_pose.x, self.state.estimated_pose.y, clear_r)
@@ -2366,7 +2400,7 @@ class UGVNavigator:
     def _build_escape_queue(self, sectors: SectorSnapshot) -> None:
         self._escape_queue = []
         rear_need = self.robot_cfg.length_m * 0.40 + self.nav_cfg.rear_safety_margin_m
-        if sectors.rear_m > rear_need:
+        if self.nav_cfg.allow_reverse and sectors.rear_m > rear_need:
             self._escape_queue.append(ControlCommand('BACKWARD', move_m=min(self.nav_cfg.backward_step_choices_m), raw_left=-0.34, raw_right=-0.34, reason='escape reverse'))
         go_left = (sectors.left_m + sectors.front_left_m) >= (sectors.right_m + sectors.front_right_m)
         if math.isinf(sectors.left_m) and math.isinf(sectors.right_m):
@@ -2404,11 +2438,13 @@ class UGVNavigator:
             self._stuck_counter = 0
 
         self._integrate_lidar_freespace(frame.lidar)
+        lidar_hits_local = self._lidar_hits_in_base_frame(frame.lidar.hit_points_local)
+        lidar_hits_for_map = self._lidar_hits_in_base_frame(frame.lidar.hit_points_local, self.nav_cfg.lidar_map_stride)
         added = 0
-        added += self._integrate_hits_into_map(frame.lidar.hit_points_local, connect_adjacent=True, solidify_clusters=False)
+        added += self._integrate_hits_into_map(lidar_hits_for_map, connect_adjacent=True, solidify_clusters=False)
         added += self._integrate_hits_into_map(frame.zed.hit_points_local, connect_adjacent=False, solidify_clusters=True)
         self.state.discovered_points += added
-        self.state.sectors = self.local_planner.build_sector_snapshot(frame.lidar.hit_points_local + frame.zed.hit_points_local)
+        self.state.sectors = self.local_planner.build_sector_snapshot(lidar_hits_local + frame.zed.hit_points_local)
 
         if self._stuck_counter >= self.nav_cfg.stuck_trigger_steps:
             self._add_blocked_patch_ahead(reverse=(last_cmd_mode == 'BACKWARD'))
@@ -2664,6 +2700,9 @@ class CompetitionMission:
         self._search_index = 0
         self._search_radius_index = 0
         self._current_search_radius_m = self.center_loiter_radius_m
+        self._indoor_goal_xy: Optional[Tuple[float, float]] = None
+        self._indoor_goal_started_s = 0.0
+        self._indoor_visited_cells: Set[Tuple[int, int]] = set()
 
     def update_frame(self, frame: SensorFrame, pose: Pose2D) -> dict:
         if frame.mission_flag is not None:
@@ -2674,6 +2713,11 @@ class CompetitionMission:
             self.final_goal = (frame.marker_goal.x, frame.marker_goal.y)
             self.final_goal_source = "camera_marker"
             self.latest_marker_distance_m = frame.marker_goal.distance_m
+        elif self.mission_mode == "indoor":
+            if self.final_goal_source != "camera_marker":
+                self.final_goal = None
+                self.final_goal_source = "none"
+                self.latest_marker_distance_m = None
         elif frame.field_map is not None and frame.field_map.goal_xy is not None:
             self.final_goal = frame.field_map.goal_xy
             self.final_goal_source = frame.field_map.source
@@ -2687,7 +2731,9 @@ class CompetitionMission:
             return self._status_dict(frame.goal)
 
         self.stop_requested = False
-        if self.mission_mode in {"round1", "round2"}:
+        if self.mission_mode == "indoor":
+            goal = self._update_indoor(frame, pose)
+        elif self.mission_mode in {"round1", "round2"}:
             goal = self._update_straight_round(frame, pose)
         else:
             goal = self._update_round3(frame, pose)
@@ -2732,6 +2778,78 @@ class CompetitionMission:
             return self._search_goal(pose)
         self.phase = "startup_to_center"
         return GoalPacket(self.center[0], self.center[1], frame.encoder.timestamp)
+
+    def _update_indoor(self, frame: SensorFrame, pose: Pose2D) -> GoalPacket:
+        self._mark_indoor_visited(pose)
+        if self.final_goal is not None:
+            if self._target_reached(pose):
+                self.phase = "target_loiter"
+                return self._loiter_goal(self.final_goal, pose)
+            self.phase = "target_nav"
+            return GoalPacket(self.final_goal[0], self.final_goal[1], frame.encoder.timestamp, self.latest_marker_distance_m)
+
+        self.phase = "indoor_search"
+        return self._indoor_search_goal(frame, pose)
+
+    def _mark_indoor_visited(self, pose: Pose2D) -> None:
+        cell_m = 0.75
+        self._indoor_visited_cells.add((int(math.floor(pose.x / cell_m)), int(math.floor(pose.y / cell_m))))
+
+    def _indoor_search_goal(self, frame: SensorFrame, pose: Pose2D) -> GoalPacket:
+        now_s = frame.encoder.timestamp
+        sectors = LocalPlanner.build_sector_snapshot(frame.lidar.hit_points_local + frame.zed.hit_points_local)
+        front_blocked = sectors.front_m < 1.15
+        need_new = self._indoor_goal_xy is None or now_s - self._indoor_goal_started_s > 4.5 or front_blocked
+        if self._indoor_goal_xy is not None:
+            if math.hypot(self._indoor_goal_xy[0] - pose.x, self._indoor_goal_xy[1] - pose.y) < 0.55:
+                need_new = True
+
+        if need_new:
+            self._indoor_goal_xy = self._choose_indoor_goal(frame, pose, sectors)
+            self._indoor_goal_started_s = now_s
+
+        gx, gy = self._indoor_goal_xy
+        return GoalPacket(gx, gy, now_s)
+
+    def _choose_indoor_goal(self, frame: SensorFrame, pose: Pose2D, sectors: SectorSnapshot) -> Tuple[float, float]:
+        del frame
+        lookahead_m = 2.0
+        cell_m = 0.75
+        candidates_deg = (0.0, 35.0, -35.0, 70.0, -70.0, 110.0, -110.0)
+
+        def sector_clearance(deg: float) -> float:
+            if -25.0 <= deg <= 25.0:
+                return sectors.front_m
+            if 25.0 < deg <= 80.0:
+                return min(sectors.front_left_m, sectors.left_m)
+            if -80.0 <= deg < -25.0:
+                return min(sectors.front_right_m, sectors.right_m)
+            if 80.0 < deg <= 150.0:
+                return sectors.left_m
+            if -150.0 <= deg < -80.0:
+                return sectors.right_m
+            return 1.25
+
+        best_score = -1e18
+        best_xy = (
+            clamp(pose.x + lookahead_m * math.cos(pose.yaw), 0.65, self.field_w_m - 0.65),
+            clamp(pose.y + lookahead_m * math.sin(pose.yaw), 0.65, self.field_h_m - 0.65),
+        )
+        for deg in candidates_deg:
+            heading = wrap_to_pi(pose.yaw + math.radians(deg))
+            gx = clamp(pose.x + lookahead_m * math.cos(heading), 0.65, self.field_w_m - 0.65)
+            gy = clamp(pose.y + lookahead_m * math.sin(heading), 0.65, self.field_h_m - 0.65)
+            cell = (int(math.floor(gx / cell_m)), int(math.floor(gy / cell_m)))
+            clearance = sector_clearance(deg)
+            if not math.isfinite(clearance):
+                clearance = 3.0
+            score = min(clearance, 3.0)
+            score += 1.2 if cell not in self._indoor_visited_cells else -0.35
+            score -= 0.004 * abs(deg)
+            if score > best_score:
+                best_score = score
+                best_xy = (gx, gy)
+        return best_xy
 
     def _loiter_goal(self, center: Tuple[float, float], pose: Pose2D) -> GoalPacket:
         if center != self._active_loiter_center:
@@ -2992,6 +3110,13 @@ def run_real_mode(
     imu_yaw_blend: float = 0.25,
     imu_yaw_axis: str = "z",
     imu_yaw_sign: float = 1.0,
+    robot_length_m: float = ft(30.0 / 12.0),
+    robot_width_m: float = ft(30.0 / 12.0),
+    robot_track_width_m: float = ft(2.0),
+    lidar_offset_x_m: float = 0.30,
+    lidar_offset_y_m: float = 0.0,
+    lidar_used_fov_deg: float = 250.0,
+    allow_reverse: bool = False,
     min_motion_raw: float = 0.22,
     min_speed_mps: float = 0.178816,
     drive_speed_level: int = 4,
@@ -3002,10 +3127,17 @@ def run_real_mode(
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
     competition_mode = mission_mode == "round3"
     robot_cfg = RobotConfig()
+    robot_cfg.length_m = max(0.20, float(robot_length_m))
+    robot_cfg.width_m = max(0.20, float(robot_width_m))
+    robot_cfg.track_width_m = max(0.20, float(robot_track_width_m))
+    robot_cfg.lidar_offset_x_m = float(lidar_offset_x_m)
+    robot_cfg.lidar_offset_y_m = float(lidar_offset_y_m)
     sensor_cfg = SensorConfig()
     nav_cfg = NavConfig()
-    nav_cfg.allow_stop_at_goal = mission_mode != "round3"
-    nav_cfg.nonstop_when_blocked = mission_mode == "round3"
+    nav_cfg.allow_stop_at_goal = mission_mode not in {"round3", "indoor"}
+    nav_cfg.nonstop_when_blocked = mission_mode in {"round3", "indoor"}
+    nav_cfg.allow_reverse = bool(allow_reverse)
+    nav_cfg.lidar_used_fov_deg = clamp(float(lidar_used_fov_deg), 1.0, 360.0)
     nav_cfg.use_imu_yaw = bool(use_imu_yaw)
     nav_cfg.imu_yaw_blend = clamp(float(imu_yaw_blend), 0.0, 1.0)
     nav_cfg.imu_yaw_axis = str(imu_yaw_axis).lower()
@@ -3029,6 +3161,14 @@ def run_real_mode(
         init_pose = start_pose_for_corner(start_corner, field_w_m, field_h_m)
     if mission_mode == "round3":
         init_goal = Pose2D(0.5 * field_w_m, 0.5 * field_h_m, 0.0)
+    elif mission_mode == "indoor":
+        if custom_start_x is None or custom_start_y is None:
+            init_pose = Pose2D(0.5 * field_w_m, 0.5 * field_h_m, 0.0)
+        init_goal = Pose2D(
+            clamp(init_pose.x + 2.0 * math.cos(init_pose.yaw), 0.65, field_w_m - 0.65),
+            clamp(init_pose.y + 2.0 * math.sin(init_pose.yaw), 0.65, field_h_m - 0.65),
+            init_pose.yaw,
+        )
     elif mission_mode in {"round1", "round2"}:
         if custom_start_x is None or custom_start_y is None:
             init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
@@ -3072,7 +3212,10 @@ def run_real_mode(
         f"start_corner={normalize_corner_name(start_corner)}, "
         f"start_pose=({init_pose.x:.2f}, {init_pose.y:.2f}, {math.degrees(init_pose.yaw):.1f}deg), "
         f"straight_distance_m={straight_distance_m:.2f}, "
-        f"drive_speed_level={drive_speed_level}/4 ({drive_factor:.2f}x)"
+        f"drive_speed_level={drive_speed_level}/4 ({drive_factor:.2f}x), "
+        f"robot=({robot_cfg.length_m:.2f}m x {robot_cfg.width_m:.2f}m), "
+        f"lidar_offset=({robot_cfg.lidar_offset_x_m:.2f}, {robot_cfg.lidar_offset_y_m:.2f})m, "
+        f"lidar_fov={nav_cfg.lidar_used_fov_deg:.0f}deg, allow_reverse={nav_cfg.allow_reverse}"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
     print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
@@ -3135,7 +3278,7 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=900)
     parser.add_argument("--replay-json", type=str, default=None, help="use JSONL replay file for real mode testing")
     parser.add_argument("--competition-mode", type=str_to_bool, default=False, help="enable corner startup/search mission logic in real mode")
-    parser.add_argument("--mission-mode", choices=["manual", "round1", "round2", "round3"], default="manual")
+    parser.add_argument("--mission-mode", choices=["manual", "round1", "round2", "round3", "indoor"], default="manual")
     parser.add_argument("--start-corner", type=str, default="lower_left", help="one of lower_left, lower_right, upper_left, upper_right")
     parser.add_argument("--start-x-m", type=float, default=float("nan"), help="optional UGV start x in meters from the lower-left field origin")
     parser.add_argument("--start-y-m", type=float, default=float("nan"), help="optional UGV start y in meters from the lower-left field origin")
@@ -3152,6 +3295,13 @@ def main() -> None:
     parser.add_argument("--imu-yaw-blend", type=float, default=0.25)
     parser.add_argument("--imu-yaw-axis", type=str, default="z")
     parser.add_argument("--imu-yaw-sign", type=float, default=1.0)
+    parser.add_argument("--robot-length-m", type=float, default=ft(30.0 / 12.0), help="robot footprint length used for collision checks")
+    parser.add_argument("--robot-width-m", type=float, default=ft(30.0 / 12.0), help="robot footprint width used for gap checks")
+    parser.add_argument("--robot-track-width-m", type=float, default=ft(2.0), help="wheel track width for encoder odometry")
+    parser.add_argument("--lidar-offset-x-m", type=float, default=0.30, help="LiDAR x offset from robot center; positive is forward")
+    parser.add_argument("--lidar-offset-y-m", type=float, default=0.0, help="LiDAR y offset from robot center; positive is left")
+    parser.add_argument("--lidar-used-fov-deg", type=float, default=250.0, help="front-centered LiDAR field of view used by nav; rear hits are ignored")
+    parser.add_argument("--allow-reverse", type=str_to_bool, default=False, help="allow planner to command BACKWARD; default false because rear LiDAR is obstructed")
     parser.add_argument("--min-motion-raw", type=float, default=0.22, help="floor applied to non-stop raw wheel commands after mission speed scaling")
     parser.add_argument("--min-speed-mps", type=float, default=0.178816, help="mission minimum moving-speed requirement, 0.4 mph expressed in m/s")
     parser.add_argument("--drive-speed-level", type=drive_speed_level_arg, default=4, help="overall real-mode drive speed cap: 1=25%%, 2=50%%, 3=75%%, 4=100%%")
@@ -3183,6 +3333,13 @@ def main() -> None:
             imu_yaw_blend=args.imu_yaw_blend,
             imu_yaw_axis=args.imu_yaw_axis,
             imu_yaw_sign=args.imu_yaw_sign,
+            robot_length_m=args.robot_length_m,
+            robot_width_m=args.robot_width_m,
+            robot_track_width_m=args.robot_track_width_m,
+            lidar_offset_x_m=args.lidar_offset_x_m,
+            lidar_offset_y_m=args.lidar_offset_y_m,
+            lidar_used_fov_deg=args.lidar_used_fov_deg,
+            allow_reverse=args.allow_reverse,
             min_motion_raw=args.min_motion_raw,
             min_speed_mps=args.min_speed_mps,
             drive_speed_level=args.drive_speed_level,

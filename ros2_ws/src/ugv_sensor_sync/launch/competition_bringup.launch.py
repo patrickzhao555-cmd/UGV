@@ -74,9 +74,14 @@ def generate_launch_description():
     marker_min_good_matches = LaunchConfiguration('marker_min_good_matches')
     marker_confirmation_frames = LaunchConfiguration('marker_confirmation_frames')
     marker_confirmation_radius_m = LaunchConfiguration('marker_confirmation_radius_m')
+    marker_size_m = LaunchConfiguration('marker_size_m')
+    marker_min_projected_size_m = LaunchConfiguration('marker_min_projected_size_m')
+    marker_max_projected_size_m = LaunchConfiguration('marker_max_projected_size_m')
     marker_enable_generic_detector = LaunchConfiguration('marker_enable_generic_detector')
     marker_generic_min_area_frac = LaunchConfiguration('marker_generic_min_area_frac')
     marker_generic_min_contrast = LaunchConfiguration('marker_generic_min_contrast')
+    marker_generic_min_grid_score = LaunchConfiguration('marker_generic_min_grid_score')
+    marker_generic_min_border_light_ratio = LaunchConfiguration('marker_generic_min_border_light_ratio')
     marker_vision_test_period_s = LaunchConfiguration('marker_vision_test_period_s')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
@@ -104,6 +109,13 @@ def generate_launch_description():
     imu_yaw_blend = LaunchConfiguration('imu_yaw_blend')
     imu_yaw_axis = LaunchConfiguration('imu_yaw_axis')
     imu_yaw_sign = LaunchConfiguration('imu_yaw_sign')
+    robot_length_m = LaunchConfiguration('robot_length_m')
+    robot_width_m = LaunchConfiguration('robot_width_m')
+    robot_track_width_m = LaunchConfiguration('robot_track_width_m')
+    lidar_offset_x_m = LaunchConfiguration('lidar_offset_x_m')
+    lidar_offset_y_m = LaunchConfiguration('lidar_offset_y_m')
+    lidar_used_fov_deg = LaunchConfiguration('lidar_used_fov_deg')
+    allow_reverse = LaunchConfiguration('allow_reverse')
     front_safety_margin_m = LaunchConfiguration('front_safety_margin_m')
     rear_safety_margin_m = LaunchConfiguration('rear_safety_margin_m')
     local_plan_inflation_m = LaunchConfiguration('local_plan_inflation_m')
@@ -193,6 +205,20 @@ def generate_launch_description():
             imu_yaw_axis,
             '--imu-yaw-sign',
             imu_yaw_sign,
+            '--robot-length-m',
+            robot_length_m,
+            '--robot-width-m',
+            robot_width_m,
+            '--robot-track-width-m',
+            robot_track_width_m,
+            '--lidar-offset-x-m',
+            lidar_offset_x_m,
+            '--lidar-offset-y-m',
+            lidar_offset_y_m,
+            '--lidar-used-fov-deg',
+            lidar_used_fov_deg,
+            '--allow-reverse',
+            allow_reverse,
             '--min-motion-raw',
             min_motion_raw,
             '--min-speed-mps',
@@ -231,11 +257,21 @@ def generate_launch_description():
             '-p',
             ros_param_arg('target_reached_radius_m', target_accept_radius_m),
             '-p',
+            ros_param_arg('marker_size_m', marker_size_m),
+            '-p',
+            ros_param_arg('min_projected_size_m', marker_min_projected_size_m),
+            '-p',
+            ros_param_arg('max_projected_size_m', marker_max_projected_size_m),
+            '-p',
             ros_param_arg('enable_generic_detector', marker_enable_generic_detector),
             '-p',
             ros_param_arg('generic_min_area_frac', marker_generic_min_area_frac),
             '-p',
             ros_param_arg('generic_min_contrast', marker_generic_min_contrast),
+            '-p',
+            ros_param_arg('generic_min_grid_score', marker_generic_min_grid_score),
+            '-p',
+            ros_param_arg('generic_min_border_light_ratio', marker_generic_min_border_light_ratio),
         ],
         output='screen',
         condition=IfCondition(start_marker_vision),
@@ -290,9 +326,14 @@ def generate_launch_description():
         DeclareLaunchArgument('marker_min_good_matches', default_value='18'),
         DeclareLaunchArgument('marker_confirmation_frames', default_value='2'),
         DeclareLaunchArgument('marker_confirmation_radius_m', default_value='0.75'),
-        DeclareLaunchArgument('marker_enable_generic_detector', default_value='true'),
+        DeclareLaunchArgument('marker_size_m', default_value='0.3048'),
+        DeclareLaunchArgument('marker_min_projected_size_m', default_value='0.10'),
+        DeclareLaunchArgument('marker_max_projected_size_m', default_value='0.75'),
+        DeclareLaunchArgument('marker_enable_generic_detector', default_value='false'),
         DeclareLaunchArgument('marker_generic_min_area_frac', default_value='0.002'),
         DeclareLaunchArgument('marker_generic_min_contrast', default_value='55.0'),
+        DeclareLaunchArgument('marker_generic_min_grid_score', default_value='0.18'),
+        DeclareLaunchArgument('marker_generic_min_border_light_ratio', default_value='0.12'),
         DeclareLaunchArgument('marker_vision_test_period_s', default_value='3.0'),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('lidar_baud', default_value='115200'),
@@ -310,6 +351,13 @@ def generate_launch_description():
         DeclareLaunchArgument('imu_yaw_blend', default_value='0.25'),
         DeclareLaunchArgument('imu_yaw_axis', default_value='z'),
         DeclareLaunchArgument('imu_yaw_sign', default_value='1.0'),
+        DeclareLaunchArgument('robot_length_m', default_value='0.762'),
+        DeclareLaunchArgument('robot_width_m', default_value='0.762'),
+        DeclareLaunchArgument('robot_track_width_m', default_value='0.6096'),
+        DeclareLaunchArgument('lidar_offset_x_m', default_value='0.30'),
+        DeclareLaunchArgument('lidar_offset_y_m', default_value='0.0'),
+        DeclareLaunchArgument('lidar_used_fov_deg', default_value='250.0'),
+        DeclareLaunchArgument('allow_reverse', default_value='false'),
         DeclareLaunchArgument('front_safety_margin_m', default_value='0.10'),
         DeclareLaunchArgument('rear_safety_margin_m', default_value='0.08'),
         DeclareLaunchArgument('local_plan_inflation_m', default_value='0.08'),

@@ -38,14 +38,19 @@ class MarkerVisionNode(Node):
         self.declare_parameter('confirmation_frames', 2)
         self.declare_parameter('confirmation_radius_m', 0.75)
         self.declare_parameter('target_reached_radius_m', 0.9144)
+        self.declare_parameter('marker_size_m', 0.3048)
+        self.declare_parameter('min_projected_size_m', 0.10)
+        self.declare_parameter('max_projected_size_m', 0.75)
         self.declare_parameter('max_depth_stamp_delta_s', 0.35)
         self.declare_parameter('max_pose_age_s', 1.5)
-        self.declare_parameter('enable_generic_detector', True)
+        self.declare_parameter('enable_generic_detector', False)
         self.declare_parameter('generic_min_area_frac', 0.002)
         self.declare_parameter('generic_max_area_frac', 0.65)
         self.declare_parameter('generic_min_y_frac', 0.20)
         self.declare_parameter('generic_min_contrast', 55.0)
         self.declare_parameter('generic_min_score', 0.55)
+        self.declare_parameter('generic_min_grid_score', 0.18)
+        self.declare_parameter('generic_min_border_light_ratio', 0.12)
 
         self.image_topic = self.get_parameter('image_topic').value
         self.depth_topic = self.get_parameter('depth_topic').value
@@ -65,6 +70,9 @@ class MarkerVisionNode(Node):
         self.confirmation_frames = max(1, int(self.get_parameter('confirmation_frames').value))
         self.confirmation_radius_m = max(0.05, float(self.get_parameter('confirmation_radius_m').value))
         self.target_reached_radius_m = max(0.05, float(self.get_parameter('target_reached_radius_m').value))
+        self.marker_size_m = max(0.05, float(self.get_parameter('marker_size_m').value))
+        self.min_projected_size_m = max(0.03, float(self.get_parameter('min_projected_size_m').value))
+        self.max_projected_size_m = max(self.min_projected_size_m + 0.01, float(self.get_parameter('max_projected_size_m').value))
         self.max_depth_stamp_delta_s = max(0.0, float(self.get_parameter('max_depth_stamp_delta_s').value))
         self.max_pose_age_s = max(0.0, float(self.get_parameter('max_pose_age_s').value))
         self.enable_generic_detector = bool(self.get_parameter('enable_generic_detector').value)
@@ -73,6 +81,8 @@ class MarkerVisionNode(Node):
         self.generic_min_y_frac = min(1.0, max(0.0, float(self.get_parameter('generic_min_y_frac').value)))
         self.generic_min_contrast = max(0.0, float(self.get_parameter('generic_min_contrast').value))
         self.generic_min_score = max(0.0, float(self.get_parameter('generic_min_score').value))
+        self.generic_min_grid_score = max(0.0, float(self.get_parameter('generic_min_grid_score').value))
+        self.generic_min_border_light_ratio = max(0.0, float(self.get_parameter('generic_min_border_light_ratio').value))
 
         self.bridge = CvBridge()
         self.orb = cv2.ORB_create(nfeatures=max_features)
@@ -180,14 +190,16 @@ class MarkerVisionNode(Node):
             return
 
         bgr = self._to_bgr(image)
-        generic_center, generic_debug = self._detect_generic_marker(gray, bgr)
-        orb_center, orb_debug = self._detect_orb_marker(gray, now_s)
-        center_px = generic_center if generic_center is not None else orb_center
-        method = 'generic_dark_light_marker' if generic_center is not None else 'orb_model'
+        generic_candidate, generic_debug = self._detect_generic_marker(gray, bgr)
+        orb_candidate, orb_debug = self._detect_orb_marker(gray, now_s)
+        candidate = generic_candidate if generic_candidate is not None else orb_candidate
+        center_px = None if candidate is None else candidate['center']
+        method = None if candidate is None else candidate['method']
 
         debug = {
             'detected': center_px is not None,
             'method': method if center_px is not None else None,
+            'candidate_bbox': None if candidate is None else candidate.get('bbox'),
             'generic': generic_debug,
             'orb': orb_debug,
         }
@@ -222,6 +234,13 @@ class MarkerVisionNode(Node):
 
         if depth_m is None or self.latest_pose is None:
             debug.update({'reason': 'missing_depth_or_pose'})
+            self._publish_debug(debug)
+            return
+
+        valid_geometry, geometry_debug = self._validate_marker_geometry(candidate, depth_m, gray.shape)
+        debug['geometry'] = geometry_debug
+        if not valid_geometry:
+            debug.update({'reason': 'marker_geometry_rejected'})
             self._publish_debug(debug)
             return
 
@@ -280,7 +299,7 @@ class MarkerVisionNode(Node):
         if len(good) < self.min_good_matches:
             debug['reason'] = 'not_enough_good_matches'
             return None, debug
-        return self._matched_center_px(keypoints, good), debug
+        return self._matched_candidate_px(keypoints, good, gray.shape), debug
 
     def _detect_generic_marker(self, gray: np.ndarray, bgr: Optional[np.ndarray]):
         debug = {'enabled': self.enable_generic_detector, 'candidates': 0, 'sources': {}}
@@ -335,9 +354,11 @@ class MarkerVisionNode(Node):
             'light_ratio': round(best['light_ratio'], 3),
             'neutral_ratio': None if best['neutral_ratio'] is None else round(best['neutral_ratio'], 3),
             'green_ratio': None if best['green_ratio'] is None else round(best['green_ratio'], 3),
+            'grid_score': round(best['grid_score'], 3),
+            'border_light_ratio': round(best['border_light_ratio'], 3),
             'source': best['source'],
         })
-        return best['center'], debug
+        return best, debug
 
     def _score_generic_candidate(self, gray: np.ndarray, bgr: Optional[np.ndarray], contour, source: str):
         h, w = gray.shape[:2]
@@ -376,6 +397,11 @@ class MarkerVisionNode(Node):
         light_ratio = max(float(np.mean(roi > 170)), float(np.mean(roi >= light_cut)))
         if dark_ratio < 0.10 or light_ratio < 0.04:
             return None
+        mosaic = self._mosaic_metrics(roi)
+        if mosaic['grid_score'] < self.generic_min_grid_score:
+            return None
+        if mosaic['border_light_ratio'] < self.generic_min_border_light_ratio:
+            return None
         neutral_ratio = None
         green_ratio = None
         color_score = 0.0
@@ -404,12 +430,14 @@ class MarkerVisionNode(Node):
         balance_score = min(1.0, dark_ratio + light_ratio)
         extent_target = 0.35 if source == 'edge_region' else 0.60
         score = (
-            0.30 * contrast_score
-            + 0.18 * square_score
-            + 0.20 * area_score
-            + 0.17 * min(1.0, extent / extent_target)
-            + 0.15 * balance_score
-            + 0.12 * color_score
+            0.24 * contrast_score
+            + 0.16 * square_score
+            + 0.16 * area_score
+            + 0.14 * min(1.0, extent / extent_target)
+            + 0.12 * balance_score
+            + 0.10 * color_score
+            + 0.18 * mosaic['grid_score']
+            + 0.10 * mosaic['border_light_ratio']
             + corner_bonus
         )
 
@@ -430,8 +458,11 @@ class MarkerVisionNode(Node):
             'light_ratio': light_ratio,
             'neutral_ratio': neutral_ratio,
             'green_ratio': green_ratio,
+            'grid_score': mosaic['grid_score'],
+            'border_light_ratio': mosaic['border_light_ratio'],
             'score': score,
             'source': source,
+            'method': 'generic_dark_light_marker',
         }
 
     def _good_matches(self, descriptors: np.ndarray):
@@ -446,9 +477,106 @@ class MarkerVisionNode(Node):
         return good
 
     @staticmethod
-    def _matched_center_px(keypoints, matches) -> Tuple[float, float]:
+    def _matched_candidate_px(keypoints, matches, image_shape) -> dict:
         pts = np.array([keypoints[m.queryIdx].pt for m in matches], dtype=np.float32)
-        return float(np.median(pts[:, 0])), float(np.median(pts[:, 1]))
+        cx = float(np.median(pts[:, 0]))
+        cy = float(np.median(pts[:, 1]))
+        if pts.shape[0] >= 4:
+            x0, y0 = np.percentile(pts, 5.0, axis=0)
+            x1, y1 = np.percentile(pts, 95.0, axis=0)
+        else:
+            x0, y0 = np.min(pts, axis=0)
+            x1, y1 = np.max(pts, axis=0)
+        h, w = image_shape[:2]
+        span = max(float(x1 - x0), float(y1 - y0), 8.0)
+        pad = 0.35 * span
+        x = int(max(0, math.floor(float(x0) - pad)))
+        y = int(max(0, math.floor(float(y0) - pad)))
+        bw = int(min(w - x, max(8, math.ceil(float(x1 - x0) + 2.0 * pad))))
+        bh = int(min(h - y, max(8, math.ceil(float(y1 - y0) + 2.0 * pad))))
+        return {
+            'center': (cx, cy),
+            'bbox': [x, y, bw, bh],
+            'method': 'orb_model',
+        }
+
+    def _mosaic_metrics(self, roi: np.ndarray) -> dict:
+        if roi.size == 0:
+            return {'grid_score': 0.0, 'border_light_ratio': 0.0}
+        try:
+            small = cv2.resize(roi, (96, 96), interpolation=cv2.INTER_AREA)
+        except Exception:
+            return {'grid_score': 0.0, 'border_light_ratio': 0.0}
+
+        p10, p90 = np.percentile(small, [10.0, 90.0])
+        contrast = max(1.0, float(p90 - p10))
+        dark_cut = float(p10 + 0.35 * contrast)
+        light_cut = float(p90 - 0.25 * contrast)
+        dark = (small <= dark_cut).astype(np.float32)
+
+        cells = 8
+        cell_h = small.shape[0] // cells
+        cell_w = small.shape[1] // cells
+        grid = np.zeros((cells, cells), dtype=np.float32)
+        for gy in range(cells):
+            for gx in range(cells):
+                patch = dark[gy * cell_h:(gy + 1) * cell_h, gx * cell_w:(gx + 1) * cell_w]
+                grid[gy, gx] = float(np.mean(patch)) if patch.size else 0.0
+
+        h_changes = float(np.mean(np.abs(np.diff(grid, axis=1)) >= 0.35))
+        v_changes = float(np.mean(np.abs(np.diff(grid, axis=0)) >= 0.35))
+        grid_score = clamp01(1.65 * min(h_changes, v_changes) + 0.35 * max(h_changes, v_changes))
+
+        band = max(4, int(round(0.12 * min(small.shape[:2]))))
+        border = np.concatenate([
+            small[:band, :].reshape(-1),
+            small[-band:, :].reshape(-1),
+            small[:, :band].reshape(-1),
+            small[:, -band:].reshape(-1),
+        ])
+        border_light_ratio = float(np.mean(border >= light_cut)) if border.size else 0.0
+        return {
+            'grid_score': grid_score,
+            'border_light_ratio': clamp01(border_light_ratio),
+        }
+
+    def _validate_marker_geometry(self, candidate: Optional[dict], depth_m: float, image_shape) -> Tuple[bool, dict]:
+        if candidate is None:
+            return False, {'reason': 'missing_candidate'}
+        bbox = candidate.get('bbox')
+        if not bbox:
+            return True, {'reason': 'no_bbox'}
+        projected = self._projected_bbox_size_m(bbox, depth_m, image_shape)
+        max_size = max(projected['width_m'], projected['height_m'])
+        min_size = min(projected['width_m'], projected['height_m'])
+        loose_expected = self.marker_size_m
+        method = str(candidate.get('method', ''))
+        min_required = self.min_projected_size_m if method != 'orb_model' else min(self.min_projected_size_m, 0.05)
+        min_axis_required = max(0.035, (0.16 if method != 'orb_model' else 0.08) * loose_expected)
+        ok = (
+            min_required <= max_size <= self.max_projected_size_m
+            and min_size >= min_axis_required
+        )
+        debug = {
+            'projected_width_m': round(projected['width_m'], 3),
+            'projected_height_m': round(projected['height_m'], 3),
+            'expected_marker_size_m': round(self.marker_size_m, 3),
+            'min_projected_size_m': round(self.min_projected_size_m, 3),
+            'max_projected_size_m': round(self.max_projected_size_m, 3),
+            'valid': bool(ok),
+        }
+        return bool(ok), debug
+
+    def _projected_bbox_size_m(self, bbox, depth_m: float, image_shape) -> dict:
+        _, _, bw, bh = bbox
+        h, w = image_shape[:2]
+        vfov_rad = 2.0 * math.atan(math.tan(0.5 * self.camera_hfov_rad) * (float(h) / max(1.0, float(w))))
+        meters_per_px_x = (2.0 * depth_m * math.tan(0.5 * self.camera_hfov_rad)) / max(1.0, float(w))
+        meters_per_px_y = (2.0 * depth_m * math.tan(0.5 * vfov_rad)) / max(1.0, float(h))
+        return {
+            'width_m': abs(float(bw)) * meters_per_px_x,
+            'height_m': abs(float(bh)) * meters_per_px_y,
+        }
 
     def _depth_at(self, center_px: Tuple[float, float]) -> Optional[float]:
         if self.latest_depth is None:

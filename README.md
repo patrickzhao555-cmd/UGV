@@ -321,6 +321,30 @@ YOLO debug now also publishes the raw bounding boxes, accept/reject reason,
 confidence, and depth estimate on `/sensors/yolo_semantic_debug`; the visual
 dashboard uses that topic to show exactly what YOLO thinks it sees.
 
+ZED depth obstacle filtering:
+
+- Fusion now uses a ground-aware ZED depth filter before publishing
+  `/sensors/zed_obstacle_points`.
+- For each image row in the depth ROI it estimates the floor/background depth,
+  rejects the floor itself, then keeps connected vertical clusters that are
+  closer than that row model.
+- This is designed for the low camera height: traffic cones, buckets, Amazon
+  boxes, chair/table legs, and other upright obstacles become obstacle points,
+  while the red/orange floor at the bottom of the depth map is ignored.
+- Front depth clearance is computed from those filtered obstacle clusters inside
+  the forward corridor instead of from raw floor pixels.
+
+Useful depth-filter overrides:
+
+```bash
+FUSION_DEPTH_GROUND_FILTER_ENABLED=true
+FUSION_DEPTH_PROJECTION_STRIDE_PX=8
+FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
+FUSION_DEPTH_GROUND_RATIO=0.88
+FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
+FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
+```
+
 ## Real Run Warning
 
 Only run without `MOTOR_DRY_RUN=true` when the mechanical team has cleared the
@@ -434,6 +458,11 @@ MIN_MOTION_RAW=0.22
 NAV_FRONT_SAFETY_MARGIN_M=0.10
 NAV_REAR_SAFETY_MARGIN_M=0.08
 NAV_LOCAL_PLAN_INFLATION_M=0.08
+FUSION_DEPTH_GROUND_FILTER_ENABLED=true
+FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
+FUSION_DEPTH_GROUND_RATIO=0.88
+FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
+FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
 INVERT_LEFT_COMMAND=true
 INVERT_RIGHT_COMMAND=true
 INVERT_LEFT_ENCODER=false

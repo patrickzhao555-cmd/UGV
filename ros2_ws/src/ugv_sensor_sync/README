@@ -12,6 +12,23 @@ What it does now:
 - can publish a mock ESP/UAV target coordinate for testing before ESP/UAV integration
 - can publish a combined SSH-friendly debug status topic
 
+ZED depth obstacle extraction is ground-aware. `fusion_node` estimates the
+floor/background depth per image row, ignores the floor, and publishes only
+connected vertical clusters that stand closer than that row model. This helps
+the low-mounted ZED detect cones, boxes, buckets, and table/chair legs without
+treating the visible floor as an obstacle.
+
+Useful depth-filter overrides:
+
+```bash
+FUSION_DEPTH_GROUND_FILTER_ENABLED=true
+FUSION_DEPTH_PROJECTION_STRIDE_PX=8
+FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
+FUSION_DEPTH_GROUND_RATIO=0.88
+FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
+FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
+```
+
 Main topics:
 
 - `/zed/image`

@@ -51,6 +51,12 @@ def generate_launch_description():
     fusion_allow_lidar_only = LaunchConfiguration('fusion_allow_lidar_only')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
+    fusion_depth_projection_stride_px = LaunchConfiguration('fusion_depth_projection_stride_px')
+    fusion_depth_ground_filter_enabled = LaunchConfiguration('fusion_depth_ground_filter_enabled')
+    fusion_depth_ground_min_delta_m = LaunchConfiguration('fusion_depth_ground_min_delta_m')
+    fusion_depth_ground_ratio = LaunchConfiguration('fusion_depth_ground_ratio')
+    fusion_depth_obstacle_min_component_height_px = LaunchConfiguration('fusion_depth_obstacle_min_component_height_px')
+    fusion_depth_front_corridor_half_width_m = LaunchConfiguration('fusion_depth_front_corridor_half_width_m')
     fusion_imu_smoothing_alpha = LaunchConfiguration('fusion_imu_smoothing_alpha')
 
     def ros_param_arg(name: str, value):
@@ -126,6 +132,36 @@ def generate_launch_description():
             'fusion_lidar_front_fov_deg',
             default_value='70.0',
             description='LiDAR angle window centered on 0 rad used for front clearance.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_depth_projection_stride_px',
+            default_value='8',
+            description='Depth obstacle cell stride. Lower values detect thinner chair/table legs at higher CPU cost.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_depth_ground_filter_enabled',
+            default_value='true',
+            description='Filter ZED depth by rejecting the floor/background row model before projecting obstacles.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_depth_ground_min_delta_m',
+            default_value='0.18',
+            description='Minimum depth difference from per-row floor/background before a depth pixel is an obstacle candidate.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_depth_ground_ratio',
+            default_value='0.88',
+            description='Obstacle candidate depth must be this ratio or closer than the row floor/background estimate.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_depth_obstacle_min_component_height_px',
+            default_value='14',
+            description='Minimum vertical image height for a ground-filtered ZED depth obstacle component.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_depth_front_corridor_half_width_m',
+            default_value='0.50',
+            description='Half width of the forward depth corridor used for front clearance.',
         ),
         DeclareLaunchArgument(
             'fusion_imu_smoothing_alpha',
@@ -217,6 +253,18 @@ def generate_launch_description():
                     ros_param_arg('depth_invalid_warn_frames', fusion_depth_invalid_warn_frames),
                     '-p',
                     ros_param_arg('lidar_front_fov_deg', fusion_lidar_front_fov_deg),
+                    '-p',
+                    ros_param_arg('depth_projection_stride_px', fusion_depth_projection_stride_px),
+                    '-p',
+                    ros_param_arg('depth_ground_filter_enabled', fusion_depth_ground_filter_enabled),
+                    '-p',
+                    ros_param_arg('depth_ground_min_delta_m', fusion_depth_ground_min_delta_m),
+                    '-p',
+                    ros_param_arg('depth_ground_ratio', fusion_depth_ground_ratio),
+                    '-p',
+                    ros_param_arg('depth_obstacle_min_component_height_px', fusion_depth_obstacle_min_component_height_px),
+                    '-p',
+                    ros_param_arg('depth_front_corridor_half_width_m', fusion_depth_front_corridor_half_width_m),
                     '-p',
                     ros_param_arg('imu_smoothing_alpha', fusion_imu_smoothing_alpha),
                 ],

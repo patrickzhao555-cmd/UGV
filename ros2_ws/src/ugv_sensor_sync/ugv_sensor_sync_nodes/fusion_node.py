@@ -56,9 +56,17 @@ class FusionNode(Node):
         self.declare_parameter('depth_invalid_warn_frames', 2)
         self.declare_parameter('lidar_front_fov_deg', 70.0)
         self.declare_parameter('depth_projection_hfov_deg', 110.0)
-        self.declare_parameter('depth_projection_stride_px', 16)
+        self.declare_parameter('depth_projection_stride_px', 8)
         self.declare_parameter('depth_obstacle_max_m', 3.5)
-        self.declare_parameter('depth_obstacle_max_points', 160)
+        self.declare_parameter('depth_obstacle_max_points', 240)
+        self.declare_parameter('depth_ground_filter_enabled', True)
+        self.declare_parameter('depth_ground_row_percentile', 72.0)
+        self.declare_parameter('depth_ground_min_delta_m', 0.18)
+        self.declare_parameter('depth_ground_ratio', 0.88)
+        self.declare_parameter('depth_obstacle_min_block_pixels', 2)
+        self.declare_parameter('depth_obstacle_min_component_cells', 2)
+        self.declare_parameter('depth_obstacle_min_component_height_px', 14)
+        self.declare_parameter('depth_front_corridor_half_width_m', 0.50)
         self.declare_parameter('imu_smoothing_alpha', 0.25)
 
         scan_topic = self.get_parameter('scan_topic').value
@@ -103,6 +111,14 @@ class FusionNode(Node):
         self.depth_projection_stride_px = max(1, int(self.get_parameter('depth_projection_stride_px').value))
         self.depth_obstacle_max_m = float(self.get_parameter('depth_obstacle_max_m').value)
         self.depth_obstacle_max_points = max(1, int(self.get_parameter('depth_obstacle_max_points').value))
+        self.depth_ground_filter_enabled = bool(self.get_parameter('depth_ground_filter_enabled').value)
+        self.depth_ground_row_percentile = float(self.get_parameter('depth_ground_row_percentile').value)
+        self.depth_ground_min_delta_m = max(0.0, float(self.get_parameter('depth_ground_min_delta_m').value))
+        self.depth_ground_ratio = min(0.99, max(0.10, float(self.get_parameter('depth_ground_ratio').value)))
+        self.depth_obstacle_min_block_pixels = max(1, int(self.get_parameter('depth_obstacle_min_block_pixels').value))
+        self.depth_obstacle_min_component_cells = max(1, int(self.get_parameter('depth_obstacle_min_component_cells').value))
+        self.depth_obstacle_min_component_height_px = max(1, int(self.get_parameter('depth_obstacle_min_component_height_px').value))
+        self.depth_front_corridor_half_width_m = max(0.05, float(self.get_parameter('depth_front_corridor_half_width_m').value))
         self.imu_smoothing_alpha = min(1.0, max(0.0, float(self.get_parameter('imu_smoothing_alpha').value)))
 
         self.latest_encoder_stamped: Optional[dict] = None
@@ -117,6 +133,13 @@ class FusionNode(Node):
         self.last_lidar_only_notice_s = 0.0
         self.depth_invalid_streak = 0
         self.smoothed_imu_msg: Optional[Imu] = None
+        self._depth_obstacle_cache = None
+        self.last_depth_obstacle_metrics = {
+            'depth_ground_filter_enabled': self.depth_ground_filter_enabled,
+            'depth_obstacle_candidate_cells': 0,
+            'depth_obstacle_components': 0,
+            'depth_obstacle_points_filtered': 0,
+        }
         self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, qos_profile_sensor_data)
         if self.use_legacy_encoder_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, qos_profile_sensor_data)
@@ -324,6 +347,7 @@ class FusionNode(Node):
             'scan_points': len(scan_msg.ranges),
             'zed_obstacle_points': len(zed_obstacle_points.poses),
             'depth_obstacle_points': depth_obstacle_point_count,
+            **self.last_depth_obstacle_metrics,
             'semantic_obstacle_points': semantic_obstacle_point_count,
             'valid_depth_samples': valid_depth_samples,
             'depth_invalid_streak': self.depth_invalid_streak,
@@ -547,32 +571,28 @@ class FusionNode(Node):
         return min(valid) if valid else float('inf')
 
     def _compute_depth_stats(self, depth_msg: Image):
-        depth = self._depth_image_to_numpy(depth_msg)
-        if depth is None:
+        points, valid_count, _ = self._depth_obstacle_points_for_msg(depth_msg)
+        if valid_count == 0:
             return float('inf'), False, 0
 
-        roi = self._extract_depth_roi(depth)
-        valid = roi[np.isfinite(roi)]
-        valid = valid[(valid >= self.depth_min_valid_m) & (valid <= self.depth_max_valid_m)]
-        if valid.size == 0:
-            return float('inf'), False, 0
+        corridor_x = [
+            float(x)
+            for x, y in points
+            if abs(float(y)) <= self.depth_front_corridor_half_width_m
+        ]
+        if not corridor_x:
+            return float('inf'), False, int(valid_count)
 
-        near_distance_m = float(np.percentile(valid, self.depth_near_percentile))
+        near_distance_m = float(np.percentile(corridor_x, self.depth_near_percentile))
         depth_warning = near_distance_m < self.depth_warning_threshold_m
-        return near_distance_m, depth_warning, int(valid.size)
+        return near_distance_m, depth_warning, int(valid_count)
 
     def _build_depth_obstacle_pose_array(self, depth_msg: Image) -> PoseArray:
         pose_array = PoseArray()
         pose_array.header.stamp = depth_msg.header.stamp
         pose_array.header.frame_id = self.obstacle_points_frame_id or depth_msg.header.frame_id
 
-        depth = self._depth_image_to_numpy(depth_msg)
-        if depth is None:
-            return pose_array
-
-        roi, x0, _, y0, _ = self._extract_depth_roi(depth, return_bounds=True)
-        points = self._project_depth_roi_to_points(roi, x0, y0, depth.shape[1])
-
+        points, _, _ = self._depth_obstacle_points_for_msg(depth_msg)
         for x_m, y_m in points:
             pose = Pose()
             pose.position.x = float(x_m)
@@ -582,6 +602,186 @@ class FusionNode(Node):
             pose_array.poses.append(pose)
 
         return pose_array
+
+    def _depth_obstacle_points_for_msg(self, depth_msg: Image) -> Tuple[List[Tuple[float, float]], int, dict]:
+        cache_key = self._header_stamp_key(depth_msg.header)
+        if self._depth_obstacle_cache is not None and self._depth_obstacle_cache.get('key') == cache_key:
+            return (
+                list(self._depth_obstacle_cache['points']),
+                int(self._depth_obstacle_cache['valid_count']),
+                dict(self._depth_obstacle_cache['metrics']),
+            )
+
+        depth = self._depth_image_to_numpy(depth_msg)
+        if depth is None:
+            metrics = {
+                'depth_ground_filter_enabled': self.depth_ground_filter_enabled,
+                'depth_obstacle_candidate_cells': 0,
+                'depth_obstacle_components': 0,
+                'depth_obstacle_points_filtered': 0,
+            }
+            self.last_depth_obstacle_metrics = metrics
+            self._depth_obstacle_cache = {
+                'key': cache_key,
+                'points': [],
+                'valid_count': 0,
+                'metrics': metrics,
+            }
+            return [], 0, metrics
+
+        roi, x0, _, y0, _ = self._extract_depth_roi(depth, return_bounds=True)
+        valid = roi[np.isfinite(roi)]
+        valid = valid[(valid >= self.depth_min_valid_m) & (valid <= self.depth_max_valid_m)]
+        valid_count = int(valid.size)
+        if valid_count == 0:
+            points: List[Tuple[float, float]] = []
+            metrics = {
+                'depth_ground_filter_enabled': self.depth_ground_filter_enabled,
+                'depth_obstacle_candidate_cells': 0,
+                'depth_obstacle_components': 0,
+                'depth_obstacle_points_filtered': 0,
+            }
+        elif self.depth_ground_filter_enabled:
+            mask = self._ground_filtered_depth_mask(roi)
+            points, metrics = self._project_depth_mask_to_points(
+                roi,
+                mask,
+                x0,
+                y0,
+                depth.shape[1],
+            )
+        else:
+            points = self._project_depth_roi_to_points(roi, x0, y0, depth.shape[1])
+            metrics = {
+                'depth_ground_filter_enabled': False,
+                'depth_obstacle_candidate_cells': len(points),
+                'depth_obstacle_components': 0,
+                'depth_obstacle_points_filtered': len(points),
+            }
+        self.last_depth_obstacle_metrics = metrics
+        self._depth_obstacle_cache = {
+            'key': cache_key,
+            'points': list(points),
+            'valid_count': valid_count,
+            'metrics': dict(metrics),
+        }
+        return points, valid_count, metrics
+
+    def _ground_filtered_depth_mask(self, roi: np.ndarray) -> np.ndarray:
+        valid = np.isfinite(roi)
+        valid &= roi >= self.depth_min_valid_m
+        valid &= roi <= min(self.depth_max_valid_m, self.depth_obstacle_max_m)
+        if roi.size == 0 or not np.any(valid):
+            return np.zeros_like(roi, dtype=bool)
+
+        row_background = np.full(roi.shape[0], np.nan, dtype=np.float32)
+        for row in range(roi.shape[0]):
+            vals = roi[row, valid[row]]
+            if vals.size >= 6:
+                row_background[row] = float(np.percentile(vals, self.depth_ground_row_percentile))
+        finite_rows = np.isfinite(row_background)
+        if not np.any(finite_rows):
+            return np.zeros_like(roi, dtype=bool)
+        if np.count_nonzero(finite_rows) >= 2:
+            idx = np.arange(roi.shape[0], dtype=np.float32)
+            row_background = np.interp(
+                idx,
+                idx[finite_rows],
+                row_background[finite_rows],
+            ).astype(np.float32)
+        else:
+            row_background[:] = row_background[finite_rows][0]
+
+        bg = row_background[:, None]
+        delta = np.maximum(self.depth_ground_min_delta_m, bg * (1.0 - self.depth_ground_ratio))
+        closer_than_floor_or_background = roi <= (bg - delta)
+        return valid & np.isfinite(bg) & closer_than_floor_or_background
+
+    def _project_depth_mask_to_points(
+        self,
+        roi: np.ndarray,
+        mask: np.ndarray,
+        roi_x0: int,
+        roi_y0: int,
+        full_width: int,
+    ) -> Tuple[List[Tuple[float, float]], dict]:
+        del roi_y0
+        stride = max(2, self.depth_projection_stride_px)
+        grid_h = int(math.ceil(roi.shape[0] / stride))
+        grid_w = int(math.ceil(roi.shape[1] / stride))
+        cells = {}
+        for gr in range(grid_h):
+            row0 = gr * stride
+            row1 = min(roi.shape[0], row0 + stride)
+            for gc in range(grid_w):
+                col0 = gc * stride
+                col1 = min(roi.shape[1], col0 + stride)
+                block_mask = mask[row0:row1, col0:col1]
+                count = int(np.count_nonzero(block_mask))
+                if count < self.depth_obstacle_min_block_pixels:
+                    continue
+                block_depth = roi[row0:row1, col0:col1]
+                vals = block_depth[block_mask]
+                vals = vals[np.isfinite(vals)]
+                if vals.size == 0:
+                    continue
+                rr, cc = np.nonzero(block_mask)
+                depth_m = float(np.percentile(vals, 35.0))
+                pixel_x = float(roi_x0 + col0 + np.median(cc))
+                cells[(gr, gc)] = {
+                    'depth_m': depth_m,
+                    'pixel_x': pixel_x,
+                    'candidate_pixels': count,
+                }
+
+        remaining = set(cells.keys())
+        accepted_components = 0
+        accepted_cells = []
+        while remaining:
+            start = remaining.pop()
+            stack = [start]
+            comp = [start]
+            while stack:
+                gr, gc = stack.pop()
+                for nr in range(gr - 1, gr + 2):
+                    for nc in range(gc - 1, gc + 2):
+                        if nr == gr and nc == gc:
+                            continue
+                        key = (nr, nc)
+                        if key in remaining:
+                            remaining.remove(key)
+                            stack.append(key)
+                            comp.append(key)
+            rows = [p[0] for p in comp]
+            comp_height_px = (max(rows) - min(rows) + 1) * stride
+            if len(comp) < self.depth_obstacle_min_component_cells:
+                continue
+            if comp_height_px < self.depth_obstacle_min_component_height_px:
+                continue
+            accepted_components += 1
+            accepted_cells.extend(comp)
+
+        center_x = 0.5 * max(full_width - 1, 1)
+        half_fov = 0.5 * self.depth_projection_hfov_rad
+        points: List[Tuple[float, float]] = []
+        for key in accepted_cells:
+            cell = cells[key]
+            norm_x = (cell['pixel_x'] - center_x) / max(center_x, 1.0)
+            angle_x = norm_x * half_fov
+            depth_m = float(cell['depth_m'])
+            points.append((depth_m * math.cos(angle_x), depth_m * math.sin(angle_x)))
+
+        if len(points) > self.depth_obstacle_max_points:
+            step = max(1, int(math.ceil(len(points) / self.depth_obstacle_max_points)))
+            points = points[::step][:self.depth_obstacle_max_points]
+
+        metrics = {
+            'depth_ground_filter_enabled': True,
+            'depth_obstacle_candidate_cells': len(cells),
+            'depth_obstacle_components': accepted_components,
+            'depth_obstacle_points_filtered': len(points),
+        }
+        return points, metrics
 
     def _project_depth_roi_to_points(
         self,

@@ -112,6 +112,12 @@ def generate_launch_description():
     fusion_allow_lidar_only = LaunchConfiguration('fusion_allow_lidar_only')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
+    fusion_depth_projection_stride_px = LaunchConfiguration('fusion_depth_projection_stride_px')
+    fusion_depth_ground_filter_enabled = LaunchConfiguration('fusion_depth_ground_filter_enabled')
+    fusion_depth_ground_min_delta_m = LaunchConfiguration('fusion_depth_ground_min_delta_m')
+    fusion_depth_ground_ratio = LaunchConfiguration('fusion_depth_ground_ratio')
+    fusion_depth_obstacle_min_component_height_px = LaunchConfiguration('fusion_depth_obstacle_min_component_height_px')
+    fusion_depth_front_corridor_half_width_m = LaunchConfiguration('fusion_depth_front_corridor_half_width_m')
     fusion_imu_smoothing_alpha = LaunchConfiguration('fusion_imu_smoothing_alpha')
     motor_port = LaunchConfiguration('motor_port')
     motor_baud = LaunchConfiguration('motor_baud')
@@ -158,6 +164,12 @@ def generate_launch_description():
             'fusion_allow_lidar_only': fusion_allow_lidar_only,
             'fusion_depth_invalid_warn_frames': fusion_depth_invalid_warn_frames,
             'fusion_lidar_front_fov_deg': fusion_lidar_front_fov_deg,
+            'fusion_depth_projection_stride_px': fusion_depth_projection_stride_px,
+            'fusion_depth_ground_filter_enabled': fusion_depth_ground_filter_enabled,
+            'fusion_depth_ground_min_delta_m': fusion_depth_ground_min_delta_m,
+            'fusion_depth_ground_ratio': fusion_depth_ground_ratio,
+            'fusion_depth_obstacle_min_component_height_px': fusion_depth_obstacle_min_component_height_px,
+            'fusion_depth_front_corridor_half_width_m': fusion_depth_front_corridor_half_width_m,
             'fusion_imu_smoothing_alpha': fusion_imu_smoothing_alpha,
         }.items(),
     )
@@ -416,6 +428,12 @@ def generate_launch_description():
         DeclareLaunchArgument('fusion_allow_lidar_only', default_value='true'),
         DeclareLaunchArgument('fusion_depth_invalid_warn_frames', default_value='2'),
         DeclareLaunchArgument('fusion_lidar_front_fov_deg', default_value='70.0'),
+        DeclareLaunchArgument('fusion_depth_projection_stride_px', default_value='8'),
+        DeclareLaunchArgument('fusion_depth_ground_filter_enabled', default_value='true'),
+        DeclareLaunchArgument('fusion_depth_ground_min_delta_m', default_value='0.18'),
+        DeclareLaunchArgument('fusion_depth_ground_ratio', default_value='0.88'),
+        DeclareLaunchArgument('fusion_depth_obstacle_min_component_height_px', default_value='14'),
+        DeclareLaunchArgument('fusion_depth_front_corridor_half_width_m', default_value='0.50'),
         DeclareLaunchArgument('fusion_imu_smoothing_alpha', default_value='0.25'),
         DeclareLaunchArgument('mission_flag_topic', default_value='/ugv/mission_flag'),
         DeclareLaunchArgument('use_imu_yaw', default_value='false'),

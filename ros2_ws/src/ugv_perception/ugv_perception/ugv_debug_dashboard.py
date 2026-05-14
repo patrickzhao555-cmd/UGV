@@ -192,7 +192,7 @@ class UgvDebugDashboard(Node):
         canvas = np.full((self.canvas_h, self.canvas_w, 3), (24, 27, 31), dtype=np.uint8)
 
         margin = 12
-        status_h = 136
+        status_h = 166
         left_w = int(self.canvas_w * 0.61)
         right_w = self.canvas_w - left_w - 3 * margin
         top_h = int((self.canvas_h - status_h - 3 * margin) * 0.62)
@@ -381,17 +381,18 @@ class UgvDebugDashboard(Node):
             f"phase={mission.get('phase')} cmd={cmd.get('mode')} reason={cmd.get('reason')} raw=({cmd.get('raw_left')},{cmd.get('raw_right')})",
             f"pose={nav.get('pose_m')} goal={mission.get('active_goal_m')} plan={nav.get('planner')} {nav.get('plan_time_ms')}ms",
             f"clearance front={_fmt_m(fusion.get('front_clearance_m'))} src={fusion.get('front_clearance_source')} sectors f/fl/fr={sectors.get('front')}/{sectors.get('front_left')}/{sectors.get('front_right')}",
+            f"ZED depth obstacles pts={fusion.get('depth_obstacle_points')} filtered={fusion.get('depth_obstacle_points_filtered')} comps={fusion.get('depth_obstacle_components')} cells={fusion.get('depth_obstacle_candidate_cells')}",
             f"YOLO loaded={yolo.get('model_loaded')} accepted={yolo.get('accepted')} boxes={len(yolo.get('boxes', []))} classes={yolo.get('classes')}",
             f"marker detected={marker.get('detected')} method={marker.get('method')} reason={marker.get('reason')} bbox={marker.get('candidate_bbox')}",
             f"ages {', '.join(f'{k}={v:.2f}s' if v is not None else f'{k}=None' for k, v in ages.items())}",
             f"odom={odom} warning={warn}",
             "keys: q/esc close, s screenshot",
         ]
-        y = 42
+        y = 34
         for line in lines:
             color = (90, 110, 255) if "warning=" in line and warn else (226, 230, 235)
-            self._put_text(panel, line[:220], (12, y), color, 0.44)
-            y += 17
+            self._put_text(panel, line[:220], (12, y), color, 0.40)
+            y += 14
         return panel
 
     def _draw_yolo_boxes(self, panel: np.ndarray, scale: float, dx: int, dy: int, original_size: Tuple[int, int]) -> None:

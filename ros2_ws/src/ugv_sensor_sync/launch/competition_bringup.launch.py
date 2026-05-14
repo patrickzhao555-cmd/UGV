@@ -144,6 +144,10 @@ def generate_launch_description():
     front_safety_margin_m = LaunchConfiguration('front_safety_margin_m')
     rear_safety_margin_m = LaunchConfiguration('rear_safety_margin_m')
     local_plan_inflation_m = LaunchConfiguration('local_plan_inflation_m')
+    active_scan_enabled = LaunchConfiguration('active_scan_enabled')
+    active_scan_confirm_steps = LaunchConfiguration('active_scan_confirm_steps')
+    active_scan_steps = LaunchConfiguration('active_scan_steps')
+    active_scan_front_clear_m = LaunchConfiguration('active_scan_front_clear_m')
 
     sensor_sync_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -258,6 +262,14 @@ def generate_launch_description():
             rear_safety_margin_m,
             '--local-plan-inflation-m',
             local_plan_inflation_m,
+            '--active-scan-enabled',
+            active_scan_enabled,
+            '--active-scan-confirm-steps',
+            active_scan_confirm_steps,
+            '--active-scan-steps',
+            active_scan_steps,
+            '--active-scan-front-clear-m',
+            active_scan_front_clear_m,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -450,6 +462,10 @@ def generate_launch_description():
         DeclareLaunchArgument('front_safety_margin_m', default_value='0.10'),
         DeclareLaunchArgument('rear_safety_margin_m', default_value='0.08'),
         DeclareLaunchArgument('local_plan_inflation_m', default_value='0.08'),
+        DeclareLaunchArgument('active_scan_enabled', default_value='true'),
+        DeclareLaunchArgument('active_scan_confirm_steps', default_value='4'),
+        DeclareLaunchArgument('active_scan_steps', default_value='5'),
+        DeclareLaunchArgument('active_scan_front_clear_m', default_value='1.35'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),

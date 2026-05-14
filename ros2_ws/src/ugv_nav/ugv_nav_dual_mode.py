@@ -390,6 +390,16 @@ class NavConfig:
     local_corridor_turn_penalty: float = 0.35
     local_corridor_front_clear_m: float = 0.72
     local_corridor_side_clear_m: float = 0.62
+    active_scan_enabled: bool = True
+    active_scan_front_clear_m: float = 1.35
+    active_scan_release_clear_m: float = 1.25
+    active_scan_corridor_extra_width_m: float = 0.12
+    active_scan_depth_points_threshold: int = 18
+    active_scan_confirm_steps: int = 4
+    active_scan_plan_fail_confirm_steps: int = 4
+    active_scan_allow_probe_clear_m: float = 0.95
+    active_scan_turn_deg: float = 28.0
+    active_scan_steps: int = 5
     allow_stop_at_goal: bool = True
     nonstop_when_blocked: bool = False
     allow_reverse: bool = False
@@ -2083,6 +2093,13 @@ class UGVNavigator:
         self._last_path_block_version = -1
         self._last_escape_side_left = True
         self._turn_loop_counter = 0
+        self._active_scan_remaining = 0
+        self._active_scan_direction = 'TURN_RIGHT'
+        self._active_scan_reason = ''
+        self._last_front_depth_corridor_points = 0
+        self._last_front_depth_corridor_min_m = float('inf')
+        self._front_blocked_evidence_counter = 0
+        self._plan_failed_counter = 0
         self._odom_warning_counter = 0
         self._last_field_map_version = -1
         self._last_field_map_key = None
@@ -2490,6 +2507,115 @@ class UGVNavigator:
         self.blocked_memory.add_patch(wx, wy, radius, self.nav_cfg.blocked_patch_ttl_steps)
         self._plan_costmap_dirty = True
 
+    def _front_depth_corridor_blocked(self, zed_hits_local: Sequence[Tuple[float, float]]) -> bool:
+        front_limit = max(
+            self.nav_cfg.active_scan_front_clear_m,
+            self.robot_cfg.length_m * 0.5 + self.nav_cfg.front_safety_margin_m + 0.20,
+        )
+        half_width = (
+            self.robot_cfg.width_m * 0.5
+            + self.nav_cfg.local_plan_inflation_m
+            + self.nav_cfg.active_scan_corridor_extra_width_m
+        )
+        min_x = float('inf')
+        count = 0
+        for lx, ly in zed_hits_local:
+            x = float(lx)
+            y = float(ly)
+            if x < 0.15 or x > front_limit or abs(y) > half_width:
+                continue
+            count += 1
+            min_x = min(min_x, x)
+        self._last_front_depth_corridor_points = count
+        self._last_front_depth_corridor_min_m = min_x
+        if count >= self.nav_cfg.active_scan_depth_points_threshold:
+            return True
+        emergency_need = self.robot_cfg.length_m * 0.5 + self.nav_cfg.front_safety_margin_m
+        return count >= 4 and min_x < emergency_need
+
+    @staticmethod
+    def _clearance_score(value: float, cap: float = 3.0) -> float:
+        if not math.isfinite(value):
+            return cap
+        return min(max(float(value), 0.0), cap)
+
+    def _scan_direction_from_sectors(self, sectors: SectorSnapshot) -> str:
+        left_score = (
+            0.65 * self._clearance_score(sectors.front_left_m)
+            + 0.35 * self._clearance_score(sectors.left_m)
+        )
+        right_score = (
+            0.65 * self._clearance_score(sectors.front_right_m)
+            + 0.35 * self._clearance_score(sectors.right_m)
+        )
+        if self.state.latest_cmd.mode == 'TURN_LEFT':
+            left_score += 0.18
+        elif self.state.latest_cmd.mode == 'TURN_RIGHT':
+            right_score += 0.18
+        if right_score > left_score + 0.05:
+            return 'TURN_RIGHT'
+        if left_score > right_score + 0.05:
+            return 'TURN_LEFT'
+        return 'TURN_LEFT' if self._last_escape_side_left else 'TURN_RIGHT'
+
+    def _forward_view_confident(self, sectors: SectorSnapshot, front_depth_blocked: bool) -> bool:
+        if front_depth_blocked:
+            return False
+        front_clear = sectors.front_m >= self.nav_cfg.active_scan_release_clear_m
+        side_clear = min(sectors.front_left_m, sectors.front_right_m) >= self.nav_cfg.local_corridor_side_clear_m
+        return bool(front_clear and side_clear)
+
+    def _start_active_scan(self, sectors: SectorSnapshot, reason: str) -> None:
+        if not self.nav_cfg.active_scan_enabled:
+            return
+        self._active_scan_direction = self._scan_direction_from_sectors(sectors)
+        self._last_escape_side_left = self._active_scan_direction == 'TURN_LEFT'
+        self._active_scan_remaining = max(1, int(self.nav_cfg.active_scan_steps))
+        self._active_scan_reason = reason
+        self._escape_queue = []
+        self.state.path = []
+        self.state.path_idx = 0
+
+    def _active_scan_command(self, local_map: Costmap2D) -> ControlCommand:
+        turn_deg = max(8.0, float(self.nav_cfg.active_scan_turn_deg))
+        direction = self._active_scan_direction
+        raw_left = -0.32 if direction == 'TURN_LEFT' else 0.32
+        raw_right = 0.32 if direction == 'TURN_LEFT' else -0.32
+        cmd = ControlCommand(
+            direction,
+            turn_deg=turn_deg,
+            raw_left=raw_left,
+            raw_right=raw_right,
+            reason=f"active scan; {self._active_scan_reason}; remaining={self._active_scan_remaining}",
+        )
+        if not self.local_planner._safe_on_costmap(local_map, self.state.estimated_pose, cmd):
+            other = 'TURN_RIGHT' if direction == 'TURN_LEFT' else 'TURN_LEFT'
+            cmd = ControlCommand(
+                other,
+                turn_deg=turn_deg,
+                raw_left=0.32 if other == 'TURN_RIGHT' else -0.32,
+                raw_right=-0.32 if other == 'TURN_RIGHT' else 0.32,
+                reason=f"active scan alternate; {self._active_scan_reason}; remaining={self._active_scan_remaining}",
+            )
+            self._active_scan_direction = other
+        self._active_scan_remaining = max(0, self._active_scan_remaining - 1)
+        return cmd
+
+    def active_scan_status(self) -> dict:
+        return {
+            "enabled": bool(self.nav_cfg.active_scan_enabled),
+            "remaining": int(self._active_scan_remaining),
+            "direction": self._active_scan_direction,
+            "reason": self._active_scan_reason,
+            "front_blocked_evidence": int(self._front_blocked_evidence_counter),
+            "plan_failed_evidence": int(self._plan_failed_counter),
+            "front_depth_corridor_points": int(self._last_front_depth_corridor_points),
+            "front_depth_corridor_min_m": (
+                None if math.isinf(self._last_front_depth_corridor_min_m)
+                else round(self._last_front_depth_corridor_min_m, 3)
+            ),
+        }
+
     def _build_escape_queue(self, sectors: SectorSnapshot) -> None:
         self._escape_queue = []
         rear_need = self.robot_cfg.length_m * 0.40 + self.nav_cfg.rear_safety_margin_m
@@ -2552,10 +2678,27 @@ class UGVNavigator:
         added += self._integrate_hits_into_map(frame.zed.hit_points_local, connect_adjacent=False, solidify_clusters=True)
         self.state.discovered_points += added
         self.state.sectors = self.local_planner.build_sector_snapshot(lidar_hits_local + frame.zed.hit_points_local)
+        front_depth_blocked = self._front_depth_corridor_blocked(frame.zed.hit_points_local)
+        front_evidence = (
+            self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
+            or (
+                front_depth_blocked
+                and self.state.sectors.front_m < self.nav_cfg.active_scan_front_clear_m
+            )
+        )
+        if front_evidence:
+            self._front_blocked_evidence_counter += 1
+        elif self._forward_view_confident(self.state.sectors, front_depth_blocked):
+            self._front_blocked_evidence_counter = 0
+        else:
+            self._front_blocked_evidence_counter = max(0, self._front_blocked_evidence_counter - 1)
 
         if self._stuck_counter >= self.nav_cfg.stuck_trigger_steps:
             self._add_blocked_patch_ahead(reverse=(last_cmd_mode == 'BACKWARD'))
-            self._build_escape_queue(self.state.sectors)
+            if self.nav_cfg.active_scan_enabled:
+                self._start_active_scan(self.state.sectors, 'stuck after forward probe')
+            else:
+                self._build_escape_queue(self.state.sectors)
             self.state.path = []
             self.state.path_idx = 0
             self._stuck_counter = 0
@@ -2574,6 +2717,10 @@ class UGVNavigator:
 
         if need_replan:
             self._maybe_replan(frame.encoder.timestamp, force=True)
+        if self.state.planner_name == 'failed' and not self.state.path:
+            self._plan_failed_counter += 1
+        else:
+            self._plan_failed_counter = 0
 
         p = self.state.estimated_pose
         g = self.state.goal_pose
@@ -2588,6 +2735,45 @@ class UGVNavigator:
 
         plan_map = self._planning_costmap()
         local_map = self._local_safety_costmap()
+        if self._active_scan_remaining > 0:
+            if self._forward_view_confident(self.state.sectors, front_depth_blocked):
+                self._active_scan_remaining = 0
+                self._active_scan_reason = ''
+                self._front_blocked_evidence_counter = 0
+                self._plan_failed_counter = 0
+            else:
+                scan_cmd = self._active_scan_command(local_map)
+                self.state.latest_cmd = scan_cmd
+                return scan_cmd
+
+        making_forward_progress = last_cmd_mode == 'FORWARD' and moved_m >= self.nav_cfg.stuck_pose_epsilon_m
+        confirmed_front_blocked = (
+            self._front_blocked_evidence_counter >= self.nav_cfg.active_scan_confirm_steps
+            and (
+                not making_forward_progress
+                or self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
+            )
+        )
+        confirmed_plan_failed = (
+            self._plan_failed_counter >= self.nav_cfg.active_scan_plan_fail_confirm_steps
+            and self._front_blocked_evidence_counter >= 2
+            and not self._forward_view_confident(self.state.sectors, front_depth_blocked)
+            and (
+                not making_forward_progress
+                or self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
+            )
+        )
+        if self.nav_cfg.active_scan_enabled and (confirmed_front_blocked or confirmed_plan_failed):
+            reason_parts = []
+            if confirmed_front_blocked:
+                reason_parts.append('confirmed front blocked')
+            if confirmed_plan_failed:
+                reason_parts.append('path failed while front constrained')
+            self._start_active_scan(self.state.sectors, ', '.join(reason_parts))
+            scan_cmd = self._active_scan_command(local_map)
+            self.state.latest_cmd = scan_cmd
+            return scan_cmd
+
         escape_cmd = self._consume_escape_queue(local_map)
         if escape_cmd is not None:
             self.state.latest_cmd = escape_cmd
@@ -2913,9 +3099,18 @@ class CompetitionMission:
         now_s = frame.encoder.timestamp
         lidar_hits = self._lidar_hits_for_indoor_sectors(frame.lidar.hit_points_local)
         sectors = LocalPlanner.build_sector_snapshot(lidar_hits + frame.zed.hit_points_local)
-        front_blocked = sectors.front_m < 0.65
+        front_blocked = sectors.front_m < 0.78
+        front_constrained = (
+            sectors.front_m < 1.15
+            and min(sectors.front_left_m, sectors.front_right_m) < 1.10
+        )
         goal_age_s = now_s - self._indoor_goal_started_s
-        need_new = self._indoor_goal_xy is None or goal_age_s > 4.5 or (front_blocked and goal_age_s > 1.0)
+        need_new = (
+            self._indoor_goal_xy is None
+            or goal_age_s > 4.5
+            or (front_blocked and goal_age_s > 0.8)
+            or (front_constrained and goal_age_s > 2.0)
+        )
         if self._indoor_goal_xy is not None:
             if math.hypot(self._indoor_goal_xy[0] - pose.x, self._indoor_goal_xy[1] - pose.y) < 0.55:
                 need_new = True
@@ -3195,6 +3390,7 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
         "known_obstacle_updates": navigator.state.discovered_points,
         "path_points": len(navigator.state.path),
         "path_idx": navigator.state.path_idx,
+        "active_scan": navigator.active_scan_status(),
         "sectors_m": {
             "front": None if math.isinf(navigator.state.sectors.front_m) else round(navigator.state.sectors.front_m, 3),
             "front_left": None if math.isinf(navigator.state.sectors.front_left_m) else round(navigator.state.sectors.front_left_m, 3),
@@ -3255,6 +3451,10 @@ def run_real_mode(
     front_safety_margin_m: float = 0.10,
     rear_safety_margin_m: float = 0.08,
     local_plan_inflation_m: float = 0.08,
+    active_scan_enabled: bool = True,
+    active_scan_confirm_steps: int = 4,
+    active_scan_steps: int = 5,
+    active_scan_front_clear_m: float = 1.35,
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
     competition_mode = mission_mode == "round3"
@@ -3278,6 +3478,10 @@ def run_real_mode(
     nav_cfg.front_safety_margin_m = clamp(float(front_safety_margin_m), 0.0, 1.0)
     nav_cfg.rear_safety_margin_m = clamp(float(rear_safety_margin_m), 0.0, 1.0)
     nav_cfg.local_plan_inflation_m = clamp(float(local_plan_inflation_m), 0.0, 1.0)
+    nav_cfg.active_scan_enabled = bool(active_scan_enabled)
+    nav_cfg.active_scan_confirm_steps = max(1, int(active_scan_confirm_steps))
+    nav_cfg.active_scan_steps = max(1, int(active_scan_steps))
+    nav_cfg.active_scan_front_clear_m = clamp(float(active_scan_front_clear_m), 0.50, 3.0)
     drive_speed_level = normalize_drive_speed_level(drive_speed_level)
     drive_factor = drive_speed_factor(drive_speed_level)
     field_w_m = yd(15.0)
@@ -3350,7 +3554,8 @@ def run_real_mode(
         f"drive_speed_level={drive_speed_level}/4 ({drive_factor:.2f}x), "
         f"robot=({robot_cfg.length_m:.2f}m x {robot_cfg.width_m:.2f}m), "
         f"lidar_offset=({robot_cfg.lidar_offset_x_m:.2f}, {robot_cfg.lidar_offset_y_m:.2f})m, "
-        f"lidar_fov={nav_cfg.lidar_used_fov_deg:.0f}deg, allow_reverse={nav_cfg.allow_reverse}"
+        f"lidar_fov={nav_cfg.lidar_used_fov_deg:.0f}deg, allow_reverse={nav_cfg.allow_reverse}, "
+        f"active_scan={nav_cfg.active_scan_enabled}"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
     print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
@@ -3443,6 +3648,10 @@ def main() -> None:
     parser.add_argument("--front-safety-margin-m", type=float, default=0.10, help="extra front clearance required before forward commands")
     parser.add_argument("--rear-safety-margin-m", type=float, default=0.08, help="extra rear clearance required before reverse commands")
     parser.add_argument("--local-plan-inflation-m", type=float, default=0.08, help="local costmap obstacle inflation for immediate safety checks")
+    parser.add_argument("--active-scan-enabled", type=str_to_bool, default=True, help="turn in place to gather a wider view after repeated front blockage evidence")
+    parser.add_argument("--active-scan-confirm-steps", type=int, default=4, help="consecutive constrained frames before active scan can interrupt forward probing")
+    parser.add_argument("--active-scan-steps", type=int, default=5, help="number of turn commands used for each active scan burst")
+    parser.add_argument("--active-scan-front-clear-m", type=float, default=1.35, help="front clearance below which repeated depth/costmap evidence can trigger active scan")
     args = parser.parse_args()
 
     if args.mode == "sim":
@@ -3481,6 +3690,10 @@ def main() -> None:
             front_safety_margin_m=args.front_safety_margin_m,
             rear_safety_margin_m=args.rear_safety_margin_m,
             local_plan_inflation_m=args.local_plan_inflation_m,
+            active_scan_enabled=args.active_scan_enabled,
+            active_scan_confirm_steps=args.active_scan_confirm_steps,
+            active_scan_steps=args.active_scan_steps,
+            active_scan_front_clear_m=args.active_scan_front_clear_m,
         )
 
 

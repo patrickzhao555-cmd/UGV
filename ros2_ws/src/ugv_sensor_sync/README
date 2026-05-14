@@ -18,6 +18,11 @@ connected vertical clusters that stand closer than that row model. This helps
 the low-mounted ZED detect cones, boxes, buckets, and table/chair legs without
 treating the visible floor as an obstacle.
 
+Indoor nav also has active scan recovery. It still allows short forward probes,
+but after repeated front/depth blockage evidence or repeated path failures while
+the front corridor is constrained, it turns in place toward the clearer side to
+collect a wider view before choosing the next indoor search goal.
+
 Useful depth-filter overrides:
 
 ```bash
@@ -27,6 +32,10 @@ FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
 FUSION_DEPTH_GROUND_RATIO=0.88
 FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
 FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
+NAV_ACTIVE_SCAN_ENABLED=true
+NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
+NAV_ACTIVE_SCAN_STEPS=5
+NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.35
 ```
 
 Main topics:

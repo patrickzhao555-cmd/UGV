@@ -192,7 +192,7 @@ class UgvDebugDashboard(Node):
         canvas = np.full((self.canvas_h, self.canvas_w, 3), (24, 27, 31), dtype=np.uint8)
 
         margin = 12
-        status_h = 166
+        status_h = 182
         left_w = int(self.canvas_w * 0.61)
         right_w = self.canvas_w - left_w - 3 * margin
         top_h = int((self.canvas_h - status_h - 3 * margin) * 0.62)
@@ -367,6 +367,7 @@ class UgvDebugDashboard(Node):
         odom = nav.get("odom_delta", {}) if isinstance(nav.get("odom_delta"), dict) else {}
         mission = nav.get("mission", {}) if isinstance(nav.get("mission"), dict) else {}
         sectors = nav.get("sectors_m", {}) if isinstance(nav.get("sectors_m"), dict) else {}
+        active_scan = nav.get("active_scan", {}) if isinstance(nav.get("active_scan"), dict) else {}
         ages = {
             "img": self._tuple_age(self.latest_image),
             "depth": self._tuple_age(self.latest_depth),
@@ -382,6 +383,7 @@ class UgvDebugDashboard(Node):
             f"pose={nav.get('pose_m')} goal={mission.get('active_goal_m')} plan={nav.get('planner')} {nav.get('plan_time_ms')}ms",
             f"clearance front={_fmt_m(fusion.get('front_clearance_m'))} src={fusion.get('front_clearance_source')} sectors f/fl/fr={sectors.get('front')}/{sectors.get('front_left')}/{sectors.get('front_right')}",
             f"ZED depth obstacles pts={fusion.get('depth_obstacle_points')} filtered={fusion.get('depth_obstacle_points_filtered')} comps={fusion.get('depth_obstacle_components')} cells={fusion.get('depth_obstacle_candidate_cells')}",
+            f"active scan rem={active_scan.get('remaining')} dir={active_scan.get('direction')} evidence={active_scan.get('front_blocked_evidence')}/{active_scan.get('plan_failed_evidence')} depth_corridor={active_scan.get('front_depth_corridor_points')} min={active_scan.get('front_depth_corridor_min_m')} reason={active_scan.get('reason')}",
             f"YOLO loaded={yolo.get('model_loaded')} accepted={yolo.get('accepted')} boxes={len(yolo.get('boxes', []))} classes={yolo.get('classes')}",
             f"marker detected={marker.get('detected')} method={marker.get('method')} reason={marker.get('reason')} bbox={marker.get('candidate_bbox')}",
             f"ages {', '.join(f'{k}={v:.2f}s' if v is not None else f'{k}=None' for k, v in ages.items())}",

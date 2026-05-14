@@ -334,6 +334,17 @@ ZED depth obstacle filtering:
 - Front depth clearance is computed from those filtered obstacle clusters inside
   the forward corridor instead of from raw floor pixels.
 
+Active scan recovery:
+
+- Indoor navigation does not give up on a forward route just because one depth
+  frame contains orange/red obstacles. It still allows short forward probing.
+- If front/depth blockage evidence repeats for several frames, or the path
+  planner repeatedly fails while the front corridor is constrained, the UGV
+  turns in place toward the clearer side to build a wider LiDAR/ZED view.
+- This is meant for classroom-style clutter: if the current view is blocked but
+  the right side is an open aisle, the robot should scan and retarget instead of
+  sitting still or pushing blindly into the chair/table cluster.
+
 Useful depth-filter overrides:
 
 ```bash
@@ -343,6 +354,10 @@ FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
 FUSION_DEPTH_GROUND_RATIO=0.88
 FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
 FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
+NAV_ACTIVE_SCAN_ENABLED=true
+NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
+NAV_ACTIVE_SCAN_STEPS=5
+NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.35
 ```
 
 ## Real Run Warning
@@ -458,6 +473,10 @@ MIN_MOTION_RAW=0.22
 NAV_FRONT_SAFETY_MARGIN_M=0.10
 NAV_REAR_SAFETY_MARGIN_M=0.08
 NAV_LOCAL_PLAN_INFLATION_M=0.08
+NAV_ACTIVE_SCAN_ENABLED=true
+NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
+NAV_ACTIVE_SCAN_STEPS=5
+NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.35
 FUSION_DEPTH_GROUND_FILTER_ENABLED=true
 FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
 FUSION_DEPTH_GROUND_RATIO=0.88

@@ -62,6 +62,7 @@ class DebugStatusNode(Node):
         cmd = nav.get('cmd', {}) if isinstance(nav, dict) else {}
         sectors = nav.get('sectors_m', {}) if isinstance(nav, dict) else {}
         odom_delta = nav.get('odom_delta', {}) if isinstance(nav, dict) else {}
+        active_scan = nav.get('active_scan', {}) if isinstance(nav, dict) else {}
 
         self.get_logger().info(
             'debug '
@@ -79,6 +80,8 @@ class DebugStatusNode(Node):
             f"motor_connected={motor.get('connected')} "
             f"phase={mission.get('phase')} "
             f"cmd={cmd.get('mode')} "
+            f"scan_rem={active_scan.get('remaining')} "
+            f"scan_dir={active_scan.get('direction')} "
             f"odom_warn={odom_delta.get('warning')} "
             f"pose={nav.get('pose_m')} "
             f"sectors={self._sector_text(sectors)}"

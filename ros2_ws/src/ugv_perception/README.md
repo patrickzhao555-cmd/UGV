@@ -79,10 +79,44 @@ Topics:
 
 - subscribes to `/zed/image` and `/zed/depth`
 - publishes semantic points to `/sensors/yolo_semantic_obstacle_points`
-- publishes JSON debug status on `/sensors/yolo_semantic_debug`
+- publishes JSON debug status on `/sensors/yolo_semantic_debug`, including
+  bounding boxes, confidence, depth estimate, and accept/reject reason
 
 Fusion merges these semantic points into the existing navigation obstacle point
 stream. If YOLO misses an object, LiDAR/ZED depth still provide the safety layer.
+
+## Visual Debug Dashboard
+
+`ugv_debug_dashboard` opens an OpenCV window for VNC/X11 debugging. It shows:
+
+- ZED image with YOLO bounding boxes and marker candidate boxes
+- ZED depth colormap
+- local LiDAR points, the configured front LiDAR FOV, fused ZED/YOLO obstacle points, and the robot footprint
+- a session map with pose trace, LiDAR hit cells, and camera-searched cells
+- navigation command, reason, pose, clearance, sensor age, YOLO status, marker status, and odometry warnings
+
+Run it through the main launcher:
+
+```bash
+START_YOLO_OBSTACLES=true START_DEBUG_DASHBOARD=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Or run it by itself after the stack is publishing topics:
+
+```bash
+ros2 run ugv_perception ugv_debug_dashboard
+```
+
+Useful overrides:
+
+```bash
+DASHBOARD_UPDATE_HZ=4.0
+DASHBOARD_CAMERA_SEARCH_DEPTH_M=0.30
+```
+
+The dashboard needs a GUI display. Start it from a TigerVNC desktop terminal or
+set `DISPLAY=:1` before launching from SSH.
 
 ## Marker Vision Baseline
 
@@ -178,6 +212,7 @@ Kept:
 - `ugv_perception/zed_obj_distance.py`: optional debug helper
 - `ugv_perception/marker_model_trainer.py`: marker image training scaffold
 - `ugv_perception/marker_vision_node.py`: marker detection publisher
+- `ugv_perception/ugv_debug_dashboard.py`: VNC/OpenCV perception and navigation dashboard
 
 Removed from the main package flow:
 

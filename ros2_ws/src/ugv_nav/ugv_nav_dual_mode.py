@@ -2083,6 +2083,7 @@ class UGVNavigator:
         self._last_path_block_version = -1
         self._last_escape_side_left = True
         self._turn_loop_counter = 0
+        self._odom_warning_counter = 0
         self._last_field_map_version = -1
         self._last_field_map_key = None
         self.last_odom_delta = {
@@ -2136,8 +2137,10 @@ class UGVNavigator:
         if prev_cmd_mode in {'TURN_LEFT', 'TURN_RIGHT'} and abs(ds) > 0.035:
             warning = 'turn_command_has_linear_odom_check_encoder_inversion'
             ds_for_pose = 0.0
-        elif prev_cmd_mode == 'FORWARD' and dleft_ticks * dright_ticks < 0:
+        elif prev_cmd_mode in {'FORWARD', 'BACKWARD'} and dleft_ticks * dright_ticks < 0:
             warning = 'forward_command_has_opposite_encoder_signs'
+            ds_for_pose = 0.0
+            dtheta = 0.0
         if self.nav_cfg.use_imu_yaw and imu is not None and 0.0 < dt <= 0.5:
             yaw_rate = imu.yaw_rate(self.nav_cfg.imu_yaw_axis, self.nav_cfg.imu_yaw_sign)
             tick_motion = abs(dleft_ticks) + abs(dright_ticks)
@@ -2520,6 +2523,20 @@ class UGVNavigator:
         self.blocked_memory.step()
         if self.blocked_memory.version != self._plan_costmap_cache_key[1]:
             self._plan_costmap_dirty = True
+
+        odom_warning = self.last_odom_delta.get("warning")
+        if odom_warning in {
+            'forward_command_has_opposite_encoder_signs',
+            'turn_command_has_linear_odom_check_encoder_inversion',
+        }:
+            self._odom_warning_counter += 1
+        else:
+            self._odom_warning_counter = 0
+        if self._odom_warning_counter >= 5:
+            cmd = ControlCommand('STOP', reason=f'encoder sign calibration fault: {odom_warning}')
+            self.state.finish_reason = 'encoder calibration fault'
+            self.state.latest_cmd = cmd
+            return cmd
 
         last_cmd_mode = self.state.latest_cmd.mode
         if last_cmd_mode in {'FORWARD', 'BACKWARD'} and moved_m < self.nav_cfg.stuck_pose_epsilon_m:

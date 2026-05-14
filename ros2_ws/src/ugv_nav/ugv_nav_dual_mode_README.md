@@ -113,3 +113,22 @@ Live planner timing is also published in `/ugv_nav_status` as `plan_time_ms`.
 - Wheel encoder odometry drives the estimated pose
 - Navigation now reads a stable middle-layer contract instead of individual raw sensor topics
 - Goal input is separated from obstacle sensing, which matches the UAV gives goal and UGV handles navigation idea
+
+## Odometry and Coverage Notes
+
+The robot knows its heading from wheel encoder odometry by default. Optional ZED
+IMU yaw blending exists but stays disabled until the IMU axis/sign are verified
+on the physical chassis. If a forward command produces opposite left/right
+encoder signs, or a pure turn produces strong linear odometry, the navigator now
+refuses to integrate that bad pose update and stops after repeated warnings so
+the chassis does not continue twitching on corrupted heading data.
+
+The planner models the 30 inch by 30 inch footprint through `ROBOT_LENGTH_M`,
+`ROBOT_WIDTH_M`, `ROBOT_TRACK_WIDTH_M`, obstacle inflation, and front/rear
+safety margins. LiDAR is limited by `LIDAR_USED_FOV_DEG`; default indoor runs use
+180 degrees and `NAV_ALLOW_REVERSE=false`, so planned reverse motion is disabled.
+
+The live planning map is currently obstacle-focused: LiDAR and ZED/YOLO points
+add obstacles, and indoor mode tracks coarse visited cells. Camera-FOV coverage
+is visualized by `START_DEBUG_DASHBOARD=true`, but it is not yet a hard planner
+objective.

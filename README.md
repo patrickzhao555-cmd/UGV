@@ -107,6 +107,46 @@ conservative map inflation. Keep NumPy on the 1.x line on ROS Humble; a plain
 `cv_bridge` and `matplotlib` binaries. If you see `_ARRAY_API not found` or
 `numpy.core.multiarray failed to import`, rerun the NumPy 1.26.4 command above.
 
+Launch with the visual dashboard enabled from a VNC desktop:
+
+```bash
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 START_YOLO_OBSTACLES=true START_DEBUG_DASHBOARD=true \
+MOTOR_PORT=/dev/ttyACM0 LIDAR_PORT=/dev/ttyUSB0 MOTOR_DRY_RUN=false \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+The dashboard opens one OpenCV window with ZED image, YOLO boxes, marker
+candidate boxes, ZED depth map, local LiDAR/fused obstacle view, a session map,
+and the current navigation reason/status. Press `s` in the window to save a
+screenshot under `~/ugv_dashboard_screenshots`; press `q` or `Esc` to close it.
+Set `DASHBOARD_CAMERA_SEARCH_DEPTH_M=0.30` to match the measured camera marker
+search depth, and `DASHBOARD_UPDATE_HZ=4.0` if the Nano UI feels heavy.
+
+If you need a desktop on a headless Nano, install and start TigerVNC:
+
+```bash
+sudo apt update
+sudo apt install -y tigervnc-standalone-server tigervnc-common xfce4 xfce4-goodies dbus-x11
+vncpasswd
+mkdir -p ~/.vnc
+cat > ~/.vnc/xstartup <<'EOF'
+#!/bin/sh
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+startxfce4 &
+EOF
+chmod +x ~/.vnc/xstartup
+vncserver -localhost no :1 -geometry 1920x1080 -depth 24
+```
+
+Then connect from your laptop to `<nano-ip>:5901`. If you launch from SSH
+instead of an opened VNC terminal, export the VNC display first:
+
+```bash
+export DISPLAY=:1
+```
+
 Every new terminal that uses ROS commands should source the same overlays:
 
 ```bash
@@ -277,6 +317,10 @@ Fusion merges YOLO semantic points into the existing navigation obstacle point
 stream. A missed YOLO detection never removes a LiDAR/ZED obstacle; it only
 means navigation falls back to the normal hard safety layer.
 
+YOLO debug now also publishes the raw bounding boxes, accept/reject reason,
+confidence, and depth estimate on `/sensors/yolo_semantic_debug`; the visual
+dashboard uses that topic to show exactly what YOLO thinks it sees.
+
 ## Real Run Warning
 
 Only run without `MOTOR_DRY_RUN=true` when the mechanical team has cleared the
@@ -300,6 +344,7 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 - `/sensors/synced_summary`: fused LiDAR/ZED/encoder debug summary
 - `/sensors/nav_frame`: synchronized nav input frame
 - `/sensors/yolo_semantic_obstacle_points`: optional YOLO semantic obstacle points
+- `/sensors/yolo_semantic_debug`: YOLO boxes, classes, confidence, depth, and accept/reject reason
 - `/ugv_goal`: manual goal input in map coordinates
 - `/ugv/target`: ESP/UAV target marker coordinate in meters from the field lower-left corner
 - `/ugv/field_map`: legacy optional 15 x 15 field-map JSON, still accepted for older tests
@@ -310,6 +355,15 @@ EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 - `/ugv_nav_status`: navigation, mission, pose, planner, and command status
 - `/ugv/debug_status`: compact one-line debug status
 - `/motor_controller/status`: motor bridge connection and command state
+
+Visual debugging:
+
+- `START_DEBUG_DASHBOARD=true` starts `ugv_debug_dashboard`.
+- The dashboard subscribes to `/zed/image`, `/zed/depth`, `/sensors/nav_frame`,
+  `/sensors/yolo_semantic_debug`, `/ugv/marker_vision_debug`,
+  `/sensors/synced_summary`, and `/ugv_nav_status`.
+- It is meant for VNC/X11. Without `DISPLAY`, it logs a warning and does not
+  call `cv2.imshow`.
 
 ## Sensor and Pathing Flow
 
@@ -329,6 +383,16 @@ obstacles during pathing because the target coordinate does not include obstacle
 obstacle blocks the current route, it is inserted into the costmap; the planner
 checks whether the near-future path conflicts, replans around the obstacle, and
 then naturally follows the new shortest available route back toward the target.
+
+Current map design:
+
+- Navigation keeps an obstacle-focused `known_costmap` from live LiDAR and ZED/YOLO points.
+- Indoor search also keeps coarse visited cells so it prefers not-yet-visited areas.
+- It does not yet use a persistent "camera searched this exact FOV area" map for
+  planning decisions. The dashboard now visualizes a session-local camera search
+  wedge map using the current pose, 110 degree horizontal FOV, and the configured
+  `DASHBOARD_CAMERA_SEARCH_DEPTH_M` so we can debug coverage before feeding it
+  into the planner.
 
 ## Target Format
 
@@ -389,6 +453,12 @@ If one side drives backward when a positive command should move it forward,
 invert that side's motor command at launch. After changing command inversion,
 lift the robot and check `/encoder_ticks_stamped`; if a physically forward wheel
 motion makes that side's ticks decrease, invert that encoder side too.
+
+If `/ugv_nav_status` shows `forward_command_has_opposite_encoder_signs` or
+`turn_command_has_linear_odom_check_encoder_inversion` repeatedly, navigation
+now stops with an encoder calibration fault instead of continuing to twitch.
+That means the robot is seeing impossible odometry for the command it just sent;
+fix motor/encoder inversion before tuning path planning.
 
 The current 30 inch chassis defaults both command inversions to `true` in
 `jetson_bringup.sh`, because the motor wiring maps positive PWM to physical

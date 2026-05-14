@@ -207,6 +207,7 @@ class YoloSemanticObstacleNode(Node):
         depth_h, depth_w = depth.shape[:2]
         points: List[Tuple[float, float]] = []
         accepted_classes = Counter()
+        debug_boxes = []
         detections = 0
         accepted = 0
 
@@ -214,28 +215,58 @@ class YoloSemanticObstacleNode(Node):
             detections += 1
             cls_id = int(box.cls[0]) if getattr(box, "cls", None) is not None else -1
             cls_name = str(self.model_names.get(cls_id, cls_id)).lower()
+            conf = float(box.conf[0]) if getattr(box, "conf", None) is not None else 0.0
+            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0].tolist()]
+            raw_debug_box = {
+                "class": cls_name,
+                "confidence": round(conf, 3),
+                "bbox_xyxy": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
+                "accepted": False,
+                "reason": "class_filtered",
+            }
             if cls_name not in self.obstacle_classes:
+                debug_boxes.append(raw_debug_box)
                 continue
 
-            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0].tolist()]
             box_area_frac = max(0.0, (x2 - x1) * (y2 - y1)) / max(1.0, float(image_w * image_h))
             if box_area_frac < self.min_bbox_area_frac:
+                raw_debug_box.update({
+                    "bbox_xyxy": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
+                    "reason": "too_small",
+                    "area_frac": round(box_area_frac, 5),
+                })
+                debug_boxes.append(raw_debug_box)
                 continue
 
             depth_m = self._depth_for_box(depth, (x1, y1, x2, y2), image_w, image_h, depth_w, depth_h)
             if depth_m is None:
+                raw_debug_box.update({
+                    "bbox_xyxy": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
+                    "reason": "missing_depth",
+                    "area_frac": round(box_area_frac, 5),
+                })
+                debug_boxes.append(raw_debug_box)
                 continue
 
             det_points = self._points_for_box(depth_m, (x1, y1, x2, y2), image_w)
             points.extend(det_points[: self.max_points_per_detection])
             accepted += 1
             accepted_classes[cls_name] += 1
+            raw_debug_box.update({
+                "accepted": True,
+                "reason": "ok",
+                "area_frac": round(box_area_frac, 5),
+                "depth_m": round(depth_m, 3),
+                "points": min(len(det_points), self.max_points_per_detection),
+            })
+            debug_boxes.append(raw_debug_box)
 
         return points[: self.max_total_points], {
             "reason": "ok",
             "detections": detections,
             "accepted": accepted,
             "classes": dict(accepted_classes),
+            "boxes": debug_boxes[:40],
         }
 
     def _depth_for_box(
@@ -296,6 +327,7 @@ class YoloSemanticObstacleNode(Node):
             "detections": 0,
             "accepted": 0,
             "classes": {},
+            "boxes": [],
             "published_points": 0,
         })
 

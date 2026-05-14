@@ -38,6 +38,7 @@ START_MARKER_VISION="${START_MARKER_VISION:-true}"
 MARKER_VISION_TEST="${MARKER_VISION_TEST:-false}"
 MARKER_VISION_TEST_PERIOD_S="${MARKER_VISION_TEST_PERIOD_S:-3.0}"
 START_YOLO_OBSTACLES="${START_YOLO_OBSTACLES:-false}"
+START_DEBUG_DASHBOARD="${START_DEBUG_DASHBOARD:-false}"
 ROUND_MODE="${ROUND_MODE:-manual}"
 COMPETITION_MODE="${COMPETITION_MODE:-false}"
 START_CORNER="${START_CORNER:-lower_left}"
@@ -97,6 +98,8 @@ YOLO_IMGSZ="${YOLO_IMGSZ:-416}"
 YOLO_CONFIDENCE="${YOLO_CONFIDENCE:-0.35}"
 YOLO_MAX_HZ="${YOLO_MAX_HZ:-2.0}"
 YOLO_OBSTACLE_CLASSES="${YOLO_OBSTACLE_CLASSES:-person,chair,couch,dining table,bench,potted plant,backpack,suitcase}"
+DASHBOARD_UPDATE_HZ="${DASHBOARD_UPDATE_HZ:-8.0}"
+DASHBOARD_CAMERA_SEARCH_DEPTH_M="${DASHBOARD_CAMERA_SEARCH_DEPTH_M:-0.30}"
 EXTRA_SETUP_BASH="${EXTRA_SETUP_BASH:-}"
 MOTOR_DRY_RUN="${MOTOR_DRY_RUN:-false}"
 MOTOR_PWM_SLEW_RATE_US_PER_S="${MOTOR_PWM_SLEW_RATE_US_PER_S:-2400.0}"
@@ -165,7 +168,7 @@ if [[ -z "${START_MARKER_VISION_WAS_SET}" && "${ROUND_MODE}" =~ ^round[123]$ ]];
   START_MARKER_VISION=true
 fi
 
-if [[ "${START_MARKER_VISION}" == "true" || "${START_YOLO_OBSTACLES}" == "true" ]]; then
+if [[ "${START_MARKER_VISION}" == "true" || "${START_YOLO_OBSTACLES}" == "true" || "${START_DEBUG_DASHBOARD}" == "true" ]]; then
   ZED_PUBLISH_IMAGE=true
 fi
 
@@ -208,6 +211,7 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   start_marker_vision:="${START_MARKER_VISION}" \
   start_marker_vision_test:="${MARKER_VISION_TEST}" \
   start_yolo_obstacles:="${START_YOLO_OBSTACLES}" \
+  start_debug_dashboard:="${START_DEBUG_DASHBOARD}" \
   competition_mode:="${COMPETITION_MODE}" \
   mission_mode:="${ROUND_MODE}" \
   start_corner:="${START_CORNER}" \
@@ -245,6 +249,8 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   yolo_confidence:="${YOLO_CONFIDENCE}" \
   yolo_max_hz:="${YOLO_MAX_HZ}" \
   yolo_obstacle_classes:="${YOLO_OBSTACLE_CLASSES}" \
+  dashboard_update_hz:="${DASHBOARD_UPDATE_HZ}" \
+  dashboard_camera_search_depth_m:="${DASHBOARD_CAMERA_SEARCH_DEPTH_M}" \
   lidar_port:="${LIDAR_PORT}" \
   lidar_baud:="${LIDAR_BAUD}" \
   zed_publish_rate_hz:="${ZED_PUBLISH_RATE_HZ}" \

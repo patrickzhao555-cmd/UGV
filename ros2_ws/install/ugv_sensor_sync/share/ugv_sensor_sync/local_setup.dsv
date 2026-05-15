@@ -1,4 +1,0 @@
-source;share/ugv_sensor_sync/environment/ament_prefix_path.sh
-source;share/ugv_sensor_sync/environment/library_path.sh
-source;share/ugv_sensor_sync/environment/path.sh
-source;share/ugv_sensor_sync/environment/pythonpath.sh

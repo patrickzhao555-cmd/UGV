@@ -1,6 +1,0 @@
-{
-  "package_name": "ugv_sensor_sync",
-  "non_idl_tuples": [
-    "/home/bluelule/ugv_project/ros2_ws/src/ugv_sensor_sync:msg/UwbRange.msg"
-  ]
-}

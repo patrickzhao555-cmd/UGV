@@ -1,1 +1,0 @@
-/home/bluelule/ugv_project/ros2_ws/src/third_party/zed-ros2-wrapper/zed_wrapper/launch/zed_camera.launch.py

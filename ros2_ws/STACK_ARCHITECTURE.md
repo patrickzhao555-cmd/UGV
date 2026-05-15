@@ -54,6 +54,20 @@ It should not subscribe to raw lidar, raw ZED, or raw encoder topics directly.
 
 That keeps pathing stable even when the hardware layer changes.
 
+On `nav2-inspired-mini-controller`, global search/marker/map ownership stays
+in this file, but the local motion layer is continuous:
+
+- sample forward `(v_mps, omega_radps)` commands
+- simulate each command over a short horizon against the local obstacle field
+- score progress, clearance, gap width, heading, speed, and smoothness
+- apply acceleration limits and low-pass filtering before converting to tank
+  left/right raw commands
+- keep a collision-monitor style stop/slow layer separate from ordinary path
+  selection
+
+Normal indoor runs keep reverse disabled. With front-only LiDAR/camera coverage,
+the robot should turn in place before driving toward a target behind it.
+
 ## 4. Marker vision layer
 
 `ugv_perception/marker_vision_node.py` is optional and only starts when
@@ -77,6 +91,11 @@ source and publishes `/ugv/uav_flag` for the UAV handoff.
 node. It starts with `START_YOLO_OBSTACLES=true`, reads `/zed/image` and
 `/zed/depth`, and publishes `/sensors/yolo_semantic_obstacle_points` for
 chair/table/person-style obstacle inflation.
+
+`ugv_perception/ugv_debug_dashboard.py` is the main operator visibility tool.
+It visualizes the ZED image, YOLO boxes, marker debug, depth map, LiDAR/fused
+points, session map, and planner status. It is intentionally a debug window,
+not a planning dependency.
 
 ## 5. Actuation layer
 
@@ -110,3 +129,12 @@ This is the last bridge between ROS and the Teensy 4.1.
 4. Only if nav truly needs the new information, extend `/sensors/nav_frame`.
 
 If a new sensor is optional or experimental, try to keep it out of the nav contract at first.
+
+## Runbooks
+
+The GitHub homepage README stays high level. Day-to-day commands, Nano pull and
+build steps, TigerVNC setup, direct motor tests, YOLO installation, marker
+training, and troubleshooting live in:
+
+- `ros2_ws/JETSON_BRINGUP_CHECKLIST.md`
+- `ros2_ws/JETSON_BRINGUP_CHECKLIST_ZH.md`

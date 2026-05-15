@@ -20,8 +20,8 @@ setup(
     zip_safe=True,
     maintainer="bluelule",
     maintainer_email="bluelule@todo.todo",
-    description="Depth-based obstacle warning and simple ZED debug nodes",
-    license="TODO: License declaration",
+    description="UGV ZED marker vision, YOLO semantic obstacle assist, depth warning, and dashboard nodes.",
+    license="Apache-2.0",
     extras_require={
         "test": [
             "pytest",

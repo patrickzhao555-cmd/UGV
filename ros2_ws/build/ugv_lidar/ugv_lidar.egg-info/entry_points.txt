@@ -1,3 +1,0 @@
-[console_scripts]
-lidar_processor = ugv_lidar.lidar_processor:main
-

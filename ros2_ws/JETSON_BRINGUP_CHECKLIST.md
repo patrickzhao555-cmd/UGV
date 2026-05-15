@@ -1,38 +1,26 @@
-# Jetson Bring-Up and Bench Test Guide
+# UGV Jetson/Nano Runbook
 
 Chinese version: [JETSON_BRINGUP_CHECKLIST_ZH.md](JETSON_BRINGUP_CHECKLIST_ZH.md)
 
-This guide assumes the repo is at `~/ugv_project` and this ROS 2 workspace is
-`~/ugv_project/ros2_ws`.
+This is the detailed operating guide for the current branch:
+`nav2-inspired-mini-controller`.
 
-Use `Ctrl+C` in the launch terminal to stop the stack.
+Assumptions:
 
-## 1. Pull the Latest Code
+- Repo path on the Nano: `~/ugv_project`
+- ROS workspace: `~/ugv_project/ros2_ws`
+- ROS distro: Humble
+- Extra ZED/SLLidar underlay when needed: `~/ugv_ws_albert/install/setup.bash`
+- Stop any launch with `Ctrl+C`
+
+## 1. Pull and Build
 
 ```bash
 cd ~/ugv_project
-git checkout feature/motor-sync-nav-bringup
-git pull --ff-only origin feature/motor-sync-nav-bringup
-```
+git fetch origin
+git checkout nav2-inspired-mini-controller
+git pull --ff-only origin nav2-inspired-mini-controller
 
-Confirm the workspace belongs to the repo:
-
-```bash
-cd ~/ugv_project/ros2_ws
-git rev-parse --show-toplevel
-```
-
-Expected:
-
-```text
-/home/bluelule/ugv_project
-```
-
-## 2. Build
-
-Run this after pulling code or changing Python/launch files.
-
-```bash
 cd ~/ugv_project/ros2_ws
 source /opt/ros/humble/setup.bash
 source ~/ugv_ws_albert/install/setup.bash
@@ -40,7 +28,7 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-Every new terminal should source the same setup files:
+Every new terminal that runs ROS commands needs the same overlays:
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -49,13 +37,41 @@ cd ~/ugv_project/ros2_ws
 source install/setup.bash
 ```
 
-If marker vision will be used, make sure OpenCV is available:
+If runtime behavior looks stale after a pull, rebuild from a clean overlay once:
 
 ```bash
-sudo apt install python3-opencv ros-humble-cv-bridge
+cd ~/ugv_project/ros2_ws
+rm -rf build install log
+source /opt/ros/humble/setup.bash
+source ~/ugv_ws_albert/install/setup.bash
+colcon build --symlink-install
+source install/setup.bash
 ```
 
-## 3. One-Command Stack Launcher
+## 2. Optional Dependencies
+
+Marker vision and dashboard need OpenCV/cv_bridge:
+
+```bash
+sudo apt update
+sudo apt install -y python3-opencv ros-humble-cv-bridge
+```
+
+YOLO semantic obstacle assist is optional:
+
+```bash
+python3 -m pip install --user --force-reinstall "numpy==1.26.4"
+python3 -m pip install --user "ultralytics" "numpy<2"
+```
+
+Keep ROS Humble on NumPy 1.x. If you see `_ARRAY_API not found` or
+`numpy.core.multiarray failed to import`, repair the local Python environment:
+
+```bash
+python3 -m pip install --user --force-reinstall "numpy==1.26.4"
+```
+
+## 3. Main Launcher
 
 The main entry point is:
 
@@ -64,47 +80,154 @@ cd ~/ugv_project/ros2_ws
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Useful device overrides:
+Recommended indoor ground run:
 
 ```bash
-LIDAR_PORT=/dev/ttyUSB0 MOTOR_PORT=/dev/ttyACM0 \
+cd ~/ugv_project/ros2_ws
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 \
+START_YOLO_OBSTACLES=true START_DEBUG_DASHBOARD=true \
+MOTOR_PORT=/dev/ttyACM0 LIDAR_PORT=/dev/ttyUSB0 MOTOR_DRY_RUN=false \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-If motor direction or encoder direction is reversed:
+Safer lifted/bench variant:
 
 ```bash
-INVERT_LEFT_COMMAND=true INVERT_LEFT_ENCODER=true \
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 \
+START_YOLO_OBSTACLES=true START_DEBUG_DASHBOARD=true MOTOR_DRY_RUN=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-## 4. Recommended Bench Mode
+Disable optional perception pieces if you need to isolate drivetrain/pathing:
 
-Use this when the UGV is on a stand. It starts the stack, enables dry-run motor
-output, starts debug topics, and automatically publishes a test goal.
+```bash
+ROUND_MODE=indoor START_YOLO_OBSTACLES=false START_DEBUG_DASHBOARD=false \
+START_MARKER_VISION=false MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+The current default starts marker vision. Use `START_MARKER_VISION=false` when
+you want a minimal sensor/nav test.
+
+## 4. TigerVNC and Dashboard
+
+Install TigerVNC/XFCE on the Nano:
+
+```bash
+sudo apt update
+sudo apt install -y tigervnc-standalone-server tigervnc-common xfce4 xfce4-goodies dbus-x11
+vncpasswd
+mkdir -p ~/.vnc
+cat > ~/.vnc/xstartup <<'EOF'
+#!/bin/sh
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+startxfce4 &
+EOF
+chmod +x ~/.vnc/xstartup
+vncserver -localhost no :1 -geometry 1920x1080 -depth 24
+```
+
+Connect from Windows with TigerVNC Viewer to:
+
+```text
+129.65.74.107:5901
+```
+
+If you launch from SSH instead of a VNC terminal:
+
+```bash
+export DISPLAY=:1
+```
+
+Dashboard launch:
+
+```bash
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 START_DEBUG_DASHBOARD=true \
+START_YOLO_OBSTACLES=true MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Dashboard keys:
+
+- `s`: save screenshot to `~/ugv_dashboard_screenshots`
+- `q` or `Esc`: close dashboard
+
+Useful dashboard overrides:
+
+```bash
+DASHBOARD_UPDATE_HZ=4.0
+DASHBOARD_CAMERA_SEARCH_DEPTH_M=0.30
+```
+
+## 5. Direct Drivetrain Tests
+
+Use this before tuning navigation. Lift the UGV for the first run. Do not run
+the full navigation bringup at the same time.
+
+```bash
+cd ~/ugv_project/ros2_ws
+source /opt/ros/humble/setup.bash
+source ~/ugv_ws_albert/install/setup.bash
+source install/setup.bash
+
+ros2 launch ugv_motor_controller motor_direct_test.launch.py \
+  motion:=forward raw:=0.22 duration_s:=0.8 yes:=true \
+  port:=/dev/ttyACM0 dry_run:=false \
+  invert_left_command:=true invert_right_command:=true
+```
+
+Available motions:
+
+```text
+forward
+backward
+turn_left
+turn_right
+left_forward
+left_backward
+right_forward
+right_backward
+raw
+sequence
+```
+
+Raw example:
+
+```bash
+ros2 launch ugv_motor_controller motor_direct_test.launch.py \
+  motion:=raw raw_left:=0.20 raw_right:=-0.20 duration_s:=0.8 yes:=true \
+  port:=/dev/ttyACM0 dry_run:=false \
+  invert_left_command:=true invert_right_command:=true
+```
+
+Expected checks:
+
+- `motion:=forward` physically moves the chassis toward the front sensors.
+- Forward left/right encoder ticks should have the same sign.
+- Turning left/right encoder ticks should have opposite signs.
+- If physical forward goes backward, flip both command inversion flags together.
+- If physical forward makes one side's encoder ticks decrease, flip that side's encoder inversion flag.
+
+Current chassis defaults in `jetson_bringup.sh`:
+
+```bash
+INVERT_LEFT_COMMAND=true
+INVERT_RIGHT_COMMAND=true
+INVERT_LEFT_ENCODER=false
+INVERT_RIGHT_ENCODER=false
+```
+
+## 6. Bench and Dry-Run Modes
+
+Recommended bench mode:
 
 ```bash
 cd ~/ugv_project/ros2_ws
 BENCH_TEST=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Change the automatic bench goal in meters:
-
-```bash
-BENCH_TEST=true BENCH_GOAL_X_M=6.86 BENCH_GOAL_Y_M=6.86 \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-What good looks like:
-
-- launch terminal shows `DRY RUN motor command`, not `Sent motor command`
-- `/ugv/debug_status` shows `phase=manual` and `cmd=...`
-- pose may stay fixed in dry-run because wheels are not actually commanded
-
-## 5. Manual Dry-Run Mode
-
-Use this when you want to launch the stack first, then publish a coordinate by
-hand. Motors will not receive PWM.
+Manual dry-run with a goal:
 
 Terminal 1:
 
@@ -125,228 +248,58 @@ ros2 topic pub --once /ugv_goal geometry_msgs/msg/PointStamped \
 "{header: {frame_id: 'map'}, point: {x: 12.2, y: 12.0, z: 0.0}}"
 ```
 
-Coordinates are in meters. The current field model is 15 yards by 15 yards,
-so the center is about `(6.86, 6.86)` meters.
+The 15 yard x 15 yard field is `13.716 m x 13.716 m`; center is about
+`(6.86, 6.86)`.
 
-## 6. Actual Motor Run on a Stand
+## 7. Round and Competition Modes
 
-Only use this when the robot is safely lifted. This sends real PWM to the motor
-controller.
-
-Terminal 1:
+Round 1:
 
 ```bash
-cd ~/ugv_project/ros2_ws
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Terminal 2:
-
-```bash
-source /opt/ros/humble/setup.bash
-source ~/ugv_ws_albert/install/setup.bash
-cd ~/ugv_project/ros2_ws
-source install/setup.bash
-
-ros2 topic pub --once /ugv_goal geometry_msgs/msg/PointStamped \
-"{header: {frame_id: 'map'}, point: {x: 12.2, y: 12.0, z: 0.0}}"
-```
-
-Check the motor bridge:
-
-```bash
-ros2 topic echo /motor_controller/status --once --full-length
-```
-
-`TURN_LEFT` should produce left PWM below neutral and right PWM above neutral,
-for example `1230, 1770`.
-
-## 7. Ground Run
-
-Use this only when the mechanical team confirms the platform is ready and the
-area is clear.
-
-```bash
-cd ~/ugv_project/ros2_ws
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Then publish a goal from another terminal:
-
-```bash
-ros2 topic pub --once /ugv_goal geometry_msgs/msg/PointStamped \
-"{header: {frame_id: 'map'}, point: {x: 6.86, y: 6.86, z: 0.0}}"
-```
-
-Keep a terminal open with:
-
-```bash
-ros2 topic echo /ugv/debug_status --full-length
-```
-
-## 8. Competition Mode
-
-Competition mode can start from a measured field coordinate. Set
-`UGV_START_X_M` and `UGV_START_Y_M` in meters from the lower-left field corner
-(`x=0, y=0`). If those are not provided, the old `START_CORNER` fallback is
-used. If no final target is known yet, the UGV drives toward the field center.
-If it reaches the center before a target is known, it expands a search pattern
-outward from the center while still using live LiDAR/ZED obstacle avoidance.
-When it receives an ESP/UAV target coordinate, confirmed marker detection,
-legacy map target, or manual goal, it switches immediately to the final target.
-In competition mode the marker counts as reached inside
-`TARGET_ACCEPT_RADIUS_M` (default `0.9144`, about 1 yard), then the UGV loiters
-around the marker instead of stopping.
-
-Corners:
-
-- `lower_left`
-- `lower_right`
-- `upper_left`
-- `upper_right`
-
-Dry-run competition with a mock ESP/UAV target:
-
-```bash
-cd ~/ugv_project/ros2_ws
-COMPETITION_MODE=true UGV_START_X_M=0.46 UGV_START_Y_M=0.46 START_MOCK_FIELD_MAP=true \
-MOTOR_DRY_RUN=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Change mock marker cell:
-
-```bash
-COMPETITION_MODE=true UGV_START_X_M=12.8 UGV_START_Y_M=12.8 START_MOCK_FIELD_MAP=true \
-MOCK_MARKER_CELL=7,7 MOTOR_DRY_RUN=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Actual competition-style run without mock target:
-
-```bash
-COMPETITION_MODE=true UGV_START_X_M=0.46 UGV_START_Y_M=0.46 \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Actual competition-style run with trained marker CV:
-
-```bash
-ROUND_MODE=round3 UGV_START_X_M=0.46 UGV_START_Y_M=0.46 START_MARKER_VISION=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Mission speed behavior:
-
-- `startup_to_center`: reduced speed while waiting for UAV/ESP target data
-- `search_expand`: medium speed while searching from the center outward
-- `target_nav`: full configured navigation speed after a target is known
-- `target_loiter` or UAV `landing`: reduced speed around the target/landing event
-- active non-stop motion commands are floored by `MIN_MOTION_RAW`; emergency
-  STOP and target reached STOP are still allowed for safety
-
-## 8A. Official Round Shortcuts
-
-These are real ground-run modes, not bench-only helpers. Add
-`MOTOR_DRY_RUN=true` to any command when testing on a stand.
-
-Round 1, straight line. The launcher enables marker vision by default, drives
-straight ahead, and requests stop when the marker is inside
-`TARGET_ACCEPT_RADIUS_M`:
-
-```bash
-cd ~/ugv_project/ros2_ws
 ROUND_MODE=round1 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Round 2, straight line plus UAV takeoff/landing coordination. The UGV drives
-straight while waiting for CV/UAV target information, slows for a `landing`
-mission flag, switches to target navigation when a marker is known, and stops
-inside the target radius:
+Round 2:
 
 ```bash
-cd ~/ugv_project/ros2_ws
 ROUND_MODE=round2 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Round 3, full 15 x 15 yard competition behavior:
+Round 3 / competition:
 
 ```bash
-cd ~/ugv_project/ros2_ws
 ROUND_MODE=round3 UGV_START_X_M=0.46 UGV_START_Y_M=0.46 \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Useful round overrides:
+Mock target dry-run:
 
 ```bash
-ROUND_STRAIGHT_DISTANCE_M=11.8872   # default straight runout, about 13 yards
-TARGET_ACCEPT_RADIUS_M=0.9144       # default marker reached radius, 1 yard
-MIN_SPEED_MPS=0.178816              # 0.4 mph mission minimum speed requirement
-MIN_MOTION_RAW=0.22                 # raw wheel-command floor for non-stop motion
+COMPETITION_MODE=true UGV_START_X_M=0.46 UGV_START_Y_M=0.46 \
+START_MOCK_FIELD_MAP=true MOTOR_DRY_RUN=true \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Simulate an ESP/UAV mission flag:
-
-```bash
-ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
-"{data: '{\"state\":\"landing\",\"source\":\"bench\"}'}"
-```
-
-Other useful flag states:
-
-- `scanning`
-- `leaving`
-- `landing`
-
-## 9. Send ESP/UAV Target Manually
-
-The ESP/UAV target topic is `/ugv/target` as `std_msgs/String`. Coordinates are
-meters in the field frame whose lower-left corner is `x=0, y=0`.
+Preferred ESP/UAV target topic:
 
 ```bash
 ros2 topic pub --once /ugv/target std_msgs/msg/String \
-"{data: '{\"type\":\"ugv_target_v1\",\"source\":\"manual_test\",\"unit\":\"m\",\"frame\":\"field_bottom_left\",\"x\":6.86,\"y\":6.86}'}"
+"{data: '{\"type\":\"ugv_target_v1\",\"source\":\"uav\",\"unit\":\"m\",\"frame\":\"field_bottom_left\",\"x\":6.86,\"y\":6.86}'}"
 ```
 
-Accepted compact forms include `{"x":6.86,"y":6.86}`,
-`{"target":{"x_m":6.86,"y_m":6.86}}`, `[6.86,6.86]`, and `6.86,6.86`.
-The legacy `/ugv/field_map` matrix parser remains available only for old bench
-tests; UAV/ESP no longer needs to send obstacles or UGV current position.
-After accepting a target, nav publishes `/ugv/uav_flag` with `target_found=true`
-so the ESP side can notify the UAV.
+The legacy `/ugv/field_map` JSON matrix is still accepted for old bench tests,
+but the UAV/ESP side should normally only send a target coordinate. Obstacles
+come from live LiDAR/ZED/YOLO perception.
 
-## 10. Simulate Camera Marker Detection
+## 8. Marker Vision
 
-The real marker vision node publishes to this same topic after it confirms a
-marker detection. Navigation treats `/ugv/marker_detection` as the highest
-priority target source, switches to `target_nav`, and publishes `/ugv/uav_flag`
-for the ESP/UAV handoff.
-
-If CV finds the marker before the UAV/ESP target is available, publish:
-
-```bash
-ros2 topic pub --once /ugv/marker_detection geometry_msgs/msg/PointStamped \
-"{header: {frame_id: 'map'}, point: {x: 6.86, y: 6.86, z: 0.0}}"
-```
-
-The UGV should publish a target-found flag:
-
-```bash
-ros2 topic echo /ugv/uav_flag --once --full-length
-```
-
-### Train and Run Marker Vision Baseline
-
-Collect marker photos from multiple angles, distances, and lighting conditions
-and place them here:
+Training images go here:
 
 ```text
 ros2_ws/src/ugv_perception/training/marker_images/
 ```
 
-After building and sourcing the workspace, train the lightweight ORB model. The
-trainer first tries to crop the black/white marker region from each photo, then
-uses ORB on that crop:
+Train the lightweight ORB model:
 
 ```bash
 cd ~/ugv_project/ros2_ws
@@ -354,16 +307,6 @@ python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --image-dir src/ugv_perception/training/marker_images \
   --model-out src/ugv_perception/models/marker_orb_model.npz \
   --max-descriptors 65000
-```
-
-Use the direct Python command on the Jetson. It runs the same trainer code as
-`ros2 run`, but avoids old `ugv_perception` executables from `~/ugv_ws_albert`.
-
-Run marker vision in dry-run:
-
-```bash
-START_MARKER_VISION=true MOTOR_DRY_RUN=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
 Standalone live CV test, with no motor/nav/LiDAR stack:
@@ -374,16 +317,7 @@ MARKER_VISION_TEST=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-The terminal should print `SEARCHING ...` every few seconds while no marker is
-detected, then `MARKER DETECTED ... distance=... bearing=...` once the marker is
-visible. This mode is meant for quick model accuracy checks before running
-pathing. If it prints `not_published_reason=stale_pose_or_missing`, the CV
-detection is still working; standalone test mode simply does not run nav pose.
-
-The launch starts marker vision from `UGV_WS/src/ugv_perception/...`, so an
-older underlay package cannot shadow it.
-
-Check marker vision debug output:
+Useful topics:
 
 ```bash
 ros2 topic echo /ugv/marker_vision_debug --full-length
@@ -391,291 +325,165 @@ ros2 topic echo /ugv/marker_detection --once
 ros2 topic echo /ugv/uav_flag --once --full-length
 ```
 
-Useful tuning:
+## 9. YOLO Semantic Obstacle Assist
 
-- leave `MARKER_ENABLE_GENERIC_DETECTOR=true` when the black/white pattern can change between practice and competition; the generic path uses dark/light region contrast, edge contours, and color-neutrality cues that help on grass
-- `MARKER_MODEL_MAX_DESCRIPTORS=65000` keeps ORB matching fast after adding many grass photos
-- increase `MARKER_GENERIC_MIN_AREA_FRAC` if the detector locks onto small floor/chair details
-- lower `MARKER_GENERIC_MIN_CONTRAST` only if the marker is visible but low contrast
-- raise `MARKER_MIN_GOOD_MATCHES` or `MARKER_CONFIRMATION_FRAMES` if there are false positives
-- lower them carefully if the marker is visible but never confirms
-- keep `MARKER_CONFIRMATION_FRAMES=2` for fast bench testing; it confirms in roughly a few camera frames, not seconds
+YOLO is advisory. It adds chair/table/person-style points for conservative
+inflation; missed YOLO detections do not remove LiDAR/ZED safety obstacles.
 
-## 11. Debug Topics
+Enable:
 
-Use these in separate sourced terminals:
+```bash
+START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt YOLO_DEVICE=auto \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+If CUDA/PyTorch is unstable:
+
+```bash
+YOLO_DEVICE=cpu
+```
+
+Default classes:
+
+```text
+person,chair,couch,dining table,bench,potted plant,backpack,suitcase
+```
+
+Debug topics:
+
+```bash
+ros2 topic echo /sensors/yolo_semantic_debug --full-length
+ros2 topic echo /sensors/yolo_semantic_obstacle_points --once
+```
+
+## 10. Sensor and Navigation Design
+
+Answers to common design questions:
+
+- Heading: the robot estimates heading from left/right encoder odometry by default. ZED IMU yaw-rate blending exists but remains off until axis/sign calibration is verified.
+- Footprint: navigation models the 30 inch by 30 inch chassis using `ROBOT_LENGTH_M`, `ROBOT_WIDTH_M`, `ROBOT_TRACK_WIDTH_M`, obstacle inflation, and front/rear margins.
+- LiDAR field of view: indoor default uses `LIDAR_USED_FOV_DEG=180.0` and `NAV_ALLOW_REVERSE=false`.
+- Camera/ZED: ZED depth is ground-aware filtered before fusion so floor pixels do not become obstacles.
+- YOLO: optional semantic inflation only; LiDAR/ZED depth remain collision safety.
+- Map: the live map is obstacle-focused and search keeps coarse visited cells. The dashboard visualizes a session-local camera-searched wedge map using 110 degree FOV and `DASHBOARD_CAMERA_SEARCH_DEPTH_M=0.30`. Camera coverage is not yet a hard planner objective.
+
+Runtime layer flow:
+
+```text
+ZED + LiDAR + encoder adapters
+        -> fusion_node (/sensors/nav_frame)
+        -> ugv_nav_dual_mode.py
+        -> /ugv_nav_cmd
+        -> motor_controller_bridge
+        -> Teensy
+```
+
+## 11. Continuous Local Controller
+
+The current branch keeps global search/marker logic but uses a Nav2-inspired
+continuous local controller by default:
+
+```bash
+NAV_CONTINUOUS_CONTROL_ENABLED=true
+```
+
+It samples forward `(v_mps, omega_radps)`, simulates 0.4-2.0 s trajectories,
+scores target progress, obstacle clearance, polar gap width, heading, speed, and
+smoothness, then applies acceleration limits and low-pass filtering at the
+velocity layer.
+
+Collision Monitor style safety still caps or stops forward speed near obstacles,
+but ordinary path choice is done by sampled trajectories rather than the old
+six-sector minimum-distance action blocks.
+
+Useful overrides:
+
+```bash
+NAV_CONTINUOUS_MAX_SPEED_MPS=0.36
+NAV_CONTINUOUS_MAX_OMEGA_RPS=1.15
+NAV_CONTINUOUS_HORIZON_S=1.10
+NAV_CONTINUOUS_ACCEL_LIMIT_MPS2=0.35
+NAV_CONTINUOUS_OMEGA_ACCEL_LIMIT_RPS2=1.80
+NAV_CONTINUOUS_LOWPASS_ALPHA=0.55
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.35
+NAV_CONTINUOUS_STOP_CLEARANCE_M=0.58
+NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
+```
+
+If the robot feels too aggressive indoors:
+
+```bash
+NAV_CONTINUOUS_MAX_SPEED_MPS=0.28
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.50
+```
+
+Compare against the older local planner:
+
+```bash
+NAV_CONTINUOUS_CONTROL_ENABLED=false
+```
+
+## 12. ZED Depth Obstacle Filtering and Active Scan
+
+Ground-aware depth filter:
+
+```bash
+FUSION_DEPTH_GROUND_FILTER_ENABLED=true
+FUSION_DEPTH_PROJECTION_STRIDE_PX=8
+FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
+FUSION_DEPTH_GROUND_RATIO=0.88
+FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
+FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
+```
+
+Active scan recovery:
+
+```bash
+NAV_ACTIVE_SCAN_ENABLED=true
+NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
+NAV_ACTIVE_SCAN_STEPS=5
+NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.35
+```
+
+Purpose: if the front view is repeatedly blocked or the local controller finds
+no safe trajectory, the UGV turns in place toward the clearer side to build a
+wider LiDAR/ZED view instead of sitting still.
+
+## 13. Debug Topics
 
 ```bash
 ros2 topic echo /ugv/debug_status --full-length
-```
-
-```bash
 ros2 topic echo /ugv_nav_status --full-length
-```
-
-```bash
 ros2 topic echo /sensors/synced_summary --once --full-length
-```
-
-```bash
-ros2 topic echo /zed/status --once --full-length
-```
-
-```bash
-ros2 topic echo /encoder_ticks_stamped --once
-```
-
-```bash
 ros2 topic echo /motor_controller/status --once --full-length
+ros2 topic echo /encoder_ticks_stamped --once
+ros2 topic echo /zed/status --once --full-length
 ```
 
 Important fields:
 
-- `zed_valid` or `valid_depth_samples`: ZED depth is producing valid depth points
-- `min_depth_range_m`: closest ZED depth point in the ROI
-- `front_lidar_range_m`: closest LiDAR point in the front sector
-- `front_clearance_m`: min of front LiDAR and ZED depth clearance
-- `encoder_available`: fused sensor packet includes fresh encoder ticks
-- `cmd`: current nav command
-- `pose_m`: estimated odometry pose
-- `mission.phase`: competition behavior, such as `startup_to_center`, `search_expand`, or `target_nav`
-- `mission.speed_scale`: mission-level command speed scaling
-- `mission.target_accept_radius_m`: competition target radius, default about 1 yard
-- `mission.marker_distance_m`: camera/depth distance to the confirmed marker, if CV provided it
-- `imu_yaw_fusion`: whether gyro yaw is blended into pose control
-- `imu_angular_velocity_smoothed_rps`: low-pass filtered ZED IMU angular velocity
-
-## 12. Bench Test Procedures
-
-### ZED Depth Occlusion Test
-
-Start bench mode:
-
-```bash
-BENCH_TEST=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Put a box directly in front of the ZED camera and compare:
-
-```bash
-ros2 topic echo /sensors/synced_summary --once --full-length
-```
-
-Expected:
-
-- `min_depth_range_m` decreases when the box is closer
-- `front_clearance_m` follows `min_depth_range_m` if ZED sees the closest obstacle
-- `valid_depth_samples` stays nonzero
-
-### LiDAR Direction Test
-
-Start bench mode, then place a box at known positions around the LiDAR:
-
-```bash
-ros2 topic echo /sensors/synced_summary --once --full-length
-```
-
-Test positions:
-
-- front of the robot
-- left side
-- right side
-- behind the robot
-
-Expected:
-
-- `front_lidar_range_m` should decrease only when the box is in the real front direction
-- `min_lidar_range_m` may decrease for any direction because it is the 360-degree closest point
-
-If a front box does not reduce `front_lidar_range_m`, the LiDAR zero-degree
-direction may not match the robot front.
-
-### Encoder Direction Test
-
-Use actual motor output while the robot is lifted:
-
-```bash
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Publish a goal, then watch encoder ticks:
-
-```bash
-ros2 topic echo /encoder_ticks_stamped
-```
-
-Expected:
-
-- forward motion should make left and right averaged ticks change in the same direction
-- turning should make left and right averaged ticks change in opposite directions
-
-If signs are wrong, rerun with:
-
-```bash
-INVERT_LEFT_ENCODER=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-or:
-
-```bash
-INVERT_RIGHT_ENCODER=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-### Motor Command Mapping Test
-
-Start motor bridge without nav so commands are manual:
-
-```bash
-START_NAV=false EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Publish a left turn:
-
-```bash
-ros2 topic pub -r 2 /ugv_nav_cmd std_msgs/msg/String \
-"{data: '{\"mode\":\"TURN_LEFT\",\"raw_left\":-0.3,\"raw_right\":0.3}'}"
-```
-
-Expected:
-
-- left PWM below `1500`
-- right PWM above `1500`
-- wheels turn opposite directions
-
-Stop the publisher with `Ctrl+C`.
-
-### Command Timeout Test
-
-With `START_NAV=false`, publish one command:
-
-```bash
-ros2 topic pub --once /ugv_nav_cmd std_msgs/msg/String \
-"{data: '{\"mode\":\"FORWARD\",\"raw_left\":0.3,\"raw_right\":0.3}'}"
-```
-
-Wait one second, then check:
-
-```bash
-ros2 topic echo /motor_controller/status --once --full-length
-```
-
-Expected:
-
-- bridge sends or reports neutral PWM near `[1500, 1500]`
-- command age is greater than the timeout
-
-### Competition Mock Target Test
-
-```bash
-COMPETITION_MODE=true UGV_START_X_M=0.46 UGV_START_Y_M=0.46 START_MOCK_FIELD_MAP=true \
-MOTOR_DRY_RUN=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Expected:
-
-- no manual `/ugv_goal` is needed
-- `/ugv_nav_status` shows a competition phase such as `startup_to_center`,
-  `search_expand`, or `target_nav`
-- motor output says `DRY RUN`
-
-### ESP/UAV Mission Flag Test
-
-While competition mode is running, publish:
-
-```bash
-ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String \
-"{data: '{\"state\":\"landing\",\"source\":\"bench_test\"}'}"
-```
-
-Expected:
-
-- `/ugv_nav_status` shows `mission.uav_state: landing`
-- `/ugv_nav_status` shows a reduced `mission.speed_scale`
-- `/motor_controller/status` shows `target_pwm` and slewed `last_pwm`
-
-### IMU Yaw Fusion Bench Test
-
-By default, ZED IMU values are smoothed and exposed for debug, but yaw fusion is
-off until the camera axis/sign is verified. Start dry-run with gyro yaw enabled:
-
-```bash
-USE_IMU_YAW=true IMU_YAW_AXIS=z IMU_YAW_SIGN=1.0 MOTOR_DRY_RUN=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Check:
-
-```bash
-ros2 topic echo /ugv_nav_status --once --full-length
-ros2 topic echo /sensors/synced_summary --once --full-length
-```
-
-If yaw changes in the wrong direction during a lifted wheel turn, restart with:
-
-```bash
-USE_IMU_YAW=true IMU_YAW_AXIS=z IMU_YAW_SIGN=-1.0 MOTOR_DRY_RUN=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-## 13. Parameter Cheat Sheet
-
-Environment variables for `jetson_bringup.sh`:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `EXTRA_SETUP_BASH` | empty | Extra workspace setup, usually `~/ugv_ws_albert/install/setup.bash` |
-| `BENCH_TEST` | `false` | Enables dry-run, debug status, and automatic bench goal |
-| `MOTOR_DRY_RUN` | `false` | Do not write PWM to the controller |
-| `START_NAV` | `true` | Start/skip the navigation process |
-| `START_MOTOR_CONTROLLER` | `true` | Start/skip motor bridge |
-| `START_DEBUG_STATUS` | `true` | Start combined debug status node |
-| `START_BENCH_GOAL` | `false` | Auto-publish `/ugv_goal` |
-| `BENCH_GOAL_X_M` | `12.2` | Auto bench goal x in meters |
-| `BENCH_GOAL_Y_M` | `12.0` | Auto bench goal y in meters |
-| `ROUND_MODE` | `manual` | One-command mission mode: `manual`, `round1`, `round2`, or `round3` |
-| `ROUND_STRAIGHT_DISTANCE_M` | `11.8872` | Round 1/2 straight-ahead runout goal, about 13 yards |
-| `COMPETITION_MODE` | `false` | Enable corner/startup-to-center mission logic |
-| `START_CORNER` | `lower_left` | Fallback corner if no measured start coordinate is supplied |
-| `UGV_START_X_M` | `nan` | Optional measured UGV start x in meters from lower-left field origin |
-| `UGV_START_Y_M` | `nan` | Optional measured UGV start y in meters from lower-left field origin |
-| `UGV_START_YAW_DEG` | `nan` | Optional initial yaw; defaults to facing field center |
-| `TARGET_ACCEPT_RADIUS_M` | `0.9144` | Competition target reached radius, about 1 yard |
-| `MIN_SPEED_MPS` | `0.178816` | 0.4 mph mission minimum speed requirement recorded in nav status |
-| `MIN_MOTION_RAW` | `0.22` | Raw wheel-command floor for non-stop nav commands after speed scaling |
-| `TARGET_TOPIC` | `/ugv/target` | ESP/UAV target coordinate topic |
-| `START_MOCK_FIELD_MAP` | `false` | Publish mock target coordinate for bench testing |
-| `MOCK_MARKER_CELL` | `7,7` | Mock marker row,col converted to meter target coordinate |
-| `START_MARKER_VISION` | `false` | Start marker CV node and publish ZED image frames |
-| `MARKER_VISION_TEST` | `false` | CV-only live test: starts ZED image/depth, marker vision, and terminal reporter; disables motor/nav/LiDAR/fusion |
-| `MARKER_VISION_TEST_PERIOD_S` | `3.0` | How often the CV test prints searching/health messages |
-| `MARKER_MODEL_PATH` | `src/ugv_perception/models/marker_orb_model.npz` | Trained marker model path |
-| `MARKER_MODEL_MAX_DESCRIPTORS` | `65000` | Max descriptors loaded from the ORB model for runtime speed |
-| `MARKER_MIN_GOOD_MATCHES` | `18` | ORB match threshold for marker candidate |
-| `MARKER_CONFIRMATION_FRAMES` | `2` | Consecutive detections needed before publishing marker target |
-| `MARKER_CONFIRMATION_RADIUS_M` | `0.75` | Max map-frame distance between confirmation detections |
-| `MARKER_ENABLE_GENERIC_DETECTOR` | `true` | Detect generic dark/light marker shape with region and edge cues even if the exact pattern changes |
-| `MARKER_GENERIC_MIN_AREA_FRAC` | `0.002` | Minimum image area for generic marker candidate |
-| `MARKER_GENERIC_MIN_CONTRAST` | `55.0` | Minimum dark/light contrast for generic marker candidate |
-| `ZED_PUBLISH_IMAGE` | `false` | Publish `/zed/image`; automatically set true by `START_MARKER_VISION=true` |
-| `LIDAR_PORT` | `/dev/ttyUSB0` | LiDAR serial device |
-| `MOTOR_PORT` | `/dev/ttyACM0` | Teensy serial device |
-| `FUSION_LIDAR_FRONT_FOV_DEG` | `70.0` | LiDAR front sector width |
-| `FUSION_IMU_SMOOTHING_ALPHA` | `0.25` | Low-pass alpha for IMU values in nav/debug summaries |
-| `MOTOR_PWM_SLEW_RATE_US_PER_S` | `2400.0` | Max PWM change rate for smoother tank-drive commands; set `0` to disable |
-| `USE_IMU_YAW` | `false` | Blend ZED gyro yaw into encoder odometry after axis/sign calibration |
-| `IMU_YAW_AXIS` | `z` | IMU angular velocity axis used for yaw fusion |
-| `IMU_YAW_SIGN` | `1.0` | Flip to `-1.0` if fused yaw turns the wrong direction |
-| `IMU_YAW_BLEND` | `0.25` | Weight of gyro yaw rate vs encoder yaw rate |
-| `INVERT_LEFT_COMMAND` | `false` | Flip left motor command |
-| `INVERT_RIGHT_COMMAND` | `false` | Flip right motor command |
-| `INVERT_LEFT_ENCODER` | `false` | Flip left encoder sign |
-| `INVERT_RIGHT_ENCODER` | `false` | Flip right encoder sign |
+- `front_lidar`, `depth_roi`, `front_clearance`, `clear_src`
+- `semantic_pts`
+- `phase`, `cmd`, `pose`
+- `odom_warn`
+- `velocity_control`
+- `active_scan`
+- `zed_obstacle_points`, `depth_obstacle_points`, `depth_obstacle_points_filtered`
 
 ## 14. Fast Failure Clues
 
-- `/motor_controller/connected` stays `false`: wrong serial port, wrong baud, or Teensy not flashed
-- `/encoder_ticks_stamped` is empty but connected is `true`: encoder wiring or firmware output issue
-- `/sensors/synced_summary` has `encoder_available: false`: encoder timestamps are stale
-- `/ugv_nav_cmd` is quiet after a goal: nav is not receiving `/sensors/nav_frame` or `/ugv_goal`
-- `front_lidar_range_m` does not react to a front obstacle: LiDAR heading alignment likely needs correction
-- `valid_depth_samples` is zero: ZED depth stream is missing or invalid
+- `_ARRAY_API not found`: NumPy 2.x broke ROS Humble Python binaries. Reinstall `numpy==1.26.4`.
+- Robot drives backward on `FORWARD`: command inversion is wrong; fix both sides before tuning.
+- `forward_command_has_opposite_encoder_signs`: encoder sign calibration is wrong.
+- `/ugv_nav_cmd` is quiet: nav is not receiving `/sensors/nav_frame` or no goal/search mode is active.
+- `front_lidar_range_m` does not react to front objects: LiDAR physical zero direction is not aligned with robot front.
+- `valid_depth_samples` is zero: ZED depth stream is missing/invalid.
+- Dashboard does not open: launch from VNC terminal or set `DISPLAY=:1`.
+- YOLO boxes missing on table legs: expected limitation; ZED depth obstacle points and LiDAR remain the primary safety sources.
+
+## 15. Development Notes
+
+- Do not commit `ros2_ws/build`, `ros2_ws/install`, or `ros2_ws/log`.
+- Keep package READMEs short; update this runbook and the Chinese runbook when launch behavior changes.
+- Use `git diff --check` before committing.
+- On Windows/local dev, Python syntax checks are useful; full `colcon build` must be run on the Nano/ROS environment.

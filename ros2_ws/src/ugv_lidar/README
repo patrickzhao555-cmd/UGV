@@ -1,10 +1,22 @@
-terminal 1
+# ugv_lidar
 
-1. ros2 launch sllidar_ros2 sllidar_a1_launch.py
+Legacy LiDAR helper package.
 
-terminal 2
+For current robot bringup, use the consolidated runbooks:
 
+- English: `ros2_ws/JETSON_BRINGUP_CHECKLIST.md`
+- Chinese: `ros2_ws/JETSON_BRINGUP_CHECKLIST_ZH.md`
+
+The normal stack starts the SLLidar driver and timestamp sync through:
+
+```bash
 cd ~/ugv_project/ros2_ws
-colcon build --symlink-install --packages-select ugv_lidar
-source install/setup.bash
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Standalone legacy helper:
+
+```bash
+ros2 launch sllidar_ros2 sllidar_a1_launch.py
 ros2 run ugv_lidar lidar_processor
+```

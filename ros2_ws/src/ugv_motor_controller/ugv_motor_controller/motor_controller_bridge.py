@@ -112,7 +112,11 @@ class MotorControllerBridge(Node):
             self._log_parse_issue(f'Invalid /ugv_nav_cmd JSON: {exc}')
             return
 
-        left_raw, right_raw = self._extract_raw_drive(obj)
+        try:
+            left_raw, right_raw = self._extract_raw_drive(obj)
+        except (TypeError, ValueError) as exc:
+            self._log_parse_issue(f'Invalid /ugv_nav_cmd raw drive values: {exc}')
+            return
         left_pwm = self._raw_to_pwm(left_raw, invert=self.invert_left_command)
         right_pwm = self._raw_to_pwm(right_raw, invert=self.invert_right_command)
 

@@ -1,146 +1,23 @@
 # ugv_perception
 
-This package is now centered on one main job:
-read ZED 2i depth data and publish a warning flag when something is too close.
-It also contains the marker-vision training scaffold used by competition mode.
+Perception and visual debugging package.
 
-## Main node
+For full pull/build/launch instructions, use the consolidated runbooks:
 
-`obstacle_warning`
+- English: `ros2_ws/JETSON_BRINGUP_CHECKLIST.md`
+- Chinese: `ros2_ws/JETSON_BRINGUP_CHECKLIST_ZH.md`
 
-- Subscribes to: `/zed/depth`
-- Publishes: `/ugv/obstacle_warning` as `std_msgs/Bool`
-- Publishes: `/ugv/obstacle_distance_m` as `std_msgs/Float32`
+## Nodes
 
-It inspects a center-lower region of the depth image, filters invalid pixels,
-uses a near-percentile distance estimate, smooths it over a small window,
-and applies hysteresis so the warning signal does not flicker.
+- `marker_vision_node`: ZED image/depth marker detection, publishes `/ugv/marker_detection` and `/ugv/marker_vision_debug`
+- `marker_vision_test_node`: standalone live marker vision reporter
+- `marker_model_trainer`: trains the lightweight ORB model from marker photos
+- `yolo_semantic_obstacle_node`: optional YOLO semantic obstacle inflation points
+- `ugv_debug_dashboard`: OpenCV/VNC dashboard for ZED image, YOLO boxes, marker debug, depth, LiDAR/fused points, session map, and nav status
+- `obstacle_warning`: legacy depth warning helper
+- `zed_obj_distance`: optional ZED object debug helper
 
-Run it with:
-
-```bash
-cd ~/UGV/ros2_ws
-colcon build --symlink-install --packages-select ugv_perception
-source install/setup.bash
-ros2 run ugv_perception obstacle_warning
-```
-
-Useful parameter overrides:
-
-```bash
-ros2 run ugv_perception obstacle_warning --ros-args \
-  -p threshold_on_m:=0.30 \
-  -p threshold_off_m:=0.35 \
-  -p roi_w_frac:=0.50 \
-  -p roi_h_frac:=0.40 \
-  -p roi_y_center_frac:=0.55
-```
-
-## Optional debug node
-
-`zed_obj_distance`
-
-- Subscribes to: `/zed/zed_node/obj_det/objects`
-- Prints the closest detected ZED object to the console
-
-Run it with:
-
-```bash
-ros2 run ugv_perception zed_obj_distance
-```
-
-## YOLO Semantic Obstacle Assist
-
-`yolo_semantic_obstacles` is optional. It does not replace LiDAR or ZED depth
-clearance. It uses YOLO only to add semantic obstacle points for things like
-chairs, tables, people, benches, and bags so navigation can inflate those areas
-more conservatively.
-
-Install the optional Python dependency on the Jetson if you want to run it:
-
-```bash
-python3 -m pip install --user --force-reinstall "numpy==1.26.4"
-python3 -m pip install --user "ultralytics" "numpy<2"
-```
-
-ROS Humble packages such as `cv_bridge` are built against NumPy 1.x on the Nano.
-If a plain `pip install ultralytics` upgrades NumPy to 2.x, nodes can fail with
-`_ARRAY_API not found`; reinstall NumPy 1.26.4 before launching again.
-
-Run through the normal launcher:
-
-```bash
-START_YOLO_OBSTACLES=true YOLO_MODEL_PATH=yolov8n.pt YOLO_DEVICE=auto bash jetson_bringup.sh
-```
-
-Use `YOLO_DEVICE=cpu` if the Nano CUDA/PyTorch stack is unstable.
-
-Topics:
-
-- subscribes to `/zed/image` and `/zed/depth`
-- publishes semantic points to `/sensors/yolo_semantic_obstacle_points`
-- publishes JSON debug status on `/sensors/yolo_semantic_debug`, including
-  bounding boxes, confidence, depth estimate, and accept/reject reason
-
-Fusion merges these semantic points into the existing navigation obstacle point
-stream. If YOLO misses an object, LiDAR/ZED depth still provide the safety layer.
-
-## Visual Debug Dashboard
-
-`ugv_debug_dashboard` opens an OpenCV window for VNC/X11 debugging. It shows:
-
-- ZED image with YOLO bounding boxes and marker candidate boxes
-- ZED depth colormap
-- local LiDAR points, the configured front LiDAR FOV, fused ZED/YOLO obstacle points, and the robot footprint
-- a session map with pose trace, LiDAR hit cells, and camera-searched cells
-- navigation command, reason, pose, clearance, sensor age, YOLO status, marker status, and odometry warnings
-- continuous-controller details such as selected `v/omega`, safe trajectory samples, gap heading, and collision-monitor state
-
-Run it through the main launcher:
-
-```bash
-START_YOLO_OBSTACLES=true START_DEBUG_DASHBOARD=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-Or run it by itself after the stack is publishing topics:
-
-```bash
-ros2 run ugv_perception ugv_debug_dashboard
-```
-
-Useful overrides:
-
-```bash
-DASHBOARD_UPDATE_HZ=4.0
-DASHBOARD_CAMERA_SEARCH_DEPTH_M=0.30
-```
-
-The dashboard needs a GUI display. Start it from a TigerVNC desktop terminal or
-set `DISPLAY=:1` before launching from SSH.
-
-## Marker Vision Baseline
-
-This is a hybrid marker detector. It first looks for a generic high-contrast
-dark/light marker shape using region, edge, and color-neutrality cues, then uses
-the trained ORB model as an additional appearance check/fallback. That matters
-because the exact black/white pattern can change while the marker size and style
-stay the same.
-
-Dependency on the Jetson/Nano:
-
-```bash
-sudo apt install python3-opencv ros-humble-cv-bridge
-```
-
-Training input:
-
-```text
-training/marker_images/
-```
-
-Put marker photos there from different angles, distances, and lighting. The
-trainer tries to crop the marker region before extracting ORB features. Then run:
+## Marker Training
 
 ```bash
 cd ~/ugv_project/ros2_ws
@@ -150,72 +27,32 @@ python3 src/ugv_perception/ugv_perception/marker_model_trainer.py \
   --max-descriptors 65000
 ```
 
-The direct Python command is preferred on the Jetson when another underlay also
-contains `ugv_perception`.
+## YOLO Assist
 
-Run through the normal Jetson launcher:
+YOLO is optional and advisory. It adds semantic obstacle points for conservative
+inflation. LiDAR and ZED depth remain the hard collision sources.
 
 ```bash
-START_MARKER_VISION=true MOTOR_DRY_RUN=true \
+python3 -m pip install --user --force-reinstall "numpy==1.26.4"
+python3 -m pip install --user "ultralytics" "numpy<2"
+```
+
+Launch through the main stack:
+
+```bash
+START_YOLO_OBSTACLES=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+## Dashboard
+
+The dashboard needs a GUI display, usually TigerVNC:
+
+```bash
+START_DEBUG_DASHBOARD=true START_YOLO_OBSTACLES=true \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
 ```
 
-Standalone live CV test, with no motor/nav/LiDAR stack:
+Keys:
 
-```bash
-cd ~/ugv_project/ros2_ws
-MARKER_VISION_TEST=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
-```
-
-This starts ZED image/depth publishing, `marker_vision_node`, and a small
-terminal reporter. Expected output looks like:
-
-```text
-SEARCHING no marker yet frames=42 detections=0 last_reason=no_marker_candidate
-MARKER DETECTED method=generic_dark_light_marker frames=4/53 distance=1.82m bearing=-6.2deg center=(391,442)px
-```
-
-If it prints `not_published_reason=stale_pose_or_missing`, CV is still seeing
-the marker; it simply has no navigation pose because this standalone test does
-not run nav. That is fine for checking detection accuracy and depth distance.
-
-Topics:
-
-- subscribes to `/zed/image`, `/zed/depth`, and `/ugv_nav_status`
-- publishes confirmed marker points to `/ugv/marker_detection`; `x/y` are
-  map-frame target coordinates and `z` carries camera/depth distance in meters
-- publishes JSON debug status on `/ugv/marker_vision_debug`
-
-Navigation already consumes `/ugv/marker_detection` and publishes
-`/ugv/uav_flag` for the ESP/UAV handoff. Round 1 and Round 2 use the depth
-distance to request stop once the marker is inside the configured 1-yard target
-radius. Round 3 loiters near the marker instead of stopping.
-
-Useful launch environment variables:
-
-- `MARKER_MODEL_PATH`
-- `MARKER_MODEL_MAX_DESCRIPTORS`
-- `MARKER_MIN_GOOD_MATCHES`
-- `MARKER_CONFIRMATION_FRAMES`
-- `MARKER_CONFIRMATION_RADIUS_M`
-- `MARKER_ENABLE_GENERIC_DETECTOR`
-- `MARKER_GENERIC_MIN_AREA_FRAC`
-- `MARKER_GENERIC_MIN_CONTRAST`
-- `MARKER_VISION_TEST`
-- `MARKER_VISION_TEST_PERIOD_S`
-
-## Kept vs removed
-
-Kept:
-
-- `ugv_perception/obstacle_warning.py`: main depth-warning node
-- `ugv_perception/zed_obj_distance.py`: optional debug helper
-- `ugv_perception/marker_model_trainer.py`: marker image training scaffold
-- `ugv_perception/marker_vision_node.py`: marker detection publisher
-- `ugv_perception/ugv_debug_dashboard.py`: VNC/OpenCV perception and navigation dashboard
-
-Removed from the main package flow:
-
-- old direct ZED SDK scripts for accelerometer, gyroscope, magnetometer
-- `zed_utils.py`, which only supported those one-off scripts
+- `s`: save screenshot
+- `q` or `Esc`: close

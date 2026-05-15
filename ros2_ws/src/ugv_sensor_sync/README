@@ -1,125 +1,46 @@
-ugv_sensor_sync is the middle layer between raw sensors and navigation.
+# ugv_sensor_sync
 
-What it does now:
+Sensor adapter and fusion package.
 
-- publishes ZED depth and IMU with a shared timestamp; ZED left image is optional for marker vision
-- republishes lidar scans with a midpoint-corrected timestamp
-- accepts timestamped encoder ticks from the motor controller bridge
-- bundles synced lidar + ZED image + ZED depth + ZED IMU into one ROS message
-- publishes a smoothed ZED IMU copy inside the navigation frame for optional yaw fusion
-- publishes a slimmer navigation contract so nav does not depend on raw sensor internals
-- publishes pathing-friendly ZED obstacle points and front clearance summaries
-- can publish a mock ESP/UAV target coordinate for testing before ESP/UAV integration
-- can publish a combined SSH-friendly debug status topic
+For full pull/build/launch instructions, use the consolidated runbooks:
 
-ZED depth obstacle extraction is ground-aware. `fusion_node` estimates the
-floor/background depth per image row, ignores the floor, and publishes only
-connected vertical clusters that stand closer than that row model. This helps
-the low-mounted ZED detect cones, boxes, buckets, and table/chair legs without
-treating the visible floor as an obstacle.
+- English: `ros2_ws/JETSON_BRINGUP_CHECKLIST.md`
+- Chinese: `ros2_ws/JETSON_BRINGUP_CHECKLIST_ZH.md`
 
-Indoor nav also has active scan recovery. It still allows short forward probes,
-but after repeated front/depth blockage evidence or repeated path failures while
-the front corridor is constrained, it turns in place toward the clearer side to
-collect a wider view before choosing the next indoor search goal.
+## Responsibilities
 
-Useful depth-filter overrides:
+This package owns the stable middle layer between raw hardware topics and
+navigation.
 
-```bash
-FUSION_DEPTH_GROUND_FILTER_ENABLED=true
-FUSION_DEPTH_PROJECTION_STRIDE_PX=8
-FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
-FUSION_DEPTH_GROUND_RATIO=0.88
-FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
-FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
-NAV_ACTIVE_SCAN_ENABLED=true
-NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
-NAV_ACTIVE_SCAN_STEPS=5
-NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.35
-```
+It provides:
 
-Main topics:
+- `zed_sync_node`: ZED depth/image/IMU adapter
+- `lidar_sync_node`: timestamp-corrected LiDAR scan republisher
+- `fusion_node`: LiDAR/ZED/encoder/optional-YOLO fusion into `/sensors/nav_frame`
+- `debug_status_node`: compact one-line system status
+- `bench_goal_node` and `mock_field_map_node`: test helpers
 
-- `/zed/image`
-- `/zed/depth`
-- `/zed/imu`
-- `/scan/synced`
-- `/encoder_ticks_stamped`
-- `/sensors/synced`
-- `/sensors/nav_frame`
-- `/sensors/zed_obstacle_points`
+## Main Outputs
+
+- `/sensors/nav_frame`: navigation contract
+- `/sensors/synced`: richer debug bundle
+- `/sensors/synced_summary`: JSON sensor/fusion health
+- `/sensors/zed_obstacle_points`: ground-filtered ZED depth obstacle points, plus optional semantic points after fusion
 - `/sensors/front_clearance_m`
 - `/sensors/near_obstacle`
-- `/sensors/synced_summary`
 - `/zed/status`
-- `/ugv/target`
-- `/ugv/field_map` (legacy only)
 - `/ugv/debug_status`
 
-Contract layers:
+## Design Rules
 
-- device adapters publish normalized per-sensor topics
-- `fusion_node` owns the cross-sensor time alignment and publishes stable outputs
-- `ugv_nav` should read `/sensors/nav_frame`, not the raw sensor topics
-- `START_MARKER_VISION=true` turns on `/zed/image` for `ugv_perception/marker_vision_node`
-- if you add a new sensor later, try to keep the change inside the adapter node and `fusion_node`
-- only change nav when the stable pathing contract itself truly needs new information
+- Raw sensor handling stays in adapter nodes.
+- Cross-sensor timing and obstacle projection stay in `fusion_node`.
+- Navigation should read `/sensors/nav_frame`, not raw ZED/LiDAR/encoder topics.
+- Optional sensors should first be merged inside fusion before changing the navigation contract.
 
-Build and run:
+## ZED Depth Obstacle Filter
 
-```bash
-cd ~/UGV/ros2_ws
-colcon build --packages-select ugv_sensor_sync
-source install/setup.bash
-ros2 launch ugv_sensor_sync sensor_sync_launch.py
-```
-
-Full stack bring-up from one command:
-
-```bash
-cd ~/UGV/ros2_ws
-bash jetson_bringup.sh
-```
-
-If the ESP32 / UWB stack is not ready yet, keep it disabled:
-
-```bash
-ros2 launch ugv_sensor_sync sensor_sync_launch.py start_uwb:=false
-```
-
-Useful debug commands:
-
-```bash
-ros2 topic echo /ugv/debug_status
-ros2 topic echo /ugv_nav_status
-ros2 topic echo /zed/status
-ros2 topic echo /scan/synced --field header.stamp
-ros2 topic echo /zed/imu --field header.stamp
-ros2 topic echo /sensors/synced_summary --once --full-length
-ros2 topic echo /encoder_ticks_stamped --once
-ros2 topic echo /sensors/nav_frame --once
-ros2 topic echo /sensors/front_clearance_m
-ros2 topic echo /sensors/near_obstacle
-ros2 topic echo /sensors/synced_summary
-ros2 interface show ugv_sensor_sync/msg/EncoderTicksStamped
-ros2 interface show ugv_sensor_sync/msg/NavSensorFrame
-ros2 interface show ugv_sensor_sync/msg/SyncedSensorPacket
-```
-
-Mock ESP/UAV target:
-
-```bash
-ros2 run ugv_sensor_sync mock_field_map_node --ros-args -p start_corner:=lower_left -p marker_cell:=7,7
-```
-
-Competition bring-up with the startup-to-center mission:
-
-```bash
-ros2 launch ugv_sensor_sync competition_bringup.launch.py competition_mode:=true ugv_start_x_m:=0.46 ugv_start_y_m:=0.46
-```
-
-Manual ESP/UAV mission flag simulation:
-
-```bash
-ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String "{data: '{\"state\":\"landing\",\"source\":\"bench\"}'}"
-```
+`fusion_node` estimates a per-row floor/background model and keeps connected
+vertical clusters that stand closer than that model. This helps the low-mounted
+ZED ignore visible floor while still detecting cones, buckets, boxes, and
+chair/table legs.

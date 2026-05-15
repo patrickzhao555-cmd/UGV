@@ -1,3 +1,0 @@
-[console_scripts]
-serial_odom = ugv_serial_odom.serial_odom_node:main
-

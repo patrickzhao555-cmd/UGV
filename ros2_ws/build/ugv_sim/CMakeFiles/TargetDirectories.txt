@@ -1,9 +1,0 @@
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/uninstall.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/ugv_sim_uninstall.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/test.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/edit_cache.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/rebuild_cache.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/list_install_components.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/install.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/install/local.dir
-/home/bluelule/ugv_project/ros2_ws/build/ugv_sim/CMakeFiles/install/strip.dir

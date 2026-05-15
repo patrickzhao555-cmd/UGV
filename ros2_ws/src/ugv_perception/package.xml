@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>Depth-based obstacle warning and small ZED debug helpers for the UGV.</description>
   <maintainer email="bluelule@todo.todo">bluelule</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
 

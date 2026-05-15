@@ -1,1 +1,0 @@
-/home/bluelule/ugv_project/ros2_ws/build/zed_wrapper/ament_cmake_core/zed_wrapperConfig-version.cmake

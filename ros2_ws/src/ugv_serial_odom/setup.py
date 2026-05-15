@@ -15,8 +15,8 @@ setup(
     zip_safe=True,
     maintainer='bluelule',
     maintainer_email='patrickzhao555@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Legacy serial odometry publisher for the UGV ROS 2 stack.',
+    license='Apache-2.0',
     extras_require={
         'test': [
             'pytest',

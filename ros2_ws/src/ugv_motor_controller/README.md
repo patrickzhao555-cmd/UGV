@@ -68,6 +68,10 @@ forward, fix command inversion on the physically wrong side before tuning
 navigation. Only fix encoder inversion after wheel directions are physically
 correct but odometry signs are still wrong.
 
+The direct test is open-loop: `duration_s` and `raw` do not command an exact
+angle. The summary prints encoder-based `est_ds` and `est_yaw` so you can
+measure how much the robot actually moved/turned for a given raw command.
+
 ## Firmware Protocol
 
 - Jetson to Teensy: `M<left_us>,<right_us>\n`

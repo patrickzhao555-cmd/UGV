@@ -215,6 +215,7 @@ ros2 launch ugv_motor_controller motor_direct_test.launch.py \
 - `motion:=forward` 必须让车朝前方传感器方向移动。
 - 前进时左右 encoder tick 应该同号。
 - 原地转向时左右 encoder tick 应该反号。
+- 这个测试是 open-loop；`duration_s:=0.8 raw:=0.22` 主要用来确认方向。真实转角请看输出里的 `est_yaw`。
 - 如果物理前进变成后退，先同时翻转左右 command inversion。
 - 如果物理前进时一侧前转、一侧后转，先翻转物理方向错误那一侧的 command inversion。
 - 只有在轮子物理方向已经正确、但 odometry 符号仍然错误时，才翻转 encoder inversion。

@@ -39,6 +39,9 @@ class MotorDirectTest(Node):
         self.declare_parameter("invert_right_command", True)
         self.declare_parameter("invert_left_encoder", False)
         self.declare_parameter("invert_right_encoder", False)
+        self.declare_parameter("wheel_radius_m", 0.06)
+        self.declare_parameter("track_width_m", 0.6096)
+        self.declare_parameter("ticks_per_rev", 1000)
         self.declare_parameter("yes", False)
 
         self.motion = str(self.get_parameter("motion").value).strip().lower()
@@ -56,6 +59,9 @@ class MotorDirectTest(Node):
         self.invert_right_command = bool(self.get_parameter("invert_right_command").value)
         self.invert_left_encoder = bool(self.get_parameter("invert_left_encoder").value)
         self.invert_right_encoder = bool(self.get_parameter("invert_right_encoder").value)
+        self.wheel_radius_m = max(0.01, float(self.get_parameter("wheel_radius_m").value))
+        self.track_width_m = max(0.10, float(self.get_parameter("track_width_m").value))
+        self.ticks_per_rev = max(1, int(self.get_parameter("ticks_per_rev").value))
         self.yes = bool(self.get_parameter("yes").value)
 
         self.pub = self.create_publisher(String, self.command_topic, 10)
@@ -230,9 +236,11 @@ class MotorDirectTest(Node):
         delta: Optional[Tuple[int, int, int, int, int, int]] = None
         if self.first_encoder is not None and self.latest_encoder is not None:
             delta = tuple(b - a for a, b in zip(self.first_encoder, self.latest_encoder))
+            motion_text = self._estimate_motion_text(delta)
             delta_text = (
                 f"encoder_delta left/right={delta[0]}/{delta[1]}, "
-                f"raw fl/fr/rl/rr={delta[2]}/{delta[3]}/{delta[4]}/{delta[5]}"
+                f"raw fl/fr/rl/rr={delta[2]}/{delta[3]}/{delta[4]}/{delta[5]}, "
+                f"{motion_text}"
             )
         status = self.latest_status or {}
         self.get_logger().info(
@@ -254,6 +262,20 @@ class MotorDirectTest(Node):
     @staticmethod
     def _toggled(value: bool) -> bool:
         return not value
+
+    def _ticks_to_meters(self, ticks: int) -> float:
+        revs = float(ticks) / float(self.ticks_per_rev)
+        return revs * 2.0 * math.pi * self.wheel_radius_m
+
+    def _estimate_motion_text(self, delta: Tuple[int, int, int, int, int, int]) -> str:
+        dl = self._ticks_to_meters(delta[0])
+        dr = self._ticks_to_meters(delta[1])
+        ds = 0.5 * (dl + dr)
+        dtheta = (dr - dl) / self.track_width_m
+        return (
+            f"est_ds={ds:.3f}m, est_yaw={math.degrees(dtheta):.1f}deg "
+            f"(track={self.track_width_m:.3f}m)"
+        )
 
     def _report_encoder_diagnostic(self, delta: Tuple[int, int, int, int, int, int]) -> None:
         left = delta[0]

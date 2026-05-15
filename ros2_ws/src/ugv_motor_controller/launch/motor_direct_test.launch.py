@@ -17,6 +17,9 @@ def generate_launch_description():
     invert_right_command = LaunchConfiguration('invert_right_command')
     invert_left_encoder = LaunchConfiguration('invert_left_encoder')
     invert_right_encoder = LaunchConfiguration('invert_right_encoder')
+    wheel_radius_m = LaunchConfiguration('wheel_radius_m')
+    track_width_m = LaunchConfiguration('track_width_m')
+    ticks_per_rev = LaunchConfiguration('ticks_per_rev')
 
     motion = LaunchConfiguration('motion')
     raw = LaunchConfiguration('raw')
@@ -62,6 +65,9 @@ def generate_launch_description():
             'invert_right_command': ParameterValue(invert_right_command, value_type=bool),
             'invert_left_encoder': ParameterValue(invert_left_encoder, value_type=bool),
             'invert_right_encoder': ParameterValue(invert_right_encoder, value_type=bool),
+            'wheel_radius_m': ParameterValue(wheel_radius_m, value_type=float),
+            'track_width_m': ParameterValue(track_width_m, value_type=float),
+            'ticks_per_rev': ParameterValue(ticks_per_rev, value_type=int),
             'yes': ParameterValue(yes, value_type=bool),
         }],
     )
@@ -78,6 +84,9 @@ def generate_launch_description():
         DeclareLaunchArgument('invert_right_command', default_value='true'),
         DeclareLaunchArgument('invert_left_encoder', default_value='false'),
         DeclareLaunchArgument('invert_right_encoder', default_value='false'),
+        DeclareLaunchArgument('wheel_radius_m', default_value='0.06'),
+        DeclareLaunchArgument('track_width_m', default_value='0.6096'),
+        DeclareLaunchArgument('ticks_per_rev', default_value='1000'),
         DeclareLaunchArgument('motion', default_value='forward'),
         DeclareLaunchArgument('raw', default_value='0.22'),
         DeclareLaunchArgument('raw_left', default_value='0.0'),

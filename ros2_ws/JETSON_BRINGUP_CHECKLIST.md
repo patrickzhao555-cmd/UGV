@@ -215,6 +215,8 @@ Expected checks:
 - `motion:=forward` physically moves the chassis toward the front sensors.
 - Forward left/right encoder ticks should have the same sign.
 - Turning left/right encoder ticks should have opposite signs.
+- The test is open-loop; `duration_s:=0.8 raw:=0.22` is mainly for direction
+  checking. Use the printed `est_yaw` to measure actual turn angle.
 - If physical forward goes backward, flip both command inversion flags together.
 - If physical forward makes one side drive backward and the other side drive forward, flip the command inversion on the wrong physical side.
 - Only flip encoder inversion after the wheels physically move in the right directions but odometry signs are still wrong.

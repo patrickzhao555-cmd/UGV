@@ -160,7 +160,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'fusion_depth_front_corridor_half_width_m',
-            default_value='0.50',
+            default_value='0.42',
             description='Half width of the forward depth corridor used for front clearance.',
         ),
         DeclareLaunchArgument(

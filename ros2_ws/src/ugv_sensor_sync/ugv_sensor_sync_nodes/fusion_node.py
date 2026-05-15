@@ -66,7 +66,7 @@ class FusionNode(Node):
         self.declare_parameter('depth_obstacle_min_block_pixels', 2)
         self.declare_parameter('depth_obstacle_min_component_cells', 2)
         self.declare_parameter('depth_obstacle_min_component_height_px', 14)
-        self.declare_parameter('depth_front_corridor_half_width_m', 0.50)
+        self.declare_parameter('depth_front_corridor_half_width_m', 0.42)
         self.declare_parameter('imu_smoothing_alpha', 0.25)
 
         scan_topic = self.get_parameter('scan_topic').value

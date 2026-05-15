@@ -58,12 +58,18 @@ On `nav2-inspired-mini-controller`, global search/marker/map ownership stays
 in this file, but the local motion layer is continuous:
 
 - sample forward `(v_mps, omega_radps)` commands
-- simulate each command over a short horizon against the local obstacle field
+- simulate each command over a short horizon against the actual rolled-out arc,
+  so staggered obstacles can be handled as repeated short S-curve decisions
 - score progress, clearance, gap width, heading, speed, and smoothness
 - apply acceleration limits and low-pass filtering before converting to tank
   left/right raw commands
 - keep a collision-monitor style stop/slow layer separate from ordinary path
   selection
+
+The local safety layer uses the real 30 inch footprint plus a small
+`ROBOT_OBSTACLE_BUFFER_M` rather than double-counting a large local inflation;
+that keeps 34-35 inch gaps testable while still letting LiDAR/ZED points reject
+actual collisions.
 
 Normal indoor runs keep reverse disabled. With front-only LiDAR/camera coverage,
 the robot should turn in place before driving toward a target behind it.

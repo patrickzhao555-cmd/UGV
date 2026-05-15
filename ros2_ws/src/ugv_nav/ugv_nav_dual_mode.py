@@ -362,7 +362,7 @@ class RobotConfig:
     track_width_m: float = ft(2.0)
     wheel_radius_m: float = 0.06
     ticks_per_rev: int = 1000
-    obstacle_buffer_m: float = 0.05
+    obstacle_buffer_m: float = 0.025
     lidar_offset_x_m: float = 0.30
     lidar_offset_y_m: float = 0.0
 
@@ -395,10 +395,10 @@ class NavConfig:
     blocked_patch_radius_m: float = 0.22
     blocked_patch_distance_m: float = 0.30
     blocked_patch_ttl_steps: int = 28
-    front_safety_margin_m: float = 0.10
+    front_safety_margin_m: float = 0.08
     rear_safety_margin_m: float = 0.08
     global_plan_inflation_m: float = 0.18
-    local_plan_inflation_m: float = 0.08
+    local_plan_inflation_m: float = 0.0
     local_turn_switch_penalty: float = 0.18
     local_reverse_penalty: float = 0.28
     local_turn_penalty: float = 0.10
@@ -406,12 +406,12 @@ class NavConfig:
     local_heading_weight: float = 0.95
     local_corridor_forward_bonus: float = 0.80
     local_corridor_turn_penalty: float = 0.35
-    local_corridor_front_clear_m: float = 0.72
-    local_corridor_side_clear_m: float = 0.62
+    local_corridor_front_clear_m: float = 0.62
+    local_corridor_side_clear_m: float = 0.45
     active_scan_enabled: bool = True
-    active_scan_front_clear_m: float = 1.35
-    active_scan_release_clear_m: float = 1.25
-    active_scan_corridor_extra_width_m: float = 0.12
+    active_scan_front_clear_m: float = 1.05
+    active_scan_release_clear_m: float = 0.95
+    active_scan_corridor_extra_width_m: float = 0.03
     active_scan_depth_points_threshold: int = 18
     active_scan_confirm_steps: int = 4
     active_scan_plan_fail_confirm_steps: int = 4
@@ -431,10 +431,10 @@ class NavConfig:
     continuous_lowpass_alpha: float = 0.55
     continuous_raw_per_mps: float = 1.35
     continuous_max_raw: float = 0.55
-    continuous_slowdown_clearance_m: float = 1.35
-    continuous_stop_clearance_m: float = 0.58
+    continuous_slowdown_clearance_m: float = 1.05
+    continuous_stop_clearance_m: float = 0.48
     continuous_gap_lookahead_m: float = 1.50
-    continuous_gap_buffer_m: float = 0.05
+    continuous_gap_buffer_m: float = 0.025
     continuous_latency_buffer_s: float = 0.25
     allow_stop_at_goal: bool = True
     nonstop_when_blocked: bool = False
@@ -1627,6 +1627,23 @@ class VelocityLocalPlanner:
             local_states.append((lx, ly, lyaw))
         return Pose2D(x, y, yaw), local_states
 
+    def _trajectory_in_collision(
+        self,
+        costmap: Costmap2D,
+        start_pose: Pose2D,
+        local_states: Sequence[Tuple[float, float, float]],
+    ) -> bool:
+        """Check the actual rolled-out arc, not just the chord from start to end."""
+        c0 = math.cos(start_pose.yaw)
+        s0 = math.sin(start_pose.yaw)
+        for lx, ly, lyaw in local_states:
+            wx = start_pose.x + lx * c0 - ly * s0
+            wy = start_pose.y + lx * s0 + ly * c0
+            wyaw = wrap_to_pi(start_pose.yaw + lyaw)
+            if self.checker._pose_in_collision(costmap, Pose2D(wx, wy, wyaw)):
+                return True
+        return False
+
     def _speed_cap_from_clearance(self, front_clearance_m: float) -> Tuple[float, str]:
         stop = max(
             self.nav_cfg.continuous_stop_clearance_m,
@@ -1707,9 +1724,11 @@ class VelocityLocalPlanner:
             raw_left = 0.0
         if abs(raw_right) < 1e-4:
             raw_right = 0.0
-        if abs(v) < 0.025 and abs(omega) < 0.05:
+        if abs(v) < 0.006 and abs(omega) < 0.02:
             mode = "STOP"
-        elif abs(v) < 0.04:
+        elif v >= -1e-6 and raw_left >= -1e-5 and raw_right >= -1e-5:
+            mode = "FORWARD"
+        elif abs(v) < 0.04 or raw_left * raw_right < 0.0:
             mode = "TURN_LEFT" if omega > 0.0 else "TURN_RIGHT"
         elif v >= 0.0:
             mode = "FORWARD"
@@ -1747,17 +1766,26 @@ class VelocityLocalPlanner:
 
         desired_heading = wrap_to_pi(math.atan2(target.y - pose.y, target.x - pose.x) - pose.yaw)
         gap = self._polar_gap(hits_local, desired_heading)
-        front_clearance = min(
+        straight_front_clearance = min(
             sectors.front_m,
             gap.get("front_depth_m", float('inf')),
         )
-        speed_cap, safety_state = self._speed_cap_from_clearance(front_clearance)
+        gap_depth = gap.get("best_depth_m", float('inf'))
+        path_clearance = straight_front_clearance
+        if math.isfinite(gap_depth):
+            # A staggered gap often looks blocked in the straight-ahead corridor
+            # while a short forward arc is still safe. Let the trajectory rollout
+            # decide the arc safety instead of globally removing all forward
+            # samples whenever only the center ray is tight.
+            path_clearance = max(path_clearance, gap_depth)
+        speed_cap, safety_state = self._speed_cap_from_clearance(path_clearance)
         v_samples, omega_samples = self._sample_velocities(speed_cap)
 
         samples = 0
         safe_samples = 0
         best_score = -1e18
         best: Optional[Tuple[float, float, Pose2D, float]] = None
+        best_costmap_soft_penalty = 0.0
         target_before = math.hypot(target.x - pose.x, target.y - pose.y)
         horizon = clamp(self.nav_cfg.continuous_horizon_s, 0.4, 2.0)
         dt = clamp(self.nav_cfg.continuous_dt_s, 0.04, 0.25)
@@ -1773,11 +1801,24 @@ class VelocityLocalPlanner:
                 if not self.nav_cfg.allow_reverse and v < -1e-6:
                     continue
                 end, local_states = self._simulate(pose, v, omega, horizon, dt)
-                if self.checker._segment_in_collision(costmap, pose, end):
-                    continue
                 local_clearance = self._trajectory_min_clearance(local_states, hits_local, v)
-                if local_clearance < -0.005:
+                min_metric_clearance = max(0.018, 0.70 * self.nav_cfg.continuous_gap_buffer_m)
+                if local_clearance < min_metric_clearance:
                     continue
+                costmap_soft_penalty = 0.0
+                if self._trajectory_in_collision(costmap, pose, local_states):
+                    # The occupancy grid is intentionally coarse and can make
+                    # tight, staggered chair/table gaps look closed. Fresh
+                    # LiDAR/ZED points are metric, so allow a tight trajectory
+                    # through a quantized grid hit only when the point-cloud
+                    # footprint clearance is still positive.
+                    if (
+                        not hits_local
+                        or not math.isfinite(local_clearance)
+                        or local_clearance < min_metric_clearance
+                    ):
+                        continue
+                    costmap_soft_penalty = 0.35
                 safe_samples += 1
 
                 target_after = math.hypot(target.x - end.x, target.y - end.y)
@@ -1795,6 +1836,7 @@ class VelocityLocalPlanner:
                 score += 0.70 * clearance_score
                 score += 0.35 * (v / max_v)
                 score += 0.22 * gap_alignment
+                score -= costmap_soft_penalty
                 score -= 0.46 * abs(v - self.last_v)
                 score -= 0.16 * abs(omega - self.last_omega)
                 score -= 0.04 * abs(omega)
@@ -1808,6 +1850,7 @@ class VelocityLocalPlanner:
                 if score > best_score:
                     best_score = score
                     best = (v, omega, end, local_clearance)
+                    best_costmap_soft_penalty = costmap_soft_penalty
 
         if best is None:
             v, omega = self._apply_velocity_limits(0.0, 0.0, timestamp, immediate_stop=True)
@@ -1819,7 +1862,8 @@ class VelocityLocalPlanner:
                 "selected_omega_radps": round(omega, 4),
                 "best_score": None,
                 "min_clearance_m": None,
-                "front_clearance_m": None if math.isinf(front_clearance) else round(front_clearance, 3),
+                "front_clearance_m": None if math.isinf(straight_front_clearance) else round(straight_front_clearance, 3),
+                "path_clearance_m": None if math.isinf(path_clearance) else round(path_clearance, 3),
                 "front_speed_cap_mps": round(speed_cap, 4),
                 "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
                 "best_gap_depth_m": round(gap["best_depth_m"], 3),
@@ -1836,6 +1880,7 @@ class VelocityLocalPlanner:
             (
                 f"velocity dwa; samples={safe_samples}/{samples} "
                 f"gap={gap['best_heading_deg']:.0f}deg clear={min_clearance:.2f}m "
+                f"path={path_clearance:.2f}m "
                 f"state={safety_state}"
             ),
             horizon,
@@ -1852,7 +1897,9 @@ class VelocityLocalPlanner:
             "raw_right": round(cmd.raw_right, 3),
             "best_score": round(best_score, 3),
             "min_clearance_m": round(min_clearance, 3),
-            "front_clearance_m": None if math.isinf(front_clearance) else round(front_clearance, 3),
+            "costmap_soft_penalty": round(best_costmap_soft_penalty, 3),
+            "front_clearance_m": None if math.isinf(straight_front_clearance) else round(straight_front_clearance, 3),
+            "path_clearance_m": None if math.isinf(path_clearance) else round(path_clearance, 3),
             "front_speed_cap_mps": round(speed_cap, 4),
             "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
             "best_gap_depth_m": round(gap["best_depth_m"], 3),
@@ -2493,7 +2540,7 @@ class UGVNavigator:
         self._last_right: Optional[int] = None
         self._last_odom_timestamp: Optional[float] = None
         self._last_replan_time = -1e9
-        self._mark_radius = max(robot_cfg.obstacle_buffer_m, 0.05)
+        self._mark_radius = max(robot_cfg.obstacle_buffer_m, 0.025)
         self._stuck_counter = 0
         self._escape_queue: List[ControlCommand] = []
         self._last_pose_before_update = init_pose
@@ -2575,11 +2622,20 @@ class UGVNavigator:
         elif (
             prev_cmd_mode in {'FORWARD', 'BACKWARD'}
             and dleft_ticks * dright_ticks < 0
-            and not (prev_velocity and prev_cmd.raw_left * prev_cmd.raw_right < 0.0)
+            and abs(dleft_ticks) > 3
+            and abs(dright_ticks) > 3
         ):
-            warning = 'forward_command_has_opposite_encoder_signs'
-            ds_for_pose = 0.0
-            dtheta = 0.0
+            max_cmd_raw = max(abs(prev_cmd.raw_left), abs(prev_cmd.raw_right))
+            min_cmd_raw = min(abs(prev_cmd.raw_left), abs(prev_cmd.raw_right))
+            straightish_velocity_cmd = (
+                prev_cmd.raw_left * prev_cmd.raw_right > 0.0
+                and min_cmd_raw >= max(0.08, 0.45 * max_cmd_raw)
+                and abs(prev_cmd.raw_left - prev_cmd.raw_right) <= max(0.08, 0.35 * max_cmd_raw)
+            )
+            if not prev_velocity or straightish_velocity_cmd:
+                warning = 'forward_command_has_opposite_encoder_signs'
+                ds_for_pose = 0.0
+                dtheta = 0.0
         if self.nav_cfg.use_imu_yaw and imu is not None and 0.0 < dt <= 0.5:
             yaw_rate = imu.yaw_rate(self.nav_cfg.imu_yaw_axis, self.nav_cfg.imu_yaw_sign)
             tick_motion = abs(dleft_ticks) + abs(dright_ticks)
@@ -3770,6 +3826,8 @@ class CompetitionMission:
 def run_simulation(
     show_gui: bool = True,
     max_steps: int = 900,
+    robot_obstacle_buffer_m: float = 0.025,
+    local_plan_inflation_m: float = 0.0,
     continuous_control_enabled: bool = True,
     continuous_max_speed_mps: float = 0.36,
     continuous_max_omega_rps: float = 1.15,
@@ -3778,13 +3836,16 @@ def run_simulation(
     continuous_omega_accel_limit_rps2: float = 1.80,
     continuous_lowpass_alpha: float = 0.55,
     continuous_raw_per_mps: float = 1.35,
-    continuous_slowdown_clearance_m: float = 1.35,
-    continuous_stop_clearance_m: float = 0.58,
+    continuous_slowdown_clearance_m: float = 1.05,
+    continuous_stop_clearance_m: float = 0.48,
+    continuous_gap_buffer_m: float = 0.025,
     continuous_latency_buffer_s: float = 0.25,
 ) -> dict:
     robot_cfg = RobotConfig()
+    robot_cfg.obstacle_buffer_m = clamp(float(robot_obstacle_buffer_m), 0.0, 0.20)
     sensor_cfg = SensorConfig()
     nav_cfg = NavConfig()
+    nav_cfg.local_plan_inflation_m = clamp(float(local_plan_inflation_m), 0.0, 1.0)
     nav_cfg.continuous_control_enabled = bool(continuous_control_enabled)
     nav_cfg.continuous_max_speed_mps = clamp(float(continuous_max_speed_mps), 0.05, 1.0)
     nav_cfg.continuous_max_omega_rps = clamp(float(continuous_max_omega_rps), 0.20, 3.0)
@@ -3795,6 +3856,7 @@ def run_simulation(
     nav_cfg.continuous_raw_per_mps = clamp(float(continuous_raw_per_mps), 0.20, 4.0)
     nav_cfg.continuous_slowdown_clearance_m = clamp(float(continuous_slowdown_clearance_m), 0.50, 3.0)
     nav_cfg.continuous_stop_clearance_m = clamp(float(continuous_stop_clearance_m), 0.30, 1.50)
+    nav_cfg.continuous_gap_buffer_m = clamp(float(continuous_gap_buffer_m), 0.0, 0.30)
     nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
     sim_cfg = SimConfig(show_gui=show_gui, max_steps=max_steps)
 
@@ -3955,6 +4017,7 @@ def run_real_mode(
     robot_length_m: float = ft(30.0 / 12.0),
     robot_width_m: float = ft(30.0 / 12.0),
     robot_track_width_m: float = ft(2.0),
+    robot_obstacle_buffer_m: float = 0.025,
     lidar_offset_x_m: float = 0.30,
     lidar_offset_y_m: float = 0.0,
     lidar_used_fov_deg: float = 180.0,
@@ -3962,13 +4025,14 @@ def run_real_mode(
     min_motion_raw: float = 0.22,
     min_speed_mps: float = 0.178816,
     drive_speed_level: int = 4,
-    front_safety_margin_m: float = 0.10,
+    front_safety_margin_m: float = 0.08,
     rear_safety_margin_m: float = 0.08,
-    local_plan_inflation_m: float = 0.08,
+    local_plan_inflation_m: float = 0.0,
     active_scan_enabled: bool = True,
     active_scan_confirm_steps: int = 4,
     active_scan_steps: int = 5,
-    active_scan_front_clear_m: float = 1.35,
+    active_scan_front_clear_m: float = 1.05,
+    active_scan_corridor_extra_width_m: float = 0.03,
     continuous_control_enabled: bool = True,
     continuous_max_speed_mps: float = 0.36,
     continuous_max_omega_rps: float = 1.15,
@@ -3977,8 +4041,9 @@ def run_real_mode(
     continuous_omega_accel_limit_rps2: float = 1.80,
     continuous_lowpass_alpha: float = 0.55,
     continuous_raw_per_mps: float = 1.35,
-    continuous_slowdown_clearance_m: float = 1.35,
-    continuous_stop_clearance_m: float = 0.58,
+    continuous_slowdown_clearance_m: float = 1.05,
+    continuous_stop_clearance_m: float = 0.48,
+    continuous_gap_buffer_m: float = 0.025,
     continuous_latency_buffer_s: float = 0.25,
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
@@ -3987,6 +4052,7 @@ def run_real_mode(
     robot_cfg.length_m = max(0.20, float(robot_length_m))
     robot_cfg.width_m = max(0.20, float(robot_width_m))
     robot_cfg.track_width_m = max(0.20, float(robot_track_width_m))
+    robot_cfg.obstacle_buffer_m = clamp(float(robot_obstacle_buffer_m), 0.0, 0.20)
     robot_cfg.lidar_offset_x_m = float(lidar_offset_x_m)
     robot_cfg.lidar_offset_y_m = float(lidar_offset_y_m)
     sensor_cfg = SensorConfig()
@@ -4007,6 +4073,7 @@ def run_real_mode(
     nav_cfg.active_scan_confirm_steps = max(1, int(active_scan_confirm_steps))
     nav_cfg.active_scan_steps = max(1, int(active_scan_steps))
     nav_cfg.active_scan_front_clear_m = clamp(float(active_scan_front_clear_m), 0.50, 3.0)
+    nav_cfg.active_scan_corridor_extra_width_m = clamp(float(active_scan_corridor_extra_width_m), 0.0, 0.50)
     nav_cfg.continuous_control_enabled = bool(continuous_control_enabled)
     nav_cfg.continuous_max_speed_mps = clamp(float(continuous_max_speed_mps), 0.05, 1.0)
     nav_cfg.continuous_max_omega_rps = clamp(float(continuous_max_omega_rps), 0.20, 3.0)
@@ -4017,6 +4084,7 @@ def run_real_mode(
     nav_cfg.continuous_raw_per_mps = clamp(float(continuous_raw_per_mps), 0.20, 4.0)
     nav_cfg.continuous_slowdown_clearance_m = clamp(float(continuous_slowdown_clearance_m), 0.50, 3.0)
     nav_cfg.continuous_stop_clearance_m = clamp(float(continuous_stop_clearance_m), 0.30, 1.50)
+    nav_cfg.continuous_gap_buffer_m = clamp(float(continuous_gap_buffer_m), 0.0, 0.30)
     nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
     drive_speed_level = normalize_drive_speed_level(drive_speed_level)
     drive_factor = drive_speed_factor(drive_speed_level)
@@ -4178,6 +4246,7 @@ def main() -> None:
     parser.add_argument("--robot-length-m", type=float, default=ft(30.0 / 12.0), help="robot footprint length used for collision checks")
     parser.add_argument("--robot-width-m", type=float, default=ft(30.0 / 12.0), help="robot footprint width used for gap checks")
     parser.add_argument("--robot-track-width-m", type=float, default=ft(2.0), help="wheel track width for encoder odometry")
+    parser.add_argument("--robot-obstacle-buffer-m", type=float, default=0.025, help="extra footprint padding used by local trajectory collision checks")
     parser.add_argument("--lidar-offset-x-m", type=float, default=0.30, help="LiDAR x offset from robot center; positive is forward")
     parser.add_argument("--lidar-offset-y-m", type=float, default=0.0, help="LiDAR y offset from robot center; positive is left")
     parser.add_argument("--lidar-used-fov-deg", type=float, default=180.0, help="front-centered LiDAR field of view used by nav; rear hits are ignored")
@@ -4185,13 +4254,14 @@ def main() -> None:
     parser.add_argument("--min-motion-raw", type=float, default=0.22, help="floor applied to non-stop raw wheel commands after mission speed scaling")
     parser.add_argument("--min-speed-mps", type=float, default=0.178816, help="mission minimum moving-speed requirement, 0.4 mph expressed in m/s")
     parser.add_argument("--drive-speed-level", type=drive_speed_level_arg, default=4, help="overall real-mode drive speed cap: 1=25%%, 2=50%%, 3=75%%, 4=100%%")
-    parser.add_argument("--front-safety-margin-m", type=float, default=0.10, help="extra front clearance required before forward commands")
+    parser.add_argument("--front-safety-margin-m", type=float, default=0.08, help="extra front clearance required before forward commands")
     parser.add_argument("--rear-safety-margin-m", type=float, default=0.08, help="extra rear clearance required before reverse commands")
-    parser.add_argument("--local-plan-inflation-m", type=float, default=0.08, help="local costmap obstacle inflation for immediate safety checks")
+    parser.add_argument("--local-plan-inflation-m", type=float, default=0.0, help="extra local costmap inflation beyond the robot footprint")
     parser.add_argument("--active-scan-enabled", type=str_to_bool, default=True, help="turn in place to gather a wider view after repeated front blockage evidence")
     parser.add_argument("--active-scan-confirm-steps", type=int, default=4, help="consecutive constrained frames before active scan can interrupt forward probing")
     parser.add_argument("--active-scan-steps", type=int, default=5, help="number of turn commands used for each active scan burst")
-    parser.add_argument("--active-scan-front-clear-m", type=float, default=1.35, help="front clearance below which repeated depth/costmap evidence can trigger active scan")
+    parser.add_argument("--active-scan-front-clear-m", type=float, default=1.05, help="front clearance below which repeated depth/costmap evidence can trigger active scan")
+    parser.add_argument("--active-scan-corridor-extra-width-m", type=float, default=0.03, help="extra half-width used when counting ZED depth points for active scan evidence")
     parser.add_argument("--continuous-control-enabled", type=str_to_bool, default=True, help="use the Nav2-inspired DWA/RPP velocity controller instead of the legacy action-block local planner")
     parser.add_argument("--continuous-max-speed-mps", type=float, default=0.36, help="max forward speed used by the continuous local controller before drive-speed-level scaling")
     parser.add_argument("--continuous-max-omega-rps", type=float, default=1.15, help="max yaw rate used by the continuous local controller")
@@ -4200,8 +4270,9 @@ def main() -> None:
     parser.add_argument("--continuous-omega-accel-limit-rps2", type=float, default=1.80, help="angular acceleration limit in the velocity layer")
     parser.add_argument("--continuous-lowpass-alpha", type=float, default=0.55, help="velocity low-pass blend after acceleration limiting")
     parser.add_argument("--continuous-raw-per-mps", type=float, default=1.35, help="tank wheel m/s to raw command conversion gain")
-    parser.add_argument("--continuous-slowdown-clearance-m", type=float, default=1.35, help="front clearance where Collision Monitor starts capping speed")
-    parser.add_argument("--continuous-stop-clearance-m", type=float, default=0.58, help="front clearance where Collision Monitor commands zero linear speed")
+    parser.add_argument("--continuous-slowdown-clearance-m", type=float, default=1.05, help="front clearance where Collision Monitor starts capping speed")
+    parser.add_argument("--continuous-stop-clearance-m", type=float, default=0.48, help="front clearance where Collision Monitor commands zero linear speed")
+    parser.add_argument("--continuous-gap-buffer-m", type=float, default=0.025, help="extra half-width used by polar gap checks beyond the robot width")
     parser.add_argument("--continuous-latency-buffer-s", type=float, default=0.25, help="extra obstacle padding equal to speed times this latency allowance")
     args = parser.parse_args()
 
@@ -4209,6 +4280,8 @@ def main() -> None:
         run_simulation(
             show_gui=not args.headless,
             max_steps=args.max_steps,
+            robot_obstacle_buffer_m=args.robot_obstacle_buffer_m,
+            local_plan_inflation_m=args.local_plan_inflation_m,
             continuous_control_enabled=args.continuous_control_enabled,
             continuous_max_speed_mps=args.continuous_max_speed_mps,
             continuous_max_omega_rps=args.continuous_max_omega_rps,
@@ -4219,6 +4292,7 @@ def main() -> None:
             continuous_raw_per_mps=args.continuous_raw_per_mps,
             continuous_slowdown_clearance_m=args.continuous_slowdown_clearance_m,
             continuous_stop_clearance_m=args.continuous_stop_clearance_m,
+            continuous_gap_buffer_m=args.continuous_gap_buffer_m,
             continuous_latency_buffer_s=args.continuous_latency_buffer_s,
         )
     else:
@@ -4245,6 +4319,7 @@ def main() -> None:
             robot_length_m=args.robot_length_m,
             robot_width_m=args.robot_width_m,
             robot_track_width_m=args.robot_track_width_m,
+            robot_obstacle_buffer_m=args.robot_obstacle_buffer_m,
             lidar_offset_x_m=args.lidar_offset_x_m,
             lidar_offset_y_m=args.lidar_offset_y_m,
             lidar_used_fov_deg=args.lidar_used_fov_deg,
@@ -4259,6 +4334,7 @@ def main() -> None:
             active_scan_confirm_steps=args.active_scan_confirm_steps,
             active_scan_steps=args.active_scan_steps,
             active_scan_front_clear_m=args.active_scan_front_clear_m,
+            active_scan_corridor_extra_width_m=args.active_scan_corridor_extra_width_m,
             continuous_control_enabled=args.continuous_control_enabled,
             continuous_max_speed_mps=args.continuous_max_speed_mps,
             continuous_max_omega_rps=args.continuous_max_omega_rps,
@@ -4269,6 +4345,7 @@ def main() -> None:
             continuous_raw_per_mps=args.continuous_raw_per_mps,
             continuous_slowdown_clearance_m=args.continuous_slowdown_clearance_m,
             continuous_stop_clearance_m=args.continuous_stop_clearance_m,
+            continuous_gap_buffer_m=args.continuous_gap_buffer_m,
             continuous_latency_buffer_s=args.continuous_latency_buffer_s,
         )
 

@@ -158,7 +158,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--step-repeats", type=int, default=150)
     parser.add_argument("--front-margin-m", type=float, default=0.10)
     parser.add_argument("--rear-margin-m", type=float, default=0.08)
-    parser.add_argument("--local-inflation-m", type=float, default=0.08)
+    parser.add_argument("--local-inflation-m", type=float, default=0.0)
     parser.add_argument("--global-inflation-m", type=float, default=0.18)
     return parser.parse_args()
 

@@ -259,7 +259,8 @@ class UgvDebugDashboard(Node):
         if valid.size == 0:
             self._draw_center_text(panel, "no valid depth")
             return panel
-        clipped = np.clip(depth_view, 0.2, 4.0)
+        depth_for_color = np.nan_to_num(depth_view, nan=4.0, posinf=4.0, neginf=4.0)
+        clipped = np.clip(depth_for_color, 0.2, 4.0)
         norm = ((4.0 - clipped) / 3.8 * 255.0).astype(np.uint8)
         norm[~np.isfinite(depth_view)] = 0
         color = cv2.applyColorMap(norm, cv2.COLORMAP_TURBO)
@@ -383,7 +384,7 @@ class UgvDebugDashboard(Node):
             f"phase={mission.get('phase')} cmd={cmd.get('mode')} reason={cmd.get('reason')} raw=({cmd.get('raw_left')},{cmd.get('raw_right')})",
             f"pose={nav.get('pose_m')} goal={mission.get('active_goal_m')} plan={nav.get('planner')} {nav.get('plan_time_ms')}ms",
             f"clearance front={_fmt_m(fusion.get('front_clearance_m'))} src={fusion.get('front_clearance_source')} sectors f/fl/fr={sectors.get('front')}/{sectors.get('front_left')}/{sectors.get('front_right')}",
-            f"velocity ctrl enabled={velocity.get('enabled')} safe={velocity.get('safe_samples')}/{velocity.get('samples')} v={velocity.get('selected_v_mps')} omega={velocity.get('selected_omega_radps')} gap={velocity.get('best_gap_heading_deg')}deg clear={velocity.get('min_clearance_m')} state={velocity.get('safety_state')}",
+            f"velocity ctrl enabled={velocity.get('enabled')} safe={velocity.get('safe_samples')}/{velocity.get('samples')} v={velocity.get('selected_v_mps')} omega={velocity.get('selected_omega_radps')} gap={velocity.get('best_gap_heading_deg')}deg/{velocity.get('best_gap_depth_m')}m clear={velocity.get('min_clearance_m')} path_clear={velocity.get('path_clearance_m')} state={velocity.get('safety_state')}",
             f"ZED depth obstacles pts={fusion.get('depth_obstacle_points')} filtered={fusion.get('depth_obstacle_points_filtered')} comps={fusion.get('depth_obstacle_components')} cells={fusion.get('depth_obstacle_candidate_cells')}",
             f"active scan rem={active_scan.get('remaining')} dir={active_scan.get('direction')} evidence={active_scan.get('front_blocked_evidence')}/{active_scan.get('plan_failed_evidence')} depth_corridor={active_scan.get('front_depth_corridor_points')} min={active_scan.get('front_depth_corridor_min_m')} reason={active_scan.get('reason')}",
             f"YOLO loaded={yolo.get('model_loaded')} accepted={yolo.get('accepted')} boxes={len(yolo.get('boxes', []))} classes={yolo.get('classes')}",

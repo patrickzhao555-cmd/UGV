@@ -406,8 +406,9 @@ NAV_CONTINUOUS_HORIZON_S=1.10
 NAV_CONTINUOUS_ACCEL_LIMIT_MPS2=0.35
 NAV_CONTINUOUS_OMEGA_ACCEL_LIMIT_RPS2=1.80
 NAV_CONTINUOUS_LOWPASS_ALPHA=0.55
-NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.35
-NAV_CONTINUOUS_STOP_CLEARANCE_M=0.58
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.05
+NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
+NAV_CONTINUOUS_GAP_BUFFER_M=0.025
 NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
 ```
 
@@ -415,7 +416,7 @@ If the robot feels too aggressive indoors:
 
 ```bash
 NAV_CONTINUOUS_MAX_SPEED_MPS=0.28
-NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.50
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.30
 ```
 
 Compare against the older local planner:
@@ -434,7 +435,7 @@ FUSION_DEPTH_PROJECTION_STRIDE_PX=8
 FUSION_DEPTH_GROUND_MIN_DELTA_M=0.18
 FUSION_DEPTH_GROUND_RATIO=0.88
 FUSION_DEPTH_OBSTACLE_MIN_COMPONENT_HEIGHT_PX=14
-FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.50
+FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.42
 ```
 
 Active scan recovery:
@@ -443,7 +444,16 @@ Active scan recovery:
 NAV_ACTIVE_SCAN_ENABLED=true
 NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
 NAV_ACTIVE_SCAN_STEPS=5
-NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.35
+NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.05
+NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M=0.03
+
+Tight, staggered chair/table gaps are handled by the continuous controller's
+rolled-out arc checks. The local safety layer now relies on the real robot
+footprint plus `ROBOT_OBSTACLE_BUFFER_M=0.025` instead of double-counting a
+large local inflation. If you need an extra cautious run, increase
+`ROBOT_OBSTACLE_BUFFER_M` or `NAV_LOCAL_PLAN_INFLATION_M`, but values above
+about `0.05` can make 34-35 inch gaps look physically impossible for the
+30 inch chassis.
 ```
 
 Purpose: if the front view is repeatedly blocked or the local controller finds

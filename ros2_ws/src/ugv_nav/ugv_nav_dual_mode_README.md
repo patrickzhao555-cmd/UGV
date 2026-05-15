@@ -42,6 +42,19 @@ clearance, polar gap width, heading, and smoothness, then applies acceleration
 limits and low-pass filtering before converting velocity into tank-drive raw
 commands.
 
+The local safety check uses the actual rolled-out arc for each sampled command,
+so staggered obstacles can be handled as a sequence of short S-curve decisions.
+For the 30 inch chassis, the default tight-gap parameters are:
+
+```bash
+ROBOT_OBSTACLE_BUFFER_M=0.025
+NAV_LOCAL_PLAN_INFLATION_M=0.0
+NAV_CONTINUOUS_GAP_BUFFER_M=0.025
+FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.42
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.05
+NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
+```
+
 Reverse is disabled for normal indoor runs:
 
 ```bash

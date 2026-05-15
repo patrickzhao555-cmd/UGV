@@ -84,6 +84,8 @@ class DebugStatusNode(Node):
             f"vel=({velocity.get('selected_v_mps')},{velocity.get('selected_omega_radps')}) "
             f"vel_safe={velocity.get('safe_samples')}/{velocity.get('samples')} "
             f"vel_state={velocity.get('safety_state')} "
+            f"path_clear={velocity.get('path_clearance_m')} "
+            f"gap={velocity.get('best_gap_heading_deg')}deg/{velocity.get('best_gap_depth_m')}m "
             f"scan_rem={active_scan.get('remaining')} "
             f"scan_dir={active_scan.get('direction')} "
             f"odom_warn={odom_delta.get('warning')} "

@@ -137,6 +137,7 @@ def generate_launch_description():
     robot_length_m = LaunchConfiguration('robot_length_m')
     robot_width_m = LaunchConfiguration('robot_width_m')
     robot_track_width_m = LaunchConfiguration('robot_track_width_m')
+    robot_obstacle_buffer_m = LaunchConfiguration('robot_obstacle_buffer_m')
     lidar_offset_x_m = LaunchConfiguration('lidar_offset_x_m')
     lidar_offset_y_m = LaunchConfiguration('lidar_offset_y_m')
     lidar_used_fov_deg = LaunchConfiguration('lidar_used_fov_deg')
@@ -148,6 +149,7 @@ def generate_launch_description():
     active_scan_confirm_steps = LaunchConfiguration('active_scan_confirm_steps')
     active_scan_steps = LaunchConfiguration('active_scan_steps')
     active_scan_front_clear_m = LaunchConfiguration('active_scan_front_clear_m')
+    active_scan_corridor_extra_width_m = LaunchConfiguration('active_scan_corridor_extra_width_m')
     continuous_control_enabled = LaunchConfiguration('continuous_control_enabled')
     continuous_max_speed_mps = LaunchConfiguration('continuous_max_speed_mps')
     continuous_max_omega_rps = LaunchConfiguration('continuous_max_omega_rps')
@@ -158,6 +160,7 @@ def generate_launch_description():
     continuous_raw_per_mps = LaunchConfiguration('continuous_raw_per_mps')
     continuous_slowdown_clearance_m = LaunchConfiguration('continuous_slowdown_clearance_m')
     continuous_stop_clearance_m = LaunchConfiguration('continuous_stop_clearance_m')
+    continuous_gap_buffer_m = LaunchConfiguration('continuous_gap_buffer_m')
     continuous_latency_buffer_s = LaunchConfiguration('continuous_latency_buffer_s')
 
     sensor_sync_launch = IncludeLaunchDescription(
@@ -253,6 +256,8 @@ def generate_launch_description():
             robot_width_m,
             '--robot-track-width-m',
             robot_track_width_m,
+            '--robot-obstacle-buffer-m',
+            robot_obstacle_buffer_m,
             '--lidar-offset-x-m',
             lidar_offset_x_m,
             '--lidar-offset-y-m',
@@ -281,6 +286,8 @@ def generate_launch_description():
             active_scan_steps,
             '--active-scan-front-clear-m',
             active_scan_front_clear_m,
+            '--active-scan-corridor-extra-width-m',
+            active_scan_corridor_extra_width_m,
             '--continuous-control-enabled',
             continuous_control_enabled,
             '--continuous-max-speed-mps',
@@ -301,6 +308,8 @@ def generate_launch_description():
             continuous_slowdown_clearance_m,
             '--continuous-stop-clearance-m',
             continuous_stop_clearance_m,
+            '--continuous-gap-buffer-m',
+            continuous_gap_buffer_m,
             '--continuous-latency-buffer-s',
             continuous_latency_buffer_s,
         ],
@@ -478,7 +487,7 @@ def generate_launch_description():
         DeclareLaunchArgument('fusion_depth_ground_min_delta_m', default_value='0.18'),
         DeclareLaunchArgument('fusion_depth_ground_ratio', default_value='0.88'),
         DeclareLaunchArgument('fusion_depth_obstacle_min_component_height_px', default_value='14'),
-        DeclareLaunchArgument('fusion_depth_front_corridor_half_width_m', default_value='0.50'),
+        DeclareLaunchArgument('fusion_depth_front_corridor_half_width_m', default_value='0.42'),
         DeclareLaunchArgument('fusion_imu_smoothing_alpha', default_value='0.25'),
         DeclareLaunchArgument('mission_flag_topic', default_value='/ugv/mission_flag'),
         DeclareLaunchArgument('use_imu_yaw', default_value='false'),
@@ -488,17 +497,19 @@ def generate_launch_description():
         DeclareLaunchArgument('robot_length_m', default_value='0.762'),
         DeclareLaunchArgument('robot_width_m', default_value='0.762'),
         DeclareLaunchArgument('robot_track_width_m', default_value='0.6096'),
+        DeclareLaunchArgument('robot_obstacle_buffer_m', default_value='0.025'),
         DeclareLaunchArgument('lidar_offset_x_m', default_value='0.30'),
         DeclareLaunchArgument('lidar_offset_y_m', default_value='0.0'),
         DeclareLaunchArgument('lidar_used_fov_deg', default_value='180.0'),
         DeclareLaunchArgument('allow_reverse', default_value='false'),
-        DeclareLaunchArgument('front_safety_margin_m', default_value='0.10'),
+        DeclareLaunchArgument('front_safety_margin_m', default_value='0.08'),
         DeclareLaunchArgument('rear_safety_margin_m', default_value='0.08'),
-        DeclareLaunchArgument('local_plan_inflation_m', default_value='0.08'),
+        DeclareLaunchArgument('local_plan_inflation_m', default_value='0.0'),
         DeclareLaunchArgument('active_scan_enabled', default_value='true'),
         DeclareLaunchArgument('active_scan_confirm_steps', default_value='4'),
         DeclareLaunchArgument('active_scan_steps', default_value='5'),
-        DeclareLaunchArgument('active_scan_front_clear_m', default_value='1.35'),
+        DeclareLaunchArgument('active_scan_front_clear_m', default_value='1.05'),
+        DeclareLaunchArgument('active_scan_corridor_extra_width_m', default_value='0.03'),
         DeclareLaunchArgument('continuous_control_enabled', default_value='true'),
         DeclareLaunchArgument('continuous_max_speed_mps', default_value='0.36'),
         DeclareLaunchArgument('continuous_max_omega_rps', default_value='1.15'),
@@ -507,8 +518,9 @@ def generate_launch_description():
         DeclareLaunchArgument('continuous_omega_accel_limit_rps2', default_value='1.80'),
         DeclareLaunchArgument('continuous_lowpass_alpha', default_value='0.55'),
         DeclareLaunchArgument('continuous_raw_per_mps', default_value='1.35'),
-        DeclareLaunchArgument('continuous_slowdown_clearance_m', default_value='1.35'),
-        DeclareLaunchArgument('continuous_stop_clearance_m', default_value='0.58'),
+        DeclareLaunchArgument('continuous_slowdown_clearance_m', default_value='1.05'),
+        DeclareLaunchArgument('continuous_stop_clearance_m', default_value='0.48'),
+        DeclareLaunchArgument('continuous_gap_buffer_m', default_value='0.025'),
         DeclareLaunchArgument('continuous_latency_buffer_s', default_value='0.25'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),

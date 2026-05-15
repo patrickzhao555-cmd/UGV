@@ -35,6 +35,10 @@ class MotorDirectTest(Node):
         self.declare_parameter("command_topic", "/ugv_nav_cmd")
         self.declare_parameter("status_topic", "/motor_controller/status")
         self.declare_parameter("encoder_topic", "/encoder_ticks_stamped")
+        self.declare_parameter("invert_left_command", False)
+        self.declare_parameter("invert_right_command", True)
+        self.declare_parameter("invert_left_encoder", False)
+        self.declare_parameter("invert_right_encoder", False)
         self.declare_parameter("yes", False)
 
         self.motion = str(self.get_parameter("motion").value).strip().lower()
@@ -48,6 +52,10 @@ class MotorDirectTest(Node):
         self.command_topic = str(self.get_parameter("command_topic").value)
         self.status_topic = str(self.get_parameter("status_topic").value)
         self.encoder_topic = str(self.get_parameter("encoder_topic").value)
+        self.invert_left_command = bool(self.get_parameter("invert_left_command").value)
+        self.invert_right_command = bool(self.get_parameter("invert_right_command").value)
+        self.invert_left_encoder = bool(self.get_parameter("invert_left_encoder").value)
+        self.invert_right_encoder = bool(self.get_parameter("invert_right_encoder").value)
         self.yes = bool(self.get_parameter("yes").value)
 
         self.pub = self.create_publisher(String, self.command_topic, 10)
@@ -75,6 +83,8 @@ class MotorDirectTest(Node):
         self.get_logger().warn(
             f"Direct motor test armed: motion={self.motion}, raw_left={self.command['raw_left']:.3f}, "
             f"raw_right={self.command['raw_right']:.3f}, duration={self.duration_s:.2f}s. "
+            f"bridge_invert left/right={self.invert_left_command}/{self.invert_right_command}, "
+            f"encoder_invert left/right={self.invert_left_encoder}/{self.invert_right_encoder}. "
             "No navigation/LiDAR safety is active."
         )
         self.get_logger().warn(
@@ -217,6 +227,7 @@ class MotorDirectTest(Node):
 
     def _report_summary(self) -> None:
         delta_text = "encoder_delta=unavailable"
+        delta: Optional[Tuple[int, int, int, int, int, int]] = None
         if self.first_encoder is not None and self.latest_encoder is not None:
             delta = tuple(b - a for a, b in zip(self.first_encoder, self.latest_encoder))
             delta_text = (
@@ -229,6 +240,67 @@ class MotorDirectTest(Node):
             f"stop_packets={self.sent_stop_packets}, {delta_text}, "
             f"last_pwm={status.get('last_pwm')}, target_pwm={status.get('target_pwm')}"
         )
+        if delta is not None:
+            self._report_encoder_diagnostic(delta)
+
+    @staticmethod
+    def _sign(value: int, deadband_ticks: int = 50) -> int:
+        if value > deadband_ticks:
+            return 1
+        if value < -deadband_ticks:
+            return -1
+        return 0
+
+    @staticmethod
+    def _toggled(value: bool) -> bool:
+        return not value
+
+    def _report_encoder_diagnostic(self, delta: Tuple[int, int, int, int, int, int]) -> None:
+        left = delta[0]
+        right = delta[1]
+        left_sign = self._sign(left)
+        right_sign = self._sign(right)
+        if left_sign == 0 or right_sign == 0:
+            self.get_logger().warn(
+                "Encoder diagnostic: one side barely moved. Re-run with wheels lifted, "
+                "or check motor power/encoder wiring before trusting this polarity test."
+            )
+            return
+
+        if self.motion in {"forward", "backward"}:
+            if left_sign != right_sign:
+                suspects = []
+                expected_sign = 1 if self.motion == "forward" else -1
+                if left_sign != expected_sign:
+                    suspects.append(
+                        f"left command invert should likely be {self._toggled(self.invert_left_command)}"
+                    )
+                if right_sign != expected_sign:
+                    suspects.append(
+                        f"right command invert should likely be {self._toggled(self.invert_right_command)}"
+                    )
+                hint = "; ".join(suspects) if suspects else "one side command polarity is wrong"
+                self.get_logger().error(
+                    f"Encoder diagnostic FAILED for {self.motion}: left/right encoder signs are "
+                    f"{left_sign}/{right_sign}, so the drivetrain is fighting itself. {hint}."
+                )
+            else:
+                self.get_logger().info(
+                    f"Encoder diagnostic OK for {self.motion}: left/right encoder signs match "
+                    f"({left_sign}/{right_sign})."
+                )
+            return
+
+        if self.motion == "turn_left" and not (left_sign < 0 and right_sign > 0):
+            self.get_logger().warn(
+                f"Encoder diagnostic: turn_left expected left negative/right positive, "
+                f"got {left_sign}/{right_sign}. Check command or encoder inversion."
+            )
+        elif self.motion == "turn_right" and not (left_sign > 0 and right_sign < 0):
+            self.get_logger().warn(
+                f"Encoder diagnostic: turn_right expected left positive/right negative, "
+                f"got {left_sign}/{right_sign}. Check command or encoder inversion."
+            )
 
 
 def main(args=None):

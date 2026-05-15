@@ -125,9 +125,10 @@ EXTRA_SETUP_BASH="${EXTRA_SETUP_BASH:-}"
 MOTOR_DRY_RUN="${MOTOR_DRY_RUN:-false}"
 MOTOR_PWM_SLEW_RATE_US_PER_S="${MOTOR_PWM_SLEW_RATE_US_PER_S:-2400.0}"
 MIN_MOTION_RAW="${MIN_MOTION_RAW:-0.22}"
-# Current chassis wiring maps positive PWM to physical reverse on both sides.
-# Keep these defaults so a nav FORWARD command moves toward the front sensors.
-INVERT_LEFT_COMMAND="${INVERT_LEFT_COMMAND:-true}"
+# Current chassis wiring maps positive logical left raw to physical left-forward,
+# while positive logical right raw needs inversion to physical right-forward.
+# These defaults were confirmed with motor_direct_test on 2026-05-15.
+INVERT_LEFT_COMMAND="${INVERT_LEFT_COMMAND:-false}"
 INVERT_RIGHT_COMMAND="${INVERT_RIGHT_COMMAND:-true}"
 INVERT_LEFT_ENCODER="${INVERT_LEFT_ENCODER:-false}"
 INVERT_RIGHT_ENCODER="${INVERT_RIGHT_ENCODER:-false}"

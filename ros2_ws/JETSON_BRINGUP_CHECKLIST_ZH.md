@@ -174,7 +174,7 @@ source install/setup.bash
 ros2 launch ugv_motor_controller motor_direct_test.launch.py \
   motion:=forward raw:=0.22 duration_s:=0.8 yes:=true \
   port:=/dev/ttyACM0 dry_run:=false \
-  invert_left_command:=true invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true
 ```
 
 可选 motion：
@@ -196,9 +196,9 @@ raw 例子：
 
 ```bash
 ros2 launch ugv_motor_controller motor_direct_test.launch.py \
-  motion:=raw raw_left:=0.20 raw_right:=-0.20 duration_s:=0.8 yes:=true \
+  motion:=raw raw_left:=0.20 raw_right:=0.20 duration_s:=0.8 yes:=true \
   port:=/dev/ttyACM0 dry_run:=false \
-  invert_left_command:=true invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true
 ```
 
 检查标准：
@@ -207,12 +207,13 @@ ros2 launch ugv_motor_controller motor_direct_test.launch.py \
 - 前进时左右 encoder tick 应该同号。
 - 原地转向时左右 encoder tick 应该反号。
 - 如果物理前进变成后退，先同时翻转左右 command inversion。
-- 如果某一侧物理前进时 encoder tick 变小，就翻转那一侧 encoder inversion。
+- 如果物理前进时一侧前转、一侧后转，先翻转物理方向错误那一侧的 command inversion。
+- 只有在轮子物理方向已经正确、但 odometry 符号仍然错误时，才翻转 encoder inversion。
 
 当前底盘在 `jetson_bringup.sh` 里的默认值：
 
 ```bash
-INVERT_LEFT_COMMAND=true
+INVERT_LEFT_COMMAND=false
 INVERT_RIGHT_COMMAND=true
 INVERT_LEFT_ENCODER=false
 INVERT_RIGHT_ENCODER=false

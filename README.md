@@ -103,8 +103,9 @@ up blind with a front-only 180 degree LiDAR view.
 
 - First real drivetrain test: lift the UGV.
 - Do not run direct motor tests and full navigation at the same time; both write `/ugv_nav_cmd`.
-- Current chassis defaults both command inversions to `true` in `jetson_bringup.sh`.
+- Current chassis defaults are `INVERT_LEFT_COMMAND=false` and `INVERT_RIGHT_COMMAND=true` in `jetson_bringup.sh`.
 - If `FORWARD` physically drives backward, fix motor inversion before tuning navigation.
+- If `FORWARD` makes one side drive backward and the other side drive forward, flip the command inversion on the wrong physical side first.
 - If `/ugv_nav_status` repeatedly reports encoder sign warnings, navigation stops with an encoder calibration fault.
 - Keep ROS Humble on `numpy==1.26.4`; NumPy 2.x can break `cv_bridge` and Ubuntu `matplotlib` binaries.
 
@@ -121,7 +122,7 @@ source install/setup.bash
 ros2 launch ugv_motor_controller motor_direct_test.launch.py \
   motion:=forward raw:=0.22 duration_s:=0.8 yes:=true \
   port:=/dev/ttyACM0 dry_run:=false \
-  invert_left_command:=true invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true
 ```
 
 Swap `motion:=forward` for `backward`, `turn_left`, `turn_right`,

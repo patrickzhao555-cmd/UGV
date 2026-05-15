@@ -174,7 +174,7 @@ source install/setup.bash
 ros2 launch ugv_motor_controller motor_direct_test.launch.py \
   motion:=forward raw:=0.22 duration_s:=0.8 yes:=true \
   port:=/dev/ttyACM0 dry_run:=false \
-  invert_left_command:=true invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true
 ```
 
 Available motions:
@@ -196,9 +196,9 @@ Raw example:
 
 ```bash
 ros2 launch ugv_motor_controller motor_direct_test.launch.py \
-  motion:=raw raw_left:=0.20 raw_right:=-0.20 duration_s:=0.8 yes:=true \
+  motion:=raw raw_left:=0.20 raw_right:=0.20 duration_s:=0.8 yes:=true \
   port:=/dev/ttyACM0 dry_run:=false \
-  invert_left_command:=true invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true
 ```
 
 Expected checks:
@@ -207,12 +207,13 @@ Expected checks:
 - Forward left/right encoder ticks should have the same sign.
 - Turning left/right encoder ticks should have opposite signs.
 - If physical forward goes backward, flip both command inversion flags together.
-- If physical forward makes one side's encoder ticks decrease, flip that side's encoder inversion flag.
+- If physical forward makes one side drive backward and the other side drive forward, flip the command inversion on the wrong physical side.
+- Only flip encoder inversion after the wheels physically move in the right directions but odometry signs are still wrong.
 
 Current chassis defaults in `jetson_bringup.sh`:
 
 ```bash
-INVERT_LEFT_COMMAND=true
+INVERT_LEFT_COMMAND=false
 INVERT_RIGHT_COMMAND=true
 INVERT_LEFT_ENCODER=false
 INVERT_RIGHT_ENCODER=false

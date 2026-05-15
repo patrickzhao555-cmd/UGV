@@ -517,7 +517,7 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_dry_run', default_value='false'),
         DeclareLaunchArgument('min_motion_raw', default_value='0.22'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
-        DeclareLaunchArgument('invert_right_command', default_value='false'),
+        DeclareLaunchArgument('invert_right_command', default_value='true'),
         DeclareLaunchArgument('invert_left_encoder', default_value='false'),
         DeclareLaunchArgument('invert_right_encoder', default_value='false'),
         sensor_sync_launch,

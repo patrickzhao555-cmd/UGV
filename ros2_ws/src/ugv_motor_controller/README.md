@@ -40,7 +40,7 @@ Standalone bridge:
 ```bash
 ros2 launch ugv_motor_controller motor_controller.launch.py \
   port:=/dev/ttyACM0 baud:=115200 dry_run:=false \
-  invert_left_command:=true invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true
 ```
 
 ## Direct Motor Test
@@ -52,7 +52,7 @@ the same time, because navigation also publishes `/ugv_nav_cmd`.
 ros2 launch ugv_motor_controller motor_direct_test.launch.py \
   motion:=forward raw:=0.22 duration_s:=0.8 yes:=true \
   port:=/dev/ttyACM0 dry_run:=false \
-  invert_left_command:=true invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true
 ```
 
 Available motions:
@@ -63,9 +63,10 @@ left_forward, left_backward, right_forward, right_backward,
 raw, sequence
 ```
 
-If `motion:=forward` physically drives backward, fix command inversion before
-tuning navigation. If physical forward motion makes one side's encoder ticks go
-negative relative to the other side, fix encoder inversion.
+If `motion:=forward` makes one side drive backward and the other side drive
+forward, fix command inversion on the physically wrong side before tuning
+navigation. Only fix encoder inversion after wheel directions are physically
+correct but odometry signs are still wrong.
 
 ## Firmware Protocol
 

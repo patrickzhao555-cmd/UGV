@@ -27,7 +27,7 @@ def generate_launch_description():
         DeclareLaunchArgument('status_period_s', default_value='0.5'),
         DeclareLaunchArgument('dry_run', default_value='false'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
-        DeclareLaunchArgument('invert_right_command', default_value='false'),
+        DeclareLaunchArgument('invert_right_command', default_value='true'),
         DeclareLaunchArgument('invert_left_encoder', default_value='false'),
         DeclareLaunchArgument('invert_right_encoder', default_value='false'),
         Node(

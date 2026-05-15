@@ -8,7 +8,7 @@ field.
 The active development branch for Jetson/Nano testing is:
 
 ```bash
-feature/motor-sync-nav-bringup
+codex/nav2-inspired-mini-controller
 ```
 
 ## Documentation
@@ -42,15 +42,16 @@ Clone if the Nano does not have the repo yet:
 cd ~
 git clone https://github.com/patrickzhao555-cmd/UGV.git ugv_project
 cd ~/ugv_project
-git checkout feature/motor-sync-nav-bringup
+git checkout codex/nav2-inspired-mini-controller
 ```
 
 Pull the latest branch:
 
 ```bash
 cd ~/ugv_project
-git checkout feature/motor-sync-nav-bringup
-git pull --ff-only origin feature/motor-sync-nav-bringup
+git fetch origin
+git checkout codex/nav2-inspired-mini-controller
+git pull --ff-only origin codex/nav2-inspired-mini-controller
 ```
 
 Source and rebuild after pulling:
@@ -345,6 +346,28 @@ Active scan recovery:
   the right side is an open aisle, the robot should scan and retarget instead of
   sitting still or pushing blindly into the chair/table cluster.
 
+Nav2-inspired mini local controller:
+
+- This branch keeps the existing global search, map, target, and marker logic,
+  but replaces the old blocky local motion selection with a continuous velocity
+  controller enabled by default: `NAV_CONTINUOUS_CONTROL_ENABLED=true`.
+- The controller samples forward `(v_mps, omega_radps)` trajectories over about
+  1 second, simulates the 30 inch chassis through the local obstacle field, and
+  scores progress, gap width, obstacle clearance, turning change, and speed
+  smoothness.
+- It builds a local polar gap/costmap view from LiDAR, ZED depth obstacle
+  points, and optional YOLO semantic obstacle points. The old six-sector
+  clearance values are still published for debugging, but they are no longer the
+  normal path-choice mechanism in continuous mode.
+- A collision-monitor layer remains on top: near obstacles cap speed or command
+  `STOP`, while wider local path choice stays with the sampled controller.
+- Reverse motion stays disabled for normal indoor runs. If a route is behind the
+  robot, the controller should turn in place and then drive forward instead of
+  backing up blind with the 180 degree front LiDAR view.
+- Acceleration limits and low-pass smoothing happen at the velocity layer, so
+  the UGV should roll forward and arc around clutter instead of doing
+  `FORWARD/TURN/FORWARD/TURN` action blocks.
+
 Useful depth-filter overrides:
 
 ```bash
@@ -359,6 +382,26 @@ NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
 NAV_ACTIVE_SCAN_STEPS=5
 NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.35
 ```
+
+Useful continuous-controller overrides:
+
+```bash
+NAV_CONTINUOUS_CONTROL_ENABLED=true
+NAV_CONTINUOUS_MAX_SPEED_MPS=0.36
+NAV_CONTINUOUS_MAX_OMEGA_RPS=1.15
+NAV_CONTINUOUS_HORIZON_S=1.10
+NAV_CONTINUOUS_ACCEL_LIMIT_MPS2=0.35
+NAV_CONTINUOUS_OMEGA_ACCEL_LIMIT_RPS2=1.80
+NAV_CONTINUOUS_LOWPASS_ALPHA=0.55
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.35
+NAV_CONTINUOUS_STOP_CLEARANCE_M=0.58
+NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
+```
+
+If a ground test feels too aggressive, first try
+`NAV_CONTINUOUS_MAX_SPEED_MPS=0.28` and
+`NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.50`. If you need to compare against the
+older local planner, launch with `NAV_CONTINUOUS_CONTROL_ENABLED=false`.
 
 ## Real Run Warning
 
@@ -470,6 +513,16 @@ Useful tuning overrides:
 MOTOR_PWM_SLEW_RATE_US_PER_S=2400.0
 MIN_SPEED_MPS=0.178816
 MIN_MOTION_RAW=0.22
+NAV_CONTINUOUS_CONTROL_ENABLED=true
+NAV_CONTINUOUS_MAX_SPEED_MPS=0.36
+NAV_CONTINUOUS_MAX_OMEGA_RPS=1.15
+NAV_CONTINUOUS_HORIZON_S=1.10
+NAV_CONTINUOUS_ACCEL_LIMIT_MPS2=0.35
+NAV_CONTINUOUS_OMEGA_ACCEL_LIMIT_RPS2=1.80
+NAV_CONTINUOUS_LOWPASS_ALPHA=0.55
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.35
+NAV_CONTINUOUS_STOP_CLEARANCE_M=0.58
+NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
 NAV_FRONT_SAFETY_MARGIN_M=0.10
 NAV_REAR_SAFETY_MARGIN_M=0.08
 NAV_LOCAL_PLAN_INFLATION_M=0.08

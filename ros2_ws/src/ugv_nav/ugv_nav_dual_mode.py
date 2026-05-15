@@ -264,6 +264,9 @@ class ControlCommand:
     raw_left: float = 0.0
     raw_right: float = 0.0
     reason: str = ""
+    v_mps: float = 0.0
+    omega_radps: float = 0.0
+    controller: str = "step"
 
     def short_text(self) -> str:
         if self.mode in {"TURN_LEFT", "TURN_RIGHT"}:
@@ -280,6 +283,9 @@ class ControlCommand:
             "raw_left": round(self.raw_left, 3),
             "raw_right": round(self.raw_right, 3),
             "reason": self.reason,
+            "v_mps": round(self.v_mps, 4),
+            "omega_radps": round(self.omega_radps, 4),
+            "controller": self.controller,
         }
 
 
@@ -296,17 +302,26 @@ def scale_control_command(cmd: ControlCommand, scale: float, reason: str, min_mo
         suffix = f"; {reason}"
     raw_left = cmd.raw_left * scale
     raw_right = cmd.raw_right * scale
+    v_mps = cmd.v_mps * scale
+    omega_radps = cmd.omega_radps * scale
     min_raw = max(0.0, float(min_motion_raw))
     if min_raw > 0.0 and cmd.mode in {"FORWARD", "BACKWARD", "TURN_LEFT", "TURN_RIGHT"}:
         before = (raw_left, raw_right)
 
-        def floor_raw(value: float) -> float:
-            if abs(value) < 1e-9:
-                return 0.0
-            return math.copysign(min(1.0, max(abs(value), min_raw)), value)
+        if cmd.controller == "velocity":
+            max_abs = max(abs(raw_left), abs(raw_right))
+            if 1e-9 < max_abs < min_raw:
+                factor = min_raw / max_abs
+                raw_left = clamp(raw_left * factor, -1.0, 1.0)
+                raw_right = clamp(raw_right * factor, -1.0, 1.0)
+        else:
+            def floor_raw(value: float) -> float:
+                if abs(value) < 1e-9:
+                    return 0.0
+                return math.copysign(min(1.0, max(abs(value), min_raw)), value)
 
-        raw_left = floor_raw(raw_left)
-        raw_right = floor_raw(raw_right)
+            raw_left = floor_raw(raw_left)
+            raw_right = floor_raw(raw_right)
         if (raw_left, raw_right) != before:
             suffix += f"; min_motion_raw={min_raw:.2f}"
     return ControlCommand(
@@ -316,6 +331,9 @@ def scale_control_command(cmd: ControlCommand, scale: float, reason: str, min_mo
         raw_left=raw_left,
         raw_right=raw_right,
         reason=f"{cmd.reason}{suffix}",
+        v_mps=v_mps,
+        omega_radps=omega_radps,
+        controller=cmd.controller,
     )
 
 
@@ -400,6 +418,24 @@ class NavConfig:
     active_scan_allow_probe_clear_m: float = 0.95
     active_scan_turn_deg: float = 28.0
     active_scan_steps: int = 5
+    continuous_control_enabled: bool = True
+    continuous_horizon_s: float = 1.10
+    continuous_dt_s: float = 0.10
+    continuous_v_samples: int = 5
+    continuous_omega_samples: int = 13
+    continuous_max_speed_mps: float = 0.36
+    continuous_min_speed_mps: float = 0.05
+    continuous_max_omega_rps: float = 1.15
+    continuous_accel_limit_mps2: float = 0.35
+    continuous_omega_accel_limit_rps2: float = 1.80
+    continuous_lowpass_alpha: float = 0.55
+    continuous_raw_per_mps: float = 1.35
+    continuous_max_raw: float = 0.55
+    continuous_slowdown_clearance_m: float = 1.35
+    continuous_stop_clearance_m: float = 0.58
+    continuous_gap_lookahead_m: float = 1.50
+    continuous_gap_buffer_m: float = 0.05
+    continuous_latency_buffer_s: float = 0.25
     allow_stop_at_goal: bool = True
     nonstop_when_blocked: bool = False
     allow_reverse: bool = False
@@ -1469,6 +1505,364 @@ class LocalPlanner:
         )
 
 
+class VelocityLocalPlanner:
+    """
+    Nav2-inspired local controller for tank drive.
+
+    The global/search logic still provides a waypoint path. This controller keeps
+    the command layer continuous: sample (v, omega), roll each trajectory forward,
+    score it, then apply acceleration limits and low-pass filtering before raw PWM.
+    """
+    def __init__(self, robot_cfg: RobotConfig, nav_cfg: NavConfig, collision_checker: HybridAStarPlanner):
+        self.robot_cfg = robot_cfg
+        self.nav_cfg = nav_cfg
+        self.checker = collision_checker
+        self.last_v = 0.0
+        self.last_omega = 0.0
+        self.last_timestamp: Optional[float] = None
+        self.last_debug: Dict[str, Any] = {"enabled": bool(nav_cfg.continuous_control_enabled)}
+
+    def reset(self) -> None:
+        self.last_v = 0.0
+        self.last_omega = 0.0
+        self.last_timestamp = None
+
+    def _gap_depth_for_heading(self, hits_local: Sequence[Tuple[float, float]], heading: float) -> float:
+        half_width = 0.5 * self.robot_cfg.width_m + self.nav_cfg.continuous_gap_buffer_m
+        max_depth = max(0.45, self.nav_cfg.continuous_gap_lookahead_m)
+        min_forward = 0.5 * self.robot_cfg.length_m + 0.04
+        c = math.cos(heading)
+        s = math.sin(heading)
+        depth = max_depth
+        for hx, hy in hits_local:
+            fx = hx * c + hy * s
+            fy = -hx * s + hy * c
+            if fx < min_forward or fx > max_depth:
+                continue
+            if abs(fy) <= half_width:
+                depth = min(depth, fx)
+        return depth
+
+    def _polar_gap(self, hits_local: Sequence[Tuple[float, float]], desired_heading: float) -> Dict[str, float]:
+        best_heading = 0.0
+        best_depth = 0.0
+        best_score = -1e18
+        headings = [math.radians(v) for v in range(-90, 91, 5)]
+        for heading in headings:
+            depth = self._gap_depth_for_heading(hits_local, heading)
+            alignment = math.cos(wrap_to_pi(heading - desired_heading))
+            center_bias = math.cos(heading)
+            score = depth + 0.22 * alignment + 0.08 * center_bias
+            if score > best_score:
+                best_score = score
+                best_heading = heading
+                best_depth = depth
+        return {
+            "best_heading_rad": best_heading,
+            "best_heading_deg": math.degrees(best_heading),
+            "best_depth_m": best_depth,
+            "front_depth_m": self._gap_depth_for_heading(hits_local, 0.0),
+        }
+
+    def _trajectory_min_clearance(
+        self,
+        local_states: Sequence[Tuple[float, float, float]],
+        hits_local: Sequence[Tuple[float, float]],
+        speed_mps: float,
+    ) -> float:
+        half_l = 0.5 * self.robot_cfg.length_m + self.robot_cfg.obstacle_buffer_m
+        half_w = 0.5 * self.robot_cfg.width_m + self.robot_cfg.obstacle_buffer_m
+        latency_pad = abs(speed_mps) * max(0.0, self.nav_cfg.continuous_latency_buffer_s)
+        half_l += latency_pad
+        best = float('inf')
+        for sx, sy, syaw in local_states:
+            c = math.cos(syaw)
+            s = math.sin(syaw)
+            for hx, hy in hits_local:
+                dx = hx - sx
+                dy = hy - sy
+                bx = dx * c + dy * s
+                by = -dx * s + dy * c
+                if bx < -half_l - 0.15:
+                    continue
+                ox = max(abs(bx) - half_l, 0.0)
+                oy = max(abs(by) - half_w, 0.0)
+                if ox <= 0.0 and oy <= 0.0:
+                    return -0.01
+                best = min(best, math.hypot(ox, oy))
+        return best
+
+    def _simulate(
+        self,
+        pose: Pose2D,
+        v: float,
+        omega: float,
+        horizon_s: float,
+        dt_s: float,
+    ) -> Tuple[Pose2D, List[Tuple[float, float, float]]]:
+        x = pose.x
+        y = pose.y
+        yaw = pose.yaw
+        lx = 0.0
+        ly = 0.0
+        lyaw = 0.0
+        local_states: List[Tuple[float, float, float]] = []
+        steps = max(1, int(math.ceil(horizon_s / max(0.02, dt_s))))
+        step_dt = horizon_s / steps
+        for _ in range(steps):
+            if abs(omega) < 1e-6:
+                x += v * math.cos(yaw) * step_dt
+                y += v * math.sin(yaw) * step_dt
+                lx += v * math.cos(lyaw) * step_dt
+                ly += v * math.sin(lyaw) * step_dt
+            else:
+                yaw_mid = yaw + 0.5 * omega * step_dt
+                lyaw_mid = lyaw + 0.5 * omega * step_dt
+                x += v * math.cos(yaw_mid) * step_dt
+                y += v * math.sin(yaw_mid) * step_dt
+                lx += v * math.cos(lyaw_mid) * step_dt
+                ly += v * math.sin(lyaw_mid) * step_dt
+            yaw = wrap_to_pi(yaw + omega * step_dt)
+            lyaw = wrap_to_pi(lyaw + omega * step_dt)
+            local_states.append((lx, ly, lyaw))
+        return Pose2D(x, y, yaw), local_states
+
+    def _speed_cap_from_clearance(self, front_clearance_m: float) -> Tuple[float, str]:
+        stop = max(
+            self.nav_cfg.continuous_stop_clearance_m,
+            0.5 * self.robot_cfg.length_m + self.nav_cfg.front_safety_margin_m + 0.05,
+        )
+        slowdown = max(stop + 0.20, self.nav_cfg.continuous_slowdown_clearance_m)
+        if not math.isfinite(front_clearance_m):
+            return self.nav_cfg.continuous_max_speed_mps, "clear"
+        if front_clearance_m <= stop:
+            return 0.0, "stop"
+        if front_clearance_m >= slowdown:
+            return self.nav_cfg.continuous_max_speed_mps, "clear"
+        ratio = (front_clearance_m - stop) / max(1e-6, slowdown - stop)
+        return self.nav_cfg.continuous_max_speed_mps * clamp(ratio, 0.0, 1.0), "slow"
+
+    def _sample_velocities(self, speed_cap_mps: float) -> Tuple[List[float], List[float]]:
+        max_v = max(0.0, min(self.nav_cfg.continuous_max_speed_mps, speed_cap_mps))
+        v_samples = [0.0]
+        if max_v >= self.nav_cfg.continuous_min_speed_mps:
+            count = max(2, int(self.nav_cfg.continuous_v_samples))
+            vals = np.linspace(self.nav_cfg.continuous_min_speed_mps, max_v, count).tolist()
+            v_samples.extend(float(v) for v in vals)
+        omega_count = max(3, int(self.nav_cfg.continuous_omega_samples))
+        max_omega = max(0.15, self.nav_cfg.continuous_max_omega_rps)
+        omega_samples = [float(w) for w in np.linspace(-max_omega, max_omega, omega_count)]
+        if 0.0 not in omega_samples:
+            omega_samples.append(0.0)
+        omega_samples = sorted(set(round(w, 6) for w in omega_samples))
+        return v_samples, omega_samples
+
+    def _apply_velocity_limits(self, target_v: float, target_omega: float, timestamp: float, immediate_stop: bool = False) -> Tuple[float, float]:
+        if immediate_stop:
+            self.last_v = 0.0
+            self.last_omega = 0.0
+            self.last_timestamp = timestamp
+            return 0.0, 0.0
+
+        dt = 0.10 if self.last_timestamp is None else clamp(timestamp - self.last_timestamp, 0.02, 0.25)
+        self.last_timestamp = timestamp
+        dv = clamp(
+            target_v - self.last_v,
+            -self.nav_cfg.continuous_accel_limit_mps2 * dt,
+            self.nav_cfg.continuous_accel_limit_mps2 * dt,
+        )
+        domega = clamp(
+            target_omega - self.last_omega,
+            -self.nav_cfg.continuous_omega_accel_limit_rps2 * dt,
+            self.nav_cfg.continuous_omega_accel_limit_rps2 * dt,
+        )
+        limited_v = self.last_v + dv
+        limited_omega = self.last_omega + domega
+        alpha = clamp(self.nav_cfg.continuous_lowpass_alpha, 0.0, 1.0)
+        smooth_v = (1.0 - alpha) * self.last_v + alpha * limited_v
+        smooth_omega = (1.0 - alpha) * self.last_omega + alpha * limited_omega
+        if target_v <= 1e-6 and abs(target_omega) <= 1e-6:
+            smooth_v = 0.0
+            smooth_omega = 0.0
+        if smooth_v > 0.005:
+            # Forward arcs should not quietly become a pivot with one side reversing.
+            max_arc_omega = max(0.02, 1.85 * smooth_v / max(1e-6, self.robot_cfg.track_width_m))
+            smooth_omega = clamp(smooth_omega, -max_arc_omega, max_arc_omega)
+        self.last_v = smooth_v
+        self.last_omega = smooth_omega
+        return smooth_v, smooth_omega
+
+    def _velocity_to_command(
+        self,
+        v: float,
+        omega: float,
+        reason: str,
+        horizon_s: float,
+    ) -> ControlCommand:
+        left_mps = v - 0.5 * omega * self.robot_cfg.track_width_m
+        right_mps = v + 0.5 * omega * self.robot_cfg.track_width_m
+        raw_left = clamp(left_mps * self.nav_cfg.continuous_raw_per_mps, -self.nav_cfg.continuous_max_raw, self.nav_cfg.continuous_max_raw)
+        raw_right = clamp(right_mps * self.nav_cfg.continuous_raw_per_mps, -self.nav_cfg.continuous_max_raw, self.nav_cfg.continuous_max_raw)
+        if abs(raw_left) < 1e-4:
+            raw_left = 0.0
+        if abs(raw_right) < 1e-4:
+            raw_right = 0.0
+        if abs(v) < 0.025 and abs(omega) < 0.05:
+            mode = "STOP"
+        elif abs(v) < 0.04:
+            mode = "TURN_LEFT" if omega > 0.0 else "TURN_RIGHT"
+        elif v >= 0.0:
+            mode = "FORWARD"
+        else:
+            mode = "BACKWARD"
+        display_dt = min(0.20, max(0.05, self.nav_cfg.continuous_dt_s))
+        return ControlCommand(
+            mode,
+            turn_deg=abs(math.degrees(omega * display_dt)),
+            move_m=abs(v * display_dt),
+            raw_left=raw_left,
+            raw_right=raw_right,
+            reason=reason,
+            v_mps=v,
+            omega_radps=omega,
+            controller="velocity",
+        )
+
+    def choose_command(
+        self,
+        pose: Pose2D,
+        target: Pose2D,
+        goal: Pose2D,
+        costmap: Costmap2D,
+        sectors: SectorSnapshot,
+        prev_cmd: ControlCommand,
+        hits_local: Sequence[Tuple[float, float]],
+        timestamp: float,
+    ) -> ControlCommand:
+        goal_dist = math.hypot(goal.x - pose.x, goal.y - pose.y)
+        if goal_dist <= self.nav_cfg.goal_tol_m:
+            cmd = self._velocity_to_command(0.0, 0.0, "goal reached", self.nav_cfg.continuous_horizon_s)
+            self.last_debug = {"enabled": True, "safety_state": "goal", "samples": 0, "safe_samples": 0}
+            return cmd
+
+        desired_heading = wrap_to_pi(math.atan2(target.y - pose.y, target.x - pose.x) - pose.yaw)
+        gap = self._polar_gap(hits_local, desired_heading)
+        front_clearance = min(
+            sectors.front_m,
+            gap.get("front_depth_m", float('inf')),
+        )
+        speed_cap, safety_state = self._speed_cap_from_clearance(front_clearance)
+        v_samples, omega_samples = self._sample_velocities(speed_cap)
+
+        samples = 0
+        safe_samples = 0
+        best_score = -1e18
+        best: Optional[Tuple[float, float, Pose2D, float]] = None
+        target_before = math.hypot(target.x - pose.x, target.y - pose.y)
+        horizon = clamp(self.nav_cfg.continuous_horizon_s, 0.4, 2.0)
+        dt = clamp(self.nav_cfg.continuous_dt_s, 0.04, 0.25)
+        max_v = max(1e-6, self.nav_cfg.continuous_max_speed_mps)
+
+        for v in v_samples:
+            for omega in omega_samples:
+                samples += 1
+                left_mps = v - 0.5 * omega * self.robot_cfg.track_width_m
+                right_mps = v + 0.5 * omega * self.robot_cfg.track_width_m
+                if v > 0.005 and (left_mps < -1e-6 or right_mps < -1e-6):
+                    continue
+                if not self.nav_cfg.allow_reverse and v < -1e-6:
+                    continue
+                end, local_states = self._simulate(pose, v, omega, horizon, dt)
+                if self.checker._segment_in_collision(costmap, pose, end):
+                    continue
+                local_clearance = self._trajectory_min_clearance(local_states, hits_local, v)
+                if local_clearance < -0.005:
+                    continue
+                safe_samples += 1
+
+                target_after = math.hypot(target.x - end.x, target.y - end.y)
+                progress = target_before - target_after
+                goal_after = math.hypot(goal.x - end.x, goal.y - end.y)
+                end_desired = math.atan2(target.y - end.y, target.x - end.x)
+                heading_err = abs(wrap_to_pi(end_desired - end.yaw))
+                projected_turn = omega * min(horizon, 0.8)
+                gap_alignment = math.cos(wrap_to_pi(gap["best_heading_rad"] - projected_turn))
+                clearance_score = clamp(local_clearance / 0.80, 0.0, 1.5)
+
+                score = 4.8 * progress
+                score -= 1.15 * heading_err
+                score -= 0.035 * goal_after
+                score += 0.70 * clearance_score
+                score += 0.35 * (v / max_v)
+                score += 0.22 * gap_alignment
+                score -= 0.46 * abs(v - self.last_v)
+                score -= 0.16 * abs(omega - self.last_omega)
+                score -= 0.04 * abs(omega)
+                if abs(desired_heading) < math.radians(18.0) and v > 0.0 and abs(omega) < 0.35:
+                    score += 0.28
+                if safety_state == "stop" and v > 0.0:
+                    score -= 3.0
+                if v <= 1e-6 and abs(omega) <= 1e-6 and goal_dist > self.nav_cfg.goal_tol_m:
+                    score -= 0.75
+
+                if score > best_score:
+                    best_score = score
+                    best = (v, omega, end, local_clearance)
+
+        if best is None:
+            v, omega = self._apply_velocity_limits(0.0, 0.0, timestamp, immediate_stop=True)
+            self.last_debug = {
+                "enabled": True,
+                "samples": samples,
+                "safe_samples": safe_samples,
+                "selected_v_mps": round(v, 4),
+                "selected_omega_radps": round(omega, 4),
+                "best_score": None,
+                "min_clearance_m": None,
+                "front_clearance_m": None if math.isinf(front_clearance) else round(front_clearance, 3),
+                "front_speed_cap_mps": round(speed_cap, 4),
+                "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
+                "best_gap_depth_m": round(gap["best_depth_m"], 3),
+                "safety_state": "no_safe_trajectory",
+            }
+            return self._velocity_to_command(v, omega, "velocity no safe trajectory", horizon)
+
+        target_v, target_omega, _, min_clearance = best
+        immediate_stop = safety_state == "stop" and abs(target_omega) < 1e-6 and target_v <= 1e-6
+        v, omega = self._apply_velocity_limits(target_v, target_omega, timestamp, immediate_stop=immediate_stop)
+        cmd = self._velocity_to_command(
+            v,
+            omega,
+            (
+                f"velocity dwa; samples={safe_samples}/{samples} "
+                f"gap={gap['best_heading_deg']:.0f}deg clear={min_clearance:.2f}m "
+                f"state={safety_state}"
+            ),
+            horizon,
+        )
+        self.last_debug = {
+            "enabled": True,
+            "samples": samples,
+            "safe_samples": safe_samples,
+            "target_v_mps": round(target_v, 4),
+            "target_omega_radps": round(target_omega, 4),
+            "selected_v_mps": round(v, 4),
+            "selected_omega_radps": round(omega, 4),
+            "raw_left": round(cmd.raw_left, 3),
+            "raw_right": round(cmd.raw_right, 3),
+            "best_score": round(best_score, 3),
+            "min_clearance_m": round(min_clearance, 3),
+            "front_clearance_m": None if math.isinf(front_clearance) else round(front_clearance, 3),
+            "front_speed_cap_mps": round(speed_cap, 4),
+            "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
+            "best_gap_depth_m": round(gap["best_depth_m"], 3),
+            "safety_state": safety_state,
+            "prev_v_mps": round(self.last_v, 4),
+            "prev_omega_radps": round(self.last_omega, 4),
+        }
+        return cmd
+
+
 # =========================================================
 # Virtual world
 # =========================================================
@@ -1568,13 +1962,29 @@ class SimulatedRobot:
         revs = meters / (2.0 * math.pi * self.robot_cfg.wheel_radius_m)
         return int(round(revs * self.robot_cfg.ticks_per_rev))
 
-    def apply_command(self, cmd: ControlCommand, world: VirtualWorld, planner: HybridAStarPlanner) -> None:
+    def apply_command(self, cmd: ControlCommand, world: VirtualWorld, planner: HybridAStarPlanner, duration_s: float = 0.10) -> None:
         pose = self.state.true_pose
         new_pose = pose
         left_move = 0.0
         right_move = 0.0
 
-        if cmd.mode == "TURN_LEFT":
+        if cmd.controller == "velocity":
+            v = float(cmd.v_mps)
+            omega = float(cmd.omega_radps)
+            dt = max(0.0, float(duration_s))
+            if abs(v) > 1e-6 or abs(omega) > 1e-6:
+                mid = pose.yaw + 0.5 * omega * dt
+                new_pose = Pose2D(
+                    pose.x + v * math.cos(mid) * dt,
+                    pose.y + v * math.sin(mid) * dt,
+                    wrap_to_pi(pose.yaw + omega * dt),
+                )
+                if world.segment_collides(pose, new_pose, planner):
+                    new_pose = pose
+                else:
+                    left_move = (v - 0.5 * omega * self.robot_cfg.track_width_m) * dt
+                    right_move = (v + 0.5 * omega * self.robot_cfg.track_width_m) * dt
+        elif cmd.mode == "TURN_LEFT":
             ang = math.radians(abs(cmd.turn_deg))
             new_pose = Pose2D(pose.x, pose.y, wrap_to_pi(pose.yaw + ang))
             arc = ang * self.robot_cfg.track_width_m / 2.0
@@ -2075,6 +2485,8 @@ class UGVNavigator:
             max_nodes=50000,
         )
         self.local_planner = LocalPlanner(robot_cfg, nav_cfg, self.hybrid_fallback)
+        self.velocity_planner = VelocityLocalPlanner(robot_cfg, nav_cfg, self.hybrid_fallback)
+        self.velocity_debug: Dict[str, Any] = {"enabled": bool(nav_cfg.continuous_control_enabled)}
         self.blocked_memory = BlockedPatchMemory()
         self.state = NavigatorState(init_pose, init_goal)
         self._last_left: Optional[int] = None
@@ -2150,11 +2562,21 @@ class UGVNavigator:
         self._last_odom_timestamp = packet.timestamp
         warning = None
         ds_for_pose = ds
-        prev_cmd_mode = self.state.latest_cmd.mode
-        if prev_cmd_mode in {'TURN_LEFT', 'TURN_RIGHT'} and abs(ds) > 0.035:
+        prev_cmd = self.state.latest_cmd
+        prev_cmd_mode = prev_cmd.mode
+        prev_velocity = prev_cmd.controller == "velocity"
+        if (
+            prev_cmd_mode in {'TURN_LEFT', 'TURN_RIGHT'}
+            and abs(ds) > 0.035
+            and not (prev_velocity and abs(prev_cmd.v_mps) > 0.025)
+        ):
             warning = 'turn_command_has_linear_odom_check_encoder_inversion'
             ds_for_pose = 0.0
-        elif prev_cmd_mode in {'FORWARD', 'BACKWARD'} and dleft_ticks * dright_ticks < 0:
+        elif (
+            prev_cmd_mode in {'FORWARD', 'BACKWARD'}
+            and dleft_ticks * dright_ticks < 0
+            and not (prev_velocity and prev_cmd.raw_left * prev_cmd.raw_right < 0.0)
+        ):
             warning = 'forward_command_has_opposite_encoder_signs'
             ds_for_pose = 0.0
             dtheta = 0.0
@@ -2410,7 +2832,13 @@ class UGVNavigator:
             cells = max(1, int(math.ceil(self.nav_cfg.local_plan_inflation_m / src.spec.resolution)))
             inflated = self._inflate_binary_grid(work.data, cells)
             work = Costmap2D(src.spec, inflated)
-        clear_r = max(0.50, 0.5 * math.hypot(self.robot_cfg.length_m, self.robot_cfg.width_m) + 0.08)
+        clear_r = max(
+            0.65,
+            0.5 * math.hypot(self.robot_cfg.length_m, self.robot_cfg.width_m)
+            + self.nav_cfg.local_plan_inflation_m
+            + self.robot_cfg.obstacle_buffer_m
+            + 0.12,
+        )
         work.clear_disk_world(self.state.estimated_pose.x, self.state.estimated_pose.y, clear_r)
         return work
 
@@ -2575,6 +3003,7 @@ class UGVNavigator:
         self._escape_queue = []
         self.state.path = []
         self.state.path_idx = 0
+        self.velocity_planner.reset()
 
     def _active_scan_command(self, local_map: Costmap2D) -> ControlCommand:
         turn_deg = max(8.0, float(self.nav_cfg.active_scan_turn_deg))
@@ -2664,10 +3093,21 @@ class UGVNavigator:
             self.state.latest_cmd = cmd
             return cmd
 
-        last_cmd_mode = self.state.latest_cmd.mode
-        if last_cmd_mode in {'FORWARD', 'BACKWARD'} and moved_m < self.nav_cfg.stuck_pose_epsilon_m:
+        last_cmd = self.state.latest_cmd
+        last_cmd_mode = last_cmd.mode
+        stuck_eps = self.nav_cfg.stuck_pose_epsilon_m
+        commanded_meaningful_forward = (
+            last_cmd_mode in {'FORWARD', 'BACKWARD'}
+            and not (last_cmd.controller == "velocity" and abs(last_cmd.v_mps) < 0.07)
+        )
+        if last_cmd.controller == "velocity":
+            odom_dt = float(self.last_odom_delta.get("dt_s") or 0.10)
+            expected_move = abs(last_cmd.v_mps) * clamp(odom_dt, 0.05, 0.25)
+            commanded_meaningful_forward = last_cmd_mode in {'FORWARD', 'BACKWARD'} and expected_move >= 0.010
+            stuck_eps = max(0.004, min(stuck_eps, expected_move * 0.35))
+        if commanded_meaningful_forward and moved_m < stuck_eps:
             self._stuck_counter += 1
-        elif moved_m >= self.nav_cfg.stuck_pose_epsilon_m:
+        elif moved_m >= stuck_eps:
             self._stuck_counter = 0
 
         self._integrate_lidar_freespace(frame.lidar)
@@ -2677,7 +3117,8 @@ class UGVNavigator:
         added += self._integrate_hits_into_map(lidar_hits_for_map, connect_adjacent=True, solidify_clusters=False)
         added += self._integrate_hits_into_map(frame.zed.hit_points_local, connect_adjacent=False, solidify_clusters=True)
         self.state.discovered_points += added
-        self.state.sectors = self.local_planner.build_sector_snapshot(lidar_hits_local + frame.zed.hit_points_local)
+        local_obstacle_hits = lidar_hits_local + list(frame.zed.hit_points_local)
+        self.state.sectors = self.local_planner.build_sector_snapshot(local_obstacle_hits)
         front_depth_blocked = self._front_depth_corridor_blocked(frame.zed.hit_points_local)
         front_evidence = (
             self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
@@ -2693,7 +3134,12 @@ class UGVNavigator:
         else:
             self._front_blocked_evidence_counter = max(0, self._front_blocked_evidence_counter - 1)
 
-        if self._stuck_counter >= self.nav_cfg.stuck_trigger_steps:
+        stuck_trigger_steps = self.nav_cfg.stuck_trigger_steps
+        if last_cmd.controller == "velocity":
+            # Continuous velocity control moves in short integration slices; give
+            # encoder quantization and low-speed arcs time before declaring stuck.
+            stuck_trigger_steps = max(stuck_trigger_steps, 12)
+        if self._stuck_counter >= stuck_trigger_steps:
             self._add_blocked_patch_ahead(reverse=(last_cmd_mode == 'BACKWARD'))
             if self.nav_cfg.active_scan_enabled:
                 self._start_active_scan(self.state.sectors, 'stuck after forward probe')
@@ -2763,7 +3209,11 @@ class UGVNavigator:
                 or self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
             )
         )
-        if self.nav_cfg.active_scan_enabled and (confirmed_front_blocked or confirmed_plan_failed):
+        if (
+            self.nav_cfg.active_scan_enabled
+            and not self.nav_cfg.continuous_control_enabled
+            and (confirmed_front_blocked or confirmed_plan_failed)
+        ):
             reason_parts = []
             if confirmed_front_blocked:
                 reason_parts.append('confirmed front blocked')
@@ -2784,6 +3234,44 @@ class UGVNavigator:
             target = self.state.goal_pose
             self.state.path = []
             self.state.path_idx = 0
+
+        if self.nav_cfg.continuous_control_enabled:
+            cmd = self.velocity_planner.choose_command(
+                self.state.estimated_pose,
+                target,
+                self.state.goal_pose,
+                local_map,
+                self.state.sectors,
+                self.state.latest_cmd,
+                local_obstacle_hits,
+                frame.encoder.timestamp,
+            )
+            self.velocity_debug = dict(self.velocity_planner.last_debug)
+            no_safe = self.velocity_debug.get("safety_state") == "no_safe_trajectory"
+            if no_safe and self.nav_cfg.active_scan_enabled:
+                self._start_active_scan(self.state.sectors, "continuous controller found no safe trajectory")
+                scan_cmd = self._active_scan_command(local_map)
+                self.state.latest_cmd = scan_cmd
+                self.velocity_debug["active_scan_requested"] = True
+                return scan_cmd
+            if cmd.mode in {'FORWARD', 'BACKWARD'} and not self.local_planner._safe_on_costmap(local_map, self.state.estimated_pose, cmd):
+                self._add_blocked_patch_ahead(reverse=(cmd.mode == 'BACKWARD'))
+                self.state.path = []
+                self.state.path_idx = 0
+                self._maybe_replan(frame.encoder.timestamp, force=True)
+                cmd = self.velocity_planner.choose_command(
+                    self.state.estimated_pose,
+                    target,
+                    self.state.goal_pose,
+                    self._local_safety_costmap(),
+                    self.state.sectors,
+                    self.state.latest_cmd,
+                    local_obstacle_hits,
+                    frame.encoder.timestamp,
+                )
+                self.velocity_debug = dict(self.velocity_planner.last_debug)
+            self.state.latest_cmd = cmd
+            return cmd
 
         cmd = self.local_planner.choose_command(
             self.state.estimated_pose,
@@ -3308,7 +3796,7 @@ def run_simulation(show_gui: bool = True, max_steps: int = 900) -> dict:
         frame = sensors.read(robot.state, (goal.x, goal.y), ts)
         cmd = navigator.step(frame)
         print(f"SIM CMD step={step_i_local:03d}: {json.dumps(cmd.as_dict())}")
-        robot.apply_command(cmd, world, control_planner)
+        robot.apply_command(cmd, world, control_planner, sim_cfg.dt_s)
         true_trail.append((robot.state.true_pose.x, robot.state.true_pose.y))
         est = navigator.state.estimated_pose
         est_trail.append((est.x, est.y))
@@ -3391,6 +3879,7 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
         "path_points": len(navigator.state.path),
         "path_idx": navigator.state.path_idx,
         "active_scan": navigator.active_scan_status(),
+        "velocity_control": navigator.velocity_debug,
         "sectors_m": {
             "front": None if math.isinf(navigator.state.sectors.front_m) else round(navigator.state.sectors.front_m, 3),
             "front_left": None if math.isinf(navigator.state.sectors.front_left_m) else round(navigator.state.sectors.front_left_m, 3),
@@ -3455,6 +3944,17 @@ def run_real_mode(
     active_scan_confirm_steps: int = 4,
     active_scan_steps: int = 5,
     active_scan_front_clear_m: float = 1.35,
+    continuous_control_enabled: bool = True,
+    continuous_max_speed_mps: float = 0.36,
+    continuous_max_omega_rps: float = 1.15,
+    continuous_horizon_s: float = 1.10,
+    continuous_accel_limit_mps2: float = 0.35,
+    continuous_omega_accel_limit_rps2: float = 1.80,
+    continuous_lowpass_alpha: float = 0.55,
+    continuous_raw_per_mps: float = 1.35,
+    continuous_slowdown_clearance_m: float = 1.35,
+    continuous_stop_clearance_m: float = 0.58,
+    continuous_latency_buffer_s: float = 0.25,
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
     competition_mode = mission_mode == "round3"
@@ -3482,6 +3982,17 @@ def run_real_mode(
     nav_cfg.active_scan_confirm_steps = max(1, int(active_scan_confirm_steps))
     nav_cfg.active_scan_steps = max(1, int(active_scan_steps))
     nav_cfg.active_scan_front_clear_m = clamp(float(active_scan_front_clear_m), 0.50, 3.0)
+    nav_cfg.continuous_control_enabled = bool(continuous_control_enabled)
+    nav_cfg.continuous_max_speed_mps = clamp(float(continuous_max_speed_mps), 0.05, 1.0)
+    nav_cfg.continuous_max_omega_rps = clamp(float(continuous_max_omega_rps), 0.20, 3.0)
+    nav_cfg.continuous_horizon_s = clamp(float(continuous_horizon_s), 0.40, 2.0)
+    nav_cfg.continuous_accel_limit_mps2 = clamp(float(continuous_accel_limit_mps2), 0.05, 2.0)
+    nav_cfg.continuous_omega_accel_limit_rps2 = clamp(float(continuous_omega_accel_limit_rps2), 0.20, 5.0)
+    nav_cfg.continuous_lowpass_alpha = clamp(float(continuous_lowpass_alpha), 0.05, 1.0)
+    nav_cfg.continuous_raw_per_mps = clamp(float(continuous_raw_per_mps), 0.20, 4.0)
+    nav_cfg.continuous_slowdown_clearance_m = clamp(float(continuous_slowdown_clearance_m), 0.50, 3.0)
+    nav_cfg.continuous_stop_clearance_m = clamp(float(continuous_stop_clearance_m), 0.30, 1.50)
+    nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
     drive_speed_level = normalize_drive_speed_level(drive_speed_level)
     drive_factor = drive_speed_factor(drive_speed_level)
     field_w_m = yd(15.0)
@@ -3555,7 +4066,11 @@ def run_real_mode(
         f"robot=({robot_cfg.length_m:.2f}m x {robot_cfg.width_m:.2f}m), "
         f"lidar_offset=({robot_cfg.lidar_offset_x_m:.2f}, {robot_cfg.lidar_offset_y_m:.2f})m, "
         f"lidar_fov={nav_cfg.lidar_used_fov_deg:.0f}deg, allow_reverse={nav_cfg.allow_reverse}, "
-        f"active_scan={nav_cfg.active_scan_enabled}"
+        f"active_scan={nav_cfg.active_scan_enabled}, "
+        f"continuous_control={nav_cfg.continuous_control_enabled} "
+        f"(vmax={nav_cfg.continuous_max_speed_mps:.2f}m/s, "
+        f"omax={nav_cfg.continuous_max_omega_rps:.2f}rad/s, "
+        f"horizon={nav_cfg.continuous_horizon_s:.2f}s)"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
     print("  /sensors/nav_frame    ugv_sensor_sync/msg/NavSensorFrame")
@@ -3652,6 +4167,17 @@ def main() -> None:
     parser.add_argument("--active-scan-confirm-steps", type=int, default=4, help="consecutive constrained frames before active scan can interrupt forward probing")
     parser.add_argument("--active-scan-steps", type=int, default=5, help="number of turn commands used for each active scan burst")
     parser.add_argument("--active-scan-front-clear-m", type=float, default=1.35, help="front clearance below which repeated depth/costmap evidence can trigger active scan")
+    parser.add_argument("--continuous-control-enabled", type=str_to_bool, default=True, help="use the Nav2-inspired DWA/RPP velocity controller instead of the legacy action-block local planner")
+    parser.add_argument("--continuous-max-speed-mps", type=float, default=0.36, help="max forward speed used by the continuous local controller before drive-speed-level scaling")
+    parser.add_argument("--continuous-max-omega-rps", type=float, default=1.15, help="max yaw rate used by the continuous local controller")
+    parser.add_argument("--continuous-horizon-s", type=float, default=1.10, help="DWA rollout horizon in seconds")
+    parser.add_argument("--continuous-accel-limit-mps2", type=float, default=0.35, help="linear acceleration limit in the velocity layer")
+    parser.add_argument("--continuous-omega-accel-limit-rps2", type=float, default=1.80, help="angular acceleration limit in the velocity layer")
+    parser.add_argument("--continuous-lowpass-alpha", type=float, default=0.55, help="velocity low-pass blend after acceleration limiting")
+    parser.add_argument("--continuous-raw-per-mps", type=float, default=1.35, help="tank wheel m/s to raw command conversion gain")
+    parser.add_argument("--continuous-slowdown-clearance-m", type=float, default=1.35, help="front clearance where Collision Monitor starts capping speed")
+    parser.add_argument("--continuous-stop-clearance-m", type=float, default=0.58, help="front clearance where Collision Monitor commands zero linear speed")
+    parser.add_argument("--continuous-latency-buffer-s", type=float, default=0.25, help="extra obstacle padding equal to speed times this latency allowance")
     args = parser.parse_args()
 
     if args.mode == "sim":
@@ -3694,6 +4220,17 @@ def main() -> None:
             active_scan_confirm_steps=args.active_scan_confirm_steps,
             active_scan_steps=args.active_scan_steps,
             active_scan_front_clear_m=args.active_scan_front_clear_m,
+            continuous_control_enabled=args.continuous_control_enabled,
+            continuous_max_speed_mps=args.continuous_max_speed_mps,
+            continuous_max_omega_rps=args.continuous_max_omega_rps,
+            continuous_horizon_s=args.continuous_horizon_s,
+            continuous_accel_limit_mps2=args.continuous_accel_limit_mps2,
+            continuous_omega_accel_limit_rps2=args.continuous_omega_accel_limit_rps2,
+            continuous_lowpass_alpha=args.continuous_lowpass_alpha,
+            continuous_raw_per_mps=args.continuous_raw_per_mps,
+            continuous_slowdown_clearance_m=args.continuous_slowdown_clearance_m,
+            continuous_stop_clearance_m=args.continuous_stop_clearance_m,
+            continuous_latency_buffer_s=args.continuous_latency_buffer_s,
         )
 
 

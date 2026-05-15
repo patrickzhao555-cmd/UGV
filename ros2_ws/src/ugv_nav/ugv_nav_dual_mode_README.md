@@ -13,7 +13,8 @@ This script is a bridge between a pure simulation and a real UGV pipeline.
 - `--mode real`
   - No GUI
   - Reads the pathing-ready sensor frame from `ugv_sensor_sync`
-  - Computes path and outputs commands like `FORWARD`, `TURN_LEFT`, `TURN_RIGHT`, `BACKWARD`, `STOP`
+  - Computes path and outputs velocity-layer commands that are converted to tank-drive raw motor values
+  - Can fall back to legacy commands like `FORWARD`, `TURN_LEFT`, `TURN_RIGHT`, `BACKWARD`, `STOP`
 
 ## Expected real topics
 
@@ -70,6 +71,44 @@ ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 bash jetson_bringup.sh
 ```
 
 Indoor mode keeps ZED/marker vision on by default, starts from an internal room-center pose, ignores rear LiDAR returns, and chooses short forward/turn search goals instead of driving to the round3 field center. Defaults assume a 30 inch by 30 inch UGV, front-mounted LiDAR, `LIDAR_USED_FOV_DEG=180`, `LIDAR_OFFSET_X_M=0.30`, and `NAV_ALLOW_REVERSE=false`.
+
+Continuous local control is enabled by default on the
+`codex/nav2-inspired-mini-controller` branch:
+
+```bash
+NAV_CONTINUOUS_CONTROL_ENABLED=true bash jetson_bringup.sh
+```
+
+Instead of choosing one discrete action block at a time, the controller samples
+forward `(v_mps, omega_radps)` trajectories, simulates the robot over a short
+horizon, scores progress, gap width, obstacle clearance, turning change, and
+speed smoothness, then converts the selected velocity to left/right raw tank
+commands. Acceleration limits and low-pass filtering live at the velocity layer,
+so normal motion should be rolling arcs and smooth turns rather than repeated
+stop-start blocks.
+
+The controller uses a local polar gap/costmap view from LiDAR, ZED depth
+obstacle points, and optional YOLO semantic points. A collision-monitor layer
+still slows or stops the robot near obstacles, but ordinary path choice is made
+by the sampled trajectories. Reverse motion is still disabled for indoor runs;
+routes behind the robot are handled by turning in place and driving forward.
+
+Useful overrides:
+
+```bash
+NAV_CONTINUOUS_MAX_SPEED_MPS=0.36
+NAV_CONTINUOUS_MAX_OMEGA_RPS=1.15
+NAV_CONTINUOUS_HORIZON_S=1.10
+NAV_CONTINUOUS_ACCEL_LIMIT_MPS2=0.35
+NAV_CONTINUOUS_OMEGA_ACCEL_LIMIT_RPS2=1.80
+NAV_CONTINUOUS_LOWPASS_ALPHA=0.55
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.35
+NAV_CONTINUOUS_STOP_CLEARANCE_M=0.58
+NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
+```
+
+Use `NAV_CONTINUOUS_CONTROL_ENABLED=false` to compare against the old local
+planner without changing the rest of the stack.
 
 Generic marker detection is off by default because classroom objects can look marker-like. Re-enable it only for controlled marker tests:
 
@@ -132,3 +171,8 @@ The live planning map is currently obstacle-focused: LiDAR and ZED/YOLO points
 add obstacles, and indoor mode tracks coarse visited cells. Camera-FOV coverage
 is visualized by `START_DEBUG_DASHBOARD=true`, but it is not yet a hard planner
 objective.
+
+Continuous-controller debug fields are published under `velocity_control` in
+`/ugv_nav_status`. They include the chosen `v/omega`, safe sample count,
+front-clearance speed cap, selected gap heading/depth, and collision-monitor
+state.

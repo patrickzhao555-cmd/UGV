@@ -94,6 +94,7 @@ stream. If YOLO misses an object, LiDAR/ZED depth still provide the safety layer
 - local LiDAR points, the configured front LiDAR FOV, fused ZED/YOLO obstacle points, and the robot footprint
 - a session map with pose trace, LiDAR hit cells, and camera-searched cells
 - navigation command, reason, pose, clearance, sensor age, YOLO status, marker status, and odometry warnings
+- continuous-controller details such as selected `v/omega`, safe trajectory samples, gap heading, and collision-monitor state
 
 Run it through the main launcher:
 

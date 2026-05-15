@@ -148,6 +148,17 @@ def generate_launch_description():
     active_scan_confirm_steps = LaunchConfiguration('active_scan_confirm_steps')
     active_scan_steps = LaunchConfiguration('active_scan_steps')
     active_scan_front_clear_m = LaunchConfiguration('active_scan_front_clear_m')
+    continuous_control_enabled = LaunchConfiguration('continuous_control_enabled')
+    continuous_max_speed_mps = LaunchConfiguration('continuous_max_speed_mps')
+    continuous_max_omega_rps = LaunchConfiguration('continuous_max_omega_rps')
+    continuous_horizon_s = LaunchConfiguration('continuous_horizon_s')
+    continuous_accel_limit_mps2 = LaunchConfiguration('continuous_accel_limit_mps2')
+    continuous_omega_accel_limit_rps2 = LaunchConfiguration('continuous_omega_accel_limit_rps2')
+    continuous_lowpass_alpha = LaunchConfiguration('continuous_lowpass_alpha')
+    continuous_raw_per_mps = LaunchConfiguration('continuous_raw_per_mps')
+    continuous_slowdown_clearance_m = LaunchConfiguration('continuous_slowdown_clearance_m')
+    continuous_stop_clearance_m = LaunchConfiguration('continuous_stop_clearance_m')
+    continuous_latency_buffer_s = LaunchConfiguration('continuous_latency_buffer_s')
 
     sensor_sync_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -270,6 +281,28 @@ def generate_launch_description():
             active_scan_steps,
             '--active-scan-front-clear-m',
             active_scan_front_clear_m,
+            '--continuous-control-enabled',
+            continuous_control_enabled,
+            '--continuous-max-speed-mps',
+            continuous_max_speed_mps,
+            '--continuous-max-omega-rps',
+            continuous_max_omega_rps,
+            '--continuous-horizon-s',
+            continuous_horizon_s,
+            '--continuous-accel-limit-mps2',
+            continuous_accel_limit_mps2,
+            '--continuous-omega-accel-limit-rps2',
+            continuous_omega_accel_limit_rps2,
+            '--continuous-lowpass-alpha',
+            continuous_lowpass_alpha,
+            '--continuous-raw-per-mps',
+            continuous_raw_per_mps,
+            '--continuous-slowdown-clearance-m',
+            continuous_slowdown_clearance_m,
+            '--continuous-stop-clearance-m',
+            continuous_stop_clearance_m,
+            '--continuous-latency-buffer-s',
+            continuous_latency_buffer_s,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -466,6 +499,17 @@ def generate_launch_description():
         DeclareLaunchArgument('active_scan_confirm_steps', default_value='4'),
         DeclareLaunchArgument('active_scan_steps', default_value='5'),
         DeclareLaunchArgument('active_scan_front_clear_m', default_value='1.35'),
+        DeclareLaunchArgument('continuous_control_enabled', default_value='true'),
+        DeclareLaunchArgument('continuous_max_speed_mps', default_value='0.36'),
+        DeclareLaunchArgument('continuous_max_omega_rps', default_value='1.15'),
+        DeclareLaunchArgument('continuous_horizon_s', default_value='1.10'),
+        DeclareLaunchArgument('continuous_accel_limit_mps2', default_value='0.35'),
+        DeclareLaunchArgument('continuous_omega_accel_limit_rps2', default_value='1.80'),
+        DeclareLaunchArgument('continuous_lowpass_alpha', default_value='0.55'),
+        DeclareLaunchArgument('continuous_raw_per_mps', default_value='1.35'),
+        DeclareLaunchArgument('continuous_slowdown_clearance_m', default_value='1.35'),
+        DeclareLaunchArgument('continuous_stop_clearance_m', default_value='0.58'),
+        DeclareLaunchArgument('continuous_latency_buffer_s', default_value='0.25'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),

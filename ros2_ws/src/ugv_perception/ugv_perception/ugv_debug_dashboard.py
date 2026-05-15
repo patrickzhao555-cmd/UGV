@@ -368,6 +368,7 @@ class UgvDebugDashboard(Node):
         mission = nav.get("mission", {}) if isinstance(nav.get("mission"), dict) else {}
         sectors = nav.get("sectors_m", {}) if isinstance(nav.get("sectors_m"), dict) else {}
         active_scan = nav.get("active_scan", {}) if isinstance(nav.get("active_scan"), dict) else {}
+        velocity = nav.get("velocity_control", {}) if isinstance(nav.get("velocity_control"), dict) else {}
         ages = {
             "img": self._tuple_age(self.latest_image),
             "depth": self._tuple_age(self.latest_depth),
@@ -382,6 +383,7 @@ class UgvDebugDashboard(Node):
             f"phase={mission.get('phase')} cmd={cmd.get('mode')} reason={cmd.get('reason')} raw=({cmd.get('raw_left')},{cmd.get('raw_right')})",
             f"pose={nav.get('pose_m')} goal={mission.get('active_goal_m')} plan={nav.get('planner')} {nav.get('plan_time_ms')}ms",
             f"clearance front={_fmt_m(fusion.get('front_clearance_m'))} src={fusion.get('front_clearance_source')} sectors f/fl/fr={sectors.get('front')}/{sectors.get('front_left')}/{sectors.get('front_right')}",
+            f"velocity ctrl enabled={velocity.get('enabled')} safe={velocity.get('safe_samples')}/{velocity.get('samples')} v={velocity.get('selected_v_mps')} omega={velocity.get('selected_omega_radps')} gap={velocity.get('best_gap_heading_deg')}deg clear={velocity.get('min_clearance_m')} state={velocity.get('safety_state')}",
             f"ZED depth obstacles pts={fusion.get('depth_obstacle_points')} filtered={fusion.get('depth_obstacle_points_filtered')} comps={fusion.get('depth_obstacle_components')} cells={fusion.get('depth_obstacle_candidate_cells')}",
             f"active scan rem={active_scan.get('remaining')} dir={active_scan.get('direction')} evidence={active_scan.get('front_blocked_evidence')}/{active_scan.get('plan_failed_evidence')} depth_corridor={active_scan.get('front_depth_corridor_points')} min={active_scan.get('front_depth_corridor_min_m')} reason={active_scan.get('reason')}",
             f"YOLO loaded={yolo.get('model_loaded')} accepted={yolo.get('accepted')} boxes={len(yolo.get('boxes', []))} classes={yolo.get('classes')}",

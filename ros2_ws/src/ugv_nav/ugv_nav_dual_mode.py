@@ -409,17 +409,17 @@ class NavConfig:
     local_corridor_front_clear_m: float = 0.62
     local_corridor_side_clear_m: float = 0.45
     active_scan_enabled: bool = True
-    active_scan_front_clear_m: float = 1.05
-    active_scan_release_clear_m: float = 0.95
+    active_scan_front_clear_m: float = 1.25
+    active_scan_release_clear_m: float = 1.12
     active_scan_corridor_extra_width_m: float = 0.03
-    active_scan_depth_points_threshold: int = 18
-    active_scan_confirm_steps: int = 4
+    active_scan_depth_points_threshold: int = 12
+    active_scan_confirm_steps: int = 3
     active_scan_plan_fail_confirm_steps: int = 4
     active_scan_allow_probe_clear_m: float = 0.95
     active_scan_turn_deg: float = 28.0
-    active_scan_steps: int = 5
+    active_scan_steps: int = 7
     continuous_control_enabled: bool = True
-    continuous_horizon_s: float = 1.10
+    continuous_horizon_s: float = 1.35
     continuous_dt_s: float = 0.10
     continuous_v_samples: int = 5
     continuous_omega_samples: int = 13
@@ -431,9 +431,9 @@ class NavConfig:
     continuous_lowpass_alpha: float = 0.55
     continuous_raw_per_mps: float = 1.35
     continuous_max_raw: float = 0.55
-    continuous_slowdown_clearance_m: float = 1.05
+    continuous_slowdown_clearance_m: float = 1.20
     continuous_stop_clearance_m: float = 0.48
-    continuous_gap_lookahead_m: float = 1.50
+    continuous_gap_lookahead_m: float = 1.80
     continuous_gap_buffer_m: float = 0.025
     continuous_latency_buffer_s: float = 0.25
     allow_stop_at_goal: bool = True
@@ -1772,12 +1772,21 @@ class VelocityLocalPlanner:
         )
         gap_depth = gap.get("best_depth_m", float('inf'))
         path_clearance = straight_front_clearance
+        path_clearance_source = "front"
         if math.isfinite(gap_depth):
-            # A staggered gap often looks blocked in the straight-ahead corridor
-            # while a short forward arc is still safe. Let the trajectory rollout
-            # decide the arc safety instead of globally removing all forward
-            # samples whenever only the center ray is tight.
-            path_clearance = max(path_clearance, gap_depth)
+            # Only an ahead-ish gap may raise the speed cap. A 75-90 degree side
+            # opening is useful for choosing scan/turn direction, but it should
+            # not make the controller think the current forward corridor is clear.
+            gap_heading_abs = abs(gap["best_heading_rad"])
+            if gap_heading_abs <= math.radians(35.0):
+                path_clearance = max(path_clearance, gap_depth)
+                path_clearance_source = "front_gap"
+            elif (
+                gap_heading_abs <= math.radians(65.0)
+                and gap_depth >= self.nav_cfg.active_scan_front_clear_m
+            ):
+                path_clearance = max(path_clearance, min(gap_depth, self.nav_cfg.continuous_slowdown_clearance_m))
+                path_clearance_source = "arc_gap"
         speed_cap, safety_state = self._speed_cap_from_clearance(path_clearance)
         v_samples, omega_samples = self._sample_velocities(speed_cap)
 
@@ -1864,6 +1873,7 @@ class VelocityLocalPlanner:
                 "min_clearance_m": None,
                 "front_clearance_m": None if math.isinf(straight_front_clearance) else round(straight_front_clearance, 3),
                 "path_clearance_m": None if math.isinf(path_clearance) else round(path_clearance, 3),
+                "path_clearance_source": path_clearance_source,
                 "front_speed_cap_mps": round(speed_cap, 4),
                 "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
                 "best_gap_depth_m": round(gap["best_depth_m"], 3),
@@ -1900,6 +1910,7 @@ class VelocityLocalPlanner:
             "costmap_soft_penalty": round(best_costmap_soft_penalty, 3),
             "front_clearance_m": None if math.isinf(straight_front_clearance) else round(straight_front_clearance, 3),
             "path_clearance_m": None if math.isinf(path_clearance) else round(path_clearance, 3),
+            "path_clearance_source": path_clearance_source,
             "front_speed_cap_mps": round(speed_cap, 4),
             "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
             "best_gap_depth_m": round(gap["best_depth_m"], 3),
@@ -2557,6 +2568,10 @@ class UGVNavigator:
         self._active_scan_reason = ''
         self._last_front_depth_corridor_points = 0
         self._last_front_depth_corridor_min_m = float('inf')
+        self._last_front_corridor_passable = True
+        self._last_front_corridor_gap_heading_deg = 0.0
+        self._last_front_corridor_gap_depth_m = float('inf')
+        self._last_front_corridor_safe_headings = 0
         self._front_blocked_evidence_counter = 0
         self._plan_failed_counter = 0
         self._odom_warning_counter = 0
@@ -2991,7 +3006,43 @@ class UGVNavigator:
         self.blocked_memory.add_patch(wx, wy, radius, self.nav_cfg.blocked_patch_ttl_steps)
         self._plan_costmap_dirty = True
 
-    def _front_depth_corridor_blocked(self, zed_hits_local: Sequence[Tuple[float, float]]) -> bool:
+    def _assess_front_corridor_gap(self, hits_local: Sequence[Tuple[float, float]]) -> bool:
+        best_heading_deg = 0.0
+        best_depth = 0.0
+        best_score = -1e18
+        safe_headings = 0
+        safe_forward_headings = 0
+        required_depth = self.nav_cfg.active_scan_front_clear_m
+        for deg in range(-70, 71, 5):
+            heading = math.radians(float(deg))
+            depth = self.velocity_planner._gap_depth_for_heading(hits_local, heading)
+            if depth >= required_depth:
+                safe_headings += 1
+                if abs(float(deg)) <= 50.0:
+                    safe_forward_headings += 1
+            # Prefer a wide/deep passage that is still a forward arc. A nearly
+            # sideways opening is useful for scan direction, not proof that the
+            # present forward corridor is passable.
+            score = depth - 0.004 * abs(float(deg)) + 0.08 * math.cos(heading)
+            if score > best_score:
+                best_score = score
+                best_heading_deg = float(deg)
+                best_depth = depth
+        passable = (
+            safe_forward_headings > 0
+            and best_depth >= required_depth
+        )
+        self._last_front_corridor_passable = bool(passable)
+        self._last_front_corridor_gap_heading_deg = best_heading_deg
+        self._last_front_corridor_gap_depth_m = best_depth
+        self._last_front_corridor_safe_headings = safe_headings
+        return bool(passable)
+
+    def _front_depth_corridor_blocked(
+        self,
+        zed_hits_local: Sequence[Tuple[float, float]],
+        all_hits_local: Optional[Sequence[Tuple[float, float]]] = None,
+    ) -> bool:
         front_limit = max(
             self.nav_cfg.active_scan_front_clear_m,
             self.robot_cfg.length_m * 0.5 + self.nav_cfg.front_safety_margin_m + 0.20,
@@ -3012,10 +3063,11 @@ class UGVNavigator:
             min_x = min(min_x, x)
         self._last_front_depth_corridor_points = count
         self._last_front_depth_corridor_min_m = min_x
+        gap_passable = self._assess_front_corridor_gap(all_hits_local if all_hits_local is not None else zed_hits_local)
         if count >= self.nav_cfg.active_scan_depth_points_threshold:
-            return True
+            return not gap_passable
         emergency_need = self.robot_cfg.length_m * 0.5 + self.nav_cfg.front_safety_margin_m
-        return count >= 4 and min_x < emergency_need
+        return count >= 4 and min_x < emergency_need and not gap_passable
 
     @staticmethod
     def _clearance_score(value: float, cap: float = 3.0) -> float:
@@ -3099,7 +3151,99 @@ class UGVNavigator:
                 None if math.isinf(self._last_front_depth_corridor_min_m)
                 else round(self._last_front_depth_corridor_min_m, 3)
             ),
+            "front_corridor_passable": bool(self._last_front_corridor_passable),
+            "front_corridor_gap_heading_deg": round(self._last_front_corridor_gap_heading_deg, 1),
+            "front_corridor_gap_depth_m": (
+                None if math.isinf(self._last_front_corridor_gap_depth_m)
+                else round(self._last_front_corridor_gap_depth_m, 3)
+            ),
+            "front_corridor_safe_headings": int(self._last_front_corridor_safe_headings),
         }
+
+    def _continuous_active_scan_reason(
+        self,
+        cmd: ControlCommand,
+        front_depth_blocked: bool,
+        confirmed_front_blocked: bool,
+        confirmed_plan_failed: bool,
+    ) -> str:
+        if not self.nav_cfg.active_scan_enabled:
+            return ""
+        if confirmed_front_blocked:
+            return "confirmed front blocked during velocity control"
+        if confirmed_plan_failed:
+            return "path failed while front constrained during velocity control"
+
+        debug = self.velocity_debug or {}
+        samples = int(debug.get("samples") or 0)
+        safe_samples = int(debug.get("safe_samples") or 0)
+        safe_ratio = (safe_samples / samples) if samples > 0 else 1.0
+        try:
+            gap_heading_deg = abs(float(debug.get("best_gap_heading_deg") or 0.0))
+        except (TypeError, ValueError):
+            gap_heading_deg = 0.0
+        try:
+            gap_depth_m = float(debug.get("best_gap_depth_m") or 0.0)
+        except (TypeError, ValueError):
+            gap_depth_m = 0.0
+        try:
+            selected_v = abs(float(debug.get("selected_v_mps", cmd.v_mps) or 0.0))
+        except (TypeError, ValueError):
+            selected_v = abs(float(cmd.v_mps or 0.0))
+
+        front_values = [self.state.sectors.front_m]
+        try:
+            dbg_front = float(debug.get("front_clearance_m"))
+            if math.isfinite(dbg_front):
+                front_values.append(dbg_front)
+        except (TypeError, ValueError):
+            pass
+        if math.isfinite(self._last_front_depth_corridor_min_m) and not self._last_front_corridor_passable:
+            front_values.append(self._last_front_depth_corridor_min_m)
+        front_constraint_m = min(front_values) if front_values else float('inf')
+        depth_corridor_close = (
+            front_depth_blocked
+            and math.isfinite(self._last_front_depth_corridor_min_m)
+            and self._last_front_depth_corridor_min_m < self.nav_cfg.active_scan_front_clear_m
+            and not self._last_front_corridor_passable
+        )
+        front_constrained = (
+            (
+                self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
+                and not self._last_front_corridor_passable
+            )
+            or depth_corridor_close
+            or (
+                front_constraint_m < self.nav_cfg.active_scan_front_clear_m
+                and not self._last_front_corridor_passable
+            )
+        )
+        evidence_ready = self._front_blocked_evidence_counter >= max(
+            2,
+            int(self.nav_cfg.active_scan_confirm_steps) - 1,
+        )
+        lateral_escape = (
+            gap_heading_deg >= 45.0
+            and math.isfinite(gap_depth_m)
+            and gap_depth_m >= self.nav_cfg.active_scan_release_clear_m
+            and not self._last_front_corridor_passable
+        )
+        few_safe_trajectories = samples >= 20 and safe_ratio <= 0.22
+        crawling_or_turning = (
+            selected_v < max(0.035, 0.70 * self.nav_cfg.continuous_min_speed_mps)
+            and cmd.mode in {'STOP', 'TURN_LEFT', 'TURN_RIGHT'}
+        )
+
+        if evidence_ready and front_constrained and (lateral_escape or few_safe_trajectories or crawling_or_turning):
+            details = [
+                f"front={front_constraint_m:.2f}m",
+                f"gap={gap_heading_deg:.0f}deg/{gap_depth_m:.2f}m",
+                f"safe={safe_samples}/{samples}",
+            ]
+            if depth_corridor_close:
+                details.append(f"depth_pts={self._last_front_depth_corridor_points}")
+            return "proactive scan before close obstacle; " + " ".join(details)
+        return ""
 
     def _build_escape_queue(self, sectors: SectorSnapshot) -> None:
         self._escape_queue = []
@@ -3175,14 +3319,18 @@ class UGVNavigator:
         self.state.discovered_points += added
         local_obstacle_hits = lidar_hits_local + list(frame.zed.hit_points_local)
         self.state.sectors = self.local_planner.build_sector_snapshot(local_obstacle_hits)
-        front_depth_blocked = self._front_depth_corridor_blocked(frame.zed.hit_points_local)
-        front_evidence = (
-            self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
-            or (
-                front_depth_blocked
-                and self.state.sectors.front_m < self.nav_cfg.active_scan_front_clear_m
-            )
+        front_depth_blocked = self._front_depth_corridor_blocked(frame.zed.hit_points_local, local_obstacle_hits)
+        front_depth_corridor_close = (
+            front_depth_blocked
+            and math.isfinite(self._last_front_depth_corridor_min_m)
+            and self._last_front_depth_corridor_min_m < self.nav_cfg.active_scan_front_clear_m
+            and not self._last_front_corridor_passable
         )
+        front_lidar_center_close = (
+            self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
+            and not self._last_front_corridor_passable
+        )
+        front_evidence = front_lidar_center_close or front_depth_corridor_close
         if front_evidence:
             self._front_blocked_evidence_counter += 1
         elif self._forward_view_confident(self.state.sectors, front_depth_blocked):
@@ -3249,11 +3397,12 @@ class UGVNavigator:
                 return scan_cmd
 
         making_forward_progress = last_cmd_mode == 'FORWARD' and moved_m >= self.nav_cfg.stuck_pose_epsilon_m
+        front_constrained_now = front_lidar_center_close or front_depth_corridor_close
         confirmed_front_blocked = (
             self._front_blocked_evidence_counter >= self.nav_cfg.active_scan_confirm_steps
             and (
                 not making_forward_progress
-                or self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
+                or front_constrained_now
             )
         )
         confirmed_plan_failed = (
@@ -3262,7 +3411,7 @@ class UGVNavigator:
             and not self._forward_view_confident(self.state.sectors, front_depth_blocked)
             and (
                 not making_forward_progress
-                or self.state.sectors.front_m < self.nav_cfg.active_scan_allow_probe_clear_m
+                or front_constrained_now
             )
         )
         if (
@@ -3310,6 +3459,18 @@ class UGVNavigator:
                 self.state.latest_cmd = scan_cmd
                 self.velocity_debug["active_scan_requested"] = True
                 return scan_cmd
+            scan_reason = self._continuous_active_scan_reason(
+                cmd,
+                front_depth_blocked,
+                confirmed_front_blocked,
+                confirmed_plan_failed,
+            )
+            if scan_reason:
+                self._start_active_scan(self.state.sectors, scan_reason)
+                scan_cmd = self._active_scan_command(local_map)
+                self.state.latest_cmd = scan_cmd
+                self.velocity_debug["active_scan_requested"] = scan_reason
+                return scan_cmd
             if cmd.mode in {'FORWARD', 'BACKWARD'} and not self.local_planner._safe_on_costmap(local_map, self.state.estimated_pose, cmd):
                 self._add_blocked_patch_ahead(reverse=(cmd.mode == 'BACKWARD'))
                 self.state.path = []
@@ -3326,6 +3487,18 @@ class UGVNavigator:
                     frame.encoder.timestamp,
                 )
                 self.velocity_debug = dict(self.velocity_planner.last_debug)
+                scan_reason = self._continuous_active_scan_reason(
+                    cmd,
+                    front_depth_blocked,
+                    confirmed_front_blocked,
+                    confirmed_plan_failed,
+                )
+                if scan_reason:
+                    self._start_active_scan(self.state.sectors, scan_reason)
+                    scan_cmd = self._active_scan_command(self._local_safety_costmap())
+                    self.state.latest_cmd = scan_cmd
+                    self.velocity_debug["active_scan_requested"] = scan_reason
+                    return scan_cmd
             self.state.latest_cmd = cmd
             return cmd
 
@@ -3831,12 +4004,12 @@ def run_simulation(
     continuous_control_enabled: bool = True,
     continuous_max_speed_mps: float = 0.36,
     continuous_max_omega_rps: float = 1.15,
-    continuous_horizon_s: float = 1.10,
+    continuous_horizon_s: float = 1.35,
     continuous_accel_limit_mps2: float = 0.35,
     continuous_omega_accel_limit_rps2: float = 1.80,
     continuous_lowpass_alpha: float = 0.55,
     continuous_raw_per_mps: float = 1.35,
-    continuous_slowdown_clearance_m: float = 1.05,
+    continuous_slowdown_clearance_m: float = 1.20,
     continuous_stop_clearance_m: float = 0.48,
     continuous_gap_buffer_m: float = 0.025,
     continuous_latency_buffer_s: float = 0.25,
@@ -4029,19 +4202,19 @@ def run_real_mode(
     rear_safety_margin_m: float = 0.08,
     local_plan_inflation_m: float = 0.0,
     active_scan_enabled: bool = True,
-    active_scan_confirm_steps: int = 4,
-    active_scan_steps: int = 5,
-    active_scan_front_clear_m: float = 1.05,
+    active_scan_confirm_steps: int = 3,
+    active_scan_steps: int = 7,
+    active_scan_front_clear_m: float = 1.25,
     active_scan_corridor_extra_width_m: float = 0.03,
     continuous_control_enabled: bool = True,
     continuous_max_speed_mps: float = 0.36,
     continuous_max_omega_rps: float = 1.15,
-    continuous_horizon_s: float = 1.10,
+    continuous_horizon_s: float = 1.35,
     continuous_accel_limit_mps2: float = 0.35,
     continuous_omega_accel_limit_rps2: float = 1.80,
     continuous_lowpass_alpha: float = 0.55,
     continuous_raw_per_mps: float = 1.35,
-    continuous_slowdown_clearance_m: float = 1.05,
+    continuous_slowdown_clearance_m: float = 1.20,
     continuous_stop_clearance_m: float = 0.48,
     continuous_gap_buffer_m: float = 0.025,
     continuous_latency_buffer_s: float = 0.25,
@@ -4258,19 +4431,19 @@ def main() -> None:
     parser.add_argument("--rear-safety-margin-m", type=float, default=0.08, help="extra rear clearance required before reverse commands")
     parser.add_argument("--local-plan-inflation-m", type=float, default=0.0, help="extra local costmap inflation beyond the robot footprint")
     parser.add_argument("--active-scan-enabled", type=str_to_bool, default=True, help="turn in place to gather a wider view after repeated front blockage evidence")
-    parser.add_argument("--active-scan-confirm-steps", type=int, default=4, help="consecutive constrained frames before active scan can interrupt forward probing")
-    parser.add_argument("--active-scan-steps", type=int, default=5, help="number of turn commands used for each active scan burst")
-    parser.add_argument("--active-scan-front-clear-m", type=float, default=1.05, help="front clearance below which repeated depth/costmap evidence can trigger active scan")
+    parser.add_argument("--active-scan-confirm-steps", type=int, default=3, help="consecutive constrained frames before active scan can interrupt forward probing")
+    parser.add_argument("--active-scan-steps", type=int, default=7, help="number of turn commands used for each active scan burst")
+    parser.add_argument("--active-scan-front-clear-m", type=float, default=1.25, help="front clearance below which repeated depth/costmap evidence can trigger active scan")
     parser.add_argument("--active-scan-corridor-extra-width-m", type=float, default=0.03, help="extra half-width used when counting ZED depth points for active scan evidence")
     parser.add_argument("--continuous-control-enabled", type=str_to_bool, default=True, help="use the Nav2-inspired DWA/RPP velocity controller instead of the legacy action-block local planner")
     parser.add_argument("--continuous-max-speed-mps", type=float, default=0.36, help="max forward speed used by the continuous local controller before drive-speed-level scaling")
     parser.add_argument("--continuous-max-omega-rps", type=float, default=1.15, help="max yaw rate used by the continuous local controller")
-    parser.add_argument("--continuous-horizon-s", type=float, default=1.10, help="DWA rollout horizon in seconds")
+    parser.add_argument("--continuous-horizon-s", type=float, default=1.35, help="DWA rollout horizon in seconds")
     parser.add_argument("--continuous-accel-limit-mps2", type=float, default=0.35, help="linear acceleration limit in the velocity layer")
     parser.add_argument("--continuous-omega-accel-limit-rps2", type=float, default=1.80, help="angular acceleration limit in the velocity layer")
     parser.add_argument("--continuous-lowpass-alpha", type=float, default=0.55, help="velocity low-pass blend after acceleration limiting")
     parser.add_argument("--continuous-raw-per-mps", type=float, default=1.35, help="tank wheel m/s to raw command conversion gain")
-    parser.add_argument("--continuous-slowdown-clearance-m", type=float, default=1.05, help="front clearance where Collision Monitor starts capping speed")
+    parser.add_argument("--continuous-slowdown-clearance-m", type=float, default=1.20, help="front clearance where Collision Monitor starts capping speed")
     parser.add_argument("--continuous-stop-clearance-m", type=float, default=0.48, help="front clearance where Collision Monitor commands zero linear speed")
     parser.add_argument("--continuous-gap-buffer-m", type=float, default=0.025, help="extra half-width used by polar gap checks beyond the robot width")
     parser.add_argument("--continuous-latency-buffer-s", type=float, default=0.25, help="extra obstacle padding equal to speed times this latency allowance")

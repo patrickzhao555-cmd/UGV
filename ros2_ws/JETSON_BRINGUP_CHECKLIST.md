@@ -125,13 +125,22 @@ unset DBUS_SESSION_BUS_ADDRESS
 startxfce4 &
 EOF
 chmod +x ~/.vnc/xstartup
-vncserver -localhost no :1 -geometry 1920x1080 -depth 24
+bash ~/ugv_project/ros2_ws/tools/start_vnc.sh
 ```
 
 Connect from Windows with TigerVNC Viewer to:
 
 ```text
+129.65.74.107:1
+# or
 129.65.74.107:5901
+```
+
+To start VNC automatically after the Nano boots/logs in:
+
+```bash
+bash ~/ugv_project/ros2_ws/tools/install_vnc_autostart.sh
+systemctl --user status tigervnc-ugv.service
 ```
 
 If you launch from SSH instead of a VNC terminal:
@@ -402,11 +411,11 @@ Useful overrides:
 ```bash
 NAV_CONTINUOUS_MAX_SPEED_MPS=0.36
 NAV_CONTINUOUS_MAX_OMEGA_RPS=1.15
-NAV_CONTINUOUS_HORIZON_S=1.10
+NAV_CONTINUOUS_HORIZON_S=1.35
 NAV_CONTINUOUS_ACCEL_LIMIT_MPS2=0.35
 NAV_CONTINUOUS_OMEGA_ACCEL_LIMIT_RPS2=1.80
 NAV_CONTINUOUS_LOWPASS_ALPHA=0.55
-NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.05
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.20
 NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
 NAV_CONTINUOUS_GAP_BUFFER_M=0.025
 NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
@@ -442,10 +451,11 @@ Active scan recovery:
 
 ```bash
 NAV_ACTIVE_SCAN_ENABLED=true
-NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
-NAV_ACTIVE_SCAN_STEPS=5
-NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.05
+NAV_ACTIVE_SCAN_CONFIRM_STEPS=3
+NAV_ACTIVE_SCAN_STEPS=7
+NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.25
 NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M=0.03
+```
 
 Tight, staggered chair/table gaps are handled by the continuous controller's
 rolled-out arc checks. The local safety layer now relies on the real robot
@@ -454,11 +464,14 @@ large local inflation. If you need an extra cautious run, increase
 `ROBOT_OBSTACLE_BUFFER_M` or `NAV_LOCAL_PLAN_INFLATION_M`, but values above
 about `0.05` can make 34-35 inch gaps look physically impossible for the
 30 inch chassis.
-```
 
-Purpose: if the front view is repeatedly blocked or the local controller finds
-no safe trajectory, the UGV turns in place toward the clearer side to build a
-wider LiDAR/ZED view instead of sitting still.
+Purpose: ZED/LiDAR points in front are evaluated as a footprint-sized corridor
+gap, not as a single nearest obstacle. If there is still a forward arc through
+the point cloud, the controller keeps driving/steering through the gap. If the
+front corridor has no passable arc, or the continuous controller is reduced to
+near-zero progress while the best opening is lateral, the UGV turns in place
+toward the clearer side to build a wider LiDAR/ZED view. A side gap at 75-90
+degrees is no longer allowed to raise the straight-ahead speed cap by itself.
 
 ## 13. Debug Topics
 

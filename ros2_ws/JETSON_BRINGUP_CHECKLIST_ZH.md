@@ -125,13 +125,22 @@ unset DBUS_SESSION_BUS_ADDRESS
 startxfce4 &
 EOF
 chmod +x ~/.vnc/xstartup
-vncserver -localhost no :1 -geometry 1920x1080 -depth 24
+bash ~/ugv_project/ros2_ws/tools/start_vnc.sh
 ```
 
 Windows 上用 TigerVNC Viewer 连接：
 
 ```text
+129.65.74.107:1
+# 或者
 129.65.74.107:5901
+```
+
+如果想让 Nano 启动/登录后自动打开 VNC：
+
+```bash
+bash ~/ugv_project/ros2_ws/tools/install_vnc_autostart.sh
+systemctl --user status tigervnc-ugv.service
 ```
 
 如果你不是从 VNC 桌面 terminal 启动，而是从 SSH 启动：
@@ -396,11 +405,11 @@ Collision Monitor 风格安全层仍然会在近距离障碍前限速或停下�
 ```bash
 NAV_CONTINUOUS_MAX_SPEED_MPS=0.36
 NAV_CONTINUOUS_MAX_OMEGA_RPS=1.15
-NAV_CONTINUOUS_HORIZON_S=1.10
+NAV_CONTINUOUS_HORIZON_S=1.35
 NAV_CONTINUOUS_ACCEL_LIMIT_MPS2=0.35
 NAV_CONTINUOUS_OMEGA_ACCEL_LIMIT_RPS2=1.80
 NAV_CONTINUOUS_LOWPASS_ALPHA=0.55
-NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.05
+NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.20
 NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
 NAV_CONTINUOUS_GAP_BUFFER_M=0.025
 NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
@@ -436,20 +445,23 @@ FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.42
 
 ```bash
 NAV_ACTIVE_SCAN_ENABLED=true
-NAV_ACTIVE_SCAN_CONFIRM_STEPS=4
-NAV_ACTIVE_SCAN_STEPS=5
-NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.05
+NAV_ACTIVE_SCAN_CONFIRM_STEPS=3
+NAV_ACTIVE_SCAN_STEPS=7
+NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.25
 NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M=0.03
+```
 
 错位的椅子/桌腿通道现在由连续控制器的弧线 rollout 判断，而不是把障碍当成正
 面平行墙来量一个死板宽度。局部安全层默认使用真实车身 footprint 加
 `ROBOT_OBSTACLE_BUFFER_M=0.025`，不再额外叠加很大的 local inflation。若要保守
 测试，可以调高 `ROBOT_OBSTACLE_BUFFER_M` 或 `NAV_LOCAL_PLAN_INFLATION_M`，但超过
 约 `0.05` 后，30 inch 车身会很容易把 34-35 inch 的通道判断成不可通过。
-```
-
 目的：如果前方连续几帧确实受阻，或者连续控制器找不到安全轨迹，UGV 会原地朝更空的一侧转动，
 扩大 LiDAR/ZED 视野，而不是卡在原地不动。
+
+现在 active scan 会更重视 ZED depth 的前方走廊障碍；如果连续控制器已经降到接近原地犹豫，而最佳 gap 在侧方，UGV 会更早朝更开阔的一侧原地扫描，不再把 75-90 度侧向空隙当成“正前方 clear”。
+
+注意：1.25m 内看到一个障碍不等于“死路”。程序会用当前 LiDAR/ZED 点云评估车身 footprint 能否沿前方弧线路径穿过障碍间 gap；只有没有可通过弧线，或者控制器已经接近原地犹豫时，才触发主动扫视。
 
 ## 13. Debug Topics
 

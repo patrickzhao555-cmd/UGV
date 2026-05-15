@@ -8,7 +8,7 @@ field.
 The active development branch for Jetson/Nano testing is:
 
 ```bash
-codex/nav2-inspired-mini-controller
+nav2-inspired-mini-controller
 ```
 
 ## Documentation
@@ -42,7 +42,7 @@ Clone if the Nano does not have the repo yet:
 cd ~
 git clone https://github.com/patrickzhao555-cmd/UGV.git ugv_project
 cd ~/ugv_project
-git checkout codex/nav2-inspired-mini-controller
+git checkout nav2-inspired-mini-controller
 ```
 
 Pull the latest branch:
@@ -50,8 +50,8 @@ Pull the latest branch:
 ```bash
 cd ~/ugv_project
 git fetch origin
-git checkout codex/nav2-inspired-mini-controller
-git pull --ff-only origin codex/nav2-inspired-mini-controller
+git checkout nav2-inspired-mini-controller
+git pull --ff-only origin nav2-inspired-mini-controller
 ```
 
 Source and rebuild after pulling:
@@ -158,6 +158,26 @@ source install/setup.bash
 ```
 
 ## Bench Test Modes
+
+Direct drivetrain direction test. Use this with the UGV lifted for the first
+run, and do not run the full navigation bringup at the same time:
+
+```bash
+cd ~/ugv_project/ros2_ws
+source /opt/ros/humble/setup.bash
+source ~/ugv_ws_albert/install/setup.bash
+source install/setup.bash
+
+ros2 launch ugv_motor_controller motor_direct_test.launch.py \
+  motion:=forward raw:=0.22 duration_s:=0.8 yes:=true \
+  port:=/dev/ttyACM0 dry_run:=false \
+  invert_left_command:=true invert_right_command:=true
+```
+
+Swap `motion:=forward` for `backward`, `turn_left`, `turn_right`,
+`left_forward`, `right_forward`, or `sequence` to isolate drivetrain problems.
+The tester sends repeated `STOP` packets after the motion and prints encoder
+delta so command inversion and encoder inversion can be checked quickly.
 
 Recommended stand/bench mode. This keeps motor output in dry-run and publishes
 an automatic test goal:

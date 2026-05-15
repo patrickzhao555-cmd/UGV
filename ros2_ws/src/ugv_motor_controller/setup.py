@@ -36,6 +36,7 @@ setup(
     entry_points={
         'console_scripts': [
             'motor_controller_bridge = ugv_motor_controller.motor_controller_bridge:main',
+            'motor_direct_test = ugv_motor_controller.motor_direct_test:main',
         ],
     },
 )

@@ -73,7 +73,7 @@ ROUND_MODE=indoor DRIVE_SPEED_LEVEL=2 bash jetson_bringup.sh
 Indoor mode keeps ZED/marker vision on by default, starts from an internal room-center pose, ignores rear LiDAR returns, and chooses short forward/turn search goals instead of driving to the round3 field center. Defaults assume a 30 inch by 30 inch UGV, front-mounted LiDAR, `LIDAR_USED_FOV_DEG=180`, `LIDAR_OFFSET_X_M=0.30`, and `NAV_ALLOW_REVERSE=false`.
 
 Continuous local control is enabled by default on the
-`codex/nav2-inspired-mini-controller` branch:
+`nav2-inspired-mini-controller` branch:
 
 ```bash
 NAV_CONTINUOUS_CONTROL_ENABLED=true bash jetson_bringup.sh

@@ -3767,10 +3767,35 @@ class CompetitionMission:
 # =========================================================
 
 
-def run_simulation(show_gui: bool = True, max_steps: int = 900) -> dict:
+def run_simulation(
+    show_gui: bool = True,
+    max_steps: int = 900,
+    continuous_control_enabled: bool = True,
+    continuous_max_speed_mps: float = 0.36,
+    continuous_max_omega_rps: float = 1.15,
+    continuous_horizon_s: float = 1.10,
+    continuous_accel_limit_mps2: float = 0.35,
+    continuous_omega_accel_limit_rps2: float = 1.80,
+    continuous_lowpass_alpha: float = 0.55,
+    continuous_raw_per_mps: float = 1.35,
+    continuous_slowdown_clearance_m: float = 1.35,
+    continuous_stop_clearance_m: float = 0.58,
+    continuous_latency_buffer_s: float = 0.25,
+) -> dict:
     robot_cfg = RobotConfig()
     sensor_cfg = SensorConfig()
     nav_cfg = NavConfig()
+    nav_cfg.continuous_control_enabled = bool(continuous_control_enabled)
+    nav_cfg.continuous_max_speed_mps = clamp(float(continuous_max_speed_mps), 0.05, 1.0)
+    nav_cfg.continuous_max_omega_rps = clamp(float(continuous_max_omega_rps), 0.20, 3.0)
+    nav_cfg.continuous_horizon_s = clamp(float(continuous_horizon_s), 0.40, 2.0)
+    nav_cfg.continuous_accel_limit_mps2 = clamp(float(continuous_accel_limit_mps2), 0.05, 2.0)
+    nav_cfg.continuous_omega_accel_limit_rps2 = clamp(float(continuous_omega_accel_limit_rps2), 0.20, 5.0)
+    nav_cfg.continuous_lowpass_alpha = clamp(float(continuous_lowpass_alpha), 0.05, 1.0)
+    nav_cfg.continuous_raw_per_mps = clamp(float(continuous_raw_per_mps), 0.20, 4.0)
+    nav_cfg.continuous_slowdown_clearance_m = clamp(float(continuous_slowdown_clearance_m), 0.50, 3.0)
+    nav_cfg.continuous_stop_clearance_m = clamp(float(continuous_stop_clearance_m), 0.30, 1.50)
+    nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
     sim_cfg = SimConfig(show_gui=show_gui, max_steps=max_steps)
 
     start = Pose2D(yd(0.5), yd(0.5), 0.0)
@@ -4181,7 +4206,21 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.mode == "sim":
-        run_simulation(show_gui=not args.headless, max_steps=args.max_steps)
+        run_simulation(
+            show_gui=not args.headless,
+            max_steps=args.max_steps,
+            continuous_control_enabled=args.continuous_control_enabled,
+            continuous_max_speed_mps=args.continuous_max_speed_mps,
+            continuous_max_omega_rps=args.continuous_max_omega_rps,
+            continuous_horizon_s=args.continuous_horizon_s,
+            continuous_accel_limit_mps2=args.continuous_accel_limit_mps2,
+            continuous_omega_accel_limit_rps2=args.continuous_omega_accel_limit_rps2,
+            continuous_lowpass_alpha=args.continuous_lowpass_alpha,
+            continuous_raw_per_mps=args.continuous_raw_per_mps,
+            continuous_slowdown_clearance_m=args.continuous_slowdown_clearance_m,
+            continuous_stop_clearance_m=args.continuous_stop_clearance_m,
+            continuous_latency_buffer_s=args.continuous_latency_buffer_s,
+        )
     else:
         run_real_mode(
             replay_json=args.replay_json,

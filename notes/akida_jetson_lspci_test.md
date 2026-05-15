@@ -6,3 +6,12 @@
 0007:01:00.0 Co-processor [0b40]: Brainchip Inc AKD1000 Neural Network Coprocessor [Akida] [1e7c:bca1] (rev 01)
 0008:00:00.0 PCI bridge [0604]: NVIDIA Corporation Device [10de:229c] (rev a1)
 0008:01:00.0 Ethernet controller [0200]: Realtek Semiconductor Co., Ltd. RTL8111/8168/8411 PCI Express Gigabit Ethernet Controller [10ec:8168] (rev 15)
+
+Driver install successful.
+
+Verification:
+- Kernel driver in use: akida-pcie
+- /dev/akida0 present
+- lsmod shows akida_pcie loaded
+
+Jetson Orin Nano successfully interfaces with AKD1000

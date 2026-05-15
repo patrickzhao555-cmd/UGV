@@ -293,6 +293,8 @@ def scale_control_command(cmd: ControlCommand, scale: float, reason: str, min_mo
     scale = clamp(float(scale), 0.0, 1.0)
     if cmd.mode == "STOP":
         return cmd
+    if cmd.controller == "active_scan":
+        scale = max(scale, 0.75)
     suffix = ""
     if abs(scale - 1.0) >= 1e-3:
         suffix = f"; speed_scale={scale:.2f}"
@@ -418,6 +420,7 @@ class NavConfig:
     active_scan_allow_probe_clear_m: float = 0.95
     active_scan_turn_deg: float = 28.0
     active_scan_steps: int = 7
+    active_scan_panoramic_steps: int = 20
     active_scan_cooldown_steps: int = 4
     active_scan_probe_steps: int = 5
     continuous_control_enabled: bool = True
@@ -1784,8 +1787,9 @@ class VelocityLocalPlanner:
                 path_clearance = max(path_clearance, gap_depth)
                 path_clearance_source = "front_gap"
             elif (
-                gap_heading_abs <= math.radians(65.0)
+                gap_heading_abs <= math.radians(40.0)
                 and gap_depth >= self.nav_cfg.active_scan_front_clear_m
+                and straight_front_clearance >= self.nav_cfg.active_scan_release_clear_m
             ):
                 path_clearance = max(path_clearance, min(gap_depth, self.nav_cfg.continuous_slowdown_clearance_m))
                 path_clearance_source = "arc_gap"
@@ -2596,10 +2600,14 @@ class UGVNavigator:
         self._last_front_depth_corridor_points = 0
         self._last_front_depth_corridor_min_m = float('inf')
         self._last_front_corridor_passable = True
+        self._last_front_corridor_front_depth_m = float('inf')
         self._last_front_corridor_gap_heading_deg = 0.0
         self._last_front_corridor_gap_depth_m = float('inf')
         self._last_front_corridor_safe_headings = 0
+        self._last_front_corridor_frontish_headings = 0
+        self._last_front_corridor_straight_headings = 0
         self._front_blocked_evidence_counter = 0
+        self._front_uncertain_evidence_counter = 0
         self._plan_failed_counter = 0
         self._odom_warning_counter = 0
         self._last_field_map_version = -1
@@ -3038,15 +3046,24 @@ class UGVNavigator:
         best_depth = 0.0
         best_score = -1e18
         safe_headings = 0
-        safe_forward_headings = 0
+        frontish_safe_headings = 0
+        straight_safe_headings = 0
+        front_depth = 0.0
+        frontish_best_depth = 0.0
         required_depth = self.nav_cfg.active_scan_front_clear_m
         for deg in range(-70, 71, 5):
             heading = math.radians(float(deg))
             depth = self.velocity_planner._gap_depth_for_heading(hits_local, heading)
+            if deg == 0:
+                front_depth = depth
+            if abs(float(deg)) <= 35.0:
+                frontish_best_depth = max(frontish_best_depth, depth)
             if depth >= required_depth:
                 safe_headings += 1
-                if abs(float(deg)) <= 50.0:
-                    safe_forward_headings += 1
+                if abs(float(deg)) <= 35.0:
+                    frontish_safe_headings += 1
+                if abs(float(deg)) <= 20.0:
+                    straight_safe_headings += 1
             # Prefer a wide/deep passage that is still a forward arc. A nearly
             # sideways opening is useful for scan direction, not proof that the
             # present forward corridor is passable.
@@ -3056,13 +3073,24 @@ class UGVNavigator:
                 best_heading_deg = float(deg)
                 best_depth = depth
         passable = (
-            safe_forward_headings > 0
-            and best_depth >= required_depth
+            (
+                front_depth >= required_depth
+                and frontish_safe_headings >= 2
+                and abs(best_heading_deg) <= 45.0
+            )
+            or (
+                straight_safe_headings >= 3
+                and frontish_best_depth >= required_depth
+                and abs(best_heading_deg) <= 35.0
+            )
         )
         self._last_front_corridor_passable = bool(passable)
+        self._last_front_corridor_front_depth_m = front_depth
         self._last_front_corridor_gap_heading_deg = best_heading_deg
         self._last_front_corridor_gap_depth_m = best_depth
         self._last_front_corridor_safe_headings = safe_headings
+        self._last_front_corridor_frontish_headings = frontish_safe_headings
+        self._last_front_corridor_straight_headings = straight_safe_headings
         return bool(passable)
 
     def _front_depth_corridor_blocked(
@@ -3144,19 +3172,33 @@ class UGVNavigator:
             and self._active_scan_probe_steps <= 0
         )
 
-    def _start_active_scan(self, sectors: SectorSnapshot, reason: str) -> None:
+    def _start_active_scan(
+        self,
+        sectors: SectorSnapshot,
+        reason: str,
+        force_direction: Optional[str] = None,
+        steps: Optional[int] = None,
+    ) -> None:
         if not self.nav_cfg.active_scan_enabled:
             return
-        self._active_scan_direction = self._scan_direction_from_sectors(sectors)
+        forced_direction = force_direction in {'TURN_LEFT', 'TURN_RIGHT'}
+        if forced_direction:
+            self._active_scan_direction = force_direction
+        else:
+            self._active_scan_direction = self._scan_direction_from_sectors(sectors)
         self._last_escape_side_left = self._active_scan_direction == 'TURN_LEFT'
-        self._active_scan_remaining = max(1, int(self.nav_cfg.active_scan_steps))
+        if not forced_direction and self._active_scan_needs_opposite_side and self._active_scan_last_direction:
+            self._active_scan_direction = 'TURN_RIGHT' if self._active_scan_last_direction == 'TURN_LEFT' else 'TURN_LEFT'
+            self._last_escape_side_left = self._active_scan_direction == 'TURN_LEFT'
+        self._active_scan_remaining = max(1, int(steps if steps is not None else self.nav_cfg.active_scan_steps))
         self._active_scan_reason = reason
-        if self._active_scan_needs_opposite_side and self._active_scan_last_direction:
+        if not forced_direction and self._active_scan_needs_opposite_side and self._active_scan_last_direction:
             self._active_scan_reason = f"{reason}; checking opposite side after prior scan"
         self._active_scan_needs_opposite_side = False
         self._active_scan_cooldown_steps = 0
         self._active_scan_probe_steps = 0
         self._front_blocked_evidence_counter = 0
+        self._front_uncertain_evidence_counter = 0
         self._plan_failed_counter = 0
         self._escape_queue = []
         self.state.path = []
@@ -3168,6 +3210,7 @@ class UGVNavigator:
         self._active_scan_remaining = 0
         self._active_scan_reason = ''
         self._front_blocked_evidence_counter = 0
+        self._front_uncertain_evidence_counter = 0
         self._plan_failed_counter = 0
         self._active_scan_last_direction = previous_direction
         self._active_scan_needs_opposite_side = not view_cleared
@@ -3184,23 +3227,26 @@ class UGVNavigator:
     def _active_scan_command(self, local_map: Costmap2D) -> ControlCommand:
         turn_deg = max(8.0, float(self.nav_cfg.active_scan_turn_deg))
         direction = self._active_scan_direction
-        raw_left = -0.32 if direction == 'TURN_LEFT' else 0.32
-        raw_right = 0.32 if direction == 'TURN_LEFT' else -0.32
+        scan_raw = 0.60
+        raw_left = -scan_raw if direction == 'TURN_LEFT' else scan_raw
+        raw_right = scan_raw if direction == 'TURN_LEFT' else -scan_raw
         cmd = ControlCommand(
             direction,
             turn_deg=turn_deg,
             raw_left=raw_left,
             raw_right=raw_right,
             reason=f"active scan; {self._active_scan_reason}; remaining={self._active_scan_remaining}",
+            controller="active_scan",
         )
         if not self.local_planner._safe_on_costmap(local_map, self.state.estimated_pose, cmd):
             other = 'TURN_RIGHT' if direction == 'TURN_LEFT' else 'TURN_LEFT'
             cmd = ControlCommand(
                 other,
                 turn_deg=turn_deg,
-                raw_left=0.32 if other == 'TURN_RIGHT' else -0.32,
-                raw_right=-0.32 if other == 'TURN_RIGHT' else 0.32,
+                raw_left=scan_raw if other == 'TURN_RIGHT' else -scan_raw,
+                raw_right=-scan_raw if other == 'TURN_RIGHT' else scan_raw,
                 reason=f"active scan alternate; {self._active_scan_reason}; remaining={self._active_scan_remaining}",
+                controller="active_scan",
             )
             self._active_scan_direction = other
         self._active_scan_remaining = max(0, self._active_scan_remaining - 1)
@@ -3219,6 +3265,7 @@ class UGVNavigator:
             "needs_opposite_side": bool(self._active_scan_needs_opposite_side),
             "last_direction": self._active_scan_last_direction,
             "front_blocked_evidence": int(self._front_blocked_evidence_counter),
+            "front_uncertain_evidence": int(self._front_uncertain_evidence_counter),
             "plan_failed_evidence": int(self._plan_failed_counter),
             "front_depth_corridor_points": int(self._last_front_depth_corridor_points),
             "front_depth_corridor_min_m": (
@@ -3226,12 +3273,18 @@ class UGVNavigator:
                 else round(self._last_front_depth_corridor_min_m, 3)
             ),
             "front_corridor_passable": bool(self._last_front_corridor_passable),
+            "front_corridor_front_depth_m": (
+                None if math.isinf(self._last_front_corridor_front_depth_m)
+                else round(self._last_front_corridor_front_depth_m, 3)
+            ),
             "front_corridor_gap_heading_deg": round(self._last_front_corridor_gap_heading_deg, 1),
             "front_corridor_gap_depth_m": (
                 None if math.isinf(self._last_front_corridor_gap_depth_m)
                 else round(self._last_front_corridor_gap_depth_m, 3)
             ),
             "front_corridor_safe_headings": int(self._last_front_corridor_safe_headings),
+            "front_corridor_frontish_headings": int(self._last_front_corridor_frontish_headings),
+            "front_corridor_straight_headings": int(self._last_front_corridor_straight_headings),
         }
 
     def _continuous_active_scan_reason(
@@ -3246,9 +3299,9 @@ class UGVNavigator:
         if self._active_scan_cooldown_steps > 0 or self._active_scan_probe_steps > 0:
             return ""
         if confirmed_front_blocked and not self._last_front_corridor_passable:
-            return "confirmed front blocked during velocity control"
+            return "panoramic confirmed front blocked during velocity control"
         if confirmed_plan_failed and not self._last_front_corridor_passable:
-            return "path failed while front constrained during velocity control"
+            return "panoramic path failed while front constrained during velocity control"
 
         debug = self.velocity_debug or {}
         samples = int(debug.get("samples") or 0)
@@ -3318,6 +3371,8 @@ class UGVNavigator:
             ]
             if depth_corridor_close:
                 details.append(f"depth_pts={self._last_front_depth_corridor_points}")
+            if lateral_escape:
+                return "panoramic front clutter side-gap only; " + " ".join(details)
             return "proactive scan before close obstacle; " + " ".join(details)
         return ""
 
@@ -3412,13 +3467,30 @@ class UGVNavigator:
         )
         front_evidence = front_lidar_center_close or front_depth_corridor_close
         active_scan_suppressed = self._active_scan_cooldown_steps > 0 or self._active_scan_probe_steps > 0
+        forward_view_confident = self._forward_view_confident(self.state.sectors, front_depth_blocked)
         if front_evidence and not active_scan_suppressed:
             self._front_blocked_evidence_counter += 1
-        elif active_scan_suppressed or self._forward_view_confident(self.state.sectors, front_depth_blocked):
+        elif active_scan_suppressed or forward_view_confident:
             self._front_blocked_evidence_counter = 0
         else:
             self._front_blocked_evidence_counter = max(0, self._front_blocked_evidence_counter - 1)
-        if self._forward_view_confident(self.state.sectors, front_depth_blocked):
+        side_gap_only = (
+            not self._last_front_corridor_passable
+            and abs(self._last_front_corridor_gap_heading_deg) >= 45.0
+            and math.isfinite(self._last_front_corridor_gap_depth_m)
+            and self._last_front_corridor_gap_depth_m >= self.nav_cfg.active_scan_release_clear_m
+            and (
+                front_depth_corridor_close
+                or self.state.sectors.front_m < self.nav_cfg.active_scan_front_clear_m
+            )
+        )
+        if side_gap_only and not active_scan_suppressed:
+            self._front_uncertain_evidence_counter += 1
+        elif active_scan_suppressed or forward_view_confident:
+            self._front_uncertain_evidence_counter = 0
+        else:
+            self._front_uncertain_evidence_counter = max(0, self._front_uncertain_evidence_counter - 1)
+        if forward_view_confident:
             self._active_scan_needs_opposite_side = False
             self._active_scan_last_direction = None
         if last_cmd_mode == 'FORWARD' and moved_m >= max(self.nav_cfg.stuck_pose_epsilon_m, 0.020):
@@ -3432,7 +3504,13 @@ class UGVNavigator:
         if self._stuck_counter >= stuck_trigger_steps:
             self._add_blocked_patch_ahead(reverse=(last_cmd_mode == 'BACKWARD'))
             if self._can_start_active_scan():
-                self._start_active_scan(self.state.sectors, 'stuck after forward probe')
+                panoramic = not self._last_front_corridor_passable
+                self._start_active_scan(
+                    self.state.sectors,
+                    'panoramic stuck after forward probe' if panoramic else 'stuck after forward probe',
+                    force_direction='TURN_RIGHT' if panoramic else None,
+                    steps=self.nav_cfg.active_scan_panoramic_steps if panoramic else None,
+                )
             elif not self.nav_cfg.active_scan_enabled:
                 self._build_escape_queue(self.state.sectors)
             self.state.path = []
@@ -3479,6 +3557,33 @@ class UGVNavigator:
                 self.state.latest_cmd = scan_cmd
                 return scan_cmd
 
+        confirmed_front_uncertain = self._front_uncertain_evidence_counter >= max(
+            1,
+            int(self.nav_cfg.active_scan_confirm_steps) - 2,
+        )
+        if self._can_start_active_scan() and confirmed_front_uncertain:
+            front_for_reason = min(
+                self.state.sectors.front_m,
+                self._last_front_depth_corridor_min_m
+                if math.isfinite(self._last_front_depth_corridor_min_m)
+                else float('inf'),
+            )
+            self._start_active_scan(
+                self.state.sectors,
+                (
+                    "panoramic front clutter side-gap only; "
+                    f"front={front_for_reason:.2f}m "
+                    f"gap={self._last_front_corridor_gap_heading_deg:.0f}deg/"
+                    f"{self._last_front_corridor_gap_depth_m:.2f}m "
+                    f"evidence={self._front_uncertain_evidence_counter}"
+                ),
+                force_direction='TURN_RIGHT',
+                steps=self.nav_cfg.active_scan_panoramic_steps,
+            )
+            scan_cmd = self._active_scan_command(local_map)
+            self.state.latest_cmd = scan_cmd
+            return scan_cmd
+
         making_forward_progress = last_cmd_mode == 'FORWARD' and moved_m >= self.nav_cfg.stuck_pose_epsilon_m
         front_constrained_now = front_lidar_center_close or front_depth_corridor_close
         confirmed_front_blocked = (
@@ -3507,7 +3612,14 @@ class UGVNavigator:
                 reason_parts.append('confirmed front blocked')
             if confirmed_plan_failed:
                 reason_parts.append('path failed while front constrained')
-            self._start_active_scan(self.state.sectors, ', '.join(reason_parts))
+            reason = ', '.join(reason_parts)
+            panoramic = not self._last_front_corridor_passable
+            self._start_active_scan(
+                self.state.sectors,
+                f"panoramic {reason}" if panoramic else reason,
+                force_direction='TURN_RIGHT' if panoramic else None,
+                steps=self.nav_cfg.active_scan_panoramic_steps if panoramic else None,
+            )
             scan_cmd = self._active_scan_command(local_map)
             self.state.latest_cmd = scan_cmd
             return scan_cmd
@@ -3549,7 +3661,13 @@ class UGVNavigator:
                 confirmed_plan_failed,
             )
             if scan_reason and self._can_start_active_scan():
-                self._start_active_scan(self.state.sectors, scan_reason)
+                panoramic = scan_reason.startswith("panoramic")
+                self._start_active_scan(
+                    self.state.sectors,
+                    scan_reason,
+                    force_direction='TURN_RIGHT' if panoramic else None,
+                    steps=self.nav_cfg.active_scan_panoramic_steps if panoramic else None,
+                )
                 scan_cmd = self._active_scan_command(local_map)
                 self.state.latest_cmd = scan_cmd
                 self.velocity_debug["active_scan_requested"] = scan_reason
@@ -3577,7 +3695,13 @@ class UGVNavigator:
                     confirmed_plan_failed,
                 )
                 if scan_reason and self._can_start_active_scan():
-                    self._start_active_scan(self.state.sectors, scan_reason)
+                    panoramic = scan_reason.startswith("panoramic")
+                    self._start_active_scan(
+                        self.state.sectors,
+                        scan_reason,
+                        force_direction='TURN_RIGHT' if panoramic else None,
+                        steps=self.nav_cfg.active_scan_panoramic_steps if panoramic else None,
+                    )
                     scan_cmd = self._active_scan_command(self._local_safety_costmap())
                     self.state.latest_cmd = scan_cmd
                     self.velocity_debug["active_scan_requested"] = scan_reason
@@ -4287,6 +4411,7 @@ def run_real_mode(
     active_scan_enabled: bool = True,
     active_scan_confirm_steps: int = 3,
     active_scan_steps: int = 7,
+    active_scan_panoramic_steps: int = 20,
     active_scan_cooldown_steps: int = 4,
     active_scan_probe_steps: int = 5,
     active_scan_front_clear_m: float = 1.25,
@@ -4330,6 +4455,7 @@ def run_real_mode(
     nav_cfg.active_scan_enabled = bool(active_scan_enabled)
     nav_cfg.active_scan_confirm_steps = max(1, int(active_scan_confirm_steps))
     nav_cfg.active_scan_steps = max(1, int(active_scan_steps))
+    nav_cfg.active_scan_panoramic_steps = max(1, int(active_scan_panoramic_steps))
     nav_cfg.active_scan_cooldown_steps = max(0, int(active_scan_cooldown_steps))
     nav_cfg.active_scan_probe_steps = max(0, int(active_scan_probe_steps))
     nav_cfg.active_scan_front_clear_m = clamp(float(active_scan_front_clear_m), 0.50, 3.0)
@@ -4420,7 +4546,8 @@ def run_real_mode(
         f"lidar_offset=({robot_cfg.lidar_offset_x_m:.2f}, {robot_cfg.lidar_offset_y_m:.2f})m, "
         f"lidar_fov={nav_cfg.lidar_used_fov_deg:.0f}deg, allow_reverse={nav_cfg.allow_reverse}, "
         f"active_scan={nav_cfg.active_scan_enabled} "
-        f"(steps={nav_cfg.active_scan_steps}, cooldown={nav_cfg.active_scan_cooldown_steps}, "
+        f"(steps={nav_cfg.active_scan_steps}, panoramic={nav_cfg.active_scan_panoramic_steps}, "
+        f"cooldown={nav_cfg.active_scan_cooldown_steps}, "
         f"probe={nav_cfg.active_scan_probe_steps}), "
         f"continuous_control={nav_cfg.continuous_control_enabled} "
         f"(vmax={nav_cfg.continuous_max_speed_mps:.2f}m/s, "
@@ -4522,6 +4649,7 @@ def main() -> None:
     parser.add_argument("--active-scan-enabled", type=str_to_bool, default=True, help="turn in place to gather a wider view after repeated front blockage evidence")
     parser.add_argument("--active-scan-confirm-steps", type=int, default=3, help="consecutive constrained frames before active scan can interrupt forward probing")
     parser.add_argument("--active-scan-steps", type=int, default=7, help="number of turn commands used for each active scan burst")
+    parser.add_argument("--active-scan-panoramic-steps", type=int, default=20, help="number of turn commands for a forced clockwise scan when the front view is cluttered")
     parser.add_argument("--active-scan-cooldown-steps", type=int, default=4, help="control cycles after a scan burst before another scan can start")
     parser.add_argument("--active-scan-probe-steps", type=int, default=5, help="control cycles after a scan burst where velocity control probes the newly scanned view")
     parser.add_argument("--active-scan-front-clear-m", type=float, default=1.25, help="front clearance below which repeated depth/costmap evidence can trigger active scan")
@@ -4597,6 +4725,7 @@ def main() -> None:
             active_scan_enabled=args.active_scan_enabled,
             active_scan_confirm_steps=args.active_scan_confirm_steps,
             active_scan_steps=args.active_scan_steps,
+            active_scan_panoramic_steps=args.active_scan_panoramic_steps,
             active_scan_cooldown_steps=args.active_scan_cooldown_steps,
             active_scan_probe_steps=args.active_scan_probe_steps,
             active_scan_front_clear_m=args.active_scan_front_clear_m,

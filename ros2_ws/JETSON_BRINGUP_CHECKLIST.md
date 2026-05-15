@@ -115,7 +115,7 @@ Install TigerVNC/XFCE on the Nano:
 
 ```bash
 sudo apt update
-sudo apt install -y tigervnc-standalone-server tigervnc-common xfce4 xfce4-goodies dbus-x11
+sudo apt install -y tigervnc-standalone-server tigervnc-common xfce4 xfce4-goodies dbus-x11 x11-utils
 vncpasswd
 mkdir -p ~/.vnc
 cat > ~/.vnc/xstartup <<'EOF'
@@ -453,6 +453,8 @@ Active scan recovery:
 NAV_ACTIVE_SCAN_ENABLED=true
 NAV_ACTIVE_SCAN_CONFIRM_STEPS=3
 NAV_ACTIVE_SCAN_STEPS=7
+NAV_ACTIVE_SCAN_COOLDOWN_STEPS=4
+NAV_ACTIVE_SCAN_PROBE_STEPS=5
 NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.25
 NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M=0.03
 ```
@@ -472,6 +474,9 @@ front corridor has no passable arc, or the continuous controller is reduced to
 near-zero progress while the best opening is lateral, the UGV turns in place
 toward the clearer side to build a wider LiDAR/ZED view. A side gap at 75-90
 degrees is no longer allowed to raise the straight-ahead speed cap by itself.
+After one active-scan burst, the controller briefly probes the newly observed
+view and blocks an immediate same-side re-scan; if it still cannot make a safe
+arc, the next scan is forced to the opposite side.
 
 ## 13. Debug Topics
 

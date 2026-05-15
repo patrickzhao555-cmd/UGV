@@ -115,7 +115,7 @@ Nano 上安装 TigerVNC/XFCE：
 
 ```bash
 sudo apt update
-sudo apt install -y tigervnc-standalone-server tigervnc-common xfce4 xfce4-goodies dbus-x11
+sudo apt install -y tigervnc-standalone-server tigervnc-common xfce4 xfce4-goodies dbus-x11 x11-utils
 vncpasswd
 mkdir -p ~/.vnc
 cat > ~/.vnc/xstartup <<'EOF'
@@ -447,9 +447,13 @@ FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.42
 NAV_ACTIVE_SCAN_ENABLED=true
 NAV_ACTIVE_SCAN_CONFIRM_STEPS=3
 NAV_ACTIVE_SCAN_STEPS=7
+NAV_ACTIVE_SCAN_COOLDOWN_STEPS=4
+NAV_ACTIVE_SCAN_PROBE_STEPS=5
 NAV_ACTIVE_SCAN_FRONT_CLEAR_M=1.25
 NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M=0.03
 ```
+
+每次 active scan 结束后，程序会短暂进入 probe/cooldown 状态，先让连续控制器尝试刚刚扫到的视野；如果仍然无法形成安全弧线，下一次扫描会强制换到另一侧，避免只看左边或只看右边就卡死。
 
 错位的椅子/桌腿通道现在由连续控制器的弧线 rollout 判断，而不是把障碍当成正
 面平行墙来量一个死板宽度。局部安全层默认使用真实车身 footprint 加

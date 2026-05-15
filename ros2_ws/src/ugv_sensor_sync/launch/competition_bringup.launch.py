@@ -148,6 +148,8 @@ def generate_launch_description():
     active_scan_enabled = LaunchConfiguration('active_scan_enabled')
     active_scan_confirm_steps = LaunchConfiguration('active_scan_confirm_steps')
     active_scan_steps = LaunchConfiguration('active_scan_steps')
+    active_scan_cooldown_steps = LaunchConfiguration('active_scan_cooldown_steps')
+    active_scan_probe_steps = LaunchConfiguration('active_scan_probe_steps')
     active_scan_front_clear_m = LaunchConfiguration('active_scan_front_clear_m')
     active_scan_corridor_extra_width_m = LaunchConfiguration('active_scan_corridor_extra_width_m')
     continuous_control_enabled = LaunchConfiguration('continuous_control_enabled')
@@ -284,6 +286,10 @@ def generate_launch_description():
             active_scan_confirm_steps,
             '--active-scan-steps',
             active_scan_steps,
+            '--active-scan-cooldown-steps',
+            active_scan_cooldown_steps,
+            '--active-scan-probe-steps',
+            active_scan_probe_steps,
             '--active-scan-front-clear-m',
             active_scan_front_clear_m,
             '--active-scan-corridor-extra-width-m',
@@ -508,6 +514,8 @@ def generate_launch_description():
         DeclareLaunchArgument('active_scan_enabled', default_value='true'),
         DeclareLaunchArgument('active_scan_confirm_steps', default_value='3'),
         DeclareLaunchArgument('active_scan_steps', default_value='7'),
+        DeclareLaunchArgument('active_scan_cooldown_steps', default_value='4'),
+        DeclareLaunchArgument('active_scan_probe_steps', default_value='5'),
         DeclareLaunchArgument('active_scan_front_clear_m', default_value='1.25'),
         DeclareLaunchArgument('active_scan_corridor_extra_width_m', default_value='0.03'),
         DeclareLaunchArgument('continuous_control_enabled', default_value='true'),

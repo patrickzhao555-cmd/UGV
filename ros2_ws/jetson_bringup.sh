@@ -89,6 +89,8 @@ NAV_LOCAL_PLAN_INFLATION_M="${NAV_LOCAL_PLAN_INFLATION_M:-0.0}"
 NAV_ACTIVE_SCAN_ENABLED="${NAV_ACTIVE_SCAN_ENABLED:-true}"
 NAV_ACTIVE_SCAN_CONFIRM_STEPS="${NAV_ACTIVE_SCAN_CONFIRM_STEPS:-3}"
 NAV_ACTIVE_SCAN_STEPS="${NAV_ACTIVE_SCAN_STEPS:-7}"
+NAV_ACTIVE_SCAN_COOLDOWN_STEPS="${NAV_ACTIVE_SCAN_COOLDOWN_STEPS:-4}"
+NAV_ACTIVE_SCAN_PROBE_STEPS="${NAV_ACTIVE_SCAN_PROBE_STEPS:-5}"
 NAV_ACTIVE_SCAN_FRONT_CLEAR_M="${NAV_ACTIVE_SCAN_FRONT_CLEAR_M:-1.25}"
 NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M="${NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M:-0.03}"
 NAV_CONTINUOUS_CONTROL_ENABLED="${NAV_CONTINUOUS_CONTROL_ENABLED:-true}"
@@ -219,6 +221,7 @@ fi
 
 source_setup_compat "${WORKSPACE_DIR}/install/setup.bash"
 export UGV_WS="${WORKSPACE_DIR}"
+export QT_X11_NO_MITSHM="${QT_X11_NO_MITSHM:-1}"
 
 echo "UGV bringup workspace: ${WORKSPACE_DIR}"
 echo "UGV bringup launch: ${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.launch.py"
@@ -311,6 +314,8 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   active_scan_enabled:="${NAV_ACTIVE_SCAN_ENABLED}" \
   active_scan_confirm_steps:="${NAV_ACTIVE_SCAN_CONFIRM_STEPS}" \
   active_scan_steps:="${NAV_ACTIVE_SCAN_STEPS}" \
+  active_scan_cooldown_steps:="${NAV_ACTIVE_SCAN_COOLDOWN_STEPS}" \
+  active_scan_probe_steps:="${NAV_ACTIVE_SCAN_PROBE_STEPS}" \
   active_scan_front_clear_m:="${NAV_ACTIVE_SCAN_FRONT_CLEAR_M}" \
   active_scan_corridor_extra_width_m:="${NAV_ACTIVE_SCAN_CORRIDOR_EXTRA_WIDTH_M}" \
   continuous_control_enabled:="${NAV_CONTINUOUS_CONTROL_ENABLED}" \

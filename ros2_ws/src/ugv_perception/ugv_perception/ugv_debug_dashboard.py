@@ -2,6 +2,8 @@
 import json
 import math
 import os
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -140,7 +142,30 @@ class UgvDebugDashboard(Node):
     def _detect_gui_available(self) -> bool:
         if os.name == "nt":
             return True
-        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+        if os.environ.get("WAYLAND_DISPLAY"):
+            return True
+        display = os.environ.get("DISPLAY")
+        if not display:
+            return False
+        display_num = display.split(":", 1)[1].split(".", 1)[0] if ":" in display else ""
+        if display_num and not Path(f"/tmp/.X11-unix/X{display_num}").exists():
+            return False
+        for tool in ("xdpyinfo", "xset"):
+            exe = shutil.which(tool)
+            if not exe:
+                continue
+            try:
+                result = subprocess.run(
+                    [exe, "q"] if tool == "xset" else [exe],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=1.0,
+                    check=False,
+                )
+                return result.returncode == 0
+            except Exception:
+                return False
+        return True
 
     def _subscribe_json(self, key: str, topic: str) -> None:
         def callback(msg: String) -> None:
@@ -386,7 +411,7 @@ class UgvDebugDashboard(Node):
             f"clearance front={_fmt_m(fusion.get('front_clearance_m'))} src={fusion.get('front_clearance_source')} sectors f/fl/fr={sectors.get('front')}/{sectors.get('front_left')}/{sectors.get('front_right')}",
             f"velocity ctrl enabled={velocity.get('enabled')} safe={velocity.get('safe_samples')}/{velocity.get('samples')} v={velocity.get('selected_v_mps')} omega={velocity.get('selected_omega_radps')} gap={velocity.get('best_gap_heading_deg')}deg/{velocity.get('best_gap_depth_m')}m clear={velocity.get('min_clearance_m')} path_clear={velocity.get('path_clearance_m')}:{velocity.get('path_clearance_source')} state={velocity.get('safety_state')}",
             f"ZED depth obstacles pts={fusion.get('depth_obstacle_points')} filtered={fusion.get('depth_obstacle_points_filtered')} comps={fusion.get('depth_obstacle_components')} cells={fusion.get('depth_obstacle_candidate_cells')}",
-            f"active scan rem={active_scan.get('remaining')} dir={active_scan.get('direction')} evidence={active_scan.get('front_blocked_evidence')}/{active_scan.get('plan_failed_evidence')} corridor_pass={active_scan.get('front_corridor_passable')} corridor_gap={active_scan.get('front_corridor_gap_heading_deg')}deg/{active_scan.get('front_corridor_gap_depth_m')}m safe_dirs={active_scan.get('front_corridor_safe_headings')} depth_corridor={active_scan.get('front_depth_corridor_points')} min={active_scan.get('front_depth_corridor_min_m')} reason={active_scan.get('reason')}",
+            f"active scan rem={active_scan.get('remaining')} dir={active_scan.get('direction')} cd={active_scan.get('cooldown_steps')} probe={active_scan.get('probe_steps')} alt={active_scan.get('needs_opposite_side')} evidence={active_scan.get('front_blocked_evidence')}/{active_scan.get('plan_failed_evidence')} corridor_pass={active_scan.get('front_corridor_passable')} corridor_gap={active_scan.get('front_corridor_gap_heading_deg')}deg/{active_scan.get('front_corridor_gap_depth_m')}m safe_dirs={active_scan.get('front_corridor_safe_headings')} depth_corridor={active_scan.get('front_depth_corridor_points')} min={active_scan.get('front_depth_corridor_min_m')} reason={active_scan.get('reason')}",
             f"YOLO loaded={yolo.get('model_loaded')} accepted={yolo.get('accepted')} boxes={len(yolo.get('boxes', []))} classes={yolo.get('classes')}",
             f"marker detected={marker.get('detected')} method={marker.get('method')} reason={marker.get('reason')} bbox={marker.get('candidate_bbox')}",
             f"ages {', '.join(f'{k}={v:.2f}s' if v is not None else f'{k}=None' for k, v in ages.items())}",

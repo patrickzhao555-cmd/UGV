@@ -137,6 +137,49 @@ class LidarPacket:
     timestamp: float
 
 
+def laser_scan_to_lidar_observations(
+    ranges: Sequence[float],
+    angle_min: float,
+    angle_increment: float,
+    range_min: float,
+    range_max: float,
+) -> Tuple[List[Tuple[float, float]], List[float], List[float]]:
+    """Convert a LaserScan-like beam list into obstacle hits plus raytrace beams.
+
+    The hit list is intentionally stricter than the clearing beam list:
+    max-range, inf, and nan beams are kept for freespace ray clearing but are not
+    treated as obstacle returns.
+    """
+    hits: List[Tuple[float, float]] = []
+    ranges_m: List[float] = []
+    angles_rad: List[float] = []
+    min_r = max(0.0, float(range_min))
+    max_r = max(min_r, float(range_max))
+    hit_max_r = max_r * 0.995
+    angle = float(angle_min)
+    inc = float(angle_increment)
+
+    for raw_r in ranges:
+        try:
+            r = float(raw_r)
+        except (TypeError, ValueError):
+            r = float("nan")
+
+        real_hit = math.isfinite(r) and min_r <= r < hit_max_r
+        if real_hit:
+            hits.append((r * math.cos(angle), r * math.sin(angle)))
+
+        if math.isfinite(r):
+            clear_r = clamp(r, min_r, max_r)
+        else:
+            clear_r = max_r
+        ranges_m.append(float(clear_r))
+        angles_rad.append(float(angle))
+        angle += inc
+
+    return hits, ranges_m, angles_rad
+
+
 @dataclass
 class ZedPacket:
     hit_points_local: List[Tuple[float, float]]
@@ -2421,16 +2464,13 @@ class Ros2Bridge(RealRobotBridgeBase):
     def _synced_cb(self, msg):
         if not msg.encoder_available:
             return
-        hits: List[Tuple[float, float]] = []
-        ranges_m: List[float] = []
-        angles_rad: List[float] = []
-        angle = msg.scan.angle_min
-        for r in msg.scan.ranges:
-            if math.isfinite(r) and msg.scan.range_min <= r <= msg.scan.range_max:
-                hits.append((r * math.cos(angle), r * math.sin(angle)))
-                ranges_m.append(float(r))
-                angles_rad.append(float(angle))
-            angle += msg.scan.angle_increment
+        hits, ranges_m, angles_rad = laser_scan_to_lidar_observations(
+            msg.scan.ranges,
+            float(msg.scan.angle_min),
+            float(msg.scan.angle_increment),
+            float(msg.scan.range_min),
+            float(msg.scan.range_max),
+        )
 
         zed_hits = []
         for p in msg.zed_obstacle_points.poses:
@@ -2924,6 +2964,8 @@ class UGVNavigator:
             return 0
 
         added = 0
+        self.known_costmap.data[:, :] = 0
+        self._touch_map()
         self.static_costmap.data[:, :] = 0
         self.local_costmap.clear_static()
         for row, col in packet.obstacle_cells:

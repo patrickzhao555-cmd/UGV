@@ -1,5 +1,6 @@
 import pathlib
 import sys
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -10,6 +11,7 @@ sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 from ugv_nav_dual_mode import (  # noqa: E402
     Costmap2D,
     EncoderPacket,
+    FieldMapPacket,
     GoalPacket,
     GridSpec,
     HybridAStarPlanner,
@@ -18,12 +20,15 @@ from ugv_nav_dual_mode import (  # noqa: E402
     NavConfig,
     Pose2D,
     RobotConfig,
+    Ros2Bridge,
     SectorSnapshot,
     SensorConfig,
     SensorFrame,
     UGVNavigator,
     VelocityLocalPlanner,
     ZedPacket,
+    field_cell_to_world,
+    laser_scan_to_lidar_observations,
 )
 
 
@@ -49,6 +54,108 @@ def test_dynamic_sensor_hits_do_not_persist_in_global_planning_map():
 
     assert int(np.count_nonzero(navigator.known_costmap.data)) == before
     assert navigator.local_costmap.dynamic_cells
+
+
+def test_laser_scan_conversion_preserves_no_return_beams_for_clearing():
+    range_max = 5.0
+    hits, ranges_m, angles_rad = laser_scan_to_lidar_observations(
+        ranges=[float("inf"), range_max, float("nan"), 1.25],
+        angle_min=-0.3,
+        angle_increment=0.1,
+        range_min=0.12,
+        range_max=range_max,
+    )
+
+    assert len(ranges_m) == 4
+    assert len(angles_rad) == 4
+    assert ranges_m[:3] == [range_max, range_max, range_max]
+    assert ranges_m[3] == 1.25
+    assert len(hits) == 1
+    assert np.isclose(hits[0][0], 1.25 * np.cos(0.0))
+    assert np.isclose(hits[0][1], 0.0)
+
+
+def test_ros_synced_callback_preserves_clearing_beams_but_marks_only_real_hits():
+    bridge = object.__new__(Ros2Bridge)
+    bridge._latest_synced_seq = 0
+    scan = SimpleNamespace(
+        ranges=[float("inf"), 4.0, 1.0],
+        angle_min=0.0,
+        angle_increment=0.25,
+        range_min=0.10,
+        range_max=4.0,
+    )
+    msg = SimpleNamespace(
+        encoder_available=True,
+        scan=scan,
+        zed_obstacle_points=SimpleNamespace(poses=[]),
+        near_obstacle=False,
+        front_clearance_m=float("inf"),
+        header=SimpleNamespace(stamp=SimpleNamespace(sec=10, nanosec=500_000_000)),
+        left_encoder_ticks=11,
+        right_encoder_ticks=22,
+    )
+
+    Ros2Bridge._synced_cb(bridge, msg)
+    left, right, hits, ranges_m, angles_rad, zed_hits, imu_packet, ts_s = bridge._latest_synced
+
+    assert (left, right) == (11, 22)
+    assert ts_s == 10.5
+    assert zed_hits == []
+    assert len(ranges_m) == 3
+    assert len(angles_rad) == 3
+    assert ranges_m[0] == 4.0
+    assert ranges_m[1] == 4.0
+    assert ranges_m[2] == 1.0
+    assert len(hits) == 1
+    assert np.isclose(hits[0][0], 1.0 * np.cos(0.5))
+    assert np.isclose(hits[0][1], 1.0 * np.sin(0.5))
+    assert imu_packet.timestamp == 10.5
+
+
+def test_field_map_update_rebuilds_known_costmap_without_stale_static_obstacles():
+    robot_cfg = RobotConfig()
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    navigator = UGVNavigator(
+        robot_cfg,
+        sensor_cfg,
+        nav_cfg,
+        4.0,
+        4.0,
+        Pose2D(0.25, 0.25, 0.0),
+        Pose2D(1.75, 1.75, 0.0),
+    )
+    obstacle_cell = (1, 1)
+    obstacle_x, obstacle_y = field_cell_to_world(*obstacle_cell, size=4, cell_size_m=0.5)
+    v1 = FieldMapPacket(
+        size=4,
+        cell_size_m=0.5,
+        obstacle_cells=[obstacle_cell],
+        start_xy=(0.25, 0.25),
+        goal_xy=(1.75, 1.75),
+        timestamp=1.0,
+        version=1,
+    )
+    v2 = FieldMapPacket(
+        size=4,
+        cell_size_m=0.5,
+        obstacle_cells=[],
+        start_xy=(0.25, 0.25),
+        goal_xy=(1.75, 1.75),
+        timestamp=2.0,
+        version=2,
+    )
+
+    navigator.apply_field_map(v1)
+    assert navigator.known_costmap.is_occupied_world(obstacle_x, obstacle_y)
+
+    navigator.apply_field_map(v2)
+    assert not navigator.known_costmap.is_occupied_world(obstacle_x, obstacle_y)
+    assert not navigator.static_costmap.is_occupied_world(obstacle_x, obstacle_y)
+
+    navigator.blocked_memory.add_patch(obstacle_x, obstacle_y, 0.15, 10)
+    assert navigator._planning_costmap().is_occupied_world(obstacle_x, obstacle_y)
 
 
 def test_velocity_planner_hard_rejects_local_costmap_collision_by_default():

@@ -19,6 +19,7 @@ from ugv_motor_controller.velocity_control import (  # noqa: E402
     reset_velocity_pid_pair,
     select_drive_command,
     stale_encoder_control_mode,
+    update_encoder_wheel_speed_estimate,
     velocity_to_wheel_speeds,
 )
 from ugv_nav_dual_mode import ControlCommand  # noqa: E402
@@ -167,6 +168,130 @@ def test_encoder_speed_estimate_falls_back_and_clamps_safely():
     assert estimate.right_mps == -1.0
     assert "controller_millis_nonpositive_dt" in (estimate.anomaly or "")
     assert "wheel_speed_sanity_clamped" in (estimate.anomaly or "")
+
+
+def test_host_time_tiny_dt_sample_is_skipped_without_measured_speed_spike():
+    baseline = EncoderSpeedSample(left_ticks=1000, right_ticks=1000, host_time_s=10.0)
+    burst = EncoderSpeedSample(left_ticks=1020, right_ticks=1020, host_time_s=10.0008)
+
+    update = update_encoder_wheel_speed_estimate(
+        baseline,
+        burst,
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        previous_left_mps=0.05,
+        previous_right_mps=0.05,
+        filter_alpha=1.0,
+        max_abs_speed_mps=1.0,
+        min_host_dt_s=0.015,
+    )
+
+    assert update.skipped
+    assert update.estimate is None
+    assert update.baseline_sample == baseline
+    assert update.dt_source == "host_time"
+    assert round(update.accumulated_dt_s, 4) == 0.0008
+    assert "host_dt_too_small_skipped" in (update.anomaly or "")
+
+
+def test_host_time_tiny_dt_samples_accumulate_until_min_dt():
+    baseline = update_encoder_wheel_speed_estimate(
+        None,
+        EncoderSpeedSample(left_ticks=0, right_ticks=0, host_time_s=10.0),
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        min_host_dt_s=0.015,
+    ).baseline_sample
+
+    first_burst = update_encoder_wheel_speed_estimate(
+        baseline,
+        EncoderSpeedSample(left_ticks=2, right_ticks=2, host_time_s=10.005),
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        min_host_dt_s=0.015,
+    )
+    assert first_burst.skipped
+    assert first_burst.baseline_sample == baseline
+
+    second_burst = update_encoder_wheel_speed_estimate(
+        first_burst.baseline_sample,
+        EncoderSpeedSample(left_ticks=4, right_ticks=4, host_time_s=10.010),
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        min_host_dt_s=0.015,
+    )
+    assert second_burst.skipped
+    assert second_burst.baseline_sample == baseline
+
+    valid = update_encoder_wheel_speed_estimate(
+        second_burst.baseline_sample,
+        EncoderSpeedSample(left_ticks=8, right_ticks=8, host_time_s=10.020),
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        filter_alpha=1.0,
+        max_abs_speed_mps=2.0,
+        min_host_dt_s=0.015,
+    )
+
+    assert not valid.skipped
+    assert valid.estimate is not None
+    assert valid.estimate.dt_source == "host_time"
+    assert round(valid.estimate.dt_s, 3) == 0.020
+    assert round(valid.estimate.left_mps, 4) == 0.2513
+    assert valid.baseline_sample.left_ticks == 8
+
+
+def test_tiny_host_dt_does_not_clamp_measured_speed_to_max():
+    baseline = EncoderSpeedSample(left_ticks=0, right_ticks=0, host_time_s=20.0)
+    tiny = EncoderSpeedSample(left_ticks=500, right_ticks=500, host_time_s=20.001)
+
+    skipped = update_encoder_wheel_speed_estimate(
+        baseline,
+        tiny,
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        previous_left_mps=0.04,
+        previous_right_mps=0.04,
+        filter_alpha=1.0,
+        max_abs_speed_mps=1.0,
+        min_host_dt_s=0.015,
+    )
+
+    assert skipped.estimate is None
+    assert "wheel_speed_sanity_clamped" not in (skipped.anomaly or "")
+
+
+def test_controller_millis_bypasses_host_min_dt_and_is_preferred():
+    baseline = EncoderSpeedSample(left_ticks=0, right_ticks=0, host_time_s=30.0, controller_millis=1000)
+    current = EncoderSpeedSample(left_ticks=10, right_ticks=10, host_time_s=30.0008, controller_millis=1020)
+
+    update = update_encoder_wheel_speed_estimate(
+        baseline,
+        current,
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        filter_alpha=1.0,
+        max_abs_speed_mps=2.0,
+        min_host_dt_s=0.015,
+    )
+
+    assert not update.skipped
+    assert update.estimate is not None
+    assert update.estimate.dt_source == "controller_millis"
+    assert round(update.estimate.dt_s, 3) == 0.020
+    assert round(update.estimate.left_mps, 4) == 0.3142
+
+
+def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
+    launch_file = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "launch" / "motor_controller.launch.py").read_text()
+    competition_launch = (
+        ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "competition_bringup.launch.py"
+    ).read_text()
+    bringup = (ROOT / "ros2_ws" / "jetson_bringup.sh").read_text()
+
+    assert "velocity_encoder_speed_min_dt_s" in launch_file
+    assert "motor_velocity_encoder_speed_min_dt_s" in competition_launch
+    assert "MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S" in bringup
 
 
 def test_pid_correction_uses_encoder_feedback():

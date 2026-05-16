@@ -140,6 +140,7 @@ def generate_launch_description():
     motor_velocity_fallback_to_raw_without_encoder = LaunchConfiguration('motor_velocity_fallback_to_raw_without_encoder')
     motor_velocity_encoder_speed_filter_alpha = LaunchConfiguration('motor_velocity_encoder_speed_filter_alpha')
     motor_velocity_encoder_speed_max_mps = LaunchConfiguration('motor_velocity_encoder_speed_max_mps')
+    motor_velocity_encoder_speed_min_dt_s = LaunchConfiguration('motor_velocity_encoder_speed_min_dt_s')
     min_motion_raw = LaunchConfiguration('min_motion_raw')
     invert_left_command = LaunchConfiguration('invert_left_command')
     invert_right_command = LaunchConfiguration('invert_right_command')
@@ -254,6 +255,7 @@ def generate_launch_description():
             'velocity_fallback_to_raw_without_encoder': motor_velocity_fallback_to_raw_without_encoder,
             'velocity_encoder_speed_filter_alpha': motor_velocity_encoder_speed_filter_alpha,
             'velocity_encoder_speed_max_mps': motor_velocity_encoder_speed_max_mps,
+            'velocity_encoder_speed_min_dt_s': motor_velocity_encoder_speed_min_dt_s,
             'invert_left_command': invert_left_command,
             'invert_right_command': invert_right_command,
             'invert_left_encoder': invert_left_encoder,
@@ -632,6 +634,7 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_velocity_fallback_to_raw_without_encoder', default_value='false'),
         DeclareLaunchArgument('motor_velocity_encoder_speed_filter_alpha', default_value='0.65'),
         DeclareLaunchArgument('motor_velocity_encoder_speed_max_mps', default_value='2.0'),
+        DeclareLaunchArgument('motor_velocity_encoder_speed_min_dt_s', default_value='0.015'),
         DeclareLaunchArgument('min_motion_raw', default_value='0.22'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
         DeclareLaunchArgument('invert_right_command', default_value='true'),

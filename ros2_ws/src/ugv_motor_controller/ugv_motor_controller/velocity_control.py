@@ -129,6 +129,25 @@ class EncoderSpeedEstimate:
     anomaly: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class EncoderSpeedUpdate:
+    estimate: Optional[EncoderSpeedEstimate]
+    baseline_sample: EncoderSpeedSample
+    skipped: bool
+    accumulated_dt_s: float
+    dt_source: Optional[str] = None
+    anomaly: Optional[str] = None
+
+
+def append_anomaly(existing: Optional[str], token: str) -> str:
+    if not existing:
+        return token
+    parts = [part for part in str(existing).split(";") if part]
+    if token not in parts:
+        parts.append(token)
+    return ";".join(parts)
+
+
 def _encoder_dt_s(previous: EncoderSpeedSample, current: EncoderSpeedSample) -> Tuple[float, str, Optional[str]]:
     host_dt_s = float(current.host_time_s) - float(previous.host_time_s)
     if previous.controller_millis is not None and current.controller_millis is not None:
@@ -174,7 +193,7 @@ def estimate_encoder_wheel_speeds(
         clamped_left = clamp(left, -max_speed, max_speed)
         clamped_right = clamp(right, -max_speed, max_speed)
         if clamped_left != left or clamped_right != right:
-            anomaly = "wheel_speed_sanity_clamped" if anomaly is None else f"{anomaly};wheel_speed_sanity_clamped"
+            anomaly = append_anomaly(anomaly, "wheel_speed_sanity_clamped")
         left, right = clamped_left, clamped_right
 
     alpha = clamp(float(filter_alpha), 0.0, 1.0)
@@ -186,6 +205,60 @@ def estimate_encoder_wheel_speeds(
         dt_s=dt_s,
         dt_source=dt_source,
         anomaly=anomaly,
+    )
+
+
+def update_encoder_wheel_speed_estimate(
+    baseline: Optional[EncoderSpeedSample],
+    current: EncoderSpeedSample,
+    *,
+    wheel_radius_m: float,
+    ticks_per_rev: int,
+    previous_left_mps: float = 0.0,
+    previous_right_mps: float = 0.0,
+    filter_alpha: float = 1.0,
+    max_abs_speed_mps: float = 3.0,
+    min_host_dt_s: float = 0.015,
+) -> EncoderSpeedUpdate:
+    if baseline is None:
+        return EncoderSpeedUpdate(
+            estimate=None,
+            baseline_sample=current,
+            skipped=False,
+            accumulated_dt_s=0.0,
+            dt_source=None,
+            anomaly=None,
+        )
+
+    dt_s, dt_source, anomaly = _encoder_dt_s(baseline, current)
+    accumulated_dt_s = max(0.0, float(current.host_time_s) - float(baseline.host_time_s))
+    if dt_source in {"host_time", "host_time_fallback"} and dt_s < max(0.0, float(min_host_dt_s)):
+        return EncoderSpeedUpdate(
+            estimate=None,
+            baseline_sample=baseline,
+            skipped=True,
+            accumulated_dt_s=accumulated_dt_s,
+            dt_source=dt_source,
+            anomaly=append_anomaly(anomaly, "host_dt_too_small_skipped"),
+        )
+
+    estimate = estimate_encoder_wheel_speeds(
+        baseline,
+        current,
+        wheel_radius_m=wheel_radius_m,
+        ticks_per_rev=ticks_per_rev,
+        previous_left_mps=previous_left_mps,
+        previous_right_mps=previous_right_mps,
+        filter_alpha=filter_alpha,
+        max_abs_speed_mps=max_abs_speed_mps,
+    )
+    return EncoderSpeedUpdate(
+        estimate=estimate,
+        baseline_sample=current,
+        skipped=False,
+        accumulated_dt_s=dt_s,
+        dt_source=estimate.dt_source,
+        anomaly=estimate.anomaly,
     )
 
 

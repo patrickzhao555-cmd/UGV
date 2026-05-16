@@ -34,6 +34,7 @@ def generate_launch_description():
     velocity_fallback_to_raw_without_encoder = LaunchConfiguration('velocity_fallback_to_raw_without_encoder')
     velocity_encoder_speed_filter_alpha = LaunchConfiguration('velocity_encoder_speed_filter_alpha')
     velocity_encoder_speed_max_mps = LaunchConfiguration('velocity_encoder_speed_max_mps')
+    velocity_encoder_speed_min_dt_s = LaunchConfiguration('velocity_encoder_speed_min_dt_s')
 
     return LaunchDescription([
         DeclareLaunchArgument('port', default_value='/dev/ttyACM0'),
@@ -64,6 +65,7 @@ def generate_launch_description():
         DeclareLaunchArgument('velocity_fallback_to_raw_without_encoder', default_value='false'),
         DeclareLaunchArgument('velocity_encoder_speed_filter_alpha', default_value='0.65'),
         DeclareLaunchArgument('velocity_encoder_speed_max_mps', default_value='2.0'),
+        DeclareLaunchArgument('velocity_encoder_speed_min_dt_s', default_value='0.015'),
         Node(
             package='ugv_motor_controller',
             executable='motor_controller_bridge',
@@ -98,6 +100,7 @@ def generate_launch_description():
                 'velocity_fallback_to_raw_without_encoder': ParameterValue(velocity_fallback_to_raw_without_encoder, value_type=bool),
                 'velocity_encoder_speed_filter_alpha': ParameterValue(velocity_encoder_speed_filter_alpha, value_type=float),
                 'velocity_encoder_speed_max_mps': ParameterValue(velocity_encoder_speed_max_mps, value_type=float),
+                'velocity_encoder_speed_min_dt_s': ParameterValue(velocity_encoder_speed_min_dt_s, value_type=float),
             }],
         ),
     ])

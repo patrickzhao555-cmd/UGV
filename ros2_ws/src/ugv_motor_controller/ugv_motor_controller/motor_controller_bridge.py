@@ -14,12 +14,12 @@ from ugv_motor_controller.velocity_control import (
     WheelVelocityPid,
     EncoderSpeedSample,
     encoder_speed_is_fresh,
-    estimate_encoder_wheel_speeds,
     extract_raw_drive,
     is_stop_command,
     reset_velocity_pid_pair,
     select_drive_command,
     stale_encoder_control_mode,
+    update_encoder_wheel_speed_estimate,
     velocity_to_wheel_speeds,
 )
 
@@ -70,6 +70,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('velocity_fallback_to_raw_without_encoder', False)
         self.declare_parameter('velocity_encoder_speed_filter_alpha', 0.65)
         self.declare_parameter('velocity_encoder_speed_max_mps', 2.0)
+        self.declare_parameter('velocity_encoder_speed_min_dt_s', 0.015)
 
         self.port = self.get_parameter('port').value
         self.baud = int(self.get_parameter('baud').value)
@@ -117,6 +118,10 @@ class MotorControllerBridge(Node):
             0.05,
             float(self.get_parameter('velocity_encoder_speed_max_mps').value),
         )
+        self.velocity_encoder_speed_min_dt_s = max(
+            0.0,
+            float(self.get_parameter('velocity_encoder_speed_min_dt_s').value),
+        )
         pid_cfg = VelocityPidConfig(
             kp=float(self.get_parameter('velocity_kp').value),
             ki=float(self.get_parameter('velocity_ki').value),
@@ -152,12 +157,14 @@ class MotorControllerBridge(Node):
         self.target_right_mps = 0.0
         self.measured_left_mps = 0.0
         self.measured_right_mps = 0.0
-        self.last_encoder_speed_sample: Optional[EncoderSpeedSample] = None
+        self.encoder_speed_baseline_sample: Optional[EncoderSpeedSample] = None
         self.encoder_speed_delta_available = False
         self.last_encoder_speed_time = 0.0
         self.last_encoder_speed_dt_s: Optional[float] = None
         self.last_encoder_speed_dt_source: Optional[str] = None
         self.last_encoder_speed_anomaly: Optional[str] = None
+        self.encoder_speed_skipped_samples = 0
+        self.last_encoder_speed_accumulated_dt_s: Optional[float] = None
         self.last_velocity_pid_time = 0.0
         self.last_velocity_pid_left = None
         self.last_velocity_pid_right = None
@@ -430,17 +437,25 @@ class MotorControllerBridge(Node):
             host_time_s=now,
             controller_millis=teensy_ms,
         )
-        if self.last_encoder_speed_sample is not None:
-            speed_estimate = estimate_encoder_wheel_speeds(
-                self.last_encoder_speed_sample,
-                current_speed_sample,
-                wheel_radius_m=self.wheel_radius_m,
-                ticks_per_rev=self.ticks_per_rev,
-                previous_left_mps=self.measured_left_mps,
-                previous_right_mps=self.measured_right_mps,
-                filter_alpha=self.velocity_encoder_speed_filter_alpha,
-                max_abs_speed_mps=self.velocity_encoder_speed_max_mps,
-            )
+        speed_update = update_encoder_wheel_speed_estimate(
+            self.encoder_speed_baseline_sample,
+            current_speed_sample,
+            wheel_radius_m=self.wheel_radius_m,
+            ticks_per_rev=self.ticks_per_rev,
+            previous_left_mps=self.measured_left_mps,
+            previous_right_mps=self.measured_right_mps,
+            filter_alpha=self.velocity_encoder_speed_filter_alpha,
+            max_abs_speed_mps=self.velocity_encoder_speed_max_mps,
+            min_host_dt_s=self.velocity_encoder_speed_min_dt_s,
+        )
+        self.encoder_speed_baseline_sample = speed_update.baseline_sample
+        self.last_encoder_speed_accumulated_dt_s = speed_update.accumulated_dt_s
+        if speed_update.skipped:
+            self.encoder_speed_skipped_samples += 1
+            self.last_encoder_speed_dt_source = speed_update.dt_source
+            self.last_encoder_speed_anomaly = speed_update.anomaly
+        elif speed_update.estimate is not None:
+            speed_estimate = speed_update.estimate
             self.measured_left_mps = speed_estimate.left_mps
             self.measured_right_mps = speed_estimate.right_mps
             self.last_encoder_speed_dt_s = speed_estimate.dt_s
@@ -456,7 +471,6 @@ class MotorControllerBridge(Node):
             self.last_encoder_speed_anomaly = None
             self.last_encoder_speed_time = 0.0
             self.encoder_speed_delta_available = False
-        self.last_encoder_speed_sample = current_speed_sample
 
         self.last_encoder_pair = (left, right)
         self.last_raw_encoder_quad = (fl, fr, rl, rr)
@@ -502,7 +516,6 @@ class MotorControllerBridge(Node):
             now=time.monotonic(),
             timeout_s=self.velocity_stale_encoder_timeout_s,
         )
-
     def _stop_immediately(self, reason: str) -> None:
         self.active_velocity_command = None
         self.control_mode = 'stopped'
@@ -648,6 +661,13 @@ class MotorControllerBridge(Node):
             'encoder_speed_dt_s': None if self.last_encoder_speed_dt_s is None else round(self.last_encoder_speed_dt_s, 4),
             'encoder_speed_dt_source': self.last_encoder_speed_dt_source,
             'encoder_speed_anomaly': self.last_encoder_speed_anomaly,
+            'encoder_speed_min_dt_s': round(self.velocity_encoder_speed_min_dt_s, 4),
+            'encoder_speed_skipped_samples': int(self.encoder_speed_skipped_samples),
+            'encoder_speed_accumulated_dt_s': (
+                None
+                if self.last_encoder_speed_accumulated_dt_s is None
+                else round(self.last_encoder_speed_accumulated_dt_s, 4)
+            ),
             'velocity_safe_reason': self.last_velocity_safe_reason,
             'last_pwm': list(self.last_pwm_command),
             'target_pwm': list(self.target_pwm_command),

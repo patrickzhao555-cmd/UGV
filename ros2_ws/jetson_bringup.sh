@@ -157,6 +157,7 @@ MOTOR_VELOCITY_STALE_ENCODER_TIMEOUT_S="${MOTOR_VELOCITY_STALE_ENCODER_TIMEOUT_S
 MOTOR_VELOCITY_FALLBACK_TO_RAW_WITHOUT_ENCODER="${MOTOR_VELOCITY_FALLBACK_TO_RAW_WITHOUT_ENCODER:-false}"
 MOTOR_VELOCITY_ENCODER_SPEED_FILTER_ALPHA="${MOTOR_VELOCITY_ENCODER_SPEED_FILTER_ALPHA:-0.65}"
 MOTOR_VELOCITY_ENCODER_SPEED_MAX_MPS="${MOTOR_VELOCITY_ENCODER_SPEED_MAX_MPS:-2.0}"
+MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S="${MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S:-0.015}"
 MIN_MOTION_RAW="${MIN_MOTION_RAW:-0.22}"
 # Current chassis wiring maps positive logical left raw to physical left-forward,
 # while positive logical right raw needs inversion to physical right-forward.
@@ -391,6 +392,7 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   motor_velocity_fallback_to_raw_without_encoder:="${MOTOR_VELOCITY_FALLBACK_TO_RAW_WITHOUT_ENCODER}" \
   motor_velocity_encoder_speed_filter_alpha:="${MOTOR_VELOCITY_ENCODER_SPEED_FILTER_ALPHA}" \
   motor_velocity_encoder_speed_max_mps:="${MOTOR_VELOCITY_ENCODER_SPEED_MAX_MPS}" \
+  motor_velocity_encoder_speed_min_dt_s:="${MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S}" \
   min_motion_raw:="${MIN_MOTION_RAW}" \
   invert_left_command:="${INVERT_LEFT_COMMAND}" \
   invert_right_command:="${INVERT_RIGHT_COMMAND}" \

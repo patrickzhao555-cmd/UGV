@@ -39,8 +39,25 @@ NAV_CONTINUOUS_CONTROL_ENABLED=true
 The controller samples forward `(v_mps, omega_radps)`, simulates short
 trajectories through the local obstacle field, scores target progress,
 clearance, polar gap width, heading, and smoothness, then applies acceleration
-limits and low-pass filtering before converting velocity into tank-drive raw
-commands.
+limits and low-pass filtering.
+
+Commands now make velocity intent explicit while retaining raw fallback fields:
+
+```json
+{
+  "mode": "FORWARD",
+  "command_type": "velocity",
+  "v_mps": 0.18,
+  "omega_radps": 0.35,
+  "raw_left": 0.0,
+  "raw_right": 0.0,
+  "controller": "velocity"
+}
+```
+
+Use `--emit-velocity-commands false` or `NAV_EMIT_VELOCITY_COMMANDS=false` to
+make continuous-controller output raw-preferred again while preserving
+`v_mps`/`omega_radps` for debug and simulation.
 
 The local safety check uses the actual rolled-out arc for each sampled command,
 so staggered obstacles can be handled as a sequence of short S-curve decisions.
@@ -54,6 +71,17 @@ FUSION_DEPTH_FRONT_CORRIDOR_HALF_WIDTH_M=0.42
 NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.05
 NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
 ```
+
+`NAV_LOCAL_COSTMAP_ENABLED=true` enables the rolling local costmap used by the
+continuous controller. It marks LiDAR/ZED obstacles, ray-clears LiDAR freespace,
+decays dynamic obstacles, inflates local obstacles, and keeps field-map static
+obstacles separate from dynamic clearing. The legacy step planner still uses the
+older local safety map when `NAV_CONTINUOUS_CONTROL_ENABLED=false`.
+
+`/ugv_nav_status` includes `velocity_control` normalized scoring fields
+(`progress_score`, `path_alignment_score`, `clearance_score`,
+`gap_alignment_score`, `speed_score`, `smoothness_cost`, rejection counts, and
+`final_score`) plus `local_costmap` stats.
 
 Reverse is disabled for normal indoor runs:
 
@@ -81,6 +109,12 @@ Legacy local-planner comparison:
 ```bash
 python3 ros2_ws/src/ugv_nav/ugv_nav_dual_mode.py \
   --mode sim --headless --max-steps 80 --continuous-control-enabled false
+```
+
+Replay/status metrics:
+
+```bash
+python3 ros2_ws/src/ugv_nav/tools/replay_nav_metrics.py path/to/replay_or_status.jsonl
 ```
 
 ## Notes

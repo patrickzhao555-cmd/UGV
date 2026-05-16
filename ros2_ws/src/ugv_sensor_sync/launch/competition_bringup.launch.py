@@ -124,6 +124,20 @@ def generate_launch_description():
     motor_raw_command_scale_us = LaunchConfiguration('motor_raw_command_scale_us')
     motor_pwm_slew_rate_us_per_s = LaunchConfiguration('motor_pwm_slew_rate_us_per_s')
     motor_dry_run = LaunchConfiguration('motor_dry_run')
+    motor_velocity_control_enabled = LaunchConfiguration('motor_velocity_control_enabled')
+    motor_prefer_velocity_fields = LaunchConfiguration('motor_prefer_velocity_fields')
+    motor_wheel_radius_m = LaunchConfiguration('motor_wheel_radius_m')
+    motor_ticks_per_rev = LaunchConfiguration('motor_ticks_per_rev')
+    motor_velocity_kp = LaunchConfiguration('motor_velocity_kp')
+    motor_velocity_ki = LaunchConfiguration('motor_velocity_ki')
+    motor_velocity_kd = LaunchConfiguration('motor_velocity_kd')
+    motor_velocity_integral_limit = LaunchConfiguration('motor_velocity_integral_limit')
+    motor_velocity_feedforward_raw_per_mps = LaunchConfiguration('motor_velocity_feedforward_raw_per_mps')
+    motor_velocity_min_target_mps = LaunchConfiguration('motor_velocity_min_target_mps')
+    motor_velocity_max_target_mps = LaunchConfiguration('motor_velocity_max_target_mps')
+    motor_velocity_control_period_s = LaunchConfiguration('motor_velocity_control_period_s')
+    motor_velocity_stale_encoder_timeout_s = LaunchConfiguration('motor_velocity_stale_encoder_timeout_s')
+    motor_velocity_fallback_to_raw_without_encoder = LaunchConfiguration('motor_velocity_fallback_to_raw_without_encoder')
     min_motion_raw = LaunchConfiguration('min_motion_raw')
     invert_left_command = LaunchConfiguration('invert_left_command')
     invert_right_command = LaunchConfiguration('invert_right_command')
@@ -165,6 +179,8 @@ def generate_launch_description():
     continuous_stop_clearance_m = LaunchConfiguration('continuous_stop_clearance_m')
     continuous_gap_buffer_m = LaunchConfiguration('continuous_gap_buffer_m')
     continuous_latency_buffer_s = LaunchConfiguration('continuous_latency_buffer_s')
+    emit_velocity_commands = LaunchConfiguration('emit_velocity_commands')
+    local_costmap_enabled = LaunchConfiguration('local_costmap_enabled')
 
     sensor_sync_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -210,6 +226,21 @@ def generate_launch_description():
             'raw_command_scale_us': motor_raw_command_scale_us,
             'pwm_slew_rate_us_per_s': motor_pwm_slew_rate_us_per_s,
             'dry_run': motor_dry_run,
+            'velocity_control_enabled': motor_velocity_control_enabled,
+            'prefer_velocity_fields': motor_prefer_velocity_fields,
+            'track_width_m': robot_track_width_m,
+            'wheel_radius_m': motor_wheel_radius_m,
+            'ticks_per_rev': motor_ticks_per_rev,
+            'velocity_kp': motor_velocity_kp,
+            'velocity_ki': motor_velocity_ki,
+            'velocity_kd': motor_velocity_kd,
+            'velocity_integral_limit': motor_velocity_integral_limit,
+            'velocity_feedforward_raw_per_mps': motor_velocity_feedforward_raw_per_mps,
+            'velocity_min_target_mps': motor_velocity_min_target_mps,
+            'velocity_max_target_mps': motor_velocity_max_target_mps,
+            'velocity_control_period_s': motor_velocity_control_period_s,
+            'velocity_stale_encoder_timeout_s': motor_velocity_stale_encoder_timeout_s,
+            'velocity_fallback_to_raw_without_encoder': motor_velocity_fallback_to_raw_without_encoder,
             'invert_left_command': invert_left_command,
             'invert_right_command': invert_right_command,
             'invert_left_encoder': invert_left_encoder,
@@ -321,6 +352,10 @@ def generate_launch_description():
             continuous_gap_buffer_m,
             '--continuous-latency-buffer-s',
             continuous_latency_buffer_s,
+            '--emit-velocity-commands',
+            emit_velocity_commands,
+            '--local-costmap-enabled',
+            local_costmap_enabled,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -534,11 +569,27 @@ def generate_launch_description():
         DeclareLaunchArgument('continuous_stop_clearance_m', default_value='0.48'),
         DeclareLaunchArgument('continuous_gap_buffer_m', default_value='0.025'),
         DeclareLaunchArgument('continuous_latency_buffer_s', default_value='0.25'),
+        DeclareLaunchArgument('emit_velocity_commands', default_value='true'),
+        DeclareLaunchArgument('local_costmap_enabled', default_value='true'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),
         DeclareLaunchArgument('motor_pwm_slew_rate_us_per_s', default_value='2400.0'),
         DeclareLaunchArgument('motor_dry_run', default_value='false'),
+        DeclareLaunchArgument('motor_velocity_control_enabled', default_value='false'),
+        DeclareLaunchArgument('motor_prefer_velocity_fields', default_value='true'),
+        DeclareLaunchArgument('motor_wheel_radius_m', default_value='0.06'),
+        DeclareLaunchArgument('motor_ticks_per_rev', default_value='1000'),
+        DeclareLaunchArgument('motor_velocity_kp', default_value='0.80'),
+        DeclareLaunchArgument('motor_velocity_ki', default_value='0.0'),
+        DeclareLaunchArgument('motor_velocity_kd', default_value='0.02'),
+        DeclareLaunchArgument('motor_velocity_integral_limit', default_value='0.30'),
+        DeclareLaunchArgument('motor_velocity_feedforward_raw_per_mps', default_value='1.35'),
+        DeclareLaunchArgument('motor_velocity_min_target_mps', default_value='0.02'),
+        DeclareLaunchArgument('motor_velocity_max_target_mps', default_value='0.60'),
+        DeclareLaunchArgument('motor_velocity_control_period_s', default_value='0.05'),
+        DeclareLaunchArgument('motor_velocity_stale_encoder_timeout_s', default_value='0.25'),
+        DeclareLaunchArgument('motor_velocity_fallback_to_raw_without_encoder', default_value='false'),
         DeclareLaunchArgument('min_motion_raw', default_value='0.22'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
         DeclareLaunchArgument('invert_right_command', default_value='true'),

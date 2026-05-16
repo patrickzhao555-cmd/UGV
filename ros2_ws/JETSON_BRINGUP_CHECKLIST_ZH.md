@@ -486,6 +486,7 @@ ros2 topic echo /zed/status --once --full-length
 - `phase`、`cmd`、`pose`
 - `odom_warn`
 - `velocity_control`
+- `local_costmap`
 - `active_scan`
 - `zed_obstacle_points`、`depth_obstacle_points`、`depth_obstacle_points_filtered`
 
@@ -506,3 +507,47 @@ ros2 topic echo /zed/status --once --full-length
 - package-level README 保持短小；启动行为变化时，优先更新这份中文手册和英文手册。
 - commit 前运行 `git diff --check`。
 - Windows 本地适合做 Python syntax check；完整 `colcon build` 要在 Nano/ROS 环境跑。
+
+## 16. Velocity PID / Replay Metrics
+
+导航现在会在 `/ugv_nav_cmd` 中明确发布速度意图，同时保留 raw 兼容字段：
+
+```json
+{"command_type":"velocity","v_mps":0.18,"omega_radps":0.35,"raw_left":0.0,"raw_right":0.0}
+```
+
+电机桥默认仍然使用 raw 模式，速度闭环默认关闭：
+
+```bash
+MOTOR_VELOCITY_CONTROL_ENABLED=false
+NAV_EMIT_VELOCITY_COMMANDS=true
+```
+
+第一次打开速度 PID 前必须架空车体：
+
+```bash
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=1 MOTOR_DRY_RUN=false \
+MOTOR_VELOCITY_CONTROL_ENABLED=true \
+MOTOR_VELOCITY_KP=0.80 MOTOR_VELOCITY_KI=0.0 MOTOR_VELOCITY_KD=0.02 \
+MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS=1.35 \
+MOTOR_VELOCITY_MAX_TARGET_MPS=0.35 \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+检查状态：
+
+```bash
+ros2 topic echo /motor_controller/status
+```
+
+重点看 `control_mode`、`target_left_mps`、`target_right_mps`、
+`measured_left_mps`、`measured_right_mps`、`pid_left`、`pid_right`、
+`velocity_safe_reason`。如果 encoder 速度缺失或过期，默认会输出 neutral
+PWM；第一次测试不要打开 `MOTOR_VELOCITY_FALLBACK_TO_RAW_WITHOUT_ENCODER`。
+
+离线 replay/status 指标：
+
+```bash
+python3 ros2_ws/src/ugv_nav/tools/replay_nav_metrics.py path/to/replay_or_status.jsonl
+python3 ros2_ws/src/ugv_nav/tools/replay_nav_metrics.py --json-only path/to/replay_or_status.jsonl
+```

@@ -65,6 +65,11 @@ in this file, but the local motion layer is continuous:
   left/right raw commands
 - keep a collision-monitor style stop/slow layer separate from ordinary path
   selection
+- publish `command_type=velocity` plus `v_mps`/`omega_radps` on `/ugv_nav_cmd`
+  while preserving `raw_left`/`raw_right` for raw fallback
+- use a rolling local costmap for continuous-controller collision checks, with
+  LiDAR ray clearing, dynamic-obstacle decay, inflation, and field-map static
+  obstacles kept separate from dynamic clearing
 
 The local safety layer uses the real 30 inch footprint plus a small
 `ROBOT_OBSTACLE_BUFFER_M` rather than double-counting a large local inflation;
@@ -116,6 +121,17 @@ and publish:
 - `/motor_controller/status`
 
 This is the last bridge between ROS and the Teensy 4.1.
+
+The bridge supports two actuation paths:
+
+- raw mode, the legacy default, maps `raw_left`/`raw_right` to PWM
+- velocity PID mode, opt-in with `velocity_control_enabled=true`, converts
+  `v_mps`/`omega_radps` into left/right wheel-speed targets and uses encoder
+  feedback to compute PWM with feedforward plus PID correction
+
+Velocity PID defaults safe: if encoder speed is missing or stale, the bridge
+commands neutral PWM unless `velocity_fallback_to_raw_without_encoder=true` is
+explicitly set for a controlled bench experiment.
 
 ## 6. Competition/debug helper topics
 

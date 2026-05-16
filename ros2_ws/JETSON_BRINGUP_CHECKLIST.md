@@ -230,7 +230,52 @@ INVERT_LEFT_ENCODER=false
 INVERT_RIGHT_ENCODER=false
 ```
 
-## 6. Bench and Dry-Run Modes
+## 6. Velocity PID Bench Test
+
+Navigation now publishes velocity intent on `/ugv_nav_cmd`:
+
+```json
+{"command_type":"velocity","v_mps":0.18,"omega_radps":0.35,"raw_left":0.0,"raw_right":0.0}
+```
+
+The bridge still defaults to raw mode for safety:
+
+```bash
+MOTOR_VELOCITY_CONTROL_ENABLED=false
+NAV_EMIT_VELOCITY_COMMANDS=true
+```
+
+Lift the UGV before enabling closed-loop wheel-speed control:
+
+```bash
+ROUND_MODE=indoor DRIVE_SPEED_LEVEL=1 MOTOR_DRY_RUN=false \
+MOTOR_VELOCITY_CONTROL_ENABLED=true \
+MOTOR_VELOCITY_KP=0.80 MOTOR_VELOCITY_KI=0.0 MOTOR_VELOCITY_KD=0.02 \
+MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS=1.35 \
+MOTOR_VELOCITY_MAX_TARGET_MPS=0.35 \
+EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+```
+
+Watch the bridge status:
+
+```bash
+ros2 topic echo /motor_controller/status
+```
+
+Key fields:
+
+- `control_mode`: `raw`, `velocity_pid`, `velocity_safe_neutral`, or fallback
+- `target_left_mps`, `target_right_mps`
+- `measured_left_mps`, `measured_right_mps`
+- `velocity_error_left_mps`, `velocity_error_right_mps`
+- `pid_left`, `pid_right`
+- `velocity_safe_reason`
+
+Default stale-encoder behavior is neutral PWM. Do not set
+`MOTOR_VELOCITY_FALLBACK_TO_RAW_WITHOUT_ENCODER=true` during first hardware
+tests.
+
+## 7. Bench and Dry-Run Modes
 
 Recommended bench mode:
 
@@ -263,7 +308,7 @@ ros2 topic pub --once /ugv_goal geometry_msgs/msg/PointStamped \
 The 15 yard x 15 yard field is `13.716 m x 13.716 m`; center is about
 `(6.86, 6.86)`.
 
-## 7. Round and Competition Modes
+## 8. Round and Competition Modes
 
 Round 1:
 
@@ -303,7 +348,7 @@ The legacy `/ugv/field_map` JSON matrix is still accepted for old bench tests,
 but the UAV/ESP side should normally only send a target coordinate. Obstacles
 come from live LiDAR/ZED/YOLO perception.
 
-## 8. Marker Vision
+## 9. Marker Vision
 
 Training images go here:
 
@@ -337,7 +382,7 @@ ros2 topic echo /ugv/marker_detection --once
 ros2 topic echo /ugv/uav_flag --once --full-length
 ```
 
-## 9. YOLO Semantic Obstacle Assist
+## 10. YOLO Semantic Obstacle Assist
 
 YOLO is advisory. It adds chair/table/person-style points for conservative
 inflation; missed YOLO detections do not remove LiDAR/ZED safety obstacles.
@@ -368,7 +413,7 @@ ros2 topic echo /sensors/yolo_semantic_debug --full-length
 ros2 topic echo /sensors/yolo_semantic_obstacle_points --once
 ```
 
-## 10. Sensor and Navigation Design
+## 11. Sensor and Navigation Design
 
 Answers to common design questions:
 
@@ -390,7 +435,7 @@ ZED + LiDAR + encoder adapters
         -> Teensy
 ```
 
-## 11. Continuous Local Controller
+## 12. Continuous Local Controller
 
 The current branch keeps global search/marker logic but uses a Nav2-inspired
 continuous local controller by default:
@@ -421,6 +466,8 @@ NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.20
 NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
 NAV_CONTINUOUS_GAP_BUFFER_M=0.025
 NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
+NAV_EMIT_VELOCITY_COMMANDS=true
+NAV_LOCAL_COSTMAP_ENABLED=true
 ```
 
 If the robot feels too aggressive indoors:
@@ -436,7 +483,7 @@ Compare against the older local planner:
 NAV_CONTINUOUS_CONTROL_ENABLED=false
 ```
 
-## 12. ZED Depth Obstacle Filtering and Active Scan
+## 13. ZED Depth Obstacle Filtering and Active Scan
 
 Ground-aware depth filter:
 
@@ -480,7 +527,7 @@ After one active-scan burst, the controller briefly probes the newly observed
 view and blocks an immediate same-side re-scan; if it still cannot make a safe
 arc, the next scan is forced to the opposite side.
 
-## 13. Debug Topics
+## 14. Debug Topics
 
 ```bash
 ros2 topic echo /ugv/debug_status --full-length
@@ -498,10 +545,22 @@ Important fields:
 - `phase`, `cmd`, `pose`
 - `odom_warn`
 - `velocity_control`
+- `local_costmap`
 - `active_scan`
 - `zed_obstacle_points`, `depth_obstacle_points`, `depth_obstacle_points_filtered`
 
-## 14. Fast Failure Clues
+Offline replay/status metrics:
+
+```bash
+python3 ros2_ws/src/ugv_nav/tools/replay_nav_metrics.py path/to/replay_or_status.jsonl
+python3 ros2_ws/src/ugv_nav/tools/replay_nav_metrics.py --json-only path/to/replay_or_status.jsonl
+```
+
+The tool accepts raw JsonReplayBridge frames and mixed `REAL CMD`/`NAV STATUS`
+logs. Missing fields are reported in the JSON summary instead of treated as a
+failure.
+
+## 15. Fast Failure Clues
 
 - `_ARRAY_API not found`: NumPy 2.x broke ROS Humble Python binaries. Reinstall `numpy==1.26.4`.
 - Robot drives backward on `FORWARD`: command inversion is wrong; fix both sides before tuning.
@@ -512,7 +571,7 @@ Important fields:
 - Dashboard does not open: launch from VNC terminal or set `DISPLAY=:1`.
 - YOLO boxes missing on table legs: expected limitation; ZED depth obstacle points and LiDAR remain the primary safety sources.
 
-## 15. Development Notes
+## 16. Development Notes
 
 - Do not commit `ros2_ws/build`, `ros2_ws/install`, or `ros2_ws/log`.
 - Keep package READMEs short; update this runbook and the Chinese runbook when launch behavior changes.

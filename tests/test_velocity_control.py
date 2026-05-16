@@ -1,0 +1,176 @@
+import pathlib
+import sys
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_motor_controller"))
+sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
+
+from ugv_motor_controller.velocity_control import (  # noqa: E402
+    VelocityPidConfig,
+    WheelVelocityPid,
+    encoder_delta_to_wheel_speed_mps,
+    encoder_speed_is_fresh,
+    extract_raw_drive,
+    extract_velocity_command,
+    is_stop_command,
+    reset_velocity_pid_pair,
+    select_drive_command,
+    stale_encoder_control_mode,
+    velocity_to_wheel_speeds,
+)
+from ugv_nav_dual_mode import ControlCommand  # noqa: E402
+
+
+def test_nav_velocity_command_contract_preserves_legacy_raw_fields():
+    cmd = ControlCommand(
+        mode="VELOCITY",
+        command_type="velocity",
+        raw_left=0.0,
+        raw_right=0.0,
+        v_mps=0.18,
+        omega_radps=0.35,
+        controller="velocity",
+    )
+    payload = cmd.as_dict()
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == 0.18
+    assert payload["omega_radps"] == 0.35
+    assert "raw_left" in payload
+    assert "raw_right" in payload
+
+
+def test_nav_legacy_raw_command_serializes_raw_fields():
+    cmd = ControlCommand(
+        mode="FORWARD",
+        raw_left=0.22,
+        raw_right=0.55,
+        reason="legacy raw smoke",
+        controller="step",
+    )
+    payload = cmd.as_dict()
+    assert payload["command_type"] == "raw"
+    assert payload["raw_left"] == 0.22
+    assert payload["raw_right"] == 0.55
+    assert payload["v_mps"] == 0.0
+    assert payload["omega_radps"] == 0.0
+
+
+def test_nav_stop_command_contract_is_safe():
+    payload = ControlCommand(mode="STOP").as_dict()
+    assert payload["command_type"] == "stop"
+    assert payload["raw_left"] == 0.0
+    assert payload["raw_right"] == 0.0
+    assert payload["v_mps"] == 0.0
+    assert payload["omega_radps"] == 0.0
+    assert is_stop_command(payload)
+
+
+def test_raw_command_extraction_legacy_modes_and_fields():
+    assert extract_raw_drive({"raw_left": 0.2, "raw_right": -0.1}) == (0.2, -0.1)
+    assert extract_raw_drive({"mode": "FORWARD"}) == (0.35, 0.35)
+    assert extract_raw_drive({"mode": "TURN_LEFT"}) == (-0.30, 0.30)
+
+
+def test_velocity_command_parsing_respects_explicit_raw():
+    obj = {
+        "mode": "FORWARD",
+        "command_type": "velocity",
+        "controller": "velocity",
+        "v_mps": 0.18,
+        "omega_radps": 0.35,
+        "raw_left": 0.0,
+        "raw_right": 0.0,
+    }
+    assert extract_velocity_command(obj) == (0.18, 0.35)
+    raw_obj = dict(obj)
+    raw_obj["command_type"] = "raw"
+    assert extract_velocity_command(raw_obj) is None
+
+
+def test_velocity_path_does_not_depend_on_optional_raw_fields():
+    obj = {
+        "mode": "VELOCITY",
+        "command_type": "velocity",
+        "v_mps": 0.18,
+        "omega_radps": 0.35,
+        "raw_left": "not-a-number",
+        "raw_right": "not-a-number",
+    }
+    path, velocity_cmd, raw_cmd = select_drive_command(obj, velocity_control_enabled=True)
+    assert path == "velocity"
+    assert velocity_cmd == (0.18, 0.35)
+    assert raw_cmd is None
+
+    try:
+        select_drive_command(obj, velocity_control_enabled=False)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("raw fallback should still validate malformed raw fields")
+
+
+def test_velocity_to_wheel_speed_conversion():
+    left, right = velocity_to_wheel_speeds(0.18, 0.35, 0.60)
+    assert round(left, 3) == 0.075
+    assert round(right, 3) == 0.285
+
+
+def test_encoder_delta_to_measured_wheel_speed():
+    speed = encoder_delta_to_wheel_speed_mps(
+        delta_ticks=250,
+        dt_s=0.5,
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+    )
+    assert round(speed, 4) == 0.3142
+
+
+def test_pid_correction_uses_encoder_feedback():
+    cfg = VelocityPidConfig(kp=1.0, ki=0.0, kd=0.0, feedforward_raw_per_mps=0.0)
+    slow_pid = WheelVelocityPid(cfg)
+    fast_pid = WheelVelocityPid(cfg)
+    needs_more_pwm = slow_pid.update(target_mps=0.20, measured_mps=0.05, dt_s=0.1)
+    needs_less_pwm = fast_pid.update(target_mps=0.20, measured_mps=0.25, dt_s=0.1)
+    assert needs_more_pwm.error_mps > 0.0
+    assert needs_less_pwm.error_mps < 0.0
+    assert needs_more_pwm.output_raw > needs_less_pwm.output_raw
+
+
+def test_pid_output_sign_and_reset_for_stop():
+    pid = WheelVelocityPid(VelocityPidConfig(kp=1.0, kd=0.0, feedforward_raw_per_mps=0.0))
+    forward = pid.update(target_mps=0.20, measured_mps=0.05, dt_s=0.1)
+    assert forward.output_raw > 0.0
+    reverse = pid.update(target_mps=-0.20, measured_mps=-0.05, dt_s=0.1)
+    assert reverse.output_raw < 0.0
+    pid.reset()
+    assert pid.integral == 0.0
+    assert pid.prev_error is None
+    assert is_stop_command({"mode": "STOP", "command_type": "stop"})
+
+
+def test_stop_reset_helper_clears_both_pid_integrators():
+    left_pid = WheelVelocityPid(VelocityPidConfig(kp=1.0, ki=0.5, kd=0.0, feedforward_raw_per_mps=0.0))
+    right_pid = WheelVelocityPid(VelocityPidConfig(kp=1.0, ki=0.5, kd=0.0, feedforward_raw_per_mps=0.0))
+    left_pid.update(target_mps=0.20, measured_mps=0.0, dt_s=0.5)
+    right_pid.update(target_mps=-0.20, measured_mps=0.0, dt_s=0.5)
+    assert left_pid.integral != 0.0
+    assert right_pid.integral != 0.0
+
+    reset_velocity_pid_pair(left_pid, right_pid)
+
+    assert left_pid.integral == 0.0
+    assert right_pid.integral == 0.0
+    assert left_pid.prev_error is None
+    assert right_pid.prev_error is None
+
+
+def test_stale_encoder_detection_defaults_safe():
+    assert encoder_speed_is_fresh(10.0, now=10.10, timeout_s=0.25)
+    assert not encoder_speed_is_fresh(10.0, now=10.40, timeout_s=0.25)
+    assert not encoder_speed_is_fresh(0.0, now=10.0, timeout_s=0.25)
+
+
+def test_stale_encoder_policy_defaults_to_safe_neutral():
+    assert stale_encoder_control_mode(fallback_to_raw_without_encoder=False) == "velocity_safe_neutral"
+    assert stale_encoder_control_mode(fallback_to_raw_without_encoder=True) == "velocity_raw_fallback"

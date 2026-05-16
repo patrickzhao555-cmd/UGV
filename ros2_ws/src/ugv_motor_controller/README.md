@@ -43,6 +43,36 @@ ros2 launch ugv_motor_controller motor_controller.launch.py \
   invert_left_command:=false invert_right_command:=true
 ```
 
+Closed-loop wheel-speed PID is available but defaults off. Raw mode remains the
+safe fallback and continues to consume `raw_left`/`raw_right`.
+
+Lift the UGV before enabling velocity PID:
+
+```bash
+ros2 launch ugv_motor_controller motor_controller.launch.py \
+  port:=/dev/ttyACM0 baud:=115200 dry_run:=false \
+  invert_left_command:=false invert_right_command:=true \
+  velocity_control_enabled:=true prefer_velocity_fields:=true \
+  track_width_m:=0.6096 wheel_radius_m:=0.06 ticks_per_rev:=1000 \
+  velocity_kp:=0.80 velocity_ki:=0.0 velocity_kd:=0.02 \
+  velocity_feedforward_raw_per_mps:=1.35 velocity_max_target_mps:=0.35
+```
+
+Velocity mode consumes `/ugv_nav_cmd` JSON fields `command_type=velocity`,
+`v_mps`, and `omega_radps`, computes left/right wheel-speed targets, estimates
+measured wheel speed from encoder deltas, then outputs PWM using feedforward
+plus PID correction.
+
+Safety defaults:
+
+- `velocity_control_enabled=false`
+- `prefer_velocity_fields=true`
+- `velocity_stale_encoder_timeout_s=0.25`
+- `velocity_fallback_to_raw_without_encoder=false`
+
+If encoder speed is missing/stale in velocity mode, the bridge commands neutral
+PWM and resets PID integrators unless raw fallback is explicitly enabled.
+
 ## Direct Motor Test
 
 Use this with the UGV lifted for the first run. Do not run full navigation at
@@ -80,5 +110,10 @@ measure how much the robot actually moved/turned for a given raw command.
 The bridge has ROS-side safety:
 
 - command timeout returns PWM to neutral
+- STOP returns PWM to neutral immediately and resets velocity PID integrators
 - serial reconnect publishes connection state
 - normal commands are slew-limited; startup, timeout, and shutdown stops go directly to neutral
+
+`/motor_controller/status` includes `control_mode`, target/measured wheel
+speeds, velocity errors, PID terms, `last_pwm`, `target_pwm`, and
+`command_age_s`.

@@ -92,8 +92,21 @@ The `nav2-inspired-mini-controller` branch keeps the existing global
 map/search/marker behavior, but the local controller now samples forward
 `(v_mps, omega_radps)` trajectories, simulates the 30 inch by 30 inch chassis,
 scores progress, obstacle clearance, gap width, smoothness, and target
-alignment, then converts the chosen velocity into tank-drive raw left/right
-commands.
+alignment, and publishes an explicit velocity-preferred command contract on
+`/ugv_nav_cmd` while still including `raw_left`/`raw_right` for fallback.
+
+The motor bridge remains backward compatible with raw commands. Closed-loop
+wheel-speed PID is available but defaults off:
+
+```bash
+MOTOR_VELOCITY_CONTROL_ENABLED=false
+NAV_EMIT_VELOCITY_COMMANDS=true
+```
+
+Enable `MOTOR_VELOCITY_CONTROL_ENABLED=true` only after lifted bench testing and
+confirming fresh `/encoder_ticks_stamped` feedback. Inspect
+`/motor_controller/status` for `control_mode`, target/measured wheel speeds,
+PID terms, and stale-encoder safety stops.
 
 Reverse motion is disabled for normal indoor runs. If a target is behind the
 robot, the controller should turn in place and drive forward instead of backing

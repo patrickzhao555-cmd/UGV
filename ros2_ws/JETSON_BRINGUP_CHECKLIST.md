@@ -270,10 +270,20 @@ Key fields:
 - `velocity_error_left_mps`, `velocity_error_right_mps`
 - `pid_left`, `pid_right`
 - `velocity_safe_reason`
+- `encoder_speed_dt_source`: `controller_millis`, `host_time`, or unavailable
+- `encoder_speed_anomaly`: empty when normal, otherwise describes clamping/fallback
 
 Default stale-encoder behavior is neutral PWM. Do not set
 `MOTOR_VELOCITY_FALLBACK_TO_RAW_WITHOUT_ENCODER=true` during first hardware
 tests.
+
+Encoder speed estimation defaults prefer Teensy `controller_millis` when present
+and fall back to host time only when needed:
+
+```bash
+MOTOR_VELOCITY_ENCODER_SPEED_FILTER_ALPHA=0.65
+MOTOR_VELOCITY_ENCODER_SPEED_MAX_MPS=2.0
+```
 
 ## 7. Bench and Dry-Run Modes
 
@@ -468,7 +478,21 @@ NAV_CONTINUOUS_GAP_BUFFER_M=0.025
 NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
 NAV_EMIT_VELOCITY_COMMANDS=true
 NAV_LOCAL_COSTMAP_ENABLED=true
+NAV_CONTINUOUS_ALLOW_COSTMAP_SOFT_PENALTY=false
+NAV_LOCAL_COSTMAP_WIDTH_M=4.0
+NAV_LOCAL_COSTMAP_HEIGHT_M=4.0
+NAV_LOCAL_COSTMAP_RESOLUTION_M=0.06
+NAV_LOCAL_COSTMAP_DYNAMIC_DECAY_S=1.0
+NAV_LOCAL_COSTMAP_OBSTACLE_RADIUS_M=0.06
+NAV_LOCAL_COSTMAP_INFLATION_M=0.08
+NAV_LOCAL_COSTMAP_LIDAR_CLEAR_RADIUS_M=0.05
+NAV_LOCAL_COSTMAP_MAX_RAYTRACE_M=4.0
 ```
+
+The rolling local costmap ray-clears both LiDAR hit beams and no-hit/max-range
+beams. Ordinary LiDAR/ZED/YOLO observations stay in this local dynamic layer
+instead of being written permanently into the global `known_costmap`; field-map
+obstacles and deliberate blocked recovery patches remain persistent.
 
 If the robot feels too aggressive indoors:
 

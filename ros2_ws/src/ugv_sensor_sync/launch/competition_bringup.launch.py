@@ -138,6 +138,8 @@ def generate_launch_description():
     motor_velocity_control_period_s = LaunchConfiguration('motor_velocity_control_period_s')
     motor_velocity_stale_encoder_timeout_s = LaunchConfiguration('motor_velocity_stale_encoder_timeout_s')
     motor_velocity_fallback_to_raw_without_encoder = LaunchConfiguration('motor_velocity_fallback_to_raw_without_encoder')
+    motor_velocity_encoder_speed_filter_alpha = LaunchConfiguration('motor_velocity_encoder_speed_filter_alpha')
+    motor_velocity_encoder_speed_max_mps = LaunchConfiguration('motor_velocity_encoder_speed_max_mps')
     min_motion_raw = LaunchConfiguration('min_motion_raw')
     invert_left_command = LaunchConfiguration('invert_left_command')
     invert_right_command = LaunchConfiguration('invert_right_command')
@@ -179,8 +181,17 @@ def generate_launch_description():
     continuous_stop_clearance_m = LaunchConfiguration('continuous_stop_clearance_m')
     continuous_gap_buffer_m = LaunchConfiguration('continuous_gap_buffer_m')
     continuous_latency_buffer_s = LaunchConfiguration('continuous_latency_buffer_s')
+    continuous_allow_costmap_soft_penalty = LaunchConfiguration('continuous_allow_costmap_soft_penalty')
     emit_velocity_commands = LaunchConfiguration('emit_velocity_commands')
     local_costmap_enabled = LaunchConfiguration('local_costmap_enabled')
+    local_costmap_width_m = LaunchConfiguration('local_costmap_width_m')
+    local_costmap_height_m = LaunchConfiguration('local_costmap_height_m')
+    local_costmap_resolution_m = LaunchConfiguration('local_costmap_resolution_m')
+    local_costmap_dynamic_decay_s = LaunchConfiguration('local_costmap_dynamic_decay_s')
+    local_costmap_obstacle_radius_m = LaunchConfiguration('local_costmap_obstacle_radius_m')
+    local_costmap_inflation_m = LaunchConfiguration('local_costmap_inflation_m')
+    local_costmap_lidar_clear_radius_m = LaunchConfiguration('local_costmap_lidar_clear_radius_m')
+    local_costmap_max_raytrace_m = LaunchConfiguration('local_costmap_max_raytrace_m')
 
     sensor_sync_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -241,6 +252,8 @@ def generate_launch_description():
             'velocity_control_period_s': motor_velocity_control_period_s,
             'velocity_stale_encoder_timeout_s': motor_velocity_stale_encoder_timeout_s,
             'velocity_fallback_to_raw_without_encoder': motor_velocity_fallback_to_raw_without_encoder,
+            'velocity_encoder_speed_filter_alpha': motor_velocity_encoder_speed_filter_alpha,
+            'velocity_encoder_speed_max_mps': motor_velocity_encoder_speed_max_mps,
             'invert_left_command': invert_left_command,
             'invert_right_command': invert_right_command,
             'invert_left_encoder': invert_left_encoder,
@@ -352,10 +365,28 @@ def generate_launch_description():
             continuous_gap_buffer_m,
             '--continuous-latency-buffer-s',
             continuous_latency_buffer_s,
+            '--continuous-allow-costmap-soft-penalty',
+            continuous_allow_costmap_soft_penalty,
             '--emit-velocity-commands',
             emit_velocity_commands,
             '--local-costmap-enabled',
             local_costmap_enabled,
+            '--local-costmap-width-m',
+            local_costmap_width_m,
+            '--local-costmap-height-m',
+            local_costmap_height_m,
+            '--local-costmap-resolution-m',
+            local_costmap_resolution_m,
+            '--local-costmap-dynamic-decay-s',
+            local_costmap_dynamic_decay_s,
+            '--local-costmap-obstacle-radius-m',
+            local_costmap_obstacle_radius_m,
+            '--local-costmap-inflation-m',
+            local_costmap_inflation_m,
+            '--local-costmap-lidar-clear-radius-m',
+            local_costmap_lidar_clear_radius_m,
+            '--local-costmap-max-raytrace-m',
+            local_costmap_max_raytrace_m,
         ],
         output='screen',
         condition=IfCondition(start_nav),
@@ -569,8 +600,17 @@ def generate_launch_description():
         DeclareLaunchArgument('continuous_stop_clearance_m', default_value='0.48'),
         DeclareLaunchArgument('continuous_gap_buffer_m', default_value='0.025'),
         DeclareLaunchArgument('continuous_latency_buffer_s', default_value='0.25'),
+        DeclareLaunchArgument('continuous_allow_costmap_soft_penalty', default_value='false'),
         DeclareLaunchArgument('emit_velocity_commands', default_value='true'),
         DeclareLaunchArgument('local_costmap_enabled', default_value='true'),
+        DeclareLaunchArgument('local_costmap_width_m', default_value='4.0'),
+        DeclareLaunchArgument('local_costmap_height_m', default_value='4.0'),
+        DeclareLaunchArgument('local_costmap_resolution_m', default_value='0.06'),
+        DeclareLaunchArgument('local_costmap_dynamic_decay_s', default_value='1.0'),
+        DeclareLaunchArgument('local_costmap_obstacle_radius_m', default_value='0.06'),
+        DeclareLaunchArgument('local_costmap_inflation_m', default_value='0.08'),
+        DeclareLaunchArgument('local_costmap_lidar_clear_radius_m', default_value='0.05'),
+        DeclareLaunchArgument('local_costmap_max_raytrace_m', default_value='4.0'),
         DeclareLaunchArgument('motor_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),
@@ -590,6 +630,8 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_velocity_control_period_s', default_value='0.05'),
         DeclareLaunchArgument('motor_velocity_stale_encoder_timeout_s', default_value='0.25'),
         DeclareLaunchArgument('motor_velocity_fallback_to_raw_without_encoder', default_value='false'),
+        DeclareLaunchArgument('motor_velocity_encoder_speed_filter_alpha', default_value='0.65'),
+        DeclareLaunchArgument('motor_velocity_encoder_speed_max_mps', default_value='2.0'),
         DeclareLaunchArgument('min_motion_raw', default_value='0.22'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
         DeclareLaunchArgument('invert_right_command', default_value='true'),

@@ -414,7 +414,22 @@ NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.20
 NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
 NAV_CONTINUOUS_GAP_BUFFER_M=0.025
 NAV_CONTINUOUS_LATENCY_BUFFER_S=0.25
+NAV_EMIT_VELOCITY_COMMANDS=true
+NAV_LOCAL_COSTMAP_ENABLED=true
+NAV_CONTINUOUS_ALLOW_COSTMAP_SOFT_PENALTY=false
+NAV_LOCAL_COSTMAP_WIDTH_M=4.0
+NAV_LOCAL_COSTMAP_HEIGHT_M=4.0
+NAV_LOCAL_COSTMAP_RESOLUTION_M=0.06
+NAV_LOCAL_COSTMAP_DYNAMIC_DECAY_S=1.0
+NAV_LOCAL_COSTMAP_OBSTACLE_RADIUS_M=0.06
+NAV_LOCAL_COSTMAP_INFLATION_M=0.08
+NAV_LOCAL_COSTMAP_LIDAR_CLEAR_RADIUS_M=0.05
+NAV_LOCAL_COSTMAP_MAX_RAYTRACE_M=4.0
 ```
+
+Rolling local costmap 会 ray-clear LiDAR hit beam 和 no-hit/max-range beam。
+普通 LiDAR/ZED/YOLO 动态观测不会再永久写入 global `known_costmap`；field-map
+障碍和 blocked recovery patch 仍然保留为持久地图信息。
 
 如果室内测试感觉太激进：
 
@@ -544,6 +559,15 @@ ros2 topic echo /motor_controller/status
 `measured_left_mps`、`measured_right_mps`、`pid_left`、`pid_right`、
 `velocity_safe_reason`。如果 encoder 速度缺失或过期，默认会输出 neutral
 PWM；第一次测试不要打开 `MOTOR_VELOCITY_FALLBACK_TO_RAW_WITHOUT_ENCODER`。
+
+Encoder speed estimation 优先使用 Teensy `controller_millis`，必要时 fallback 到
+host time，并在 `/motor_controller/status` 输出 `encoder_speed_dt_source` 和
+`encoder_speed_anomaly`：
+
+```bash
+MOTOR_VELOCITY_ENCODER_SPEED_FILTER_ALPHA=0.65
+MOTOR_VELOCITY_ENCODER_SPEED_MAX_MPS=2.0
+```
 
 离线 replay/status 指标：
 

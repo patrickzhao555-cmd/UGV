@@ -112,6 +112,83 @@ def encoder_delta_to_wheel_speed_mps(
     return (revs * 2.0 * math.pi * float(wheel_radius_m)) / dt
 
 
+@dataclass(frozen=True)
+class EncoderSpeedSample:
+    left_ticks: int
+    right_ticks: int
+    host_time_s: float
+    controller_millis: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class EncoderSpeedEstimate:
+    left_mps: float
+    right_mps: float
+    dt_s: float
+    dt_source: str
+    anomaly: Optional[str] = None
+
+
+def _encoder_dt_s(previous: EncoderSpeedSample, current: EncoderSpeedSample) -> Tuple[float, str, Optional[str]]:
+    host_dt_s = float(current.host_time_s) - float(previous.host_time_s)
+    if previous.controller_millis is not None and current.controller_millis is not None:
+        controller_dt_ms = int(current.controller_millis) - int(previous.controller_millis)
+        if controller_dt_ms > 0:
+            return controller_dt_ms / 1000.0, "controller_millis", None
+        anomaly = "controller_millis_nonpositive_dt"
+        if host_dt_s > 0.0:
+            return host_dt_s, "host_time_fallback", anomaly
+        return 1e-6, "host_time_fallback", anomaly
+    if host_dt_s > 0.0:
+        return host_dt_s, "host_time", None
+    return 1e-6, "host_time", "host_time_nonpositive_dt"
+
+
+def estimate_encoder_wheel_speeds(
+    previous: EncoderSpeedSample,
+    current: EncoderSpeedSample,
+    *,
+    wheel_radius_m: float,
+    ticks_per_rev: int,
+    previous_left_mps: float = 0.0,
+    previous_right_mps: float = 0.0,
+    filter_alpha: float = 1.0,
+    max_abs_speed_mps: float = 3.0,
+) -> EncoderSpeedEstimate:
+    dt_s, dt_source, anomaly = _encoder_dt_s(previous, current)
+    left = encoder_delta_to_wheel_speed_mps(
+        int(current.left_ticks) - int(previous.left_ticks),
+        dt_s,
+        wheel_radius_m,
+        ticks_per_rev,
+    )
+    right = encoder_delta_to_wheel_speed_mps(
+        int(current.right_ticks) - int(previous.right_ticks),
+        dt_s,
+        wheel_radius_m,
+        ticks_per_rev,
+    )
+
+    max_speed = abs(float(max_abs_speed_mps))
+    if max_speed > 0.0:
+        clamped_left = clamp(left, -max_speed, max_speed)
+        clamped_right = clamp(right, -max_speed, max_speed)
+        if clamped_left != left or clamped_right != right:
+            anomaly = "wheel_speed_sanity_clamped" if anomaly is None else f"{anomaly};wheel_speed_sanity_clamped"
+        left, right = clamped_left, clamped_right
+
+    alpha = clamp(float(filter_alpha), 0.0, 1.0)
+    left = float(previous_left_mps) + alpha * (left - float(previous_left_mps))
+    right = float(previous_right_mps) + alpha * (right - float(previous_right_mps))
+    return EncoderSpeedEstimate(
+        left_mps=left,
+        right_mps=right,
+        dt_s=dt_s,
+        dt_source=dt_source,
+        anomaly=anomaly,
+    )
+
+
 def encoder_speed_is_fresh(last_encoder_speed_time: float, now: float, timeout_s: float) -> bool:
     if float(last_encoder_speed_time) <= 0.0:
         return False

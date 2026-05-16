@@ -68,8 +68,11 @@ in this file, but the local motion layer is continuous:
 - publish `command_type=velocity` plus `v_mps`/`omega_radps` on `/ugv_nav_cmd`
   while preserving `raw_left`/`raw_right` for raw fallback
 - use a rolling local costmap for continuous-controller collision checks, with
-  LiDAR ray clearing, dynamic-obstacle decay, inflation, and field-map static
-  obstacles kept separate from dynamic clearing
+  LiDAR hit and no-hit ray clearing, dynamic-obstacle decay, inflation, and
+  field-map static obstacles kept separate from dynamic clearing
+- keep ordinary LiDAR/ZED/semantic detections out of the persistent global
+  planning map; only field-map/static obstacles and blocked recovery patches
+  affect global planning across frames
 
 The local safety layer uses the real 30 inch footprint plus a small
 `ROBOT_OBSTACLE_BUFFER_M` rather than double-counting a large local inflation;

@@ -455,6 +455,7 @@ class NavConfig:
     continuous_gap_lookahead_m: float = 1.80
     continuous_gap_buffer_m: float = 0.025
     continuous_latency_buffer_s: float = 0.25
+    continuous_allow_costmap_soft_penalty: bool = False
     emit_velocity_commands: bool = True
     local_costmap_enabled: bool = True
     local_costmap_width_m: float = 4.0
@@ -464,6 +465,7 @@ class NavConfig:
     local_costmap_obstacle_radius_m: float = 0.06
     local_costmap_inflation_m: float = 0.08
     local_costmap_lidar_clear_radius_m: float = 0.05
+    local_costmap_max_raytrace_m: float = 4.0
     allow_stop_at_goal: bool = True
     nonstop_when_blocked: bool = False
     allow_reverse: bool = False
@@ -1866,13 +1868,12 @@ class VelocityLocalPlanner:
                     continue
                 costmap_soft_penalty = 0.0
                 if self._trajectory_in_collision(costmap, pose, local_states):
-                    # The occupancy grid is intentionally coarse and can make
-                    # tight, staggered chair/table gaps look closed. Fresh
-                    # LiDAR/ZED points are metric, so allow a tight trajectory
-                    # through a quantized grid hit only when the point-cloud
-                    # footprint clearance is still positive.
+                    # Default to hard collision rejection. The old soft-penalty
+                    # path is retained only behind an explicit tuning switch for
+                    # replay experiments with coarse maps.
                     if (
-                        not hits_local
+                        not self.nav_cfg.continuous_allow_costmap_soft_penalty
+                        or not hits_local
                         or not math.isfinite(local_clearance)
                         or local_clearance < min_metric_clearance
                     ):
@@ -1966,6 +1967,7 @@ class VelocityLocalPlanner:
                 "path_clearance_m": None if math.isinf(path_clearance) else round(path_clearance, 3),
                 "path_clearance_source": path_clearance_source,
                 "front_speed_cap_mps": round(speed_cap, 4),
+                "costmap_collision_policy": "soft_penalty" if self.nav_cfg.continuous_allow_costmap_soft_penalty else "hard_reject",
                 "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
                 "best_gap_depth_m": round(gap["best_depth_m"], 3),
                 "safety_state": "no_safe_trajectory",
@@ -2009,6 +2011,7 @@ class VelocityLocalPlanner:
             "oscillation_cost": round(best_components.get("oscillation_cost", 0.0), 3),
             "min_clearance_m": round(min_clearance, 3),
             "costmap_soft_penalty": round(best_costmap_soft_penalty, 3),
+            "costmap_collision_policy": "soft_penalty" if self.nav_cfg.continuous_allow_costmap_soft_penalty else "hard_reject",
             "front_clearance_m": None if math.isinf(straight_front_clearance) else round(straight_front_clearance, 3),
             "path_clearance_m": None if math.isinf(path_clearance) else round(path_clearance, 3),
             "path_clearance_source": path_clearance_source,
@@ -2294,6 +2297,14 @@ class JsonReplayBridge(RealRobotBridgeBase):
         obj = json.loads(line.lstrip("\ufeff"))
         ts = float(obj.get("timestamp", time.time()))
         lidar_hits = [tuple(map(float, p)) for p in obj.get("lidar_hits_local", [])]
+        lidar_ranges = [float(v) for v in obj.get("lidar_ranges_m", obj.get("ranges_m", []))]
+        lidar_angles = [float(v) for v in obj.get("lidar_angles_rad", obj.get("angles_rad", []))]
+        if len(lidar_ranges) != len(lidar_angles):
+            lidar_ranges = []
+            lidar_angles = []
+        if not lidar_ranges:
+            lidar_ranges = [math.hypot(p[0], p[1]) for p in lidar_hits]
+            lidar_angles = [math.atan2(p[1], p[0]) for p in lidar_hits]
         zed_hits = [tuple(map(float, p)) for p in obj.get("zed_hits_local", [])]
         imu = ImuPacket(
             tuple(map(float, obj.get("imu_angular_velocity_rps", [0.0, 0.0, 0.0]))),
@@ -2306,7 +2317,7 @@ class JsonReplayBridge(RealRobotBridgeBase):
         mission_flag = parse_mission_flag(json.dumps(obj["mission_flag"]), ts) if "mission_flag" in obj else None
         return SensorFrame(
             encoder=EncoderPacket(int(obj["left_ticks"]), int(obj["right_ticks"]), ts),
-            lidar=LidarPacket(lidar_hits, [0.0] * len(lidar_hits), [0.0] * len(lidar_hits), ts),
+            lidar=LidarPacket(lidar_hits, lidar_ranges, lidar_angles, ts),
             zed=ZedPacket(zed_hits, ts),
             goal=GoalPacket(float(obj.get("goal_x", float("nan"))), float(obj.get("goal_y", float("nan"))), ts),
             imu=imu,
@@ -2645,7 +2656,14 @@ class UGVNavigator:
             obstacle_radius_m=max(0.01, float(nav_cfg.local_costmap_obstacle_radius_m)),
             inflation_radius_m=max(0.0, float(nav_cfg.local_costmap_inflation_m)),
             lidar_clear_radius_m=max(0.0, float(nav_cfg.local_costmap_lidar_clear_radius_m)),
-            robot_radius_m=max(robot_cfg.length_m, robot_cfg.width_m) * 0.45,
+            robot_radius_m=max(
+                0.65,
+                0.5 * math.hypot(robot_cfg.length_m, robot_cfg.width_m)
+                + robot_cfg.obstacle_buffer_m
+                + 0.12,
+            ),
+            max_obstacle_range_m=max(0.2, float(nav_cfg.local_costmap_max_raytrace_m)),
+            max_raytrace_range_m=max(0.2, float(nav_cfg.local_costmap_max_raytrace_m)),
         )
         self.local_costmap = RollingLocalCostmap(local_cfg)
         self.local_costmap_debug: Dict[str, Any] = self.local_costmap.stats.as_dict()
@@ -2824,6 +2842,31 @@ class UGVNavigator:
                 continue
             accepted += 1
             out.append((float(lx) + ox, float(ly) + oy))
+        return out
+
+    def _lidar_ray_endpoints_in_base_frame(self, packet: LidarPacket, stride: int = 1) -> List[Tuple[float, float]]:
+        half_fov_rad = 0.5 * math.radians(clamp(float(self.nav_cfg.lidar_used_fov_deg), 1.0, 360.0))
+        max_ray_m = max(0.05, float(self.nav_cfg.local_costmap_max_raytrace_m))
+        ox = float(self.robot_cfg.lidar_offset_x_m)
+        oy = float(self.robot_cfg.lidar_offset_y_m)
+        out: List[Tuple[float, float]] = []
+        stride = max(1, int(stride))
+        for idx, (rng, angle) in enumerate(zip(packet.ranges_m, packet.angles_rad)):
+            if idx % stride != 0:
+                continue
+            angle = float(angle)
+            if abs(wrap_to_pi(angle)) > half_fov_rad:
+                continue
+            try:
+                r = float(rng)
+            except (TypeError, ValueError):
+                r = max_ray_m
+            if not math.isfinite(r):
+                r = max_ray_m
+            if r <= 0.0:
+                continue
+            clear_r = min(r, max_ray_m)
+            out.append((ox + clear_r * math.cos(angle), oy + clear_r * math.sin(angle)))
         return out
 
     def _clear_robot_footprint(self) -> None:
@@ -3019,6 +3062,7 @@ class UGVNavigator:
 
     def _update_rolling_local_costmap(
         self,
+        lidar_packet: LidarPacket,
         lidar_hits_base: Sequence[Tuple[float, float]],
         zed_hits_base: Sequence[Tuple[float, float]],
         timestamp: float,
@@ -3027,9 +3071,11 @@ class UGVNavigator:
             self.local_costmap_debug = {"enabled": False}
             return
         pose = self.state.estimated_pose
+        lidar_clear_points_base = self._lidar_ray_endpoints_in_base_frame(lidar_packet)
         stats = self.local_costmap.update(
             pose=(pose.x, pose.y, pose.yaw),
             lidar_points_base=lidar_hits_base,
+            lidar_clear_points_base=lidar_clear_points_base,
             depth_points_base=zed_hits_base,
             ray_origin_base=(self.robot_cfg.lidar_offset_x_m, self.robot_cfg.lidar_offset_y_m),
             timestamp=timestamp,
@@ -3061,7 +3107,7 @@ class UGVNavigator:
         return inflated
 
     def _local_safety_costmap(self) -> Costmap2D:
-        if self.nav_cfg.local_costmap_enabled and self.nav_cfg.continuous_control_enabled:
+        if self.nav_cfg.local_costmap_enabled:
             spec_like, data, stats = self.local_costmap.make_grid()
             spec = GridSpec(
                 resolution=float(spec_like.resolution),
@@ -3605,13 +3651,12 @@ class UGVNavigator:
 
         self._integrate_lidar_freespace(frame.lidar)
         lidar_hits_local = self._lidar_hits_in_base_frame(frame.lidar.hit_points_local)
-        lidar_hits_for_map = self._lidar_hits_in_base_frame(frame.lidar.hit_points_local, self.nav_cfg.lidar_map_stride)
+        # Ordinary sensor hits stay in the rolling local costmap. Do not poison
+        # the persistent global planning map with false-positive dynamic cells.
         added = 0
-        added += self._integrate_hits_into_map(lidar_hits_for_map, connect_adjacent=True, solidify_clusters=False)
-        added += self._integrate_hits_into_map(frame.zed.hit_points_local, connect_adjacent=False, solidify_clusters=True)
         self.state.discovered_points += added
         local_obstacle_hits = lidar_hits_local + list(frame.zed.hit_points_local)
-        self._update_rolling_local_costmap(lidar_hits_local, frame.zed.hit_points_local, frame.encoder.timestamp)
+        self._update_rolling_local_costmap(frame.lidar, lidar_hits_local, frame.zed.hit_points_local, frame.encoder.timestamp)
         self.state.sectors = self.local_planner.build_sector_snapshot(local_obstacle_hits)
         front_depth_blocked = self._front_depth_corridor_blocked(frame.zed.hit_points_local, local_obstacle_hits)
         front_depth_corridor_close = (
@@ -4381,8 +4426,17 @@ def run_simulation(
     continuous_stop_clearance_m: float = 0.48,
     continuous_gap_buffer_m: float = 0.025,
     continuous_latency_buffer_s: float = 0.25,
+    continuous_allow_costmap_soft_penalty: bool = False,
     emit_velocity_commands: bool = True,
     local_costmap_enabled: bool = True,
+    local_costmap_width_m: float = 4.0,
+    local_costmap_height_m: float = 4.0,
+    local_costmap_resolution_m: float = 0.06,
+    local_costmap_dynamic_decay_s: float = 1.00,
+    local_costmap_obstacle_radius_m: float = 0.06,
+    local_costmap_inflation_m: float = 0.08,
+    local_costmap_lidar_clear_radius_m: float = 0.05,
+    local_costmap_max_raytrace_m: float = 4.0,
 ) -> dict:
     robot_cfg = RobotConfig()
     robot_cfg.obstacle_buffer_m = clamp(float(robot_obstacle_buffer_m), 0.0, 0.20)
@@ -4401,8 +4455,17 @@ def run_simulation(
     nav_cfg.continuous_stop_clearance_m = clamp(float(continuous_stop_clearance_m), 0.30, 1.50)
     nav_cfg.continuous_gap_buffer_m = clamp(float(continuous_gap_buffer_m), 0.0, 0.30)
     nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
+    nav_cfg.continuous_allow_costmap_soft_penalty = bool(continuous_allow_costmap_soft_penalty)
     nav_cfg.emit_velocity_commands = bool(emit_velocity_commands)
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
+    nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
+    nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
+    nav_cfg.local_costmap_resolution_m = clamp(float(local_costmap_resolution_m), 0.02, 0.25)
+    nav_cfg.local_costmap_dynamic_decay_s = clamp(float(local_costmap_dynamic_decay_s), 0.0, 10.0)
+    nav_cfg.local_costmap_obstacle_radius_m = clamp(float(local_costmap_obstacle_radius_m), 0.01, 0.40)
+    nav_cfg.local_costmap_inflation_m = clamp(float(local_costmap_inflation_m), 0.0, 0.80)
+    nav_cfg.local_costmap_lidar_clear_radius_m = clamp(float(local_costmap_lidar_clear_radius_m), 0.0, 0.40)
+    nav_cfg.local_costmap_max_raytrace_m = clamp(float(local_costmap_max_raytrace_m), 0.20, 12.0)
     sim_cfg = SimConfig(show_gui=show_gui, max_steps=max_steps)
 
     start = Pose2D(yd(0.5), yd(0.5), 0.0)
@@ -4595,8 +4658,17 @@ def run_real_mode(
     continuous_stop_clearance_m: float = 0.48,
     continuous_gap_buffer_m: float = 0.025,
     continuous_latency_buffer_s: float = 0.25,
+    continuous_allow_costmap_soft_penalty: bool = False,
     emit_velocity_commands: bool = True,
     local_costmap_enabled: bool = True,
+    local_costmap_width_m: float = 4.0,
+    local_costmap_height_m: float = 4.0,
+    local_costmap_resolution_m: float = 0.06,
+    local_costmap_dynamic_decay_s: float = 1.00,
+    local_costmap_obstacle_radius_m: float = 0.06,
+    local_costmap_inflation_m: float = 0.08,
+    local_costmap_lidar_clear_radius_m: float = 0.05,
+    local_costmap_max_raytrace_m: float = 4.0,
     max_steps: int = 0,
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
@@ -4642,8 +4714,17 @@ def run_real_mode(
     nav_cfg.continuous_stop_clearance_m = clamp(float(continuous_stop_clearance_m), 0.30, 1.50)
     nav_cfg.continuous_gap_buffer_m = clamp(float(continuous_gap_buffer_m), 0.0, 0.30)
     nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
+    nav_cfg.continuous_allow_costmap_soft_penalty = bool(continuous_allow_costmap_soft_penalty)
     nav_cfg.emit_velocity_commands = bool(emit_velocity_commands)
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
+    nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
+    nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
+    nav_cfg.local_costmap_resolution_m = clamp(float(local_costmap_resolution_m), 0.02, 0.25)
+    nav_cfg.local_costmap_dynamic_decay_s = clamp(float(local_costmap_dynamic_decay_s), 0.0, 10.0)
+    nav_cfg.local_costmap_obstacle_radius_m = clamp(float(local_costmap_obstacle_radius_m), 0.01, 0.40)
+    nav_cfg.local_costmap_inflation_m = clamp(float(local_costmap_inflation_m), 0.0, 0.80)
+    nav_cfg.local_costmap_lidar_clear_radius_m = clamp(float(local_costmap_lidar_clear_radius_m), 0.0, 0.40)
+    nav_cfg.local_costmap_max_raytrace_m = clamp(float(local_costmap_max_raytrace_m), 0.20, 12.0)
     drive_speed_level = normalize_drive_speed_level(drive_speed_level)
     drive_factor = drive_speed_factor(drive_speed_level)
     field_w_m = yd(15.0)
@@ -4848,8 +4929,17 @@ def main() -> None:
     parser.add_argument("--continuous-stop-clearance-m", type=float, default=0.48, help="front clearance where Collision Monitor commands zero linear speed")
     parser.add_argument("--continuous-gap-buffer-m", type=float, default=0.025, help="extra half-width used by polar gap checks beyond the robot width")
     parser.add_argument("--continuous-latency-buffer-s", type=float, default=0.25, help="extra obstacle padding equal to speed times this latency allowance")
+    parser.add_argument("--continuous-allow-costmap-soft-penalty", type=str_to_bool, default=False, help="allow occupied local-costmap trajectories as a soft penalty; default false hard-rejects them")
     parser.add_argument("--emit-velocity-commands", type=str_to_bool, default=True, help="emit command_type=velocity for continuous local planner commands; false keeps raw fallback JSON preferred")
     parser.add_argument("--local-costmap-enabled", type=str_to_bool, default=True, help="use rolling local costmap for local safety/collision checks")
+    parser.add_argument("--local-costmap-width-m", type=float, default=4.0, help="rolling local costmap width in meters")
+    parser.add_argument("--local-costmap-height-m", type=float, default=4.0, help="rolling local costmap height in meters")
+    parser.add_argument("--local-costmap-resolution-m", type=float, default=0.06, help="rolling local costmap resolution in meters/cell")
+    parser.add_argument("--local-costmap-dynamic-decay-s", type=float, default=1.0, help="seconds before dynamic local costmap cells decay")
+    parser.add_argument("--local-costmap-obstacle-radius-m", type=float, default=0.06, help="radius used when marking local dynamic obstacle hits")
+    parser.add_argument("--local-costmap-inflation-m", type=float, default=0.08, help="inflation radius applied to local costmap obstacles")
+    parser.add_argument("--local-costmap-lidar-clear-radius-m", type=float, default=0.05, help="radius used when ray-clearing dynamic local costmap cells")
+    parser.add_argument("--local-costmap-max-raytrace-m", type=float, default=4.0, help="max LiDAR range used for local costmap no-hit ray clearing")
     args = parser.parse_args()
 
     if args.mode == "sim":
@@ -4870,8 +4960,17 @@ def main() -> None:
             continuous_stop_clearance_m=args.continuous_stop_clearance_m,
             continuous_gap_buffer_m=args.continuous_gap_buffer_m,
             continuous_latency_buffer_s=args.continuous_latency_buffer_s,
+            continuous_allow_costmap_soft_penalty=args.continuous_allow_costmap_soft_penalty,
             emit_velocity_commands=args.emit_velocity_commands,
             local_costmap_enabled=args.local_costmap_enabled,
+            local_costmap_width_m=args.local_costmap_width_m,
+            local_costmap_height_m=args.local_costmap_height_m,
+            local_costmap_resolution_m=args.local_costmap_resolution_m,
+            local_costmap_dynamic_decay_s=args.local_costmap_dynamic_decay_s,
+            local_costmap_obstacle_radius_m=args.local_costmap_obstacle_radius_m,
+            local_costmap_inflation_m=args.local_costmap_inflation_m,
+            local_costmap_lidar_clear_radius_m=args.local_costmap_lidar_clear_radius_m,
+            local_costmap_max_raytrace_m=args.local_costmap_max_raytrace_m,
         )
     else:
         run_real_mode(
@@ -4928,8 +5027,17 @@ def main() -> None:
             continuous_stop_clearance_m=args.continuous_stop_clearance_m,
             continuous_gap_buffer_m=args.continuous_gap_buffer_m,
             continuous_latency_buffer_s=args.continuous_latency_buffer_s,
+            continuous_allow_costmap_soft_penalty=args.continuous_allow_costmap_soft_penalty,
             emit_velocity_commands=args.emit_velocity_commands,
             local_costmap_enabled=args.local_costmap_enabled,
+            local_costmap_width_m=args.local_costmap_width_m,
+            local_costmap_height_m=args.local_costmap_height_m,
+            local_costmap_resolution_m=args.local_costmap_resolution_m,
+            local_costmap_dynamic_decay_s=args.local_costmap_dynamic_decay_s,
+            local_costmap_obstacle_radius_m=args.local_costmap_obstacle_radius_m,
+            local_costmap_inflation_m=args.local_costmap_inflation_m,
+            local_costmap_lidar_clear_radius_m=args.local_costmap_lidar_clear_radius_m,
+            local_costmap_max_raytrace_m=args.local_costmap_max_raytrace_m,
             max_steps=args.max_steps if args.replay_json else 0,
         )
 

@@ -7,10 +7,12 @@ sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_motor_controller"))
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 
 from ugv_motor_controller.velocity_control import (  # noqa: E402
+    EncoderSpeedSample,
     VelocityPidConfig,
     WheelVelocityPid,
     encoder_delta_to_wheel_speed_mps,
     encoder_speed_is_fresh,
+    estimate_encoder_wheel_speeds,
     extract_raw_drive,
     extract_velocity_command,
     is_stop_command,
@@ -124,6 +126,47 @@ def test_encoder_delta_to_measured_wheel_speed():
         ticks_per_rev=1000,
     )
     assert round(speed, 4) == 0.3142
+
+
+def test_encoder_speed_estimate_prefers_controller_millis():
+    prev = EncoderSpeedSample(left_ticks=1000, right_ticks=1000, host_time_s=10.0, controller_millis=1000)
+    cur = EncoderSpeedSample(left_ticks=1250, right_ticks=750, host_time_s=11.0, controller_millis=1500)
+
+    estimate = estimate_encoder_wheel_speeds(
+        prev,
+        cur,
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        filter_alpha=1.0,
+        max_abs_speed_mps=2.0,
+    )
+
+    assert estimate.dt_source == "controller_millis"
+    assert round(estimate.dt_s, 3) == 0.5
+    assert round(estimate.left_mps, 4) == 0.3142
+    assert round(estimate.right_mps, 4) == -0.3142
+    assert estimate.anomaly is None
+
+
+def test_encoder_speed_estimate_falls_back_and_clamps_safely():
+    prev = EncoderSpeedSample(left_ticks=0, right_ticks=0, host_time_s=10.0, controller_millis=2000)
+    cur = EncoderSpeedSample(left_ticks=5000, right_ticks=-5000, host_time_s=10.2, controller_millis=1999)
+
+    estimate = estimate_encoder_wheel_speeds(
+        prev,
+        cur,
+        wheel_radius_m=0.10,
+        ticks_per_rev=1000,
+        filter_alpha=1.0,
+        max_abs_speed_mps=1.0,
+    )
+
+    assert estimate.dt_source == "host_time_fallback"
+    assert round(estimate.dt_s, 3) == 0.2
+    assert estimate.left_mps == 1.0
+    assert estimate.right_mps == -1.0
+    assert "controller_millis_nonpositive_dt" in (estimate.anomaly or "")
+    assert "wheel_speed_sanity_clamped" in (estimate.anomaly or "")
 
 
 def test_pid_correction_uses_encoder_feedback():

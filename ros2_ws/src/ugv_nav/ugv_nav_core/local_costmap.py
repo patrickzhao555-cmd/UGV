@@ -20,6 +20,7 @@ class LocalCostmapConfig:
     lidar_clear_radius_m: float = 0.05
     robot_radius_m: float = 0.46
     max_obstacle_range_m: float = 4.0
+    max_raytrace_range_m: float = 4.0
 
 
 @dataclass
@@ -30,6 +31,7 @@ class LocalCostmapStats:
     lidar_marked_count: int = 0
     depth_marked_count: int = 0
     semantic_marked_count: int = 0
+    ray_traced_count: int = 0
     ray_cleared_count: int = 0
     decayed_count: int = 0
     inflated_count: int = 0
@@ -44,6 +46,7 @@ class LocalCostmapStats:
             "lidar_marked_count": self.lidar_marked_count,
             "depth_marked_count": self.depth_marked_count,
             "semantic_marked_count": self.semantic_marked_count,
+            "ray_traced_count": self.ray_traced_count,
             "ray_cleared_count": self.ray_cleared_count,
             "decayed_count": self.decayed_count,
             "inflated_count": self.inflated_count,
@@ -80,6 +83,7 @@ class RollingLocalCostmap:
         *,
         pose: Tuple[float, float, float],
         lidar_points_base: Sequence[Tuple[float, float]] = (),
+        lidar_clear_points_base: Sequence[Tuple[float, float]] = (),
         depth_points_base: Sequence[Tuple[float, float]] = (),
         semantic_points_base: Sequence[Tuple[float, float]] = (),
         ray_origin_base: Tuple[float, float] = (0.0, 0.0),
@@ -90,10 +94,22 @@ class RollingLocalCostmap:
         stats.decayed_count = self.decay(timestamp)
 
         ray_origin_world = self.base_to_world(ray_origin_base)
+        for point in lidar_clear_points_base:
+            if not self._point_in_raytrace_range(point, ray_origin_base):
+                continue
+            clear_world = self.base_to_world(point)
+            stats.ray_traced_count += 1
+            stats.ray_cleared_count += self.clear_dynamic_ray(
+                ray_origin_world,
+                clear_world,
+                radius_m=self.config.lidar_clear_radius_m,
+            )
+
         for point in lidar_points_base:
             if not self._point_in_range(point):
                 continue
             hit_world = self.base_to_world(point)
+            stats.ray_traced_count += 1
             stats.ray_cleared_count += self.clear_dynamic_ray(
                 ray_origin_world,
                 hit_world,
@@ -217,6 +233,7 @@ class RollingLocalCostmap:
             lidar_marked_count=self.stats.lidar_marked_count,
             depth_marked_count=self.stats.depth_marked_count,
             semantic_marked_count=self.stats.semantic_marked_count,
+            ray_traced_count=self.stats.ray_traced_count,
             ray_cleared_count=self.stats.ray_cleared_count,
             decayed_count=self.stats.decayed_count,
             inflated_count=inflated_count,
@@ -240,6 +257,16 @@ class RollingLocalCostmap:
 
     def _point_in_range(self, point: Tuple[float, float]) -> bool:
         return math.hypot(float(point[0]), float(point[1])) <= max(0.0, float(self.config.max_obstacle_range_m))
+
+    def _point_in_raytrace_range(
+        self,
+        point: Tuple[float, float],
+        origin: Tuple[float, float] = (0.0, 0.0),
+    ) -> bool:
+        return math.hypot(
+            float(point[0]) - float(origin[0]),
+            float(point[1]) - float(origin[1]),
+        ) <= max(0.0, float(self.config.max_raytrace_range_m))
 
     def _world_key(self, x: float, y: float) -> Tuple[int, int]:
         res = self.resolution

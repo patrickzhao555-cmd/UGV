@@ -72,11 +72,29 @@ NAV_CONTINUOUS_SLOWDOWN_CLEARANCE_M=1.05
 NAV_CONTINUOUS_STOP_CLEARANCE_M=0.48
 ```
 
-`NAV_LOCAL_COSTMAP_ENABLED=true` enables the rolling local costmap used by the
-continuous controller. It marks LiDAR/ZED obstacles, ray-clears LiDAR freespace,
-decays dynamic obstacles, inflates local obstacles, and keeps field-map static
-obstacles separate from dynamic clearing. The legacy step planner still uses the
-older local safety map when `NAV_CONTINUOUS_CONTROL_ENABLED=false`.
+`NAV_LOCAL_COSTMAP_ENABLED=true` enables the rolling local costmap used by local
+collision checks. It marks LiDAR/ZED obstacles, ray-clears both hit and no-hit
+LiDAR beams from `ranges_m`/`angles_rad`, decays dynamic obstacles, inflates
+local obstacles, and keeps field-map static obstacles separate from dynamic
+clearing. Dynamic LiDAR/ZED observations are no longer written into the
+persistent global planning map.
+
+Useful local costmap overrides:
+
+```bash
+NAV_LOCAL_COSTMAP_WIDTH_M=4.0
+NAV_LOCAL_COSTMAP_HEIGHT_M=4.0
+NAV_LOCAL_COSTMAP_RESOLUTION_M=0.06
+NAV_LOCAL_COSTMAP_DYNAMIC_DECAY_S=1.0
+NAV_LOCAL_COSTMAP_OBSTACLE_RADIUS_M=0.06
+NAV_LOCAL_COSTMAP_INFLATION_M=0.08
+NAV_LOCAL_COSTMAP_LIDAR_CLEAR_RADIUS_M=0.05
+NAV_LOCAL_COSTMAP_MAX_RAYTRACE_M=4.0
+NAV_CONTINUOUS_ALLOW_COSTMAP_SOFT_PENALTY=false
+```
+
+By default, occupied local-costmap trajectories are hard-rejected. The
+soft-penalty switch is only for replay experiments with coarse maps.
 
 `/ugv_nav_status` includes `velocity_control` normalized scoring fields
 (`progress_score`, `path_alignment_score`, `clearance_score`,

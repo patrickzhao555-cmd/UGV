@@ -63,12 +63,27 @@ Velocity mode consumes `/ugv_nav_cmd` JSON fields `command_type=velocity`,
 measured wheel speed from encoder deltas, then outputs PWM using feedforward
 plus PID correction.
 
+When the Teensy encoder packet includes controller milliseconds, the bridge uses
+that timestamp for wheel-speed `dt`; otherwise it falls back to host monotonic
+time. The measured speed path has optional low-pass filtering and a sanity clamp:
+
+```text
+velocity_encoder_speed_filter_alpha=0.65
+velocity_encoder_speed_max_mps=2.0
+```
+
+`/motor_controller/status` publishes `encoder_speed_dt_source`,
+`encoder_speed_dt_s`, and `encoder_speed_anomaly` so bad timestamp deltas or
+sanity clamps are visible during bench testing.
+
 Safety defaults:
 
 - `velocity_control_enabled=false`
 - `prefer_velocity_fields=true`
 - `velocity_stale_encoder_timeout_s=0.25`
 - `velocity_fallback_to_raw_without_encoder=false`
+- `velocity_encoder_speed_filter_alpha=0.65`
+- `velocity_encoder_speed_max_mps=2.0`
 
 If encoder speed is missing/stale in velocity mode, the bridge commands neutral
 PWM and resets PID integrators unless raw fallback is explicitly enabled.

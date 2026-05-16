@@ -46,6 +46,24 @@ def test_ray_clearing_clears_dynamic_cells_before_hit():
     assert len(cm.dynamic_cells) <= before
 
 
+def test_no_hit_lidar_ray_clearing_removes_stale_dynamic_obstacle():
+    cm = make_costmap(inflation_radius_m=0.0)
+    cm.mark_dynamic_world(0.5, 0.0, 1.0, radius_m=0.05, source="false_positive")
+    assert cm.dynamic_cells
+
+    stats = cm.update(
+        pose=(0.0, 0.0, 0.0),
+        lidar_points_base=[],
+        lidar_clear_points_base=[(1.2, 0.0)],
+        ray_origin_base=(0.0, 0.0),
+        timestamp=1.1,
+    )
+
+    assert stats.ray_traced_count == 1
+    assert stats.ray_cleared_count > 0
+    assert not cm.dynamic_cells
+
+
 def test_decay_removes_stale_dynamic_obstacles():
     cm = make_costmap()
     cm.mark_dynamic_world(1.0, 0.0, 1.0, radius_m=0.05, source="old")

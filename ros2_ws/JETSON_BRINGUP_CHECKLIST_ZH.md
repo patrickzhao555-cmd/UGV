@@ -219,6 +219,9 @@ ros2 launch ugv_motor_controller motor_direct_test.launch.py \
 - 如果物理前进变成后退，先同时翻转左右 command inversion。
 - 如果物理前进时一侧前转、一侧后转，先翻转物理方向错误那一侧的 command inversion。
 - 只有在轮子物理方向已经正确、但 odometry 符号仍然错误时，才翻转 encoder inversion。
+- 当前底盘地面 odometry 标定：raw `0.14` 跑 `1.5s`，平均 encoder tick
+  `1027`，旧配置 odom 估计 `0.3872m`，实际距离 `0.1800m`，scale
+  `0.4649`。当前底盘做 nav bench 时建议先用 `ROBOT_TICKS_PER_REV=2151`。
 
 当前底盘在 `jetson_bringup.sh` 里的默认值：
 
@@ -227,6 +230,14 @@ INVERT_LEFT_COMMAND=false
 INVERT_RIGHT_COMMAND=true
 INVERT_LEFT_ENCODER=false
 INVERT_RIGHT_ENCODER=false
+ROBOT_WHEEL_RADIUS_M=0.06
+ROBOT_TICKS_PER_REV=1000
+```
+
+当前标定底盘运行 nav 时覆盖默认值：
+
+```bash
+ROBOT_TICKS_PER_REV=2151
 ```
 
 ## 6. Bench 和 Dry-Run
@@ -372,6 +383,9 @@ ros2 topic echo /sensors/yolo_semantic_obstacle_points --once
 
 - 车头朝向：默认通过左右 encoder odometry 估计。ZED IMU yaw-rate 可以融合，但在轴向和正负号校准前默认关闭。
 - 车身尺寸：导航用 `ROBOT_LENGTH_M`、`ROBOT_WIDTH_M`、`ROBOT_TRACK_WIDTH_M`、障碍膨胀和安全 margin 建模 30 inch x 30 inch 底盘。
+- 地面 odometry scale：导航使用 `ROBOT_WHEEL_RADIUS_M` 和
+  `ROBOT_TICKS_PER_REV`。当前底盘建议 `ROBOT_TICKS_PER_REV=2151`；如果之后
+  用 velocity PID 做真实地面速度控制，`MOTOR_TICKS_PER_REV` 也要一致标定。
 - LiDAR 视野：室内默认 `LIDAR_USED_FOV_DEG=180.0`，并且 `NAV_ALLOW_REVERSE=false`。
 - ZED depth：fusion 里有 ground-aware depth filter，会尽量忽略地面，把锥桶、箱子、桶、桌椅腿这种竖直物体变成障碍点。
 - YOLO：只做语义膨胀，不负责硬安全。

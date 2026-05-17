@@ -4669,6 +4669,8 @@ def run_real_mode(
     robot_length_m: float = ft(30.0 / 12.0),
     robot_width_m: float = ft(30.0 / 12.0),
     robot_track_width_m: float = ft(2.0),
+    robot_wheel_radius_m: float = 0.06,
+    robot_ticks_per_rev: int = 1000,
     robot_obstacle_buffer_m: float = 0.025,
     lidar_offset_x_m: float = 0.30,
     lidar_offset_y_m: float = 0.0,
@@ -4719,6 +4721,8 @@ def run_real_mode(
     robot_cfg.length_m = max(0.20, float(robot_length_m))
     robot_cfg.width_m = max(0.20, float(robot_width_m))
     robot_cfg.track_width_m = max(0.20, float(robot_track_width_m))
+    robot_cfg.wheel_radius_m = max(0.005, float(robot_wheel_radius_m))
+    robot_cfg.ticks_per_rev = max(1, int(robot_ticks_per_rev))
     robot_cfg.obstacle_buffer_m = clamp(float(robot_obstacle_buffer_m), 0.0, 0.20)
     robot_cfg.lidar_offset_x_m = float(lidar_offset_x_m)
     robot_cfg.lidar_offset_y_m = float(lidar_offset_y_m)
@@ -4940,6 +4944,8 @@ def main() -> None:
     parser.add_argument("--robot-length-m", type=float, default=ft(30.0 / 12.0), help="robot footprint length used for collision checks")
     parser.add_argument("--robot-width-m", type=float, default=ft(30.0 / 12.0), help="robot footprint width used for gap checks")
     parser.add_argument("--robot-track-width-m", type=float, default=ft(2.0), help="wheel track width for encoder odometry")
+    parser.add_argument("--robot-wheel-radius-m", type=float, default=0.06, help="wheel radius used by real-mode navigation encoder odometry")
+    parser.add_argument("--robot-ticks-per-rev", type=int, default=1000, help="effective encoder ticks per wheel revolution used by real-mode navigation odometry")
     parser.add_argument("--robot-obstacle-buffer-m", type=float, default=0.025, help="extra footprint padding used by local trajectory collision checks")
     parser.add_argument("--lidar-offset-x-m", type=float, default=0.30, help="LiDAR x offset from robot center; positive is forward")
     parser.add_argument("--lidar-offset-y-m", type=float, default=0.0, help="LiDAR y offset from robot center; positive is left")
@@ -5038,6 +5044,8 @@ def main() -> None:
             robot_length_m=args.robot_length_m,
             robot_width_m=args.robot_width_m,
             robot_track_width_m=args.robot_track_width_m,
+            robot_wheel_radius_m=args.robot_wheel_radius_m,
+            robot_ticks_per_rev=args.robot_ticks_per_rev,
             robot_obstacle_buffer_m=args.robot_obstacle_buffer_m,
             lidar_offset_x_m=args.lidar_offset_x_m,
             lidar_offset_y_m=args.lidar_offset_y_m,

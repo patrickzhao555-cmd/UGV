@@ -238,3 +238,39 @@ def test_local_costmap_cli_launch_and_env_parameters_are_wired():
     ]
     for token in expected_env:
         assert token in bringup
+
+
+def test_real_nav_odometry_calibration_parameters_are_wired():
+    nav_script = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
+    launch_file = (
+        ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "competition_bringup.launch.py"
+    ).read_text()
+    bringup = (ROOT / "ros2_ws" / "jetson_bringup.sh").read_text()
+
+    for token in [
+        "--robot-wheel-radius-m",
+        "--robot-ticks-per-rev",
+        "robot_wheel_radius_m: float = 0.06",
+        "robot_ticks_per_rev: int = 1000",
+        "robot_cfg.wheel_radius_m = max(0.005, float(robot_wheel_radius_m))",
+        "robot_cfg.ticks_per_rev = max(1, int(robot_ticks_per_rev))",
+    ]:
+        assert token in nav_script
+
+    for token in [
+        "robot_wheel_radius_m = LaunchConfiguration('robot_wheel_radius_m')",
+        "robot_ticks_per_rev = LaunchConfiguration('robot_ticks_per_rev')",
+        "DeclareLaunchArgument('robot_wheel_radius_m', default_value='0.06')",
+        "DeclareLaunchArgument('robot_ticks_per_rev', default_value='1000')",
+        "--robot-wheel-radius-m",
+        "--robot-ticks-per-rev",
+    ]:
+        assert token in launch_file
+
+    for token in [
+        'ROBOT_WHEEL_RADIUS_M="${ROBOT_WHEEL_RADIUS_M:-0.06}"',
+        'ROBOT_TICKS_PER_REV="${ROBOT_TICKS_PER_REV:-1000}"',
+        'robot_wheel_radius_m:="${ROBOT_WHEEL_RADIUS_M}"',
+        'robot_ticks_per_rev:="${ROBOT_TICKS_PER_REV}"',
+    ]:
+        assert token in bringup

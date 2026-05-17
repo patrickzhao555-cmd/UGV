@@ -138,6 +138,10 @@ python3 ros2_ws/src/ugv_nav/tools/replay_nav_metrics.py path/to/replay_or_status
 ## Notes
 
 - Heading comes from encoder odometry by default.
+- Real robot encoder odometry uses `--robot-wheel-radius-m` and
+  `--robot-ticks-per-rev`. Ground calibration on the current chassis measured
+  `old_config_odom_est_m=0.3872` versus `actual_m=0.1800`, so test this chassis
+  with `--robot-ticks-per-rev 2151` or `ROBOT_TICKS_PER_REV=2151`.
 - Optional ZED IMU yaw-rate blending exists but stays disabled until axis/sign are verified.
 - The chassis footprint is modeled with robot length, width, track width, obstacle inflation, and safety margins.
 - The live map is obstacle-focused. Dashboard camera-coverage visualization is available, but camera coverage is not yet a hard planner objective.

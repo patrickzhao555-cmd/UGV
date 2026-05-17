@@ -72,6 +72,11 @@ velocity_encoder_speed_filter_alpha=0.65
 velocity_encoder_speed_max_mps=2.0
 ```
 
+Ground odometry calibration for the current chassis recommends an effective
+`ROBOT_TICKS_PER_REV=2151` for navigation. If velocity PID is used for true
+ground speed later, calibrate this bridge's `ticks_per_rev` /
+`MOTOR_TICKS_PER_REV` consistently with the nav odometry value.
+
 `/motor_controller/status` publishes `encoder_speed_dt_source`,
 `encoder_speed_dt_s`, and `encoder_speed_anomaly` so bad timestamp deltas or
 sanity clamps are visible during bench testing.

@@ -78,6 +78,8 @@ IMU_YAW_SIGN="${IMU_YAW_SIGN:-1.0}"
 ROBOT_LENGTH_M="${ROBOT_LENGTH_M:-0.762}"
 ROBOT_WIDTH_M="${ROBOT_WIDTH_M:-0.762}"
 ROBOT_TRACK_WIDTH_M="${ROBOT_TRACK_WIDTH_M:-0.6096}"
+ROBOT_WHEEL_RADIUS_M="${ROBOT_WHEEL_RADIUS_M:-0.06}"
+ROBOT_TICKS_PER_REV="${ROBOT_TICKS_PER_REV:-1000}"
 ROBOT_OBSTACLE_BUFFER_M="${ROBOT_OBSTACLE_BUFFER_M:-0.025}"
 LIDAR_OFFSET_X_M="${LIDAR_OFFSET_X_M:-0.30}"
 LIDAR_OFFSET_Y_M="${LIDAR_OFFSET_Y_M:-0.0}"
@@ -332,6 +334,8 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   robot_length_m:="${ROBOT_LENGTH_M}" \
   robot_width_m:="${ROBOT_WIDTH_M}" \
   robot_track_width_m:="${ROBOT_TRACK_WIDTH_M}" \
+  robot_wheel_radius_m:="${ROBOT_WHEEL_RADIUS_M}" \
+  robot_ticks_per_rev:="${ROBOT_TICKS_PER_REV}" \
   robot_obstacle_buffer_m:="${ROBOT_OBSTACLE_BUFFER_M}" \
   lidar_offset_x_m:="${LIDAR_OFFSET_X_M}" \
   lidar_offset_y_m:="${LIDAR_OFFSET_Y_M}" \

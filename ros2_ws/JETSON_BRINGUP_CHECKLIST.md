@@ -220,6 +220,10 @@ Expected checks:
 - If physical forward goes backward, flip both command inversion flags together.
 - If physical forward makes one side drive backward and the other side drive forward, flip the command inversion on the wrong physical side.
 - Only flip encoder inversion after the wheels physically move in the right directions but odometry signs are still wrong.
+- Ground odometry calibration for the current chassis measured raw `0.14` for
+  `1.5s`: average encoder ticks `1027`, old odom estimate `0.3872m`, actual
+  travel `0.1800m`, scale `0.4649`. Test nav odometry with
+  `ROBOT_TICKS_PER_REV=2151`.
 
 Current chassis defaults in `jetson_bringup.sh`:
 
@@ -228,6 +232,14 @@ INVERT_LEFT_COMMAND=false
 INVERT_RIGHT_COMMAND=true
 INVERT_LEFT_ENCODER=false
 INVERT_RIGHT_ENCODER=false
+ROBOT_WHEEL_RADIUS_M=0.06
+ROBOT_TICKS_PER_REV=1000
+```
+
+For the current calibrated chassis, override the default when running nav:
+
+```bash
+ROBOT_TICKS_PER_REV=2151
 ```
 
 ## 6. Velocity PID Bench Test
@@ -429,6 +441,10 @@ Answers to common design questions:
 
 - Heading: the robot estimates heading from left/right encoder odometry by default. ZED IMU yaw-rate blending exists but remains off until axis/sign calibration is verified.
 - Footprint: navigation models the 30 inch by 30 inch chassis using `ROBOT_LENGTH_M`, `ROBOT_WIDTH_M`, `ROBOT_TRACK_WIDTH_M`, obstacle inflation, and front/rear margins.
+- Ground odometry scale: navigation uses `ROBOT_WHEEL_RADIUS_M` and
+  `ROBOT_TICKS_PER_REV`. The current chassis calibration recommends
+  `ROBOT_TICKS_PER_REV=2151`; if velocity PID is later used for true ground
+  speed, calibrate `MOTOR_TICKS_PER_REV` consistently too.
 - LiDAR field of view: indoor default uses `LIDAR_USED_FOV_DEG=180.0` and `NAV_ALLOW_REVERSE=false`.
 - Camera/ZED: ZED depth is ground-aware filtered before fusion so floor pixels do not become obstacles.
 - YOLO: optional semantic inflation only; LiDAR/ZED depth remain collision safety.

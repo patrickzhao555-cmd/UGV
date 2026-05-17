@@ -154,6 +154,8 @@ def generate_launch_description():
     robot_length_m = LaunchConfiguration('robot_length_m')
     robot_width_m = LaunchConfiguration('robot_width_m')
     robot_track_width_m = LaunchConfiguration('robot_track_width_m')
+    robot_wheel_radius_m = LaunchConfiguration('robot_wheel_radius_m')
+    robot_ticks_per_rev = LaunchConfiguration('robot_ticks_per_rev')
     robot_obstacle_buffer_m = LaunchConfiguration('robot_obstacle_buffer_m')
     lidar_offset_x_m = LaunchConfiguration('lidar_offset_x_m')
     lidar_offset_y_m = LaunchConfiguration('lidar_offset_y_m')
@@ -305,6 +307,10 @@ def generate_launch_description():
             robot_width_m,
             '--robot-track-width-m',
             robot_track_width_m,
+            '--robot-wheel-radius-m',
+            robot_wheel_radius_m,
+            '--robot-ticks-per-rev',
+            robot_ticks_per_rev,
             '--robot-obstacle-buffer-m',
             robot_obstacle_buffer_m,
             '--lidar-offset-x-m',
@@ -574,6 +580,8 @@ def generate_launch_description():
         DeclareLaunchArgument('robot_length_m', default_value='0.762'),
         DeclareLaunchArgument('robot_width_m', default_value='0.762'),
         DeclareLaunchArgument('robot_track_width_m', default_value='0.6096'),
+        DeclareLaunchArgument('robot_wheel_radius_m', default_value='0.06'),
+        DeclareLaunchArgument('robot_ticks_per_rev', default_value='1000'),
         DeclareLaunchArgument('robot_obstacle_buffer_m', default_value='0.025'),
         DeclareLaunchArgument('lidar_offset_x_m', default_value='0.30'),
         DeclareLaunchArgument('lidar_offset_y_m', default_value='0.0'),

@@ -10,6 +10,7 @@ from ugv_motor_controller.velocity_control import (  # noqa: E402
     EncoderSpeedSample,
     VelocityPidConfig,
     WheelVelocityPid,
+    apply_velocity_raw_fallback_floor,
     encoder_delta_to_wheel_speed_mps,
     encoder_speed_is_fresh,
     estimate_encoder_wheel_speeds,
@@ -73,6 +74,98 @@ def test_raw_command_extraction_legacy_modes_and_fields():
     assert extract_raw_drive({"raw_left": 0.2, "raw_right": -0.1}) == (0.2, -0.1)
     assert extract_raw_drive({"mode": "FORWARD"}) == (0.35, 0.35)
     assert extract_raw_drive({"mode": "TURN_LEFT"}) == (-0.30, 0.30)
+
+
+def test_velocity_raw_fallback_floor_applies_per_wheel_independently():
+    floored = apply_velocity_raw_fallback_floor(
+        0.005,
+        0.14,
+        enabled=True,
+        command_type="velocity",
+        mode="FORWARD",
+        min_wheel_raw=0.14,
+        min_target_raw=0.001,
+    )
+
+    assert floored.left_raw == 0.14
+    assert floored.right_raw == 0.14
+    assert floored.applied_left
+    assert not floored.applied_right
+
+
+def test_velocity_raw_fallback_floor_preserves_turn_signs():
+    floored = apply_velocity_raw_fallback_floor(
+        -0.005,
+        0.035,
+        enabled=True,
+        command_type="velocity",
+        mode="TURN_LEFT",
+        min_wheel_raw=0.14,
+        min_target_raw=0.001,
+    )
+
+    assert floored.left_raw == -0.14
+    assert floored.right_raw == 0.14
+    assert floored.applied_left
+    assert floored.applied_right
+
+
+def test_velocity_raw_fallback_floor_keeps_zero_and_stop_safe():
+    zero = apply_velocity_raw_fallback_floor(
+        0.0,
+        0.03,
+        enabled=True,
+        command_type="velocity",
+        mode="FORWARD",
+        min_wheel_raw=0.14,
+        min_target_raw=0.001,
+    )
+    assert zero.left_raw == 0.0
+    assert zero.right_raw == 0.14
+    assert not zero.applied_left
+    assert zero.applied_right
+
+    stop = apply_velocity_raw_fallback_floor(
+        0.005,
+        0.005,
+        enabled=True,
+        command_type="velocity",
+        mode="STOP",
+        min_wheel_raw=0.14,
+        min_target_raw=0.001,
+    )
+    assert stop.left_raw == 0.005
+    assert stop.right_raw == 0.005
+    assert not stop.applied_left
+    assert not stop.applied_right
+
+
+def test_velocity_raw_fallback_floor_does_not_change_legacy_raw_or_direct_commands():
+    legacy = apply_velocity_raw_fallback_floor(
+        0.005,
+        0.035,
+        enabled=True,
+        command_type="raw",
+        mode="FORWARD",
+        min_wheel_raw=0.14,
+        min_target_raw=0.001,
+    )
+    assert legacy.left_raw == 0.005
+    assert legacy.right_raw == 0.035
+    assert not legacy.applied_left
+    assert not legacy.applied_right
+
+    disabled = apply_velocity_raw_fallback_floor(
+        0.005,
+        0.035,
+        enabled=False,
+        command_type="velocity",
+        mode="FORWARD",
+        min_wheel_raw=0.14,
+        min_target_raw=0.001,
+    )
+    assert disabled.left_raw == 0.005
+    assert disabled.right_raw == 0.035
 
 
 def test_velocity_command_parsing_respects_explicit_raw():
@@ -283,6 +376,14 @@ def test_controller_millis_bypasses_host_min_dt_and_is_preferred():
 
 
 def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
+    bridge_file = (
+        ROOT
+        / "ros2_ws"
+        / "src"
+        / "ugv_motor_controller"
+        / "ugv_motor_controller"
+        / "motor_controller_bridge.py"
+    ).read_text()
     launch_file = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "launch" / "motor_controller.launch.py").read_text()
     competition_launch = (
         ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "competition_bringup.launch.py"
@@ -292,6 +393,19 @@ def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
     assert "velocity_encoder_speed_min_dt_s" in launch_file
     assert "motor_velocity_encoder_speed_min_dt_s" in competition_launch
     assert "MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S" in bringup
+    assert "velocity_raw_fallback_floor_enabled" in launch_file
+    assert "velocity_raw_fallback_min_wheel_raw" in launch_file
+    assert "velocity_raw_fallback_min_target_raw" in launch_file
+    assert "motor_velocity_raw_fallback_floor_enabled" in competition_launch
+    assert "motor_velocity_raw_fallback_min_wheel_raw" in competition_launch
+    assert "motor_velocity_raw_fallback_min_target_raw" in competition_launch
+    assert "MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED" in bringup
+    assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW" in bringup
+    assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_TARGET_RAW" in bringup
+    assert "velocity_raw_fallback_floor_applied_left" in bridge_file
+    assert "velocity_raw_fallback_floor_applied_right" in bridge_file
+    assert "selected_raw_left" in bridge_file
+    assert "selected_raw_right" in bridge_file
 
 
 def test_pid_correction_uses_encoder_feedback():

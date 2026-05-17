@@ -35,6 +35,9 @@ def generate_launch_description():
     velocity_encoder_speed_filter_alpha = LaunchConfiguration('velocity_encoder_speed_filter_alpha')
     velocity_encoder_speed_max_mps = LaunchConfiguration('velocity_encoder_speed_max_mps')
     velocity_encoder_speed_min_dt_s = LaunchConfiguration('velocity_encoder_speed_min_dt_s')
+    velocity_raw_fallback_floor_enabled = LaunchConfiguration('velocity_raw_fallback_floor_enabled')
+    velocity_raw_fallback_min_wheel_raw = LaunchConfiguration('velocity_raw_fallback_min_wheel_raw')
+    velocity_raw_fallback_min_target_raw = LaunchConfiguration('velocity_raw_fallback_min_target_raw')
 
     return LaunchDescription([
         DeclareLaunchArgument('port', default_value='/dev/ttyACM0'),
@@ -66,6 +69,9 @@ def generate_launch_description():
         DeclareLaunchArgument('velocity_encoder_speed_filter_alpha', default_value='0.65'),
         DeclareLaunchArgument('velocity_encoder_speed_max_mps', default_value='2.0'),
         DeclareLaunchArgument('velocity_encoder_speed_min_dt_s', default_value='0.015'),
+        DeclareLaunchArgument('velocity_raw_fallback_floor_enabled', default_value='false'),
+        DeclareLaunchArgument('velocity_raw_fallback_min_wheel_raw', default_value='0.0'),
+        DeclareLaunchArgument('velocity_raw_fallback_min_target_raw', default_value='0.001'),
         Node(
             package='ugv_motor_controller',
             executable='motor_controller_bridge',
@@ -101,6 +107,9 @@ def generate_launch_description():
                 'velocity_encoder_speed_filter_alpha': ParameterValue(velocity_encoder_speed_filter_alpha, value_type=float),
                 'velocity_encoder_speed_max_mps': ParameterValue(velocity_encoder_speed_max_mps, value_type=float),
                 'velocity_encoder_speed_min_dt_s': ParameterValue(velocity_encoder_speed_min_dt_s, value_type=float),
+                'velocity_raw_fallback_floor_enabled': ParameterValue(velocity_raw_fallback_floor_enabled, value_type=bool),
+                'velocity_raw_fallback_min_wheel_raw': ParameterValue(velocity_raw_fallback_min_wheel_raw, value_type=float),
+                'velocity_raw_fallback_min_target_raw': ParameterValue(velocity_raw_fallback_min_target_raw, value_type=float),
             }],
         ),
     ])

@@ -100,6 +100,50 @@ def velocity_to_wheel_speeds(
     )
 
 
+@dataclass(frozen=True)
+class RawFallbackFloorResult:
+    left_raw: float
+    right_raw: float
+    applied_left: bool
+    applied_right: bool
+
+
+def apply_velocity_raw_fallback_floor(
+    left_raw: float,
+    right_raw: float,
+    *,
+    enabled: bool,
+    command_type: str,
+    mode: str,
+    min_wheel_raw: float,
+    min_target_raw: float,
+) -> RawFallbackFloorResult:
+    if (
+        not bool(enabled)
+        or str(command_type).lower() != "velocity"
+        or str(mode).upper() == "STOP"
+    ):
+        return RawFallbackFloorResult(float(left_raw), float(right_raw), False, False)
+
+    floor = abs(float(min_wheel_raw))
+    threshold = abs(float(min_target_raw))
+    if floor <= 0.0:
+        return RawFallbackFloorResult(float(left_raw), float(right_raw), False, False)
+
+    def floor_one(raw: float) -> Tuple[float, bool]:
+        value = finite_float(raw, name="raw")
+        mag = abs(value)
+        if mag <= 0.0:
+            return value, False
+        if mag >= threshold and mag < floor:
+            return math.copysign(floor, value), True
+        return value, False
+
+    left, applied_left = floor_one(left_raw)
+    right, applied_right = floor_one(right_raw)
+    return RawFallbackFloorResult(left, right, applied_left, applied_right)
+
+
 def encoder_delta_to_wheel_speed_mps(
     delta_ticks: int,
     dt_s: float,

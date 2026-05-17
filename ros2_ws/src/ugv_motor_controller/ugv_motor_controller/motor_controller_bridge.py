@@ -13,6 +13,7 @@ from ugv_motor_controller.velocity_control import (
     VelocityPidConfig,
     WheelVelocityPid,
     EncoderSpeedSample,
+    apply_velocity_raw_fallback_floor,
     encoder_speed_is_fresh,
     extract_raw_drive,
     is_stop_command,
@@ -71,6 +72,9 @@ class MotorControllerBridge(Node):
         self.declare_parameter('velocity_encoder_speed_filter_alpha', 0.65)
         self.declare_parameter('velocity_encoder_speed_max_mps', 2.0)
         self.declare_parameter('velocity_encoder_speed_min_dt_s', 0.015)
+        self.declare_parameter('velocity_raw_fallback_floor_enabled', False)
+        self.declare_parameter('velocity_raw_fallback_min_wheel_raw', 0.0)
+        self.declare_parameter('velocity_raw_fallback_min_target_raw', 0.001)
 
         self.port = self.get_parameter('port').value
         self.baud = int(self.get_parameter('baud').value)
@@ -122,6 +126,17 @@ class MotorControllerBridge(Node):
             0.0,
             float(self.get_parameter('velocity_encoder_speed_min_dt_s').value),
         )
+        self.velocity_raw_fallback_floor_enabled = bool(
+            self.get_parameter('velocity_raw_fallback_floor_enabled').value
+        )
+        self.velocity_raw_fallback_min_wheel_raw = max(
+            0.0,
+            float(self.get_parameter('velocity_raw_fallback_min_wheel_raw').value),
+        )
+        self.velocity_raw_fallback_min_target_raw = max(
+            0.0,
+            float(self.get_parameter('velocity_raw_fallback_min_target_raw').value),
+        )
         pid_cfg = VelocityPidConfig(
             kp=float(self.get_parameter('velocity_kp').value),
             ki=float(self.get_parameter('velocity_ki').value),
@@ -152,6 +167,10 @@ class MotorControllerBridge(Node):
         self.last_command_mode: Optional[str] = None
         self.last_command_type: Optional[str] = None
         self.control_mode = 'raw'
+        self.selected_raw_left = 0.0
+        self.selected_raw_right = 0.0
+        self.velocity_raw_fallback_floor_applied_left = False
+        self.velocity_raw_fallback_floor_applied_right = False
         self.active_velocity_command: Optional[Tuple[float, float]] = None
         self.target_left_mps = 0.0
         self.target_right_mps = 0.0
@@ -235,11 +254,14 @@ class MotorControllerBridge(Node):
             self.last_stop_sent = False
             self.active_velocity_command = velocity_cmd
             self.control_mode = 'velocity_pid'
+            self.selected_raw_left = 0.0
+            self.selected_raw_right = 0.0
+            self.velocity_raw_fallback_floor_applied_left = False
+            self.velocity_raw_fallback_floor_applied_right = False
             self.last_velocity_safe_reason = None
             self._update_velocity_control(reason='nav velocity command')
         else:
             self.active_velocity_command = None
-            self.control_mode = 'raw'
             self.last_velocity_safe_reason = None
             self.target_left_mps = 0.0
             self.target_right_mps = 0.0
@@ -253,6 +275,23 @@ class MotorControllerBridge(Node):
                 self._log_parse_issue('Invalid /ugv_nav_cmd raw drive values: missing raw command')
                 return
             left_raw, right_raw = raw_cmd
+            velocity_raw_fallback = self.last_command_type == 'velocity'
+            floor_result = apply_velocity_raw_fallback_floor(
+                left_raw,
+                right_raw,
+                enabled=self.velocity_raw_fallback_floor_enabled,
+                command_type=self.last_command_type or 'raw',
+                mode=self.last_command_mode or 'RAW',
+                min_wheel_raw=self.velocity_raw_fallback_min_wheel_raw,
+                min_target_raw=self.velocity_raw_fallback_min_target_raw,
+            )
+            left_raw = floor_result.left_raw
+            right_raw = floor_result.right_raw
+            self.selected_raw_left = left_raw
+            self.selected_raw_right = right_raw
+            self.velocity_raw_fallback_floor_applied_left = floor_result.applied_left
+            self.velocity_raw_fallback_floor_applied_right = floor_result.applied_right
+            self.control_mode = 'raw_velocity_fallback' if velocity_raw_fallback else 'raw'
             self.last_command_received = time.monotonic()
             self.last_stop_sent = False
             left_pwm = self._raw_to_pwm(left_raw, invert=self.invert_left_command)
@@ -521,6 +560,10 @@ class MotorControllerBridge(Node):
         self.control_mode = 'stopped'
         self.target_left_mps = 0.0
         self.target_right_mps = 0.0
+        self.selected_raw_left = 0.0
+        self.selected_raw_right = 0.0
+        self.velocity_raw_fallback_floor_applied_left = False
+        self.velocity_raw_fallback_floor_applied_right = False
         self.last_velocity_error_left_mps = 0.0
         self.last_velocity_error_right_mps = 0.0
         self.last_velocity_pid_left = None
@@ -649,6 +692,13 @@ class MotorControllerBridge(Node):
             'control_mode': self.control_mode,
             'velocity_control_enabled': self.velocity_control_enabled,
             'prefer_velocity_fields': self.prefer_velocity_fields,
+            'velocity_raw_fallback_floor_enabled': self.velocity_raw_fallback_floor_enabled,
+            'velocity_raw_fallback_min_wheel_raw': round(self.velocity_raw_fallback_min_wheel_raw, 4),
+            'velocity_raw_fallback_min_target_raw': round(self.velocity_raw_fallback_min_target_raw, 4),
+            'velocity_raw_fallback_floor_applied_left': bool(self.velocity_raw_fallback_floor_applied_left),
+            'velocity_raw_fallback_floor_applied_right': bool(self.velocity_raw_fallback_floor_applied_right),
+            'selected_raw_left': round(self.selected_raw_left, 4),
+            'selected_raw_right': round(self.selected_raw_right, 4),
             'target_left_mps': round(self.target_left_mps, 4),
             'target_right_mps': round(self.target_right_mps, 4),
             'measured_left_mps': round(self.measured_left_mps, 4),

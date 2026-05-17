@@ -40,11 +40,18 @@ Standalone bridge:
 ```bash
 ros2 launch ugv_motor_controller motor_controller.launch.py \
   port:=/dev/ttyACM0 baud:=115200 dry_run:=false \
-  invert_left_command:=false invert_right_command:=true
+  invert_left_command:=false invert_right_command:=true \
+  command_timeout_s:=3.0 command_refresh_period_s:=0.25
 ```
 
 Closed-loop wheel-speed PID is available but defaults off. Raw mode remains the
 safe fallback and continues to consume `raw_left`/`raw_right`.
+
+During full navigation, `jetson_bringup.sh` defaults to a longer command timeout
+than the standalone bridge so brief nav scheduling gaps do not create stop/start
+motion. The bridge refreshes the last active PWM command at
+`command_refresh_period_s` until `command_timeout_s` expires. If `/ugv_nav_cmd`
+really stops for longer than the timeout, the bridge still sends neutral PWM.
 
 Lift the UGV before enabling velocity PID:
 
@@ -89,6 +96,8 @@ Safety defaults:
 - `velocity_fallback_to_raw_without_encoder=false`
 - `velocity_encoder_speed_filter_alpha=0.65`
 - `velocity_encoder_speed_max_mps=2.0`
+- `command_timeout_s=3.0` in competition bringup
+- `command_refresh_period_s=0.25` in competition bringup
 
 If encoder speed is missing/stale in velocity mode, the bridge commands neutral
 PWM and resets PID integrators unless raw fallback is explicitly enabled.

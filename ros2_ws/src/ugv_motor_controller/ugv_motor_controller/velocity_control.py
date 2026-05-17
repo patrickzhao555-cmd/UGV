@@ -316,6 +316,36 @@ def stale_encoder_control_mode(*, fallback_to_raw_without_encoder: bool) -> str:
     return "velocity_raw_fallback" if bool(fallback_to_raw_without_encoder) else "velocity_safe_neutral"
 
 
+def command_age_s(last_command_time_s: float, now_s: float) -> Optional[float]:
+    if float(last_command_time_s) <= 0.0:
+        return None
+    return max(0.0, float(now_s) - float(last_command_time_s))
+
+
+def command_is_timed_out(last_command_time_s: float, now_s: float, timeout_s: float) -> bool:
+    age = command_age_s(last_command_time_s, now_s)
+    if age is None:
+        return False
+    return age > max(0.0, float(timeout_s))
+
+
+def active_command_refresh_due(
+    last_command_time_s: float,
+    last_motor_send_time_s: float,
+    now_s: float,
+    *,
+    timeout_s: float,
+    refresh_period_s: float,
+) -> bool:
+    if float(last_command_time_s) <= 0.0:
+        return False
+    if command_is_timed_out(last_command_time_s, now_s, timeout_s):
+        return False
+    if float(last_motor_send_time_s) <= 0.0:
+        return True
+    return float(now_s) - float(last_motor_send_time_s) >= max(0.0, float(refresh_period_s))
+
+
 @dataclass
 class VelocityPidConfig:
     kp: float = 0.80

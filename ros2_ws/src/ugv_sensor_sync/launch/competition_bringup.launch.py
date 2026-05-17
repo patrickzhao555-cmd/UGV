@@ -123,6 +123,8 @@ def generate_launch_description():
     motor_baud = LaunchConfiguration('motor_baud')
     motor_raw_command_scale_us = LaunchConfiguration('motor_raw_command_scale_us')
     motor_pwm_slew_rate_us_per_s = LaunchConfiguration('motor_pwm_slew_rate_us_per_s')
+    motor_command_timeout_s = LaunchConfiguration('motor_command_timeout_s')
+    motor_command_refresh_period_s = LaunchConfiguration('motor_command_refresh_period_s')
     motor_dry_run = LaunchConfiguration('motor_dry_run')
     motor_velocity_control_enabled = LaunchConfiguration('motor_velocity_control_enabled')
     motor_prefer_velocity_fields = LaunchConfiguration('motor_prefer_velocity_fields')
@@ -242,6 +244,8 @@ def generate_launch_description():
             'baud': motor_baud,
             'raw_command_scale_us': motor_raw_command_scale_us,
             'pwm_slew_rate_us_per_s': motor_pwm_slew_rate_us_per_s,
+            'command_timeout_s': motor_command_timeout_s,
+            'command_refresh_period_s': motor_command_refresh_period_s,
             'dry_run': motor_dry_run,
             'velocity_control_enabled': motor_velocity_control_enabled,
             'prefer_velocity_fields': motor_prefer_velocity_fields,
@@ -631,6 +635,8 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_baud', default_value='115200'),
         DeclareLaunchArgument('motor_raw_command_scale_us', default_value='900.0'),
         DeclareLaunchArgument('motor_pwm_slew_rate_us_per_s', default_value='2400.0'),
+        DeclareLaunchArgument('motor_command_timeout_s', default_value='3.0'),
+        DeclareLaunchArgument('motor_command_refresh_period_s', default_value='0.25'),
         DeclareLaunchArgument('motor_dry_run', default_value='false'),
         DeclareLaunchArgument('motor_velocity_control_enabled', default_value='false'),
         DeclareLaunchArgument('motor_prefer_velocity_fields', default_value='true'),

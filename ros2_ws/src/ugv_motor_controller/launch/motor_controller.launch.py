@@ -11,6 +11,7 @@ def generate_launch_description():
     raw_command_scale_us = LaunchConfiguration('raw_command_scale_us')
     pwm_slew_rate_us_per_s = LaunchConfiguration('pwm_slew_rate_us_per_s')
     command_timeout_s = LaunchConfiguration('command_timeout_s')
+    command_refresh_period_s = LaunchConfiguration('command_refresh_period_s')
     status_period_s = LaunchConfiguration('status_period_s')
     dry_run = LaunchConfiguration('dry_run')
     invert_left_command = LaunchConfiguration('invert_left_command')
@@ -45,6 +46,7 @@ def generate_launch_description():
         DeclareLaunchArgument('raw_command_scale_us', default_value='900.0'),
         DeclareLaunchArgument('pwm_slew_rate_us_per_s', default_value='2400.0'),
         DeclareLaunchArgument('command_timeout_s', default_value='0.75'),
+        DeclareLaunchArgument('command_refresh_period_s', default_value='0.1'),
         DeclareLaunchArgument('status_period_s', default_value='0.5'),
         DeclareLaunchArgument('dry_run', default_value='false'),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
@@ -83,6 +85,7 @@ def generate_launch_description():
                 'raw_command_scale_us': ParameterValue(raw_command_scale_us, value_type=float),
                 'pwm_slew_rate_us_per_s': ParameterValue(pwm_slew_rate_us_per_s, value_type=float),
                 'command_timeout_s': ParameterValue(command_timeout_s, value_type=float),
+                'command_refresh_period_s': ParameterValue(command_refresh_period_s, value_type=float),
                 'status_period_s': ParameterValue(status_period_s, value_type=float),
                 'dry_run': ParameterValue(dry_run, value_type=bool),
                 'invert_left_command': ParameterValue(invert_left_command, value_type=bool),

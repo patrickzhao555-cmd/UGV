@@ -10,7 +10,9 @@ from ugv_motor_controller.velocity_control import (  # noqa: E402
     EncoderSpeedSample,
     VelocityPidConfig,
     WheelVelocityPid,
+    active_command_refresh_due,
     apply_velocity_raw_fallback_floor,
+    command_is_timed_out,
     encoder_delta_to_wheel_speed_mps,
     encoder_speed_is_fresh,
     estimate_encoder_wheel_speeds,
@@ -166,6 +168,53 @@ def test_velocity_raw_fallback_floor_does_not_change_legacy_raw_or_direct_comman
     )
     assert disabled.left_raw == 0.005
     assert disabled.right_raw == 0.035
+
+
+def test_raw_fallback_command_refreshes_before_timeout():
+    assert active_command_refresh_due(
+        last_command_time_s=10.0,
+        last_motor_send_time_s=10.0,
+        now_s=10.30,
+        timeout_s=3.0,
+        refresh_period_s=0.25,
+    )
+    assert not command_is_timed_out(10.0, now_s=10.30, timeout_s=3.0)
+
+
+def test_timeout_does_not_fire_before_configured_timeout():
+    assert not command_is_timed_out(10.0, now_s=12.99, timeout_s=3.0)
+    assert not active_command_refresh_due(
+        last_command_time_s=10.0,
+        last_motor_send_time_s=12.90,
+        now_s=12.99,
+        timeout_s=3.0,
+        refresh_period_s=0.25,
+    )
+
+
+def test_timeout_fires_after_configured_timeout():
+    assert command_is_timed_out(10.0, now_s=13.01, timeout_s=3.0)
+    assert not active_command_refresh_due(
+        last_command_time_s=10.0,
+        last_motor_send_time_s=12.90,
+        now_s=13.01,
+        timeout_s=3.0,
+        refresh_period_s=0.25,
+    )
+
+
+def test_stop_command_still_overrides_refresh_and_timeout_logic():
+    stop_payload = {"mode": "STOP", "command_type": "stop", "raw_left": 0.14, "raw_right": 0.14}
+    assert is_stop_command(stop_payload)
+    assert not apply_velocity_raw_fallback_floor(
+        stop_payload["raw_left"],
+        stop_payload["raw_right"],
+        enabled=True,
+        command_type=stop_payload["command_type"],
+        mode=stop_payload["mode"],
+        min_wheel_raw=0.14,
+        min_target_raw=0.001,
+    ).applied_left
 
 
 def test_velocity_command_parsing_respects_explicit_raw():
@@ -406,6 +455,14 @@ def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
     assert "velocity_raw_fallback_floor_applied_right" in bridge_file
     assert "selected_raw_left" in bridge_file
     assert "selected_raw_right" in bridge_file
+    assert "timeout_stop_count" in bridge_file
+    assert "command_refresh_count" in bridge_file
+    assert "last_motor_send_time_s" in bridge_file
+    assert "command_refresh_period_s" in launch_file
+    assert "motor_command_timeout_s" in competition_launch
+    assert "motor_command_refresh_period_s" in competition_launch
+    assert "MOTOR_COMMAND_TIMEOUT_S" in bringup
+    assert "MOTOR_COMMAND_REFRESH_PERIOD_S" in bringup
 
 
 def test_pid_correction_uses_encoder_feedback():

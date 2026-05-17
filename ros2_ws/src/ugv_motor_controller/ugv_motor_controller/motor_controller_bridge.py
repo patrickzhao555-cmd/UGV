@@ -13,7 +13,10 @@ from ugv_motor_controller.velocity_control import (
     VelocityPidConfig,
     WheelVelocityPid,
     EncoderSpeedSample,
+    active_command_refresh_due,
     apply_velocity_raw_fallback_floor,
+    command_age_s,
+    command_is_timed_out,
     encoder_speed_is_fresh,
     extract_raw_drive,
     is_stop_command,
@@ -91,8 +94,8 @@ class MotorControllerBridge(Node):
         self.raw_command_scale_us = float(self.get_parameter('raw_command_scale_us').value)
         self.pwm_slew_rate_us_per_s = float(self.get_parameter('pwm_slew_rate_us_per_s').value)
         self.command_deadband = float(self.get_parameter('command_deadband').value)
-        self.command_timeout_s = float(self.get_parameter('command_timeout_s').value)
-        self.command_refresh_period_s = float(self.get_parameter('command_refresh_period_s').value)
+        self.command_timeout_s = max(0.0, float(self.get_parameter('command_timeout_s').value))
+        self.command_refresh_period_s = max(0.0, float(self.get_parameter('command_refresh_period_s').value))
         self.serial_retry_period_s = float(self.get_parameter('serial_retry_period_s').value)
         self.poll_period_s = float(self.get_parameter('poll_period_s').value)
         self.status_period_s = float(self.get_parameter('status_period_s').value)
@@ -191,6 +194,8 @@ class MotorControllerBridge(Node):
         self.last_velocity_error_right_mps = 0.0
         self.last_velocity_safe_reason: Optional[str] = None
         self.last_pwm_send_time = 0.0
+        self.timeout_stop_count = 0
+        self.command_refresh_count = 0
 
         self.encoder_pub = self.create_publisher(Int32MultiArray, self.encoder_topic, 10)
         self.encoder_stamped_pub = self.create_publisher(EncoderTicksStamped, self.encoder_stamped_topic, 10)
@@ -358,7 +363,8 @@ class MotorControllerBridge(Node):
             self.last_stop_sent = True
             return
 
-        if time.monotonic() - self.last_command_received > self.command_timeout_s:
+        if command_is_timed_out(self.last_command_received, time.monotonic(), self.command_timeout_s):
+            self.timeout_stop_count += 1
             self._stop_immediately(reason='command timeout stop')
             self.last_stop_sent = True
 
@@ -368,7 +374,7 @@ class MotorControllerBridge(Node):
         if self.last_command_received <= 0.0:
             return
         now = time.monotonic()
-        if now - self.last_command_received > self.command_timeout_s:
+        if command_is_timed_out(self.last_command_received, now, self.command_timeout_s):
             return
         if self.active_velocity_command is not None:
             if now - self.last_velocity_pid_time >= self.velocity_control_period_s:
@@ -376,8 +382,15 @@ class MotorControllerBridge(Node):
             return
         if self.serial_device is None:
             return
-        if now - self.last_pwm_send_time < self.command_refresh_period_s:
+        if not active_command_refresh_due(
+            self.last_command_received,
+            self.last_pwm_send_time,
+            now,
+            timeout_s=self.command_timeout_s,
+            refresh_period_s=self.command_refresh_period_s,
+        ):
             return
+        self.command_refresh_count += 1
         self._send_pwm_command(*self.target_pwm_command, reason='command refresh')
 
     def _drain_serial(self) -> None:
@@ -699,6 +712,13 @@ class MotorControllerBridge(Node):
             'velocity_raw_fallback_floor_applied_right': bool(self.velocity_raw_fallback_floor_applied_right),
             'selected_raw_left': round(self.selected_raw_left, 4),
             'selected_raw_right': round(self.selected_raw_right, 4),
+            'command_timeout_s': round(self.command_timeout_s, 3),
+            'command_refresh_period_s': round(self.command_refresh_period_s, 3),
+            'timeout_stop_count': int(self.timeout_stop_count),
+            'command_refresh_count': int(self.command_refresh_count),
+            'last_command_time_s': None if self.last_command_received <= 0.0 else round(self.last_command_received, 3),
+            'last_motor_send_time_s': None if self.last_pwm_send_time <= 0.0 else round(self.last_pwm_send_time, 3),
+            'last_motor_send_age_s': self._last_motor_send_age_s(),
             'target_left_mps': round(self.target_left_mps, 4),
             'target_right_mps': round(self.target_right_mps, 4),
             'measured_left_mps': round(self.measured_left_mps, 4),
@@ -764,9 +784,15 @@ class MotorControllerBridge(Node):
             self._publish_status(connected=self.serial_device is not None)
 
     def _command_age_s(self) -> Optional[float]:
-        if self.last_command_received <= 0.0:
+        age = command_age_s(self.last_command_received, time.monotonic())
+        if age is None:
             return None
-        return round(max(0.0, time.monotonic() - self.last_command_received), 3)
+        return round(age, 3)
+
+    def _last_motor_send_age_s(self) -> Optional[float]:
+        if self.last_pwm_send_time <= 0.0:
+            return None
+        return round(max(0.0, time.monotonic() - self.last_pwm_send_time), 3)
 
     def _encoder_speed_age_s(self) -> Optional[float]:
         if not self.encoder_speed_delta_available or self.last_encoder_speed_time <= 0.0:

@@ -23,6 +23,8 @@ MOTOR_PORT="${MOTOR_PORT:-/dev/ttyACM0}"
 LIDAR_BAUD="${LIDAR_BAUD:-115200}"
 MOTOR_BAUD="${MOTOR_BAUD:-115200}"
 MOTOR_RAW_COMMAND_SCALE_US="${MOTOR_RAW_COMMAND_SCALE_US:-900.0}"
+MOTOR_COMMAND_TIMEOUT_S="${MOTOR_COMMAND_TIMEOUT_S:-3.0}"
+MOTOR_COMMAND_REFRESH_PERIOD_S="${MOTOR_COMMAND_REFRESH_PERIOD_S:-0.25}"
 START_UWB="${START_UWB:-false}"
 START_ZED="${START_ZED:-true}"
 START_LIDAR="${START_LIDAR:-true}"
@@ -382,6 +384,8 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   motor_baud:="${MOTOR_BAUD}" \
   motor_raw_command_scale_us:="${MOTOR_RAW_COMMAND_SCALE_US}" \
   motor_pwm_slew_rate_us_per_s:="${MOTOR_PWM_SLEW_RATE_US_PER_S}" \
+  motor_command_timeout_s:="${MOTOR_COMMAND_TIMEOUT_S}" \
+  motor_command_refresh_period_s:="${MOTOR_COMMAND_REFRESH_PERIOD_S}" \
   motor_dry_run:="${MOTOR_DRY_RUN}" \
   motor_velocity_control_enabled:="${MOTOR_VELOCITY_CONTROL_ENABLED}" \
   motor_prefer_velocity_fields:="${MOTOR_PREFER_VELOCITY_FIELDS}" \

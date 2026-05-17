@@ -255,6 +255,25 @@ The bridge still defaults to raw mode for safety:
 ```bash
 MOTOR_VELOCITY_CONTROL_ENABLED=false
 NAV_EMIT_VELOCITY_COMMANDS=true
+MOTOR_COMMAND_TIMEOUT_S=3.0
+MOTOR_COMMAND_REFRESH_PERIOD_S=0.25
+```
+
+With velocity PID disabled, nav velocity commands are executed through raw
+fallback. The bridge keeps refreshing the selected raw PWM until
+`MOTOR_COMMAND_TIMEOUT_S` expires; if nav truly stops publishing, timeout still
+sends neutral PWM. Watch `command_age_s`, `last_motor_send_age_s`,
+`command_refresh_count`, and `timeout_stop_count` in `/motor_controller/status`.
+
+For the current heavy chassis bench test:
+
+```bash
+ROBOT_TICKS_PER_REV=2151 DRIVE_SPEED_LEVEL=2 MIN_MOTION_RAW=0.14 \
+MOTOR_VELOCITY_CONTROL_ENABLED=false \
+MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED=true \
+MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW=0.14 \
+MOTOR_COMMAND_TIMEOUT_S=3.0 MOTOR_COMMAND_REFRESH_PERIOD_S=0.25 \
+bash jetson_bringup.sh
 ```
 
 Lift the UGV before enabling closed-loop wheel-speed control:

@@ -242,6 +242,23 @@ ROBOT_TICKS_PER_REV=2151
 
 ## 6. Bench 和 Dry-Run
 
+当前 full-nav raw fallback bench 推荐：
+
+```bash
+ROBOT_TICKS_PER_REV=2151 DRIVE_SPEED_LEVEL=2 MIN_MOTION_RAW=0.14 \
+MOTOR_VELOCITY_CONTROL_ENABLED=false \
+MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED=true \
+MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW=0.14 \
+MOTOR_COMMAND_TIMEOUT_S=3.0 MOTOR_COMMAND_REFRESH_PERIOD_S=0.25 \
+bash jetson_bringup.sh
+```
+
+Motor bridge 会在 `MOTOR_COMMAND_TIMEOUT_S` 之前按
+`MOTOR_COMMAND_REFRESH_PERIOD_S` 刷新上一条有效 PWM；如果 nav 真正停止发布，
+timeout 仍然会发 neutral PWM。调试时看 `/motor_controller/status` 里的
+`command_age_s`、`last_motor_send_age_s`、`command_refresh_count` 和
+`timeout_stop_count`。
+
 推荐 bench mode：
 
 ```bash

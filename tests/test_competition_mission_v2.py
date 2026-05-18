@@ -113,6 +113,51 @@ def test_round2_switches_to_target_nav_when_target_is_known():
     assert update.target_source == "uav"
 
 
+def test_round2_target_reached_without_landed_flag_keeps_moving():
+    mission = CompetitionMissionV2("round2", small_config(stop_on_marker_reached=True))
+    update = mission.update((1.5, 0.75, 0.0), 0.0, field_map_goal=(1.5, 0.75), field_map_source="uav")
+    assert update.phase == "target_loiter_moving"
+    assert update.status["phase"] == "target_loiter_moving"
+    assert not update.stop_requested
+    assert update.active_goal_m != (1.5, 0.75)
+
+
+def test_round3_target_reached_without_landed_flag_keeps_moving():
+    mission = CompetitionMissionV2("round3", small_config(stop_on_marker_reached=True))
+    update = mission.update((1.5, 0.75, 0.0), 0.0, field_map_goal=(1.5, 0.75), field_map_source="uav")
+    assert update.phase == "target_loiter_moving"
+    assert not update.stop_requested
+    assert update.active_goal_m != (1.5, 0.75)
+
+
+def test_round2_target_reached_with_landed_flag_stops():
+    mission = CompetitionMissionV2("round2", small_config())
+    update = mission.update(
+        (1.5, 0.75, 0.0),
+        0.0,
+        field_map_goal=(1.5, 0.75),
+        field_map_source="uav",
+        mission_flag_state="landed",
+    )
+    assert update.phase == "complete"
+    assert update.stop_requested
+    assert update.reason == "mission_flag_landed"
+
+
+def test_round3_target_reached_with_round_complete_flag_stops():
+    mission = CompetitionMissionV2("round3", small_config())
+    update = mission.update(
+        (1.5, 0.75, 0.0),
+        0.0,
+        field_map_goal=(1.5, 0.75),
+        field_map_source="uav",
+        mission_flag_state="round_complete",
+    )
+    assert update.phase == "complete"
+    assert update.stop_requested
+    assert update.reason == "mission_flag_round_complete"
+
+
 def test_round3_marks_cell_blocked_after_repeated_failure_and_chooses_another():
     mission = CompetitionMissionV2("round3", small_config())
     update = mission.update((0.0, 0.0, 0.0), 0.0)

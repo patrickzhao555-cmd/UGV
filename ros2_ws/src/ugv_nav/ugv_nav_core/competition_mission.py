@@ -141,7 +141,7 @@ class CompetitionMissionConfig:
     sweep_goal_timeout_s: float = 8.0
     target_accept_radius_m: float = YARD_TO_M
     stop_on_uav_landed: bool = True
-    stop_on_marker_reached: bool = True
+    stop_on_marker_reached: bool = False
     obstacle_aware: Optional[bool] = None
     use_legacy_center_expand: bool = False
     sweep_boundary_margin_m: float = 0.45
@@ -164,7 +164,7 @@ class CompetitionMissionConfig:
             sweep_goal_timeout_s=max(0.1, float(self.sweep_goal_timeout_s)),
             target_accept_radius_m=max(0.05, float(self.target_accept_radius_m)),
             stop_on_uav_landed=bool(self.stop_on_uav_landed),
-            stop_on_marker_reached=bool(self.stop_on_marker_reached),
+            stop_on_marker_reached=False if round_name in {"round2", "round3"} else bool(self.stop_on_marker_reached),
             obstacle_aware=(round_name == "round3") if self.obstacle_aware is None else bool(self.obstacle_aware),
             use_legacy_center_expand=bool(self.use_legacy_center_expand),
             sweep_boundary_margin_m=max(0.0, float(self.sweep_boundary_margin_m)),
@@ -402,6 +402,8 @@ class CompetitionMissionV2:
         self._active_cell_start_time_s: Optional[float] = None
         self._active_cell_start_distance_m: Optional[float] = None
         self._active_cell_best_distance_m: Optional[float] = None
+        self._target_loiter_index = 0
+        self._target_loiter_goal_m: Optional[Tuple[float, float]] = None
         self._last_update = self._make_update((0.0, 0.0), False)
 
     def _ensure_start_pose(self, pose: Tuple[float, float, float]) -> Tuple[float, float, float]:
@@ -453,6 +455,46 @@ class CompetitionMissionV2:
             and self.marker_distance_m <= self.config.target_accept_radius_m
         )
         return bool(map_reached or depth_reached)
+
+    def _clamp_to_field(self, xy: Tuple[float, float], margin_m: float = 0.20) -> Tuple[float, float]:
+        margin = max(0.0, min(float(margin_m), 0.45 * min(self.config.field_width_m, self.config.field_height_m)))
+        return (
+            max(margin, min(self.config.field_width_m - margin, float(xy[0]))),
+            max(margin, min(self.config.field_height_m - margin, float(xy[1]))),
+        )
+
+    def _target_loiter_points(self) -> List[Tuple[float, float]]:
+        if self.target_goal is None:
+            return []
+        tx, ty = self.target_goal
+        radius = max(0.35, min(1.0, self.config.target_accept_radius_m))
+        raw_points = [
+            (tx + radius, ty),
+            (tx, ty + radius),
+            (tx - radius, ty),
+            (tx, ty - radius),
+        ]
+        points: List[Tuple[float, float]] = []
+        for point in raw_points:
+            clamped = self._clamp_to_field(point, margin_m=0.20)
+            if clamped not in points:
+                points.append(clamped)
+        if not points:
+            points.append(self._clamp_to_field((tx, ty), margin_m=0.20))
+        return points
+
+    def _target_loiter_goal(self, pose_xy: Tuple[float, float]) -> Tuple[float, float]:
+        points = self._target_loiter_points()
+        if not points:
+            return pose_xy
+        if self._target_loiter_goal_m not in points:
+            self._target_loiter_index = 0
+            self._target_loiter_goal_m = points[0]
+        switch_radius_m = max(0.20, min(self.config.target_accept_radius_m * 0.50, 0.55))
+        if math.hypot(self._target_loiter_goal_m[0] - pose_xy[0], self._target_loiter_goal_m[1] - pose_xy[1]) <= switch_radius_m:
+            self._target_loiter_index = (self._target_loiter_index + 1) % len(points)
+            self._target_loiter_goal_m = points[self._target_loiter_index]
+        return self._target_loiter_goal_m
 
     def _stop_flag_active(self) -> bool:
         state = normalize_mission_flag_state(self.uav_state)
@@ -509,12 +551,13 @@ class CompetitionMissionV2:
 
     def _update_search_round(self, pose_xy: Tuple[float, float], now_s: float) -> MissionUpdate:
         if self.target_goal is not None:
-            if self.config.stop_on_marker_reached and self._target_reached(pose_xy):
-                self.phase = "complete"
-                self.reason = "target_reached"
-                return self._make_update(pose_xy, True)
+            if self._target_reached(pose_xy):
+                self.phase = "target_loiter_moving"
+                self.reason = "target_reached_keep_moving_until_landed_or_complete"
+                return self._make_update(self._target_loiter_goal(pose_xy), False)
             self.phase = "target_nav"
             self.reason = f"target_known_{self.target_source}"
+            self._target_loiter_goal_m = None
             return self._make_update(self.target_goal, False)
 
         self.phase = "sweep_search"

@@ -4,17 +4,46 @@ import math
 from typing import Any, Dict
 
 
+def _finite_float(value: Any, default: float = 0.0) -> float:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return default
+    return out if math.isfinite(out) else default
+
+
 def build_nav_status(navigator: Any, frame: Any, cmd: Any, mission_status: dict) -> Dict[str, Any]:
     pose = navigator.state.estimated_pose
     goal = navigator.state.goal_pose
     field_map = frame.field_map
+    cmd_dict = cmd.as_dict()
+    closed_loop_status = dict(navigator.closed_loop_debug)
+    pre_scale_final_v = closed_loop_status.get("final_v_mps")
+    pre_scale_final_omega = closed_loop_status.get("final_omega_radps")
+    emitted_v = _finite_float(cmd_dict.get("v_mps"), 0.0)
+    emitted_omega = _finite_float(cmd_dict.get("omega_radps"), 0.0)
+    track_width = max(1e-6, _finite_float(getattr(navigator.robot_cfg, "track_width_m", 0.0), 0.0))
+    emitted_left_target = emitted_v - 0.5 * emitted_omega * track_width
+    emitted_right_target = emitted_v + 0.5 * emitted_omega * track_width
+    command_scaling_status = {
+        "pre_scale_final_v_mps": pre_scale_final_v,
+        "pre_scale_final_omega_radps": pre_scale_final_omega,
+        "emitted_v_mps": round(emitted_v, 4),
+        "emitted_omega_radps": round(emitted_omega, 4),
+        "emitted_left_target_mps": round(emitted_left_target, 4),
+        "emitted_right_target_mps": round(emitted_right_target, 4),
+        "final_v_mps_meaning": "pre_drive_scale_closed_loop_command",
+        "final_omega_radps_meaning": "pre_drive_scale_closed_loop_command",
+        "emitted_command_meaning": "post_drive_scale_ugv_nav_cmd",
+    }
+    closed_loop_status.update(command_scaling_status)
     status = {
         "stamp": round(frame.encoder.timestamp, 3),
         "mission": mission_status,
         "pose_m": [round(pose.x, 3), round(pose.y, 3), round(math.degrees(pose.yaw), 1)],
         "goal_m": [round(goal.x, 3), round(goal.y, 3)],
         "distance_to_goal_m": round(math.hypot(goal.x - pose.x, goal.y - pose.y), 3),
-        "cmd": cmd.as_dict(),
+        "cmd": cmd_dict,
         "planner": navigator.state.planner_name,
         "imu_yaw_fusion": {
             "enabled": navigator.nav_cfg.use_imu_yaw,
@@ -32,19 +61,20 @@ def build_nav_status(navigator: Any, frame: Any, cmd: Any, mission_status: dict)
         **navigator.physical_stall_status(),
         "local_costmap": navigator.local_costmap_debug,
         "velocity_control": navigator.velocity_debug,
-        "closed_loop_enabled": bool(navigator.closed_loop_debug.get("closed_loop_enabled", False)),
-        "heading_hold_enabled": bool(navigator.closed_loop_debug.get("heading_hold_enabled", False)),
-        "lane_follow_enabled": bool(navigator.closed_loop_debug.get("lane_follow_enabled", False)),
-        "target_yaw_deg": navigator.closed_loop_debug.get("target_yaw_deg"),
-        "estimated_yaw_deg": navigator.closed_loop_debug.get("estimated_yaw_deg"),
-        "heading_error_deg": navigator.closed_loop_debug.get("heading_error_deg"),
-        "cross_track_error_m": navigator.closed_loop_debug.get("cross_track_error_m"),
-        "omega_heading_radps": navigator.closed_loop_debug.get("omega_heading_radps"),
-        "omega_lane_radps": navigator.closed_loop_debug.get("omega_lane_radps"),
-        "final_v_mps": navigator.closed_loop_debug.get("final_v_mps"),
-        "final_omega_radps": navigator.closed_loop_debug.get("final_omega_radps"),
-        "heading_source": navigator.closed_loop_debug.get("heading_source"),
-        "competition_closed_loop": navigator.closed_loop_debug,
+        "closed_loop_enabled": bool(closed_loop_status.get("closed_loop_enabled", False)),
+        "heading_hold_enabled": bool(closed_loop_status.get("heading_hold_enabled", False)),
+        "lane_follow_enabled": bool(closed_loop_status.get("lane_follow_enabled", False)),
+        "target_yaw_deg": closed_loop_status.get("target_yaw_deg"),
+        "estimated_yaw_deg": closed_loop_status.get("estimated_yaw_deg"),
+        "heading_error_deg": closed_loop_status.get("heading_error_deg"),
+        "cross_track_error_m": closed_loop_status.get("cross_track_error_m"),
+        "omega_heading_radps": closed_loop_status.get("omega_heading_radps"),
+        "omega_lane_radps": closed_loop_status.get("omega_lane_radps"),
+        "final_v_mps": closed_loop_status.get("final_v_mps"),
+        "final_omega_radps": closed_loop_status.get("final_omega_radps"),
+        **command_scaling_status,
+        "heading_source": closed_loop_status.get("heading_source"),
+        "competition_closed_loop": closed_loop_status,
         "sectors_m": {
             "front": None if math.isinf(navigator.state.sectors.front_m) else round(navigator.state.sectors.front_m, 3),
             "front_left": None if math.isinf(navigator.state.sectors.front_left_m) else round(navigator.state.sectors.front_left_m, 3),

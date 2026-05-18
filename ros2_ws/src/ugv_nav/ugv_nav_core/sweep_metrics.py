@@ -25,6 +25,12 @@ class SweepMetricsLogger:
         "heading_error_deg",
         "final_v_mps",
         "final_omega_radps",
+        "pre_scale_final_v_mps",
+        "pre_scale_final_omega_radps",
+        "emitted_v_mps",
+        "emitted_omega_radps",
+        "emitted_left_target_mps",
+        "emitted_right_target_mps",
         "motor_target_left",
         "motor_target_right",
         "motor_measured_left",
@@ -78,7 +84,16 @@ class SweepMetricsLogger:
         v2 = status.get("competition_v2") or (status.get("mission") or {}).get("competition_v2") or {}
         cte = self._float(cl.get("cross_track_error_m"), 0.0)
         heading_error_deg = self._float(cl.get("heading_error_deg"), 0.0)
-        final_omega = self._float(cl.get("final_omega_radps"), 0.0)
+        final_v = self._float(cl.get("final_v_mps"), self._float(status.get("final_v_mps"), 0.0))
+        final_omega = self._float(cl.get("final_omega_radps"), self._float(status.get("final_omega_radps"), 0.0))
+        pre_scale_v = self._float(status.get("pre_scale_final_v_mps", cl.get("pre_scale_final_v_mps")), final_v)
+        pre_scale_omega = self._float(status.get("pre_scale_final_omega_radps", cl.get("pre_scale_final_omega_radps")), final_omega)
+        cmd = status.get("cmd") if isinstance(status.get("cmd"), dict) else {}
+        emitted_v = self._float(status.get("emitted_v_mps", cl.get("emitted_v_mps", cmd.get("v_mps"))), 0.0)
+        emitted_omega = self._float(
+            status.get("emitted_omega_radps", cl.get("emitted_omega_radps", cmd.get("omega_radps"))),
+            0.0,
+        )
         row = {
             "time": self._float(status.get("stamp")),
             "pose_x": x,
@@ -86,8 +101,14 @@ class SweepMetricsLogger:
             "yaw_deg": yaw_deg,
             "cross_track_error_m": cte,
             "heading_error_deg": heading_error_deg,
-            "final_v_mps": self._float(cl.get("final_v_mps"), 0.0),
+            "final_v_mps": final_v,
             "final_omega_radps": final_omega,
+            "pre_scale_final_v_mps": pre_scale_v,
+            "pre_scale_final_omega_radps": pre_scale_omega,
+            "emitted_v_mps": emitted_v,
+            "emitted_omega_radps": emitted_omega,
+            "emitted_left_target_mps": self._float(status.get("emitted_left_target_mps", cl.get("emitted_left_target_mps")), 0.0),
+            "emitted_right_target_mps": self._float(status.get("emitted_right_target_mps", cl.get("emitted_right_target_mps")), 0.0),
             "motor_target_left": self._float(motor.get("target_left_mps"), 0.0),
             "motor_target_right": self._float(motor.get("target_right_mps"), 0.0),
             "motor_measured_left": self._float(motor.get("measured_left_mps"), 0.0),

@@ -419,6 +419,8 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "sweep_planner_omega_weight": 0.0,
         "planner_omega_radps": 0.0,
         "planner_omega_contribution_radps": 0.0,
+        "planner_gap_ignored": False,
+        "planner_gap_reason": "",
         "forward_arc_only_enabled": _cfg_bool(nav_cfg, "forward_arc_only_enabled", True) if nav_cfg is not None else True,
         "forward_arc_margin": _cfg_float(nav_cfg, "forward_arc_margin", 0.75) if nav_cfg is not None else 0.75,
         "min_sweep_v_mps": _cfg_float(nav_cfg, "min_sweep_v_mps", 0.08) if nav_cfg is not None else 0.08,
@@ -604,6 +606,12 @@ def apply_competition_closed_loop_command(
     planner_omega_weight = clamp(planner_omega_weight, 0.0, 1.0)
     planner_omega = float(cmd.omega_radps) if math.isfinite(float(cmd.omega_radps)) else 0.0
     planner_omega_contribution = planner_omega_weight * planner_omega
+    planner_gap_ignored = bool(round_name == "round2" and planner_omega_weight <= 1e-9)
+    planner_gap_reason = (
+        "local_planner_gap_omega_ignored_round2_row_follower_authority"
+        if planner_gap_ignored
+        else ""
+    )
     final_omega = clamp(
         planner_omega_contribution + row_omega,
         -nav_cfg.continuous_max_omega_rps,
@@ -678,6 +686,8 @@ def apply_competition_closed_loop_command(
                     "sweep_planner_omega_weight": round(planner_omega_weight, 3),
                     "planner_omega_radps": round(planner_omega, 4),
                     "planner_omega_contribution_radps": round(planner_omega_contribution, 4),
+                    "planner_gap_ignored": bool(planner_gap_ignored),
+                    "planner_gap_reason": planner_gap_reason,
                     "final_v_mps": 0.0,
                     "final_omega_radps": 0.0,
                     "forward_arc_omega_limit_radps": None if forward_arc_limit is None else round(forward_arc_limit, 4),
@@ -730,6 +740,8 @@ def apply_competition_closed_loop_command(
             "sweep_planner_omega_weight": round(planner_omega_weight, 3),
             "planner_omega_radps": round(planner_omega, 4),
             "planner_omega_contribution_radps": round(planner_omega_contribution, 4),
+            "planner_gap_ignored": bool(planner_gap_ignored),
+            "planner_gap_reason": planner_gap_reason,
             "final_v_mps": round(final_v, 4),
             "final_omega_radps": round(final_omega, 4),
             "forward_arc_omega_limit_radps": None if forward_arc_limit is None else round(forward_arc_limit, 4),

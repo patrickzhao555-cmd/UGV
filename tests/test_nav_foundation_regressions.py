@@ -1,3 +1,4 @@
+import csv
 import math
 import pathlib
 import sys
@@ -652,6 +653,8 @@ def test_round2_sweep_planner_omega_weight_defaults_to_zero():
     assert adjusted.mode == "FORWARD"
     assert navigator.closed_loop_debug["sweep_planner_omega_weight"] == 0.0
     assert navigator.closed_loop_debug["planner_omega_contribution_radps"] == 0.0
+    assert navigator.closed_loop_debug["planner_gap_ignored"] is True
+    assert "local_planner_gap_omega_ignored" in navigator.closed_loop_debug["planner_gap_reason"]
     assert abs(navigator.closed_loop_debug["final_omega_radps"]) <= 1e-6
 
 
@@ -693,6 +696,7 @@ def test_round3_sweep_planner_omega_weight_can_blend_planner_omega():
     assert adjusted.mode == "FORWARD"
     assert navigator.closed_loop_debug["sweep_planner_omega_weight"] == 0.2
     assert math.isclose(navigator.closed_loop_debug["planner_omega_contribution_radps"], 0.1)
+    assert navigator.closed_loop_debug["planner_gap_ignored"] is False
     assert navigator.closed_loop_debug["final_omega_radps"] > 0.0
 
 
@@ -872,7 +876,14 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         goal=GoalPacket(1.0, 0.0, 1.0),
     )
 
-    status = build_nav_status(navigator, frame, ControlCommand("FORWARD"), {})
+    emitted_cmd = ControlCommand(
+        "FORWARD",
+        v_mps=0.05,
+        omega_radps=0.10,
+        controller="velocity",
+        command_type="velocity",
+    )
+    status = build_nav_status(navigator, frame, emitted_cmd, {})
 
     for key in [
         "closed_loop_enabled",
@@ -886,9 +897,26 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "omega_lane_radps",
         "final_v_mps",
         "final_omega_radps",
+        "pre_scale_final_v_mps",
+        "pre_scale_final_omega_radps",
+        "emitted_v_mps",
+        "emitted_omega_radps",
+        "emitted_left_target_mps",
+        "emitted_right_target_mps",
+        "final_v_mps_meaning",
+        "final_omega_radps_meaning",
+        "emitted_command_meaning",
         "heading_source",
     ]:
         assert key in status
+    assert status["pre_scale_final_v_mps"] == 0.10
+    assert status["pre_scale_final_omega_radps"] == 0.06
+    assert status["emitted_v_mps"] == 0.05
+    assert status["emitted_omega_radps"] == 0.10
+    assert math.isclose(status["emitted_left_target_mps"], 0.0195, abs_tol=1e-4)
+    assert math.isclose(status["emitted_right_target_mps"], 0.0805, abs_tol=1e-4)
+    assert status["final_v_mps_meaning"] == "pre_drive_scale_closed_loop_command"
+    assert status["emitted_command_meaning"] == "post_drive_scale_ugv_nav_cmd"
     for key in [
         "heading_hold_kp",
         "heading_hold_kd",
@@ -908,6 +936,8 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "sweep_planner_omega_weight",
         "planner_omega_radps",
         "planner_omega_contribution_radps",
+        "planner_gap_ignored",
+        "planner_gap_reason",
         "forward_arc_only_enabled",
         "forward_arc_margin",
         "min_sweep_v_mps",
@@ -928,6 +958,14 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "last_error_abs",
         "current_error_abs",
         "divergence_action",
+        "pre_scale_final_v_mps",
+        "pre_scale_final_omega_radps",
+        "emitted_v_mps",
+        "emitted_omega_radps",
+        "emitted_left_target_mps",
+        "emitted_right_target_mps",
+        "final_v_mps_meaning",
+        "emitted_command_meaning",
     ]:
         assert key in status["competition_closed_loop"]
 
@@ -949,6 +987,12 @@ def test_sweep_metrics_logger_writes_expected_fields(tmp_path):
             "final_omega_radps": 0.03,
             "closed_loop_diverging": False,
         },
+        "pre_scale_final_v_mps": 0.12,
+        "pre_scale_final_omega_radps": 0.03,
+        "emitted_v_mps": 0.06,
+        "emitted_omega_radps": 0.04,
+        "emitted_left_target_mps": 0.0478,
+        "emitted_right_target_mps": 0.0722,
     }
     motor_status = {
         "target_left_mps": 0.11,
@@ -961,9 +1005,17 @@ def test_sweep_metrics_logger_writes_expected_fields(tmp_path):
     summary = logger.summary()
     logger.close()
     content = pathlib.Path(summary["log_file"]).read_text()
+    rows = list(csv.DictReader(content.splitlines()))
 
     for field in SweepMetricsLogger.FIELDNAMES:
         assert field in content.splitlines()[0]
+    assert rows
+    assert math.isclose(float(rows[0]["pre_scale_final_v_mps"]), 0.12)
+    assert math.isclose(float(rows[0]["pre_scale_final_omega_radps"]), 0.03)
+    assert math.isclose(float(rows[0]["emitted_v_mps"]), 0.06)
+    assert math.isclose(float(rows[0]["emitted_omega_radps"]), 0.04)
+    assert math.isclose(float(rows[0]["emitted_left_target_mps"]), 0.0478)
+    assert math.isclose(float(rows[0]["emitted_right_target_mps"]), 0.0722)
     assert "sweep_search" in content
     assert summary["samples"] == 1
     assert summary["max_abs_cross_track_error_m"] == 0.02
@@ -1043,6 +1095,25 @@ def test_round2_clear_tuned_script_prefers_by_id_ports_and_extra_workspace():
         "/dev/serial/by-id/*CP2102*",
         "first_existing_port /dev/ttyACM0 /dev/ttyACM1 /dev/ttyUSB1 /dev/ttyUSB0",
         "first_existing_port /dev/ttyUSB0 /dev/ttyUSB1 /dev/ttyACM0 /dev/ttyACM1",
+        'if [[ -n "${EXTRA_SETUP_BASH:-}" ]]; then',
+        '${HOME}/ugv_ws_albert/install/setup.bash',
+        '${WORKSPACE_DIR}/install/setup.bash',
+    ]:
+        assert token in script
+
+
+def test_stop_ugv_script_publishes_mission_flag_and_stop_command():
+    script_path = ROOT / "ros2_ws" / "scripts" / "stop_ugv.sh"
+    script = script_path.read_text()
+
+    for token in [
+        "/ugv/mission_flag",
+        "/ugv_nav_cmd",
+        "/motor_controller/status",
+        'MISSION_FLAG_PAYLOAD=\'{"state":"stop","source":"stop_ugv.sh"}\'',
+        '"mode":"STOP"',
+        '"command_type":"stop"',
+        "std_msgs/msg/String",
         'if [[ -n "${EXTRA_SETUP_BASH:-}" ]]; then',
         '${HOME}/ugv_ws_albert/install/setup.bash',
         '${WORKSPACE_DIR}/install/setup.bash',

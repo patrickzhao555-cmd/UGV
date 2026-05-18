@@ -976,6 +976,17 @@ def test_jetson_round2_clear_tuned_profile_resolves_expected_defaults():
         'UGV_PROFILE="${UGV_PROFILE:-manual}"',
         "round2_clear_tuned)",
         'profile_default ROUND_MODE "round2"',
+        'profile_default START_ZED "false"',
+        'profile_default START_YOLO_OBSTACLES "false"',
+        'profile_default START_MARKER_VISION "false"',
+        'profile_default START_DEBUG_DASHBOARD "true"',
+        'profile_default NAV_ACTIVE_SCAN_ENABLED "false"',
+        'profile_default SWEEP_CELL_SIZE_M "0.75"',
+        'profile_default SWEEP_LANE_SPACING_M "0.75"',
+        'profile_default SWEEP_COVERAGE_RADIUS_M "0.55"',
+        'profile_default SWEEP_COVERAGE_THRESHOLD "0.20"',
+        'profile_default SWEEP_GOAL_TIMEOUT_S "12.0"',
+        'profile_default SWEEP_FAIL_LIMIT "3"',
         'profile_default ROBOT_TICKS_PER_REV "2151"',
         'profile_default DRIVE_SPEED_LEVEL "2"',
         'profile_default MOTOR_VELOCITY_CONTROL_ENABLED "true"',
@@ -989,6 +1000,8 @@ def test_jetson_round2_clear_tuned_profile_resolves_expected_defaults():
         'profile_default NAV_LANE_FOLLOW_KP_OMEGA "0.82"',
         'profile_default NAV_CLOSED_LOOP_DIVERGENCE_ACTION "warn"',
         'profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"',
+        "round2_competition_tuned)",
+        'UGV profile resolved: START_ZED=${START_ZED}, START_MARKER_VISION=${START_MARKER_VISION}, NAV_ACTIVE_SCAN_ENABLED=${NAV_ACTIVE_SCAN_ENABLED}, SWEEP_COVERAGE_THRESHOLD=${SWEEP_COVERAGE_THRESHOLD}, SWEEP_GOAL_TIMEOUT_S=${SWEEP_GOAL_TIMEOUT_S}, MOTOR_PORT=${MOTOR_PORT}, LIDAR_PORT=${LIDAR_PORT}',
     ]:
         assert token in bringup
 
@@ -1000,6 +1013,8 @@ def test_jetson_profile_defaults_preserve_manual_env_overrides():
     assert 'if [[ -z "${!name+x}" ]]; then' in bringup
     assert 'export "${name}=${value}"' in bringup
     assert 'UGV profile: ${UGV_PROFILE}' in bringup
+    assert 'START_ZED="${START_ZED:-true}"' in bringup
+    assert 'SWEEP_COVERAGE_THRESHOLD="${SWEEP_COVERAGE_THRESHOLD:-0.85}"' in bringup
 
 
 def test_tuned_profile_run_scripts_exist_and_select_profiles():
@@ -1015,6 +1030,24 @@ def test_tuned_profile_run_scripts_exist_and_select_profiles():
         assert "MOTOR_PORT" in script
         assert "LIDAR_PORT" in script
         assert 'exec bash "${WORKSPACE_DIR}/jetson_bringup.sh"' in script
+
+
+def test_round2_clear_tuned_script_prefers_by_id_ports_and_extra_workspace():
+    script = (ROOT / "ros2_ws" / "scripts" / "run_round2_clear_tuned.sh").read_text()
+
+    for token in [
+        "first_matching_port",
+        "/dev/serial/by-id/*Teensyduino*",
+        "/dev/serial/by-id/*Teensy*",
+        "/dev/serial/by-id/*Silicon_Labs*CP210*",
+        "/dev/serial/by-id/*CP2102*",
+        "first_existing_port /dev/ttyACM0 /dev/ttyACM1 /dev/ttyUSB1 /dev/ttyUSB0",
+        "first_existing_port /dev/ttyUSB0 /dev/ttyUSB1 /dev/ttyACM0 /dev/ttyACM1",
+        'if [[ -n "${EXTRA_SETUP_BASH:-}" ]]; then',
+        '${HOME}/ugv_ws_albert/install/setup.bash',
+        '${WORKSPACE_DIR}/install/setup.bash',
+    ]:
+        assert token in script
 
 
 def test_local_costmap_cli_launch_and_env_parameters_are_wired():

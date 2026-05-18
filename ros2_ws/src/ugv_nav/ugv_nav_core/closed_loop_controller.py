@@ -95,6 +95,93 @@ def wheel_targets_from_v_omega(v_mps: float, omega_radps: float, track_width_m: 
     return left_target_mps, right_target_mps
 
 
+def interpolate_by_speed(
+    speed_mps: float,
+    low_speed_mps: float,
+    high_speed_mps: float,
+    low_value: float,
+    high_value: float,
+) -> float:
+    low_speed = float(low_speed_mps)
+    high_speed = float(high_speed_mps)
+    if high_speed <= low_speed + 1e-9:
+        return float(high_value)
+    t = clamp((abs(float(speed_mps)) - low_speed) / (high_speed - low_speed), 0.0, 1.0)
+    return float(low_value) + t * (float(high_value) - float(low_value))
+
+
+def scheduled_row_follower_gains(nav_cfg: Any, speed_mps: float) -> Tuple[float, float, bool]:
+    enabled = _cfg_bool(nav_cfg, "row_follower_speed_schedule_enabled", True)
+    if not enabled:
+        return (
+            _cfg_float(nav_cfg, "lane_follow_kp_heading", 1.10),
+            _cfg_float(nav_cfg, "heading_hold_kp", 1.10),
+            False,
+        )
+    low_speed = _cfg_float(nav_cfg, "row_follower_low_speed_mps", 0.09)
+    high_speed = _cfg_float(nav_cfg, "row_follower_high_speed_mps", 0.22)
+    lane_kp = interpolate_by_speed(
+        speed_mps,
+        low_speed,
+        high_speed,
+        _cfg_float(nav_cfg, "row_follower_low_speed_lane_kp", _cfg_float(nav_cfg, "lane_follow_kp_heading", 1.10)),
+        _cfg_float(nav_cfg, "row_follower_high_speed_lane_kp", _cfg_float(nav_cfg, "lane_follow_kp_heading", 1.10)),
+    )
+    heading_kp = interpolate_by_speed(
+        speed_mps,
+        low_speed,
+        high_speed,
+        _cfg_float(nav_cfg, "row_follower_low_speed_heading_kp", _cfg_float(nav_cfg, "heading_hold_kp", 1.10)),
+        _cfg_float(nav_cfg, "row_follower_high_speed_heading_kp", _cfg_float(nav_cfg, "heading_hold_kp", 1.10)),
+    )
+    return lane_kp, heading_kp, True
+
+
+@dataclass
+class RowFollowerOmegaState:
+    last_omega_radps: float = 0.0
+    last_timestamp_s: Optional[float] = None
+
+    def reset(self) -> None:
+        self.last_omega_radps = 0.0
+        self.last_timestamp_s = None
+
+
+def smooth_row_follower_omega(
+    raw_omega_radps: float,
+    timestamp_s: float,
+    state: RowFollowerOmegaState,
+    *,
+    low_pass_alpha: float = 0.35,
+    rate_limit_rps2: float = 0.6,
+    min_interval_s: float = 0.0,
+) -> Tuple[float, bool, float]:
+    alpha = clamp(float(low_pass_alpha), 0.0, 1.0)
+    rate_limit = max(0.0, float(rate_limit_rps2))
+    timestamp = float(timestamp_s)
+    raw_omega = float(raw_omega_radps)
+    if state.last_timestamp_s is None:
+        state.last_timestamp_s = timestamp
+        state.last_omega_radps = raw_omega
+        return raw_omega, False, 0.0
+
+    dt = max(0.0, timestamp - state.last_timestamp_s)
+    min_interval = max(0.0, float(min_interval_s))
+    if min_interval > 0.0 and dt < min_interval:
+        return state.last_omega_radps, True, dt
+
+    low_passed = (1.0 - alpha) * state.last_omega_radps + alpha * raw_omega
+    clamped = False
+    if rate_limit > 0.0 and dt > 1e-6:
+        max_delta = rate_limit * dt
+        limited = clamp(low_passed, state.last_omega_radps - max_delta, state.last_omega_radps + max_delta)
+        clamped = abs(limited - low_passed) > 1e-9
+        low_passed = limited
+    state.last_timestamp_s = timestamp
+    state.last_omega_radps = low_passed
+    return low_passed, clamped, dt
+
+
 def apply_forward_arc_only_limit(
     v_mps: float,
     omega_radps: float,
@@ -313,6 +400,25 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "lane_follow_deadband_m": _cfg_float(nav_cfg, "lane_follow_deadband_m", 0.03) if nav_cfg is not None else 0.03,
         "lane_follow_max_heading_deg": _cfg_float(nav_cfg, "lane_follow_max_heading_deg", 18.0) if nav_cfg is not None else 18.0,
         "lane_follow_max_omega_rps": _cfg_float(nav_cfg, "lane_follow_max_omega_rps", 0.35) if nav_cfg is not None else 0.35,
+        "row_follower_speed_schedule_enabled": _cfg_bool(nav_cfg, "row_follower_speed_schedule_enabled", True) if nav_cfg is not None else True,
+        "row_follower_low_speed_mps": _cfg_float(nav_cfg, "row_follower_low_speed_mps", 0.09) if nav_cfg is not None else 0.09,
+        "row_follower_high_speed_mps": _cfg_float(nav_cfg, "row_follower_high_speed_mps", 0.22) if nav_cfg is not None else 0.22,
+        "row_follower_low_speed_lane_kp": _cfg_float(nav_cfg, "row_follower_low_speed_lane_kp", 0.85) if nav_cfg is not None else 0.85,
+        "row_follower_high_speed_lane_kp": _cfg_float(nav_cfg, "row_follower_high_speed_lane_kp", 1.00) if nav_cfg is not None else 1.00,
+        "row_follower_low_speed_heading_kp": _cfg_float(nav_cfg, "row_follower_low_speed_heading_kp", 0.95) if nav_cfg is not None else 0.95,
+        "row_follower_high_speed_heading_kp": _cfg_float(nav_cfg, "row_follower_high_speed_heading_kp", 1.10) if nav_cfg is not None else 1.10,
+        "row_follower_omega_low_pass_alpha": _cfg_float(nav_cfg, "row_follower_omega_low_pass_alpha", 0.35) if nav_cfg is not None else 0.35,
+        "row_follower_omega_rate_limit_rps2": _cfg_float(nav_cfg, "row_follower_omega_rate_limit_rps2", 0.6) if nav_cfg is not None else 0.6,
+        "row_follower_min_correction_interval_s": _cfg_float(nav_cfg, "row_follower_min_correction_interval_s", 0.0) if nav_cfg is not None else 0.0,
+        "row_follower_scheduled_lane_kp": _cfg_float(nav_cfg, "lane_follow_kp_heading", 1.10) if nav_cfg is not None else 1.10,
+        "row_follower_scheduled_heading_kp": _cfg_float(nav_cfg, "heading_hold_kp", 1.10) if nav_cfg is not None else 1.10,
+        "row_follower_raw_omega_radps": 0.0,
+        "row_follower_smoothed_omega_radps": 0.0,
+        "row_follower_rate_limited": False,
+        "row_follower_update_dt_s": None,
+        "sweep_planner_omega_weight": 0.0,
+        "planner_omega_radps": 0.0,
+        "planner_omega_contribution_radps": 0.0,
         "forward_arc_only_enabled": _cfg_bool(nav_cfg, "forward_arc_only_enabled", True) if nav_cfg is not None else True,
         "forward_arc_margin": _cfg_float(nav_cfg, "forward_arc_margin", 0.75) if nav_cfg is not None else 0.75,
         "min_sweep_v_mps": _cfg_float(nav_cfg, "min_sweep_v_mps", 0.08) if nav_cfg is not None else 0.08,
@@ -426,11 +532,22 @@ def apply_competition_closed_loop_command(
         target_yaw = math.radians(status_target_yaw_deg)
     heading_source, yaw_rate = competition_heading_source_and_rate(navigator, frame)
 
+    min_v = max(
+        nav_cfg.continuous_min_speed_mps,
+        finite_optional(v2.get("minimum_speed_mps")) or 0.0,
+        0.02,
+    )
+    base_v = abs(float(cmd.v_mps))
+    if base_v <= 1e-6 and cmd.mode in {"FORWARD", "BACKWARD"}:
+        base_v = abs(float(cmd.move_m)) / max(0.05, nav_cfg.continuous_dt_s)
+    final_v = clamp(max(base_v, min_v, _cfg_float(nav_cfg, "min_sweep_v_mps", 0.08)), 0.0, nav_cfg.continuous_max_speed_mps)
+    scheduled_lane_kp, scheduled_heading_kp, speed_schedule_active = scheduled_row_follower_gains(nav_cfg, final_v)
+
     heading_error, omega_heading = compute_heading_hold_correction(
         target_yaw,
         pose.yaw,
         yaw_rate_radps=yaw_rate,
-        kp=nav_cfg.heading_hold_kp,
+        kp=scheduled_heading_kp,
         kd=nav_cfg.heading_hold_kd,
         deadband_deg=nav_cfg.heading_hold_deadband_deg,
         max_omega_radps=nav_cfg.heading_hold_max_omega_rps,
@@ -443,7 +560,7 @@ def apply_competition_closed_loop_command(
         lane_y,
         pose.y,
         row_direction,
-        kp_heading=nav_cfg.lane_follow_kp_heading,
+        kp_heading=scheduled_lane_kp,
         kp_omega=nav_cfg.lane_follow_kp_omega,
         deadband_m=nav_cfg.lane_follow_deadband_m,
         max_heading_deg=nav_cfg.lane_follow_max_heading_deg,
@@ -466,18 +583,29 @@ def apply_competition_closed_loop_command(
         heading_deadband_deg=nav_cfg.heading_hold_deadband_deg,
     )
 
-    min_v = max(
-        nav_cfg.continuous_min_speed_mps,
-        finite_optional(v2.get("minimum_speed_mps")) or 0.0,
-        0.02,
+    row_raw_omega = omega_heading + omega_lane
+    row_state = getattr(navigator, "row_follower_omega_state", None)
+    if row_state is None:
+        row_state = RowFollowerOmegaState()
+        navigator.row_follower_omega_state = row_state
+    row_omega, row_rate_limited, row_update_dt_s = smooth_row_follower_omega(
+        row_raw_omega,
+        float(frame.encoder.timestamp),
+        row_state,
+        low_pass_alpha=_cfg_float(nav_cfg, "row_follower_omega_low_pass_alpha", 0.35),
+        rate_limit_rps2=_cfg_float(nav_cfg, "row_follower_omega_rate_limit_rps2", 0.6),
+        min_interval_s=_cfg_float(nav_cfg, "row_follower_min_correction_interval_s", 0.0),
     )
-    base_v = abs(float(cmd.v_mps))
-    if base_v <= 1e-6 and cmd.mode in {"FORWARD", "BACKWARD"}:
-        base_v = abs(float(cmd.move_m)) / max(0.05, nav_cfg.continuous_dt_s)
-    final_v = clamp(max(base_v, min_v), 0.0, nav_cfg.continuous_max_speed_mps)
+    round_name = str(v2.get("round") or v2.get("mode") or mission_status.get("mode") or "").strip().lower()
+    if round_name == "round3":
+        planner_omega_weight = _cfg_float(nav_cfg, "sweep_planner_omega_weight_round3", 0.2)
+    else:
+        planner_omega_weight = _cfg_float(nav_cfg, "sweep_planner_omega_weight_round2", 0.0)
+    planner_omega_weight = clamp(planner_omega_weight, 0.0, 1.0)
     planner_omega = float(cmd.omega_radps) if math.isfinite(float(cmd.omega_radps)) else 0.0
+    planner_omega_contribution = planner_omega_weight * planner_omega
     final_omega = clamp(
-        0.20 * planner_omega + omega_heading + omega_lane,
+        planner_omega_contribution + row_omega,
         -nav_cfg.continuous_max_omega_rps,
         nav_cfg.continuous_max_omega_rps,
     )
@@ -540,6 +668,16 @@ def apply_competition_closed_loop_command(
                     "omega_heading_radps": round(omega_heading, 4),
                     "omega_lane_radps": round(omega_lane, 4),
                     "lane_heading_offset_deg": round(math.degrees(lane_heading_offset), 2),
+                    "row_follower_speed_schedule_enabled": bool(speed_schedule_active),
+                    "row_follower_scheduled_lane_kp": round(scheduled_lane_kp, 4),
+                    "row_follower_scheduled_heading_kp": round(scheduled_heading_kp, 4),
+                    "row_follower_raw_omega_radps": round(row_raw_omega, 4),
+                    "row_follower_smoothed_omega_radps": round(row_omega, 4),
+                    "row_follower_rate_limited": bool(row_rate_limited),
+                    "row_follower_update_dt_s": None if row_update_dt_s is None else round(row_update_dt_s, 4),
+                    "sweep_planner_omega_weight": round(planner_omega_weight, 3),
+                    "planner_omega_radps": round(planner_omega, 4),
+                    "planner_omega_contribution_radps": round(planner_omega_contribution, 4),
                     "final_v_mps": 0.0,
                     "final_omega_radps": 0.0,
                     "forward_arc_omega_limit_radps": None if forward_arc_limit is None else round(forward_arc_limit, 4),
@@ -582,6 +720,16 @@ def apply_competition_closed_loop_command(
             "omega_heading_radps": round(omega_heading, 4),
             "omega_lane_radps": round(omega_lane, 4),
             "lane_heading_offset_deg": round(math.degrees(lane_heading_offset), 2),
+            "row_follower_speed_schedule_enabled": bool(speed_schedule_active),
+            "row_follower_scheduled_lane_kp": round(scheduled_lane_kp, 4),
+            "row_follower_scheduled_heading_kp": round(scheduled_heading_kp, 4),
+            "row_follower_raw_omega_radps": round(row_raw_omega, 4),
+            "row_follower_smoothed_omega_radps": round(row_omega, 4),
+            "row_follower_rate_limited": bool(row_rate_limited),
+            "row_follower_update_dt_s": None if row_update_dt_s is None else round(row_update_dt_s, 4),
+            "sweep_planner_omega_weight": round(planner_omega_weight, 3),
+            "planner_omega_radps": round(planner_omega, 4),
+            "planner_omega_contribution_radps": round(planner_omega_contribution, 4),
             "final_v_mps": round(final_v, 4),
             "final_omega_radps": round(final_omega, 4),
             "forward_arc_omega_limit_radps": None if forward_arc_limit is None else round(forward_arc_limit, 4),

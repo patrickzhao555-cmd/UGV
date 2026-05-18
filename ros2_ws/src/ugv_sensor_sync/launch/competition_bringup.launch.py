@@ -217,6 +217,20 @@ def generate_launch_description():
     lane_follow_deadband_m = LaunchConfiguration('lane_follow_deadband_m')
     lane_follow_max_heading_deg = LaunchConfiguration('lane_follow_max_heading_deg')
     lane_follow_max_omega_rps = LaunchConfiguration('lane_follow_max_omega_rps')
+    row_follower_speed_schedule_enabled = LaunchConfiguration('row_follower_speed_schedule_enabled')
+    row_follower_low_speed_mps = LaunchConfiguration('row_follower_low_speed_mps')
+    row_follower_high_speed_mps = LaunchConfiguration('row_follower_high_speed_mps')
+    row_follower_low_speed_lane_kp = LaunchConfiguration('row_follower_low_speed_lane_kp')
+    row_follower_high_speed_lane_kp = LaunchConfiguration('row_follower_high_speed_lane_kp')
+    row_follower_low_speed_heading_kp = LaunchConfiguration('row_follower_low_speed_heading_kp')
+    row_follower_high_speed_heading_kp = LaunchConfiguration('row_follower_high_speed_heading_kp')
+    row_follower_omega_low_pass_alpha = LaunchConfiguration('row_follower_omega_low_pass_alpha')
+    row_follower_omega_rate_limit_rps2 = LaunchConfiguration('row_follower_omega_rate_limit_rps2')
+    row_follower_min_correction_interval_s = LaunchConfiguration('row_follower_min_correction_interval_s')
+    sweep_planner_omega_weight_round2 = LaunchConfiguration('sweep_planner_omega_weight_round2')
+    sweep_planner_omega_weight_round3 = LaunchConfiguration('sweep_planner_omega_weight_round3')
+    sweep_metrics_log_enabled = LaunchConfiguration('sweep_metrics_log_enabled')
+    sweep_metrics_log_dir = LaunchConfiguration('sweep_metrics_log_dir')
     forward_arc_only_enabled = LaunchConfiguration('forward_arc_only_enabled')
     forward_arc_margin = LaunchConfiguration('forward_arc_margin')
     min_sweep_v_mps = LaunchConfiguration('min_sweep_v_mps')
@@ -476,6 +490,34 @@ def generate_launch_description():
             lane_follow_max_heading_deg,
             '--lane-follow-max-omega-rps',
             lane_follow_max_omega_rps,
+            '--row-follower-speed-schedule-enabled',
+            row_follower_speed_schedule_enabled,
+            '--row-follower-low-speed-mps',
+            row_follower_low_speed_mps,
+            '--row-follower-high-speed-mps',
+            row_follower_high_speed_mps,
+            '--row-follower-low-speed-lane-kp',
+            row_follower_low_speed_lane_kp,
+            '--row-follower-high-speed-lane-kp',
+            row_follower_high_speed_lane_kp,
+            '--row-follower-low-speed-heading-kp',
+            row_follower_low_speed_heading_kp,
+            '--row-follower-high-speed-heading-kp',
+            row_follower_high_speed_heading_kp,
+            '--row-follower-omega-low-pass-alpha',
+            row_follower_omega_low_pass_alpha,
+            '--row-follower-omega-rate-limit-rps2',
+            row_follower_omega_rate_limit_rps2,
+            '--row-follower-min-correction-interval-s',
+            row_follower_min_correction_interval_s,
+            '--sweep-planner-omega-weight-round2',
+            sweep_planner_omega_weight_round2,
+            '--sweep-planner-omega-weight-round3',
+            sweep_planner_omega_weight_round3,
+            '--sweep-metrics-log-enabled',
+            sweep_metrics_log_enabled,
+            '--sweep-metrics-log-dir',
+            sweep_metrics_log_dir,
             '--forward-arc-only-enabled',
             forward_arc_only_enabled,
             '--forward-arc-margin',
@@ -759,6 +801,20 @@ def generate_launch_description():
         DeclareLaunchArgument('lane_follow_deadband_m', default_value='0.03'),
         DeclareLaunchArgument('lane_follow_max_heading_deg', default_value='18.0'),
         DeclareLaunchArgument('lane_follow_max_omega_rps', default_value='0.35'),
+        DeclareLaunchArgument('row_follower_speed_schedule_enabled', default_value='true'),
+        DeclareLaunchArgument('row_follower_low_speed_mps', default_value='0.09'),
+        DeclareLaunchArgument('row_follower_high_speed_mps', default_value='0.22'),
+        DeclareLaunchArgument('row_follower_low_speed_lane_kp', default_value='0.85'),
+        DeclareLaunchArgument('row_follower_high_speed_lane_kp', default_value='1.00'),
+        DeclareLaunchArgument('row_follower_low_speed_heading_kp', default_value='0.95'),
+        DeclareLaunchArgument('row_follower_high_speed_heading_kp', default_value='1.10'),
+        DeclareLaunchArgument('row_follower_omega_low_pass_alpha', default_value='0.35'),
+        DeclareLaunchArgument('row_follower_omega_rate_limit_rps2', default_value='0.60'),
+        DeclareLaunchArgument('row_follower_min_correction_interval_s', default_value='0.0'),
+        DeclareLaunchArgument('sweep_planner_omega_weight_round2', default_value='0.0'),
+        DeclareLaunchArgument('sweep_planner_omega_weight_round3', default_value='0.2'),
+        DeclareLaunchArgument('sweep_metrics_log_enabled', default_value='false'),
+        DeclareLaunchArgument('sweep_metrics_log_dir', default_value='~/.ros/ugv_sweep_metrics'),
         DeclareLaunchArgument('forward_arc_only_enabled', default_value='true'),
         DeclareLaunchArgument('forward_arc_margin', default_value='0.75'),
         DeclareLaunchArgument('min_sweep_v_mps', default_value='0.08'),

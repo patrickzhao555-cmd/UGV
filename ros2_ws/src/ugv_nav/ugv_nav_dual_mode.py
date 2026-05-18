@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import heapq
@@ -24,6 +25,7 @@ from ugv_nav_core.competition_mission import (
 )
 from ugv_nav_core.closed_loop_controller import (
     ClosedLoopHealthState,
+    RowFollowerOmegaState,
     apply_competition_closed_loop_command,
     compute_heading_hold_correction,
     compute_lane_follow_correction,
@@ -539,6 +541,20 @@ class NavConfig:
     lane_follow_deadband_m: float = 0.03
     lane_follow_max_heading_deg: float = 18.0
     lane_follow_max_omega_rps: float = 0.35
+    row_follower_speed_schedule_enabled: bool = True
+    row_follower_low_speed_mps: float = 0.09
+    row_follower_high_speed_mps: float = 0.22
+    row_follower_low_speed_lane_kp: float = 0.85
+    row_follower_high_speed_lane_kp: float = 1.00
+    row_follower_low_speed_heading_kp: float = 0.95
+    row_follower_high_speed_heading_kp: float = 1.10
+    row_follower_omega_low_pass_alpha: float = 0.35
+    row_follower_omega_rate_limit_rps2: float = 0.60
+    row_follower_min_correction_interval_s: float = 0.0
+    sweep_planner_omega_weight_round2: float = 0.0
+    sweep_planner_omega_weight_round3: float = 0.2
+    sweep_metrics_log_enabled: bool = False
+    sweep_metrics_log_dir: str = "~/.ros/ugv_sweep_metrics"
     forward_arc_only_enabled: bool = True
     forward_arc_margin: float = 0.75
     min_sweep_v_mps: float = 0.08
@@ -2534,6 +2550,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         target_topic: str = "/ugv/target",
         marker_topic: str = "/ugv/marker_detection",
         mission_flag_topic: str = "/ugv/mission_flag",
+        motor_status_topic: str = "/motor_controller/status",
         nav_status_topic: str = "/ugv_nav_status",
         uav_flag_topic: str = "/ugv/uav_flag",
     ):
@@ -2558,6 +2575,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         self.target_topic = target_topic
         self.marker_topic = marker_topic
         self.mission_flag_topic = mission_flag_topic
+        self.motor_status_topic = motor_status_topic
         self.nav_status_topic = nav_status_topic
         self.uav_flag_topic = uav_flag_topic
         self._latest_synced: Optional[
@@ -2576,6 +2594,7 @@ class Ros2Bridge(RealRobotBridgeBase):
         self._latest_field_map: Optional[FieldMapPacket] = None
         self._latest_marker_goal: Optional[GoalPacket] = None
         self._latest_mission_flag: Optional[MissionFlagPacket] = None
+        self.latest_motor_status: Dict[str, Any] = {}
         self._latest_synced_seq = 0
         self._goal_version = 0
         self._field_map_version = 0
@@ -2599,6 +2618,7 @@ class Ros2Bridge(RealRobotBridgeBase):
             self.node.create_subscription(String, self.target_topic, self._field_map_cb, 10)
         self.node.create_subscription(PointStamped, self.marker_topic, self._marker_cb, 10)
         self.node.create_subscription(String, self.mission_flag_topic, self._mission_flag_cb, 10)
+        self.node.create_subscription(String, self.motor_status_topic, self._motor_status_cb, 10)
         self.pub = self.node.create_publisher(String, "/ugv_nav_cmd", 10)
         self.status_pub = self.node.create_publisher(String, self.nav_status_topic, 10)
         self.uav_flag_pub = self.node.create_publisher(String, self.uav_flag_topic, 10)
@@ -2606,7 +2626,8 @@ class Ros2Bridge(RealRobotBridgeBase):
             "UGV nav bridge ready "
             f"(allow_missing_goal={self.allow_missing_goal}, field_map={self.field_map_topic}, "
             f"target={self.target_topic}, marker={self.marker_topic}, mission_flag={self.mission_flag_topic}, "
-            f"nav_status={self.nav_status_topic}, uav_flag={self.uav_flag_topic})"
+            f"motor_status={self.motor_status_topic}, nav_status={self.nav_status_topic}, "
+            f"uav_flag={self.uav_flag_topic})"
         )
 
     def _synced_cb(self, msg):
@@ -2719,6 +2740,14 @@ class Ros2Bridge(RealRobotBridgeBase):
             f"Received mission flag {self._latest_mission_flag.state} "
             f"from {self._latest_mission_flag.source}"
         )
+
+    def _motor_status_cb(self, msg):
+        try:
+            parsed = json.loads(msg.data)
+        except Exception:
+            return
+        if isinstance(parsed, dict):
+            self.latest_motor_status = parsed
 
     def read_frame(self) -> Optional[SensorFrame]:
         self._rclpy.spin_once(self.node, timeout_sec=0.02)
@@ -2908,6 +2937,7 @@ class UGVNavigator:
         self.last_sent_cmd = ControlCommand("STOP")
         self.physical_stall = PhysicalStallState()
         self.closed_loop_health = ClosedLoopHealthState()
+        self.row_follower_omega_state = RowFollowerOmegaState()
         self.closed_loop_debug = default_closed_loop_debug(nav_cfg)
         self._last_field_map_version = -1
         self._last_field_map_key = None
@@ -4676,6 +4706,20 @@ def run_simulation(
     lane_follow_deadband_m: float = 0.03,
     lane_follow_max_heading_deg: float = 18.0,
     lane_follow_max_omega_rps: float = 0.35,
+    row_follower_speed_schedule_enabled: bool = True,
+    row_follower_low_speed_mps: float = 0.09,
+    row_follower_high_speed_mps: float = 0.22,
+    row_follower_low_speed_lane_kp: float = 0.85,
+    row_follower_high_speed_lane_kp: float = 1.00,
+    row_follower_low_speed_heading_kp: float = 0.95,
+    row_follower_high_speed_heading_kp: float = 1.10,
+    row_follower_omega_low_pass_alpha: float = 0.35,
+    row_follower_omega_rate_limit_rps2: float = 0.60,
+    row_follower_min_correction_interval_s: float = 0.0,
+    sweep_planner_omega_weight_round2: float = 0.0,
+    sweep_planner_omega_weight_round3: float = 0.2,
+    sweep_metrics_log_enabled: bool = False,
+    sweep_metrics_log_dir: str = "~/.ros/ugv_sweep_metrics",
     forward_arc_only_enabled: bool = True,
     forward_arc_margin: float = 0.75,
     min_sweep_v_mps: float = 0.08,
@@ -4746,6 +4790,20 @@ def run_simulation(
     nav_cfg.lane_follow_deadband_m = clamp(float(lane_follow_deadband_m), 0.0, 1.0)
     nav_cfg.lane_follow_max_heading_deg = clamp(float(lane_follow_max_heading_deg), 0.0, 60.0)
     nav_cfg.lane_follow_max_omega_rps = clamp(float(lane_follow_max_omega_rps), 0.0, 3.0)
+    nav_cfg.row_follower_speed_schedule_enabled = bool(row_follower_speed_schedule_enabled)
+    nav_cfg.row_follower_low_speed_mps = clamp(float(row_follower_low_speed_mps), 0.0, 2.0)
+    nav_cfg.row_follower_high_speed_mps = clamp(float(row_follower_high_speed_mps), 0.0, 2.0)
+    nav_cfg.row_follower_low_speed_lane_kp = clamp(float(row_follower_low_speed_lane_kp), 0.0, 8.0)
+    nav_cfg.row_follower_high_speed_lane_kp = clamp(float(row_follower_high_speed_lane_kp), 0.0, 8.0)
+    nav_cfg.row_follower_low_speed_heading_kp = clamp(float(row_follower_low_speed_heading_kp), 0.0, 8.0)
+    nav_cfg.row_follower_high_speed_heading_kp = clamp(float(row_follower_high_speed_heading_kp), 0.0, 8.0)
+    nav_cfg.row_follower_omega_low_pass_alpha = clamp(float(row_follower_omega_low_pass_alpha), 0.0, 1.0)
+    nav_cfg.row_follower_omega_rate_limit_rps2 = clamp(float(row_follower_omega_rate_limit_rps2), 0.0, 10.0)
+    nav_cfg.row_follower_min_correction_interval_s = clamp(float(row_follower_min_correction_interval_s), 0.0, 1.0)
+    nav_cfg.sweep_planner_omega_weight_round2 = clamp(float(sweep_planner_omega_weight_round2), 0.0, 1.0)
+    nav_cfg.sweep_planner_omega_weight_round3 = clamp(float(sweep_planner_omega_weight_round3), 0.0, 1.0)
+    nav_cfg.sweep_metrics_log_enabled = bool(sweep_metrics_log_enabled)
+    nav_cfg.sweep_metrics_log_dir = str(sweep_metrics_log_dir)
     nav_cfg.forward_arc_only_enabled = bool(forward_arc_only_enabled)
     nav_cfg.forward_arc_margin = clamp(float(forward_arc_margin), 0.0, 1.0)
     nav_cfg.min_sweep_v_mps = clamp(float(min_sweep_v_mps), 0.0, 1.0)
@@ -4985,6 +5043,131 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
     return status
 
 
+class SweepMetricsLogger:
+    FIELDNAMES = [
+        "time",
+        "pose_x",
+        "pose_y",
+        "yaw_deg",
+        "cross_track_error_m",
+        "heading_error_deg",
+        "final_v_mps",
+        "final_omega_radps",
+        "motor_target_left",
+        "motor_target_right",
+        "motor_measured_left",
+        "motor_measured_right",
+        "closed_loop_diverging",
+        "active_cell",
+        "phase",
+    ]
+
+    def __init__(self, log_dir: str = "~/.ros/ugv_sweep_metrics"):
+        expanded = os.path.expanduser(str(log_dir))
+        os.makedirs(expanded, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        self.path = os.path.join(expanded, f"ugv_sweep_metrics_{timestamp}.csv")
+        self._fp = open(self.path, "w", newline="", encoding="utf-8")
+        self._writer = csv.DictWriter(self._fp, fieldnames=self.FIELDNAMES)
+        self._writer.writeheader()
+        self.sample_count = 0
+        self._prev_pose: Optional[Tuple[float, float]] = None
+        self._prev_omega_sign = 0
+        self.distance_m = 0.0
+        self.max_abs_cross_track_error_m = 0.0
+        self.sum_cross_track_error_sq = 0.0
+        self.cross_track_error_samples = 0
+        self.final_lateral_error_m = 0.0
+        self.max_abs_heading_error_deg = 0.0
+        self.omega_sign_changes = 0
+        self.divergence_count = 0
+        self.physical_stall_count = 0
+
+    @staticmethod
+    def _float(value: Any, default: float = 0.0) -> float:
+        out = finite_optional(value)
+        return default if out is None else float(out)
+
+    @staticmethod
+    def _omega_sign(value: float) -> int:
+        if value > 1e-3:
+            return 1
+        if value < -1e-3:
+            return -1
+        return 0
+
+    def record(self, status: dict, motor_status: Optional[dict] = None) -> None:
+        motor = motor_status if isinstance(motor_status, dict) else {}
+        pose = status.get("pose_m") or [0.0, 0.0, 0.0]
+        x = self._float(pose[0] if len(pose) > 0 else 0.0)
+        y = self._float(pose[1] if len(pose) > 1 else 0.0)
+        yaw_deg = self._float(pose[2] if len(pose) > 2 else 0.0)
+        cl = status.get("competition_closed_loop") or {}
+        v2 = status.get("competition_v2") or (status.get("mission") or {}).get("competition_v2") or {}
+        cte = self._float(cl.get("cross_track_error_m"), 0.0)
+        heading_error_deg = self._float(cl.get("heading_error_deg"), 0.0)
+        final_omega = self._float(cl.get("final_omega_radps"), 0.0)
+        row = {
+            "time": self._float(status.get("stamp")),
+            "pose_x": x,
+            "pose_y": y,
+            "yaw_deg": yaw_deg,
+            "cross_track_error_m": cte,
+            "heading_error_deg": heading_error_deg,
+            "final_v_mps": self._float(cl.get("final_v_mps"), 0.0),
+            "final_omega_radps": final_omega,
+            "motor_target_left": self._float(motor.get("target_left_mps"), 0.0),
+            "motor_target_right": self._float(motor.get("target_right_mps"), 0.0),
+            "motor_measured_left": self._float(motor.get("measured_left_mps"), 0.0),
+            "motor_measured_right": self._float(motor.get("measured_right_mps"), 0.0),
+            "closed_loop_diverging": bool(cl.get("closed_loop_diverging", False)),
+            "active_cell": v2.get("active_cell"),
+            "phase": v2.get("phase", ""),
+        }
+        self._writer.writerow(row)
+        self._fp.flush()
+        self.sample_count += 1
+
+        if self._prev_pose is not None:
+            self.distance_m += math.hypot(x - self._prev_pose[0], y - self._prev_pose[1])
+        self._prev_pose = (x, y)
+        self.final_lateral_error_m = cte
+        self.max_abs_cross_track_error_m = max(self.max_abs_cross_track_error_m, abs(cte))
+        self.sum_cross_track_error_sq += cte * cte
+        self.cross_track_error_samples += 1
+        self.max_abs_heading_error_deg = max(self.max_abs_heading_error_deg, abs(heading_error_deg))
+        omega_sign = self._omega_sign(final_omega)
+        if omega_sign and self._prev_omega_sign and omega_sign != self._prev_omega_sign:
+            self.omega_sign_changes += 1
+        if omega_sign:
+            self._prev_omega_sign = omega_sign
+        if bool(cl.get("closed_loop_diverging", False)):
+            self.divergence_count += 1
+        if bool(status.get("physical_stall_detected", False)):
+            self.physical_stall_count += 1
+
+    def summary(self) -> Dict[str, Any]:
+        rms = 0.0
+        if self.cross_track_error_samples > 0:
+            rms = math.sqrt(self.sum_cross_track_error_sq / float(self.cross_track_error_samples))
+        sign_changes_per_m = self.omega_sign_changes / max(self.distance_m, 1e-6)
+        return {
+            "log_file": self.path,
+            "samples": self.sample_count,
+            "distance_traveled_m": round(self.distance_m, 3),
+            "final_lateral_error_m": round(self.final_lateral_error_m, 4),
+            "max_abs_cross_track_error_m": round(self.max_abs_cross_track_error_m, 4),
+            "rms_cross_track_error_m": round(rms, 4),
+            "max_abs_heading_error_deg": round(self.max_abs_heading_error_deg, 3),
+            "sign_changes_per_meter": round(sign_changes_per_m, 3),
+            "divergence_count": int(self.divergence_count),
+            "physical_stall_count": int(self.physical_stall_count),
+        }
+
+    def close(self) -> None:
+        self._fp.close()
+
+
 def competition_v2_status_for_update(update) -> dict:
     v2 = dict(update.status)
     return {
@@ -5131,6 +5314,20 @@ def run_real_mode(
     lane_follow_deadband_m: float = 0.03,
     lane_follow_max_heading_deg: float = 18.0,
     lane_follow_max_omega_rps: float = 0.35,
+    row_follower_speed_schedule_enabled: bool = True,
+    row_follower_low_speed_mps: float = 0.09,
+    row_follower_high_speed_mps: float = 0.22,
+    row_follower_low_speed_lane_kp: float = 0.85,
+    row_follower_high_speed_lane_kp: float = 1.00,
+    row_follower_low_speed_heading_kp: float = 0.95,
+    row_follower_high_speed_heading_kp: float = 1.10,
+    row_follower_omega_low_pass_alpha: float = 0.35,
+    row_follower_omega_rate_limit_rps2: float = 0.60,
+    row_follower_min_correction_interval_s: float = 0.0,
+    sweep_planner_omega_weight_round2: float = 0.0,
+    sweep_planner_omega_weight_round3: float = 0.2,
+    sweep_metrics_log_enabled: bool = False,
+    sweep_metrics_log_dir: str = "~/.ros/ugv_sweep_metrics",
     forward_arc_only_enabled: bool = True,
     forward_arc_margin: float = 0.75,
     min_sweep_v_mps: float = 0.08,
@@ -5215,6 +5412,20 @@ def run_real_mode(
     nav_cfg.lane_follow_deadband_m = clamp(float(lane_follow_deadband_m), 0.0, 1.0)
     nav_cfg.lane_follow_max_heading_deg = clamp(float(lane_follow_max_heading_deg), 0.0, 60.0)
     nav_cfg.lane_follow_max_omega_rps = clamp(float(lane_follow_max_omega_rps), 0.0, 3.0)
+    nav_cfg.row_follower_speed_schedule_enabled = bool(row_follower_speed_schedule_enabled)
+    nav_cfg.row_follower_low_speed_mps = clamp(float(row_follower_low_speed_mps), 0.0, 2.0)
+    nav_cfg.row_follower_high_speed_mps = clamp(float(row_follower_high_speed_mps), 0.0, 2.0)
+    nav_cfg.row_follower_low_speed_lane_kp = clamp(float(row_follower_low_speed_lane_kp), 0.0, 8.0)
+    nav_cfg.row_follower_high_speed_lane_kp = clamp(float(row_follower_high_speed_lane_kp), 0.0, 8.0)
+    nav_cfg.row_follower_low_speed_heading_kp = clamp(float(row_follower_low_speed_heading_kp), 0.0, 8.0)
+    nav_cfg.row_follower_high_speed_heading_kp = clamp(float(row_follower_high_speed_heading_kp), 0.0, 8.0)
+    nav_cfg.row_follower_omega_low_pass_alpha = clamp(float(row_follower_omega_low_pass_alpha), 0.0, 1.0)
+    nav_cfg.row_follower_omega_rate_limit_rps2 = clamp(float(row_follower_omega_rate_limit_rps2), 0.0, 10.0)
+    nav_cfg.row_follower_min_correction_interval_s = clamp(float(row_follower_min_correction_interval_s), 0.0, 1.0)
+    nav_cfg.sweep_planner_omega_weight_round2 = clamp(float(sweep_planner_omega_weight_round2), 0.0, 1.0)
+    nav_cfg.sweep_planner_omega_weight_round3 = clamp(float(sweep_planner_omega_weight_round3), 0.0, 1.0)
+    nav_cfg.sweep_metrics_log_enabled = bool(sweep_metrics_log_enabled)
+    nav_cfg.sweep_metrics_log_dir = str(sweep_metrics_log_dir)
     nav_cfg.forward_arc_only_enabled = bool(forward_arc_only_enabled)
     nav_cfg.forward_arc_margin = clamp(float(forward_arc_margin), 0.0, 1.0)
     nav_cfg.min_sweep_v_mps = clamp(float(min_sweep_v_mps), 0.0, 1.0)
@@ -5375,6 +5586,15 @@ def run_real_mode(
         f"lane_deadband={nav_cfg.lane_follow_deadband_m:.2f}m, "
         f"lane_heading_max={nav_cfg.lane_follow_max_heading_deg:.1f}deg, "
         f"lane_omax={nav_cfg.lane_follow_max_omega_rps:.2f}rad/s, "
+        f"row_schedule={nav_cfg.row_follower_speed_schedule_enabled} "
+        f"(low={nav_cfg.row_follower_low_speed_mps:.2f}m/s, "
+        f"high={nav_cfg.row_follower_high_speed_mps:.2f}m/s, "
+        f"lane_kp={nav_cfg.row_follower_low_speed_lane_kp:.2f}->{nav_cfg.row_follower_high_speed_lane_kp:.2f}, "
+        f"heading_kp={nav_cfg.row_follower_low_speed_heading_kp:.2f}->{nav_cfg.row_follower_high_speed_heading_kp:.2f}, "
+        f"omega_alpha={nav_cfg.row_follower_omega_low_pass_alpha:.2f}, "
+        f"omega_rate={nav_cfg.row_follower_omega_rate_limit_rps2:.2f}rad/s^2), "
+        f"planner_omega_weight_round2={nav_cfg.sweep_planner_omega_weight_round2:.2f}, "
+        f"planner_omega_weight_round3={nav_cfg.sweep_planner_omega_weight_round3:.2f}, "
         f"forward_arc_only={nav_cfg.forward_arc_only_enabled}, "
         f"forward_arc_margin={nav_cfg.forward_arc_margin:.2f}, "
         f"min_sweep_v={nav_cfg.min_sweep_v_mps:.2f}m/s, "
@@ -5402,85 +5622,104 @@ def run_real_mode(
     print("  /ugv_nav_status       std_msgs/String live nav/debug status")
     print("  /ugv/uav_flag         std_msgs/String target-found flag for ESP/UAV handoff")
 
+    metrics_logger = None
+    if nav_cfg.sweep_metrics_log_enabled:
+        metrics_logger = SweepMetricsLogger(nav_cfg.sweep_metrics_log_dir)
+        print(f"Sweep metrics logging enabled: {metrics_logger.path}")
+
     last_status_s = 0.0
+    last_metrics_summary_s = 0.0
     steps = 0
-    while True:
-        frame = bridge.read_frame()
-        if frame is None:
-            if replay_json:
-                print("REAL replay finished: end of replay file.")
+    try:
+        while True:
+            frame = bridge.read_frame()
+            if frame is None:
+                if replay_json:
+                    print("REAL replay finished: end of replay file.")
+                    break
+                time.sleep(0.02)
+                continue
+            if competition_v2_active:
+                marker_goal = None
+                marker_distance_m = None
+                if frame.marker_goal is not None:
+                    marker_goal = (frame.marker_goal.x, frame.marker_goal.y)
+                    marker_distance_m = frame.marker_goal.distance_m
+                field_map_goal = frame.field_map.goal_xy if frame.field_map is not None else None
+                field_map_source = frame.field_map.source if frame.field_map is not None else None
+                mission_flag_state = frame.mission_flag.state if frame.mission_flag is not None else None
+                mission_flag_source = frame.mission_flag.source if frame.mission_flag is not None else None
+                update = mission.update(
+                    (
+                        navigator.state.estimated_pose.x,
+                        navigator.state.estimated_pose.y,
+                        navigator.state.estimated_pose.yaw,
+                    ),
+                    frame.encoder.timestamp,
+                    marker_goal=marker_goal,
+                    marker_distance_m=marker_distance_m,
+                    field_map_goal=field_map_goal,
+                    field_map_source=field_map_source,
+                    mission_flag_state=mission_flag_state,
+                    mission_flag_source=mission_flag_source,
+                )
+                frame.goal = GoalPacket(update.active_goal_m[0], update.active_goal_m[1], frame.encoder.timestamp, marker_distance_m)
+                mission_status = competition_v2_status_for_update(update)
+                apply_competition_v2_motion_policy(navigator, mission_status)
+            else:
+                mission_status = dict(mission.update_frame(frame, navigator.state.estimated_pose))
+                apply_competition_v2_motion_policy(navigator, {})
+            cmd = navigator.step(frame)
+            if competition_v2_active:
+                cmd = apply_competition_closed_loop_command(navigator, cmd, frame, mission_status)
+                feedback_changed = mission.observe_navigation_feedback(
+                    navigation_feedback_for_competition_v2(navigator, cmd, frame)
+                )
+                if feedback_changed:
+                    mission_status = competition_v2_status_for_update(mission.current_update())
+            if mission_status.get("stop_requested"):
+                cmd = ControlCommand(
+                    "STOP",
+                    reason=f"{mission_status.get('phase', 'target')} stop requested: {mission_status.get('speed_reason', mission_status.get('final_goal_source', 'mission'))}",
+                )
+            speed_scale, speed_reason = mission.command_speed_scale()
+            effective_speed_scale = speed_scale * drive_factor
+            mission_status["drive_speed_level"] = drive_speed_level
+            mission_status["drive_speed_factor"] = round(drive_factor, 3)
+            mission_status["effective_speed_scale"] = round(effective_speed_scale, 3)
+            mission_status["min_motion_raw"] = round(nav_cfg.min_motion_raw, 3)
+            combined_reason = speed_reason
+            if drive_speed_level != 4:
+                combined_reason = f"{combined_reason}; " if combined_reason else ""
+                combined_reason += f"drive_level_{drive_speed_level}"
+            cmd = scale_control_command(
+                cmd,
+                effective_speed_scale,
+                combined_reason,
+                nav_cfg.min_motion_raw,
+            )
+            navigator.note_sent_command(cmd)
+            bridge.send_control(cmd)
+            now_s = time.monotonic()
+            should_publish_status = now_s - last_status_s >= max(nav_status_period_s, 0.2)
+            if metrics_logger is not None or should_publish_status:
+                status = build_nav_status(navigator, frame, cmd, mission_status)
+                if metrics_logger is not None:
+                    metrics_logger.record(status, getattr(bridge, "latest_motor_status", {}))
+                    if now_s - last_metrics_summary_s >= 10.0:
+                        print("SWEEP METRICS", json.dumps(metrics_logger.summary()))
+                        last_metrics_summary_s = now_s
+                if should_publish_status:
+                    bridge.publish_nav_status(status)
+                    last_status_s = now_s
+            steps += 1
+            if replay_json and max_steps > 0 and steps >= max_steps:
+                print(f"REAL replay finished: max steps reached at step {steps - 1}.")
                 break
-            time.sleep(0.02)
-            continue
-        if competition_v2_active:
-            marker_goal = None
-            marker_distance_m = None
-            if frame.marker_goal is not None:
-                marker_goal = (frame.marker_goal.x, frame.marker_goal.y)
-                marker_distance_m = frame.marker_goal.distance_m
-            field_map_goal = frame.field_map.goal_xy if frame.field_map is not None else None
-            field_map_source = frame.field_map.source if frame.field_map is not None else None
-            mission_flag_state = frame.mission_flag.state if frame.mission_flag is not None else None
-            mission_flag_source = frame.mission_flag.source if frame.mission_flag is not None else None
-            update = mission.update(
-                (
-                    navigator.state.estimated_pose.x,
-                    navigator.state.estimated_pose.y,
-                    navigator.state.estimated_pose.yaw,
-                ),
-                frame.encoder.timestamp,
-                marker_goal=marker_goal,
-                marker_distance_m=marker_distance_m,
-                field_map_goal=field_map_goal,
-                field_map_source=field_map_source,
-                mission_flag_state=mission_flag_state,
-                mission_flag_source=mission_flag_source,
-            )
-            frame.goal = GoalPacket(update.active_goal_m[0], update.active_goal_m[1], frame.encoder.timestamp, marker_distance_m)
-            mission_status = competition_v2_status_for_update(update)
-            apply_competition_v2_motion_policy(navigator, mission_status)
-        else:
-            mission_status = dict(mission.update_frame(frame, navigator.state.estimated_pose))
-            apply_competition_v2_motion_policy(navigator, {})
-        cmd = navigator.step(frame)
-        if competition_v2_active:
-            cmd = apply_competition_closed_loop_command(navigator, cmd, frame, mission_status)
-            feedback_changed = mission.observe_navigation_feedback(
-                navigation_feedback_for_competition_v2(navigator, cmd, frame)
-            )
-            if feedback_changed:
-                mission_status = competition_v2_status_for_update(mission.current_update())
-        if mission_status.get("stop_requested"):
-            cmd = ControlCommand(
-                "STOP",
-                reason=f"{mission_status.get('phase', 'target')} stop requested: {mission_status.get('speed_reason', mission_status.get('final_goal_source', 'mission'))}",
-            )
-        speed_scale, speed_reason = mission.command_speed_scale()
-        effective_speed_scale = speed_scale * drive_factor
-        mission_status["drive_speed_level"] = drive_speed_level
-        mission_status["drive_speed_factor"] = round(drive_factor, 3)
-        mission_status["effective_speed_scale"] = round(effective_speed_scale, 3)
-        mission_status["min_motion_raw"] = round(nav_cfg.min_motion_raw, 3)
-        combined_reason = speed_reason
-        if drive_speed_level != 4:
-            combined_reason = f"{combined_reason}; " if combined_reason else ""
-            combined_reason += f"drive_level_{drive_speed_level}"
-        cmd = scale_control_command(
-            cmd,
-            effective_speed_scale,
-            combined_reason,
-            nav_cfg.min_motion_raw,
-        )
-        navigator.note_sent_command(cmd)
-        bridge.send_control(cmd)
-        now_s = time.monotonic()
-        if now_s - last_status_s >= max(nav_status_period_s, 0.2):
-            bridge.publish_nav_status(build_nav_status(navigator, frame, cmd, mission_status))
-            last_status_s = now_s
-        steps += 1
-        if replay_json and max_steps > 0 and steps >= max_steps:
-            print(f"REAL replay finished: max steps reached at step {steps - 1}.")
-            break
+    finally:
+        if metrics_logger is not None:
+            print("SWEEP METRICS FINAL", json.dumps(metrics_logger.summary()))
+            metrics_logger.close()
 
 
 # =========================================================
@@ -5590,6 +5829,20 @@ def main() -> None:
     parser.add_argument("--lane-follow-deadband-m", type=float, default=0.03, help="cross-track deadband for sweep lane following")
     parser.add_argument("--lane-follow-max-heading-deg", type=float, default=18.0, help="max desired heading offset from sweep lane following")
     parser.add_argument("--lane-follow-max-omega-rps", type=float, default=0.35, help="max omega contribution from sweep lane following")
+    parser.add_argument("--row-follower-speed-schedule-enabled", type=str_to_bool, default=True, help="schedule sweep row-follower gains by target forward speed")
+    parser.add_argument("--row-follower-low-speed-mps", type=float, default=0.09, help="low-speed endpoint for sweep row-follower gain scheduling")
+    parser.add_argument("--row-follower-high-speed-mps", type=float, default=0.22, help="high-speed endpoint for sweep row-follower gain scheduling")
+    parser.add_argument("--row-follower-low-speed-lane-kp", type=float, default=0.85, help="lane gain at the low-speed scheduling endpoint")
+    parser.add_argument("--row-follower-high-speed-lane-kp", type=float, default=1.00, help="lane gain at the high-speed scheduling endpoint")
+    parser.add_argument("--row-follower-low-speed-heading-kp", type=float, default=0.95, help="heading gain at the low-speed scheduling endpoint")
+    parser.add_argument("--row-follower-high-speed-heading-kp", type=float, default=1.10, help="heading gain at the high-speed scheduling endpoint")
+    parser.add_argument("--row-follower-omega-low-pass-alpha", type=float, default=0.35, help="low-pass alpha applied to sweep row omega corrections")
+    parser.add_argument("--row-follower-omega-rate-limit-rps2", type=float, default=0.60, help="rate limit for sweep row omega corrections")
+    parser.add_argument("--row-follower-min-correction-interval-s", type=float, default=0.0, help="minimum interval between row omega correction updates")
+    parser.add_argument("--sweep-planner-omega-weight-round2", type=float, default=0.0, help="round2 sweep blend weight for local planner omega; row follower owns steering by default")
+    parser.add_argument("--sweep-planner-omega-weight-round3", type=float, default=0.2, help="round3 sweep blend weight for local planner omega when obstacle evidence exists")
+    parser.add_argument("--sweep-metrics-log-enabled", type=str_to_bool, default=False, help="write competition sweep closed-loop metrics CSV")
+    parser.add_argument("--sweep-metrics-log-dir", type=str, default="~/.ros/ugv_sweep_metrics", help="directory for sweep metrics CSV logs")
     parser.add_argument("--forward-arc-only-enabled", type=str_to_bool, default=True, help="keep normal competition sweep arcs forward-only so neither wheel target reverses")
     parser.add_argument("--forward-arc-margin", type=float, default=0.75, help="fraction of the no-reverse arc omega limit used during normal sweep")
     parser.add_argument("--min-sweep-v-mps", type=float, default=0.08, help="minimum forward velocity used by normal competition sweep closed-loop control")
@@ -5648,6 +5901,20 @@ def main() -> None:
             lane_follow_deadband_m=args.lane_follow_deadband_m,
             lane_follow_max_heading_deg=args.lane_follow_max_heading_deg,
             lane_follow_max_omega_rps=args.lane_follow_max_omega_rps,
+            row_follower_speed_schedule_enabled=args.row_follower_speed_schedule_enabled,
+            row_follower_low_speed_mps=args.row_follower_low_speed_mps,
+            row_follower_high_speed_mps=args.row_follower_high_speed_mps,
+            row_follower_low_speed_lane_kp=args.row_follower_low_speed_lane_kp,
+            row_follower_high_speed_lane_kp=args.row_follower_high_speed_lane_kp,
+            row_follower_low_speed_heading_kp=args.row_follower_low_speed_heading_kp,
+            row_follower_high_speed_heading_kp=args.row_follower_high_speed_heading_kp,
+            row_follower_omega_low_pass_alpha=args.row_follower_omega_low_pass_alpha,
+            row_follower_omega_rate_limit_rps2=args.row_follower_omega_rate_limit_rps2,
+            row_follower_min_correction_interval_s=args.row_follower_min_correction_interval_s,
+            sweep_planner_omega_weight_round2=args.sweep_planner_omega_weight_round2,
+            sweep_planner_omega_weight_round3=args.sweep_planner_omega_weight_round3,
+            sweep_metrics_log_enabled=args.sweep_metrics_log_enabled,
+            sweep_metrics_log_dir=args.sweep_metrics_log_dir,
             forward_arc_only_enabled=args.forward_arc_only_enabled,
             forward_arc_margin=args.forward_arc_margin,
             min_sweep_v_mps=args.min_sweep_v_mps,
@@ -5769,6 +6036,20 @@ def main() -> None:
             lane_follow_deadband_m=args.lane_follow_deadband_m,
             lane_follow_max_heading_deg=args.lane_follow_max_heading_deg,
             lane_follow_max_omega_rps=args.lane_follow_max_omega_rps,
+            row_follower_speed_schedule_enabled=args.row_follower_speed_schedule_enabled,
+            row_follower_low_speed_mps=args.row_follower_low_speed_mps,
+            row_follower_high_speed_mps=args.row_follower_high_speed_mps,
+            row_follower_low_speed_lane_kp=args.row_follower_low_speed_lane_kp,
+            row_follower_high_speed_lane_kp=args.row_follower_high_speed_lane_kp,
+            row_follower_low_speed_heading_kp=args.row_follower_low_speed_heading_kp,
+            row_follower_high_speed_heading_kp=args.row_follower_high_speed_heading_kp,
+            row_follower_omega_low_pass_alpha=args.row_follower_omega_low_pass_alpha,
+            row_follower_omega_rate_limit_rps2=args.row_follower_omega_rate_limit_rps2,
+            row_follower_min_correction_interval_s=args.row_follower_min_correction_interval_s,
+            sweep_planner_omega_weight_round2=args.sweep_planner_omega_weight_round2,
+            sweep_planner_omega_weight_round3=args.sweep_planner_omega_weight_round3,
+            sweep_metrics_log_enabled=args.sweep_metrics_log_enabled,
+            sweep_metrics_log_dir=args.sweep_metrics_log_dir,
             forward_arc_only_enabled=args.forward_arc_only_enabled,
             forward_arc_margin=args.forward_arc_margin,
             min_sweep_v_mps=args.min_sweep_v_mps,

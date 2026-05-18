@@ -17,6 +17,134 @@ source_setup_compat() {
   fi
 }
 
+UGV_PROFILE="${UGV_PROFILE:-manual}"
+
+profile_default() {
+  local name="$1"
+  local value="$2"
+  if [[ -z "${!name+x}" ]]; then
+    export "${name}=${value}"
+  fi
+}
+
+case "${UGV_PROFILE}" in
+  manual|"")
+    UGV_PROFILE="manual"
+    ;;
+  round2_clear_tuned)
+    profile_default ROUND_MODE "round2"
+    profile_default ROBOT_TICKS_PER_REV "2151"
+    profile_default ROBOT_WHEEL_RADIUS_M "0.06"
+    profile_default DRIVE_SPEED_LEVEL "2"
+    profile_default MIN_MOTION_RAW "0.22"
+    profile_default MOTOR_VELOCITY_CONTROL_ENABLED "true"
+    profile_default MOTOR_VELOCITY_KP "0.45"
+    profile_default MOTOR_VELOCITY_KI "0.0"
+    profile_default MOTOR_VELOCITY_KD "0.0"
+    profile_default MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS "1.60"
+    profile_default MOTOR_COMMAND_TIMEOUT_S "3.0"
+    profile_default MOTOR_COMMAND_REFRESH_PERIOD_S "0.25"
+    profile_default NAV_COMPETITION_CLOSED_LOOP_ENABLED "true"
+    profile_default NAV_HEADING_HOLD_ENABLED "true"
+    profile_default NAV_LANE_FOLLOW_ENABLED "true"
+    profile_default NAV_FORWARD_ARC_ONLY_ENABLED "true"
+    profile_default NAV_FORWARD_ARC_MARGIN "0.60"
+    profile_default NAV_MIN_SWEEP_V_MPS "0.12"
+    profile_default NAV_HEADING_HOLD_KP "0.95"
+    profile_default NAV_HEADING_HOLD_KD "0.18"
+    profile_default NAV_HEADING_HOLD_DEADBAND_DEG "1.0"
+    profile_default NAV_HEADING_HOLD_MAX_OMEGA_RPS "0.38"
+    profile_default NAV_LANE_FOLLOW_KP_HEADING "0.85"
+    profile_default NAV_LANE_FOLLOW_KP_OMEGA "0.82"
+    profile_default NAV_LANE_FOLLOW_DEADBAND_M "0.018"
+    profile_default NAV_LANE_FOLLOW_MAX_HEADING_DEG "10.0"
+    profile_default NAV_LANE_FOLLOW_MAX_OMEGA_RPS "0.22"
+    profile_default NAV_CLOSED_LOOP_HEALTH_ENABLED "true"
+    profile_default NAV_CLOSED_LOOP_DIVERGENCE_ACTION "warn"
+    profile_default NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED "true"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_MPS "0.09"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_MPS "0.22"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP "0.85"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP "1.00"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP "0.95"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP "1.10"
+    profile_default NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA "0.35"
+    profile_default NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2 "0.60"
+    profile_default NAV_ROW_FOLLOWER_MIN_CORRECTION_INTERVAL_S "0.0"
+    profile_default NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2 "0.0"
+    profile_default NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3 "0.2"
+    profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"
+    ;;
+  round3_obstacle_tuned)
+    profile_default ROUND_MODE "round3"
+    profile_default ROBOT_TICKS_PER_REV "2151"
+    profile_default ROBOT_WHEEL_RADIUS_M "0.06"
+    profile_default DRIVE_SPEED_LEVEL "2"
+    profile_default MIN_MOTION_RAW "0.22"
+    profile_default MOTOR_VELOCITY_CONTROL_ENABLED "true"
+    profile_default MOTOR_VELOCITY_KP "0.45"
+    profile_default MOTOR_VELOCITY_KI "0.0"
+    profile_default MOTOR_VELOCITY_KD "0.0"
+    profile_default MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS "1.60"
+    profile_default MOTOR_COMMAND_TIMEOUT_S "3.0"
+    profile_default MOTOR_COMMAND_REFRESH_PERIOD_S "0.25"
+    profile_default START_YOLO_OBSTACLES "true"
+    profile_default NAV_COMPETITION_CLOSED_LOOP_ENABLED "true"
+    profile_default NAV_HEADING_HOLD_ENABLED "true"
+    profile_default NAV_LANE_FOLLOW_ENABLED "true"
+    profile_default NAV_FORWARD_ARC_ONLY_ENABLED "true"
+    profile_default NAV_FORWARD_ARC_MARGIN "0.60"
+    profile_default NAV_MIN_SWEEP_V_MPS "0.12"
+    profile_default NAV_HEADING_HOLD_KP "0.95"
+    profile_default NAV_HEADING_HOLD_KD "0.18"
+    profile_default NAV_HEADING_HOLD_DEADBAND_DEG "1.0"
+    profile_default NAV_HEADING_HOLD_MAX_OMEGA_RPS "0.38"
+    profile_default NAV_LANE_FOLLOW_KP_HEADING "0.85"
+    profile_default NAV_LANE_FOLLOW_KP_OMEGA "0.82"
+    profile_default NAV_LANE_FOLLOW_DEADBAND_M "0.018"
+    profile_default NAV_LANE_FOLLOW_MAX_HEADING_DEG "10.0"
+    profile_default NAV_LANE_FOLLOW_MAX_OMEGA_RPS "0.22"
+    profile_default NAV_CLOSED_LOOP_HEALTH_ENABLED "true"
+    profile_default NAV_CLOSED_LOOP_DIVERGENCE_ACTION "warn"
+    profile_default NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED "true"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_MPS "0.09"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_MPS "0.22"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP "0.85"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP "1.00"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP "0.95"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP "1.10"
+    profile_default NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA "0.35"
+    profile_default NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2 "0.60"
+    profile_default NAV_ROW_FOLLOWER_MIN_CORRECTION_INTERVAL_S "0.0"
+    profile_default NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2 "0.0"
+    profile_default NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3 "0.2"
+    profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"
+    ;;
+  round1_straight_tuned)
+    profile_default ROUND_MODE "round1"
+    profile_default ROBOT_TICKS_PER_REV "2151"
+    profile_default ROBOT_WHEEL_RADIUS_M "0.06"
+    profile_default DRIVE_SPEED_LEVEL "2"
+    profile_default MIN_MOTION_RAW "0.22"
+    profile_default MOTOR_VELOCITY_CONTROL_ENABLED "true"
+    profile_default MOTOR_VELOCITY_KP "0.45"
+    profile_default MOTOR_VELOCITY_KI "0.0"
+    profile_default MOTOR_VELOCITY_KD "0.0"
+    profile_default MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS "1.60"
+    profile_default MOTOR_COMMAND_TIMEOUT_S "3.0"
+    profile_default MOTOR_COMMAND_REFRESH_PERIOD_S "0.25"
+    profile_default NAV_COMPETITION_CLOSED_LOOP_ENABLED "true"
+    profile_default NAV_HEADING_HOLD_ENABLED "true"
+    profile_default NAV_FORWARD_ARC_ONLY_ENABLED "true"
+    profile_default NAV_MIN_SWEEP_V_MPS "0.12"
+    profile_default NAV_SWEEP_METRICS_LOG_ENABLED "false"
+    ;;
+  *)
+    echo "Unsupported UGV_PROFILE=${UGV_PROFILE}. Use manual, round1_straight_tuned, round2_clear_tuned, or round3_obstacle_tuned."
+    exit 1
+    ;;
+esac
+
 # Edit these defaults once for your Jetson if the device names change.
 LIDAR_PORT="${LIDAR_PORT:-/dev/ttyUSB0}"
 MOTOR_PORT="${MOTOR_PORT:-/dev/ttyACM0}"
@@ -137,6 +265,20 @@ NAV_LANE_FOLLOW_KP_OMEGA="${NAV_LANE_FOLLOW_KP_OMEGA:-1.00}"
 NAV_LANE_FOLLOW_DEADBAND_M="${NAV_LANE_FOLLOW_DEADBAND_M:-0.03}"
 NAV_LANE_FOLLOW_MAX_HEADING_DEG="${NAV_LANE_FOLLOW_MAX_HEADING_DEG:-18.0}"
 NAV_LANE_FOLLOW_MAX_OMEGA_RPS="${NAV_LANE_FOLLOW_MAX_OMEGA_RPS:-0.35}"
+NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED="${NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED:-true}"
+NAV_ROW_FOLLOWER_LOW_SPEED_MPS="${NAV_ROW_FOLLOWER_LOW_SPEED_MPS:-0.09}"
+NAV_ROW_FOLLOWER_HIGH_SPEED_MPS="${NAV_ROW_FOLLOWER_HIGH_SPEED_MPS:-0.22}"
+NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP="${NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP:-0.85}"
+NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP="${NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP:-1.00}"
+NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP="${NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP:-0.95}"
+NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP="${NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP:-1.10}"
+NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA="${NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA:-0.35}"
+NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2="${NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2:-0.60}"
+NAV_ROW_FOLLOWER_MIN_CORRECTION_INTERVAL_S="${NAV_ROW_FOLLOWER_MIN_CORRECTION_INTERVAL_S:-0.0}"
+NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2="${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2:-0.0}"
+NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3="${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3:-0.2}"
+NAV_SWEEP_METRICS_LOG_ENABLED="${NAV_SWEEP_METRICS_LOG_ENABLED:-false}"
+NAV_SWEEP_METRICS_LOG_DIR="${NAV_SWEEP_METRICS_LOG_DIR:-~/.ros/ugv_sweep_metrics}"
 NAV_FORWARD_ARC_ONLY_ENABLED="${NAV_FORWARD_ARC_ONLY_ENABLED:-true}"
 NAV_FORWARD_ARC_MARGIN="${NAV_FORWARD_ARC_MARGIN:-0.75}"
 NAV_MIN_SWEEP_V_MPS="${NAV_MIN_SWEEP_V_MPS:-0.08}"
@@ -325,8 +467,14 @@ export QT_X11_NO_MITSHM="${QT_X11_NO_MITSHM:-1}"
 
 echo "UGV bringup workspace: ${WORKSPACE_DIR}"
 echo "UGV bringup launch: ${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.launch.py"
+echo "UGV profile: ${UGV_PROFILE}"
+echo "UGV mission: ROUND_MODE=${ROUND_MODE}, DRIVE_SPEED_LEVEL=${DRIVE_SPEED_LEVEL}, MIN_MOTION_RAW=${MIN_MOTION_RAW}, MIN_COMPETITION_SPEED_MPS=${MIN_COMPETITION_SPEED_MPS}"
 echo "UGV robot odometry: ROBOT_WHEEL_RADIUS_M=${ROBOT_WHEEL_RADIUS_M}, ROBOT_TICKS_PER_REV=${ROBOT_TICKS_PER_REV}"
 echo "UGV motor velocity odometry: MOTOR_WHEEL_RADIUS_M=${MOTOR_WHEEL_RADIUS_M}, MOTOR_TICKS_PER_REV=${MOTOR_TICKS_PER_REV}, MOTOR_VELOCITY_CONTROL_ENABLED=${MOTOR_VELOCITY_CONTROL_ENABLED}"
+echo "UGV motor PID: KP=${MOTOR_VELOCITY_KP}, KI=${MOTOR_VELOCITY_KI}, KD=${MOTOR_VELOCITY_KD}, FF=${MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS}, timeout=${MOTOR_COMMAND_TIMEOUT_S}, refresh=${MOTOR_COMMAND_REFRESH_PERIOD_S}"
+echo "UGV nav closed loop: enabled=${NAV_COMPETITION_CLOSED_LOOP_ENABLED}, heading=${NAV_HEADING_HOLD_ENABLED} kp=${NAV_HEADING_HOLD_KP} kd=${NAV_HEADING_HOLD_KD} deadband=${NAV_HEADING_HOLD_DEADBAND_DEG} omax=${NAV_HEADING_HOLD_MAX_OMEGA_RPS}, lane=${NAV_LANE_FOLLOW_ENABLED} kp_heading=${NAV_LANE_FOLLOW_KP_HEADING} kp_omega=${NAV_LANE_FOLLOW_KP_OMEGA} deadband=${NAV_LANE_FOLLOW_DEADBAND_M} omax=${NAV_LANE_FOLLOW_MAX_OMEGA_RPS}"
+echo "UGV row follower: schedule=${NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED}, speed=${NAV_ROW_FOLLOWER_LOW_SPEED_MPS}->${NAV_ROW_FOLLOWER_HIGH_SPEED_MPS}, lane_kp=${NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP}->${NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP}, heading_kp=${NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP}->${NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP}, omega_alpha=${NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA}, omega_rate=${NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2}"
+echo "UGV sweep steering: planner_omega_weight_round2=${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2}, planner_omega_weight_round3=${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3}, forward_arc=${NAV_FORWARD_ARC_ONLY_ENABLED}, forward_arc_margin=${NAV_FORWARD_ARC_MARGIN}, min_sweep_v=${NAV_MIN_SWEEP_V_MPS}, metrics=${NAV_SWEEP_METRICS_LOG_ENABLED}"
 
 ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.launch.py" \
   start_uwb:="${START_UWB}" \
@@ -462,6 +610,20 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   lane_follow_deadband_m:="${NAV_LANE_FOLLOW_DEADBAND_M}" \
   lane_follow_max_heading_deg:="${NAV_LANE_FOLLOW_MAX_HEADING_DEG}" \
   lane_follow_max_omega_rps:="${NAV_LANE_FOLLOW_MAX_OMEGA_RPS}" \
+  row_follower_speed_schedule_enabled:="${NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED}" \
+  row_follower_low_speed_mps:="${NAV_ROW_FOLLOWER_LOW_SPEED_MPS}" \
+  row_follower_high_speed_mps:="${NAV_ROW_FOLLOWER_HIGH_SPEED_MPS}" \
+  row_follower_low_speed_lane_kp:="${NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP}" \
+  row_follower_high_speed_lane_kp:="${NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP}" \
+  row_follower_low_speed_heading_kp:="${NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP}" \
+  row_follower_high_speed_heading_kp:="${NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP}" \
+  row_follower_omega_low_pass_alpha:="${NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA}" \
+  row_follower_omega_rate_limit_rps2:="${NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2}" \
+  row_follower_min_correction_interval_s:="${NAV_ROW_FOLLOWER_MIN_CORRECTION_INTERVAL_S}" \
+  sweep_planner_omega_weight_round2:="${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2}" \
+  sweep_planner_omega_weight_round3:="${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3}" \
+  sweep_metrics_log_enabled:="${NAV_SWEEP_METRICS_LOG_ENABLED}" \
+  sweep_metrics_log_dir:="${NAV_SWEEP_METRICS_LOG_DIR}" \
   forward_arc_only_enabled:="${NAV_FORWARD_ARC_ONLY_ENABLED}" \
   forward_arc_margin:="${NAV_FORWARD_ARC_MARGIN}" \
   min_sweep_v_mps:="${NAV_MIN_SWEEP_V_MPS}" \

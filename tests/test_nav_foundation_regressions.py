@@ -12,10 +12,13 @@ sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 from ugv_nav_core.closed_loop_controller import (  # noqa: E402
     ClosedLoopHealthSample,
     ClosedLoopHealthState,
+    RowFollowerOmegaState,
     apply_forward_arc_only_limit,
     apply_competition_closed_loop_command,
     compute_heading_hold_correction,
     compute_lane_follow_correction,
+    scheduled_row_follower_gains,
+    smooth_row_follower_omega,
     update_closed_loop_health,
     wheel_targets_from_v_omega,
 )
@@ -37,6 +40,7 @@ from ugv_nav_dual_mode import (  # noqa: E402
     SectorSnapshot,
     SensorConfig,
     SensorFrame,
+    SweepMetricsLogger,
     UGVNavigator,
     VelocityLocalPlanner,
     ZedPacket,
@@ -563,6 +567,135 @@ def test_closed_loop_divergence_action_slow_then_stop():
     assert "closed-loop divergence" in third.reason
 
 
+def test_row_follower_speed_schedule_interpolates_gains():
+    nav_cfg = NavConfig()
+    nav_cfg.row_follower_speed_schedule_enabled = True
+    nav_cfg.row_follower_low_speed_mps = 0.10
+    nav_cfg.row_follower_high_speed_mps = 0.20
+    nav_cfg.row_follower_low_speed_lane_kp = 0.80
+    nav_cfg.row_follower_high_speed_lane_kp = 1.20
+    nav_cfg.row_follower_low_speed_heading_kp = 0.90
+    nav_cfg.row_follower_high_speed_heading_kp = 1.10
+
+    lane_low, heading_low, enabled_low = scheduled_row_follower_gains(nav_cfg, 0.10)
+    lane_mid, heading_mid, enabled_mid = scheduled_row_follower_gains(nav_cfg, 0.15)
+    lane_high, heading_high, enabled_high = scheduled_row_follower_gains(nav_cfg, 0.20)
+
+    assert enabled_low and enabled_mid and enabled_high
+    assert lane_low == 0.80
+    assert heading_low == 0.90
+    assert math.isclose(lane_mid, 1.00)
+    assert math.isclose(heading_mid, 1.00)
+    assert lane_high == 1.20
+    assert heading_high == 1.10
+
+
+def test_row_follower_omega_low_pass_and_rate_limiter_work():
+    state = RowFollowerOmegaState()
+    first, first_limited, _ = smooth_row_follower_omega(
+        0.0,
+        1.0,
+        state,
+        low_pass_alpha=0.5,
+        rate_limit_rps2=0.6,
+    )
+    second, second_limited, second_dt = smooth_row_follower_omega(
+        1.0,
+        1.1,
+        state,
+        low_pass_alpha=1.0,
+        rate_limit_rps2=0.6,
+    )
+
+    assert first == 0.0
+    assert not first_limited
+    assert second_limited
+    assert math.isclose(second_dt, 0.1)
+    assert math.isclose(second, 0.06, abs_tol=1e-6)
+
+
+def test_round2_sweep_planner_omega_weight_defaults_to_zero():
+    robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.6096)
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    nav_cfg.competition_closed_loop_enabled = True
+    nav_cfg.heading_hold_enabled = True
+    nav_cfg.lane_follow_enabled = True
+    nav_cfg.sweep_planner_omega_weight_round2 = 0.0
+    navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, 5.0, 2.0, Pose2D(0.0, 0.45, 0.0), Pose2D(1.0, 0.45, 0.0))
+    navigator.velocity_debug = {"safety_state": "clear"}
+    frame = SensorFrame(
+        encoder=EncoderPacket(0, 0, 1.0),
+        lidar=LidarPacket(hit_points_local=[], ranges_m=[], angles_rad=[], timestamp=1.0),
+        zed=ZedPacket(hit_points_local=[], timestamp=1.0),
+        goal=GoalPacket(1.0, 0.45, 1.0),
+    )
+    mission_status = {
+        "competition_v2": {
+            "enabled": True,
+            "round": "round2",
+            "phase": "sweep_search",
+            "active_lane_y_m": 0.45,
+            "active_cell_row": 0,
+            "minimum_speed_mps": 0.0894,
+            "sweep_target_yaw_deg": 0.0,
+        }
+    }
+
+    adjusted = apply_competition_closed_loop_command(
+        navigator,
+        ControlCommand("FORWARD", v_mps=0.1, omega_radps=0.5, controller="velocity", command_type="velocity"),
+        frame,
+        mission_status,
+    )
+
+    assert adjusted.mode == "FORWARD"
+    assert navigator.closed_loop_debug["sweep_planner_omega_weight"] == 0.0
+    assert navigator.closed_loop_debug["planner_omega_contribution_radps"] == 0.0
+    assert abs(navigator.closed_loop_debug["final_omega_radps"]) <= 1e-6
+
+
+def test_round3_sweep_planner_omega_weight_can_blend_planner_omega():
+    robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.6096)
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    nav_cfg.competition_closed_loop_enabled = True
+    nav_cfg.heading_hold_enabled = True
+    nav_cfg.lane_follow_enabled = True
+    nav_cfg.sweep_planner_omega_weight_round3 = 0.2
+    navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, 5.0, 2.0, Pose2D(0.0, 0.45, 0.0), Pose2D(1.0, 0.45, 0.0))
+    navigator.velocity_debug = {"safety_state": "clear"}
+    frame = SensorFrame(
+        encoder=EncoderPacket(0, 0, 1.0),
+        lidar=LidarPacket(hit_points_local=[], ranges_m=[], angles_rad=[], timestamp=1.0),
+        zed=ZedPacket(hit_points_local=[], timestamp=1.0),
+        goal=GoalPacket(1.0, 0.45, 1.0),
+    )
+    mission_status = {
+        "competition_v2": {
+            "enabled": True,
+            "round": "round3",
+            "phase": "sweep_search",
+            "active_lane_y_m": 0.45,
+            "active_cell_row": 0,
+            "minimum_speed_mps": 0.0894,
+            "sweep_target_yaw_deg": 0.0,
+        }
+    }
+
+    adjusted = apply_competition_closed_loop_command(
+        navigator,
+        ControlCommand("FORWARD", v_mps=0.1, omega_radps=0.5, controller="velocity", command_type="velocity"),
+        frame,
+        mission_status,
+    )
+
+    assert adjusted.mode == "FORWARD"
+    assert navigator.closed_loop_debug["sweep_planner_omega_weight"] == 0.2
+    assert math.isclose(navigator.closed_loop_debug["planner_omega_contribution_radps"], 0.1)
+    assert navigator.closed_loop_debug["final_omega_radps"] > 0.0
+
+
 def test_forward_arc_only_clamps_small_reverse_inner_wheel_targets():
     v_mps, omega, limit, clamped, left, right = apply_forward_arc_only_limit(
         0.10,
@@ -692,6 +825,15 @@ def test_nav_status_exposes_competition_closed_loop_fields():
             "lane_follow_deadband_m": 0.08,
             "lane_follow_max_heading_deg": 15.0,
             "lane_follow_max_omega_rps": 0.25,
+            "row_follower_speed_schedule_enabled": True,
+            "row_follower_scheduled_lane_kp": 0.85,
+            "row_follower_scheduled_heading_kp": 0.95,
+            "row_follower_raw_omega_radps": 0.06,
+            "row_follower_smoothed_omega_radps": 0.05,
+            "row_follower_rate_limited": False,
+            "sweep_planner_omega_weight": 0.0,
+            "planner_omega_radps": 0.2,
+            "planner_omega_contribution_radps": 0.0,
             "forward_arc_only_enabled": True,
             "forward_arc_margin": 0.75,
             "min_sweep_v_mps": 0.08,
@@ -757,6 +899,15 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "lane_follow_deadband_m",
         "lane_follow_max_heading_deg",
         "lane_follow_max_omega_rps",
+        "row_follower_speed_schedule_enabled",
+        "row_follower_scheduled_lane_kp",
+        "row_follower_scheduled_heading_kp",
+        "row_follower_raw_omega_radps",
+        "row_follower_smoothed_omega_radps",
+        "row_follower_rate_limited",
+        "sweep_planner_omega_weight",
+        "planner_omega_radps",
+        "planner_omega_contribution_radps",
         "forward_arc_only_enabled",
         "forward_arc_margin",
         "min_sweep_v_mps",
@@ -779,6 +930,91 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "divergence_action",
     ]:
         assert key in status["competition_closed_loop"]
+
+
+def test_sweep_metrics_logger_writes_expected_fields(tmp_path):
+    logger = SweepMetricsLogger(str(tmp_path))
+    status = {
+        "stamp": 12.3,
+        "pose_m": [1.0, 0.47, 2.0],
+        "physical_stall_detected": False,
+        "competition_v2": {
+            "phase": "sweep_search",
+            "active_cell": 4,
+        },
+        "competition_closed_loop": {
+            "cross_track_error_m": 0.02,
+            "heading_error_deg": -1.5,
+            "final_v_mps": 0.12,
+            "final_omega_radps": 0.03,
+            "closed_loop_diverging": False,
+        },
+    }
+    motor_status = {
+        "target_left_mps": 0.11,
+        "target_right_mps": 0.13,
+        "measured_left_mps": 0.10,
+        "measured_right_mps": 0.12,
+    }
+
+    logger.record(status, motor_status)
+    summary = logger.summary()
+    logger.close()
+    content = pathlib.Path(summary["log_file"]).read_text()
+
+    for field in SweepMetricsLogger.FIELDNAMES:
+        assert field in content.splitlines()[0]
+    assert "sweep_search" in content
+    assert summary["samples"] == 1
+    assert summary["max_abs_cross_track_error_m"] == 0.02
+
+
+def test_jetson_round2_clear_tuned_profile_resolves_expected_defaults():
+    bringup = (ROOT / "ros2_ws" / "jetson_bringup.sh").read_text()
+
+    for token in [
+        'UGV_PROFILE="${UGV_PROFILE:-manual}"',
+        "round2_clear_tuned)",
+        'profile_default ROUND_MODE "round2"',
+        'profile_default ROBOT_TICKS_PER_REV "2151"',
+        'profile_default DRIVE_SPEED_LEVEL "2"',
+        'profile_default MOTOR_VELOCITY_CONTROL_ENABLED "true"',
+        'profile_default MOTOR_VELOCITY_KP "0.45"',
+        'profile_default MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS "1.60"',
+        'profile_default NAV_FORWARD_ARC_MARGIN "0.60"',
+        'profile_default NAV_MIN_SWEEP_V_MPS "0.12"',
+        'profile_default NAV_HEADING_HOLD_KP "0.95"',
+        'profile_default NAV_HEADING_HOLD_KD "0.18"',
+        'profile_default NAV_LANE_FOLLOW_KP_HEADING "0.85"',
+        'profile_default NAV_LANE_FOLLOW_KP_OMEGA "0.82"',
+        'profile_default NAV_CLOSED_LOOP_DIVERGENCE_ACTION "warn"',
+        'profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"',
+    ]:
+        assert token in bringup
+
+
+def test_jetson_profile_defaults_preserve_manual_env_overrides():
+    bringup = (ROOT / "ros2_ws" / "jetson_bringup.sh").read_text()
+
+    assert "profile_default()" in bringup
+    assert 'if [[ -z "${!name+x}" ]]; then' in bringup
+    assert 'export "${name}=${value}"' in bringup
+    assert 'UGV profile: ${UGV_PROFILE}' in bringup
+
+
+def test_tuned_profile_run_scripts_exist_and_select_profiles():
+    scripts = {
+        "run_round2_clear_tuned.sh": "round2_clear_tuned",
+        "run_round3_obstacle_tuned.sh": "round3_obstacle_tuned",
+        "run_round1_straight_tuned.sh": "round1_straight_tuned",
+    }
+    for script_name, profile in scripts.items():
+        script = (ROOT / "ros2_ws" / "scripts" / script_name).read_text()
+        assert f'export UGV_PROFILE="${{UGV_PROFILE:-{profile}}}"' in script
+        assert "first_existing_port" in script
+        assert "MOTOR_PORT" in script
+        assert "LIDAR_PORT" in script
+        assert 'exec bash "${WORKSPACE_DIR}/jetson_bringup.sh"' in script
 
 
 def test_local_costmap_cli_launch_and_env_parameters_are_wired():

@@ -16,6 +16,12 @@ except Exception:
     cv2 = None
 
 from ugv_nav_core.local_costmap import LocalCostmapConfig, RollingLocalCostmap
+from ugv_nav_core.competition_mission import (
+    CompetitionMissionConfig,
+    CompetitionMissionV2,
+    NavigationFeedback,
+    normalize_mission_flag_state,
+)
 from ugv_nav_core.recovery import RecoveryContext, RecoveryState, classify_recovery_state
 
 plt = None
@@ -285,8 +291,22 @@ def parse_mission_flag(raw: str, timestamp: float) -> MissionFlagPacket:
         "departing": "leaving",
         "scan": "scanning",
         "search": "scanning",
+        "touchdown": "landed",
+        "uav_landed": "landed",
+        "landing_done": "landing_complete",
+        "landing_finished": "landing_complete",
+        "land_complete": "landing_complete",
+        "uav_landing_complete": "landing_complete",
+        "mission_done": "mission_complete",
+        "mission_finished": "mission_complete",
+        "finished": "complete",
+        "finish": "complete",
+        "round_finished": "round_complete",
+        "stopping": "stop",
+        "e_stop": "emergency_stop",
+        "estop": "emergency_stop",
     }
-    state = aliases.get(state, state or "unknown")
+    state = normalize_mission_flag_state(aliases.get(state, state or "unknown"))
     return MissionFlagPacket(state=state, source=source, timestamp=timestamp, raw=payload)
 
 
@@ -4479,7 +4499,19 @@ def run_simulation(
     local_costmap_inflation_m: float = 0.08,
     local_costmap_lidar_clear_radius_m: float = 0.05,
     local_costmap_max_raytrace_m: float = 4.0,
+    mission_mode: str = "manual",
+    competition_mission_v2_enabled: bool = True,
+    straight_distance_m: float = yd(13.0),
+    sweep_cell_size_m: float = 0.75,
+    sweep_lane_spacing_m: float = 0.75,
+    sweep_coverage_radius_m: float = 0.55,
+    sweep_coverage_threshold: float = 0.85,
+    sweep_goal_timeout_s: float = 8.0,
+    sweep_fail_limit: int = 3,
+    min_competition_speed_mps: float = 0.0894,
 ) -> dict:
+    mission_mode = normalize_mission_mode(mission_mode)
+    competition_v2_active = bool(competition_mission_v2_enabled) and mission_mode in {"round1", "round2", "round3"}
     robot_cfg = RobotConfig()
     robot_cfg.obstacle_buffer_m = clamp(float(robot_obstacle_buffer_m), 0.0, 0.20)
     sensor_cfg = SensorConfig()
@@ -4508,6 +4540,13 @@ def run_simulation(
     nav_cfg.local_costmap_inflation_m = clamp(float(local_costmap_inflation_m), 0.0, 0.80)
     nav_cfg.local_costmap_lidar_clear_radius_m = clamp(float(local_costmap_lidar_clear_radius_m), 0.0, 0.40)
     nav_cfg.local_costmap_max_raytrace_m = clamp(float(local_costmap_max_raytrace_m), 0.20, 12.0)
+    nav_cfg.allow_stop_at_goal = not competition_v2_active
+    if competition_v2_active:
+        nav_cfg.continuous_min_speed_mps = clamp(
+            max(nav_cfg.continuous_min_speed_mps, float(min_competition_speed_mps)),
+            0.02,
+            nav_cfg.continuous_max_speed_mps,
+        )
     sim_cfg = SimConfig(show_gui=show_gui, max_steps=max_steps)
 
     start = Pose2D(yd(0.5), yd(0.5), 0.0)
@@ -4517,6 +4556,29 @@ def run_simulation(
     robot = SimulatedRobot(robot_cfg, start)
     sensors = SimulatedSensors(robot_cfg, sensor_cfg, world)
     navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, sim_cfg.field_w_m, sim_cfg.field_h_m, start, goal)
+    mission_v2 = None
+    if competition_v2_active:
+        mission_v2 = CompetitionMissionV2(
+            mission_mode,
+            CompetitionMissionConfig(
+                field_width_m=sim_cfg.field_w_m,
+                field_height_m=sim_cfg.field_h_m,
+                start_x_m=start.x,
+                start_y_m=start.y,
+                start_yaw_deg=math.degrees(start.yaw),
+                min_competition_speed_mps=min_competition_speed_mps,
+                straight_distance_m=straight_distance_m,
+                sweep_cell_size_m=sweep_cell_size_m,
+                sweep_lane_spacing_m=sweep_lane_spacing_m,
+                sweep_coverage_radius_m=sweep_coverage_radius_m,
+                sweep_coverage_threshold=sweep_coverage_threshold,
+                sweep_fail_limit=sweep_fail_limit,
+                sweep_goal_timeout_s=sweep_goal_timeout_s,
+                target_accept_radius_m=YARD_TO_M,
+                obstacle_aware=mission_mode == "round3",
+            ),
+            enabled=True,
+        )
 
     control_planner = navigator.hybrid_fallback
     vis = SimVisualizer(world, navigator, robot, sensor_cfg) if show_gui else None
@@ -4530,8 +4592,26 @@ def run_simulation(
     def sim_step(step_i_local: int):
         nonlocal latest_hits_world, done
         ts = step_i_local * sim_cfg.dt_s
-        frame = sensors.read(robot.state, (goal.x, goal.y), ts)
+        active_goal_xy = (goal.x, goal.y)
+        mission_update = None
+        if mission_v2 is not None:
+            mission_update = mission_v2.update(
+                (
+                    navigator.state.estimated_pose.x,
+                    navigator.state.estimated_pose.y,
+                    navigator.state.estimated_pose.yaw,
+                ),
+                ts,
+            )
+            active_goal_xy = mission_update.active_goal_m
+        frame = sensors.read(robot.state, active_goal_xy, ts)
+        if mission_update is not None:
+            frame.goal = GoalPacket(active_goal_xy[0], active_goal_xy[1], ts)
         cmd = navigator.step(frame)
+        if mission_v2 is not None:
+            mission_v2.observe_navigation_feedback(navigation_feedback_for_competition_v2(navigator, cmd, frame))
+            if mission_update is not None and mission_update.stop_requested:
+                cmd = ControlCommand("STOP", reason=f"{mission_update.phase} stop requested: {mission_update.reason}")
         print(f"SIM CMD step={step_i_local:03d}: {json.dumps(cmd.as_dict())}")
         robot.apply_command(cmd, world, control_planner, sim_cfg.dt_s)
         true_trail.append((robot.state.true_pose.x, robot.state.true_pose.y))
@@ -4596,7 +4676,7 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
     pose = navigator.state.estimated_pose
     goal = navigator.state.goal_pose
     field_map = frame.field_map
-    return {
+    status = {
         "stamp": round(frame.encoder.timestamp, 3),
         "mission": mission_status,
         "pose_m": [round(pose.x, 3), round(pose.y, 3), round(math.degrees(pose.yaw), 1)],
@@ -4644,6 +4724,53 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
         } if frame.mission_flag else None,
         "finish_reason": navigator.state.finish_reason,
     }
+    if mission_status.get("competition_v2") is not None:
+        status["competition_v2"] = mission_status["competition_v2"]
+    return status
+
+
+def competition_v2_status_for_update(update) -> dict:
+    v2 = dict(update.status)
+    return {
+        "enabled": update.enabled,
+        "mode": update.round,
+        "phase": update.phase,
+        "stop_requested": update.stop_requested,
+        "speed_scale": round(update.speed_scale, 3),
+        "speed_reason": update.reason,
+        "min_speed_mps": round(update.minimum_speed_mps, 6),
+        "active_goal_m": list(v2.get("active_goal_m", [])),
+        "final_goal_m": v2.get("target_goal_m") if update.target_known else None,
+        "final_goal_source": update.target_source,
+        "competition_v2": v2,
+    }
+
+
+def navigation_feedback_for_competition_v2(
+    navigator: UGVNavigator,
+    cmd: ControlCommand,
+    frame: SensorFrame,
+) -> NavigationFeedback:
+    velocity_debug = navigator.velocity_debug or {}
+    finish_reason = str(navigator.state.finish_reason or "")
+    planner_failed = navigator.state.planner_name == "failed" and not navigator.state.path
+    no_safe = velocity_debug.get("safety_state") == "no_safe_trajectory"
+    stuck_steps = int(getattr(navigator, "_stuck_counter", 0))
+    stuck = (
+        stuck_steps >= max(1, int(navigator.nav_cfg.stuck_trigger_steps))
+        or "stuck" in str(cmd.reason).lower()
+        or "stuck" in finish_reason.lower()
+    )
+    progress_m = float(navigator.last_odom_delta.get("ds_m") or 0.0)
+    return NavigationFeedback(
+        now_s=frame.encoder.timestamp,
+        no_safe_trajectory=bool(no_safe),
+        local_planner_failed=bool(planner_failed),
+        stuck=bool(stuck),
+        stuck_steps=stuck_steps,
+        finish_reason=finish_reason,
+        progress_m=progress_m,
+    )
 
 
 def run_real_mode(
@@ -4657,6 +4784,14 @@ def run_real_mode(
     center_loiter_radius_m: float = 0.75,
     target_accept_radius_m: float = YARD_TO_M,
     straight_distance_m: float = yd(13.0),
+    competition_mission_v2_enabled: bool = True,
+    sweep_cell_size_m: float = 0.75,
+    sweep_lane_spacing_m: float = 0.75,
+    sweep_coverage_radius_m: float = 0.55,
+    sweep_coverage_threshold: float = 0.85,
+    sweep_goal_timeout_s: float = 8.0,
+    sweep_fail_limit: int = 3,
+    min_competition_speed_mps: float = 0.0894,
     field_map_topic: str = "/ugv/field_map",
     target_topic: str = "/ugv/target",
     marker_topic: str = "/ugv/marker_detection",
@@ -4717,6 +4852,7 @@ def run_real_mode(
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
     competition_mode = mission_mode == "round3"
+    competition_v2_active = bool(competition_mission_v2_enabled) and mission_mode in {"round1", "round2", "round3"}
     robot_cfg = RobotConfig()
     robot_cfg.length_m = max(0.20, float(robot_length_m))
     robot_cfg.width_m = max(0.20, float(robot_width_m))
@@ -4728,7 +4864,7 @@ def run_real_mode(
     robot_cfg.lidar_offset_y_m = float(lidar_offset_y_m)
     sensor_cfg = SensorConfig()
     nav_cfg = NavConfig()
-    nav_cfg.allow_stop_at_goal = mission_mode not in {"round3", "indoor"}
+    nav_cfg.allow_stop_at_goal = (not competition_v2_active) and mission_mode not in {"round3", "indoor"}
     nav_cfg.nonstop_when_blocked = mission_mode in {"round3", "indoor"}
     nav_cfg.allow_reverse = bool(allow_reverse)
     nav_cfg.lidar_used_fov_deg = clamp(float(lidar_used_fov_deg), 1.0, 360.0)
@@ -4773,6 +4909,15 @@ def run_real_mode(
     nav_cfg.local_costmap_max_raytrace_m = clamp(float(local_costmap_max_raytrace_m), 0.20, 12.0)
     drive_speed_level = normalize_drive_speed_level(drive_speed_level)
     drive_factor = drive_speed_factor(drive_speed_level)
+    if competition_v2_active:
+        nav_cfg.continuous_min_speed_mps = clamp(
+            max(
+                nav_cfg.continuous_min_speed_mps,
+                float(min_competition_speed_mps) / max(drive_factor, 1e-6),
+            ),
+            0.02,
+            nav_cfg.continuous_max_speed_mps,
+        )
     field_w_m = yd(15.0)
     field_h_m = yd(15.0)
     custom_start_x = finite_optional(start_x_m)
@@ -4807,21 +4952,45 @@ def run_real_mode(
             init_pose = Pose2D(yd(0.5), yd(0.5), 0.0)
         init_goal = Pose2D(yd(13.4), yd(13.0), 0.0)
     navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, field_w_m, field_h_m, init_pose, init_goal)
-    mission = CompetitionMission(
-        enabled=mission_mode != "manual",
-        mission_mode=mission_mode,
-        start_corner=start_corner,
-        field_w_m=field_w_m,
-        field_h_m=field_h_m,
-        start_pose=init_pose,
-        center_loiter_radius_m=center_loiter_radius_m,
-        target_accept_radius_m=target_accept_radius_m,
-        min_speed_mps=min_speed_mps,
-        straight_distance_m=straight_distance_m,
-        lidar_used_fov_deg=nav_cfg.lidar_used_fov_deg,
-        lidar_offset_x_m=robot_cfg.lidar_offset_x_m,
-        lidar_offset_y_m=robot_cfg.lidar_offset_y_m,
-    )
+    if competition_v2_active:
+        mission = CompetitionMissionV2(
+            mission_mode,
+            CompetitionMissionConfig(
+                field_width_m=field_w_m,
+                field_height_m=field_h_m,
+                start_x_m=init_pose.x,
+                start_y_m=init_pose.y,
+                start_yaw_deg=math.degrees(init_pose.yaw),
+                min_competition_speed_mps=min_competition_speed_mps,
+                straight_distance_m=straight_distance_m,
+                sweep_cell_size_m=sweep_cell_size_m,
+                sweep_lane_spacing_m=sweep_lane_spacing_m,
+                sweep_coverage_radius_m=sweep_coverage_radius_m,
+                sweep_coverage_threshold=sweep_coverage_threshold,
+                sweep_fail_limit=sweep_fail_limit,
+                sweep_goal_timeout_s=sweep_goal_timeout_s,
+                target_accept_radius_m=target_accept_radius_m,
+                obstacle_aware=mission_mode == "round3",
+                use_legacy_center_expand=False,
+            ),
+            enabled=True,
+        )
+    else:
+        mission = CompetitionMission(
+            enabled=mission_mode != "manual",
+            mission_mode=mission_mode,
+            start_corner=start_corner,
+            field_w_m=field_w_m,
+            field_h_m=field_h_m,
+            start_pose=init_pose,
+            center_loiter_radius_m=center_loiter_radius_m,
+            target_accept_radius_m=target_accept_radius_m,
+            min_speed_mps=min_speed_mps,
+            straight_distance_m=straight_distance_m,
+            lidar_used_fov_deg=nav_cfg.lidar_used_fov_deg,
+            lidar_offset_x_m=robot_cfg.lidar_offset_x_m,
+            lidar_offset_y_m=robot_cfg.lidar_offset_y_m,
+        )
 
     if replay_json:
         bridge: RealRobotBridgeBase = JsonReplayBridge(replay_json)
@@ -4837,9 +5006,13 @@ def run_real_mode(
     print("Running REAL mode. No GUI. Printing and sending control commands.")
     print(
         f"Mission mode: {mission_mode}, competition_mode={competition_mode}, "
+        f"competition_mission_v2={competition_v2_active}, "
         f"start_corner={normalize_corner_name(start_corner)}, "
         f"start_pose=({init_pose.x:.2f}, {init_pose.y:.2f}, {math.degrees(init_pose.yaw):.1f}deg), "
         f"straight_distance_m={straight_distance_m:.2f}, "
+        f"sweep_cell={sweep_cell_size_m:.2f}m lane={sweep_lane_spacing_m:.2f}m "
+        f"coverage_radius={sweep_coverage_radius_m:.2f}m threshold={sweep_coverage_threshold:.2f}, "
+        f"min_competition_speed={min_competition_speed_mps:.3f}m/s, "
         f"drive_speed_level={drive_speed_level}/4 ({drive_factor:.2f}x), "
         f"robot=({robot_cfg.length_m:.2f}m x {robot_cfg.width_m:.2f}m), "
         f"lidar_offset=({robot_cfg.lidar_offset_x_m:.2f}, {robot_cfg.lidar_offset_y_m:.2f})m, "
@@ -4878,10 +5051,46 @@ def run_real_mode(
                 break
             time.sleep(0.02)
             continue
-        mission_status = dict(mission.update_frame(frame, navigator.state.estimated_pose))
+        if competition_v2_active:
+            marker_goal = None
+            marker_distance_m = None
+            if frame.marker_goal is not None:
+                marker_goal = (frame.marker_goal.x, frame.marker_goal.y)
+                marker_distance_m = frame.marker_goal.distance_m
+            field_map_goal = frame.field_map.goal_xy if frame.field_map is not None else None
+            field_map_source = frame.field_map.source if frame.field_map is not None else None
+            mission_flag_state = frame.mission_flag.state if frame.mission_flag is not None else None
+            mission_flag_source = frame.mission_flag.source if frame.mission_flag is not None else None
+            update = mission.update(
+                (
+                    navigator.state.estimated_pose.x,
+                    navigator.state.estimated_pose.y,
+                    navigator.state.estimated_pose.yaw,
+                ),
+                frame.encoder.timestamp,
+                marker_goal=marker_goal,
+                marker_distance_m=marker_distance_m,
+                field_map_goal=field_map_goal,
+                field_map_source=field_map_source,
+                mission_flag_state=mission_flag_state,
+                mission_flag_source=mission_flag_source,
+            )
+            frame.goal = GoalPacket(update.active_goal_m[0], update.active_goal_m[1], frame.encoder.timestamp, marker_distance_m)
+            mission_status = competition_v2_status_for_update(update)
+        else:
+            mission_status = dict(mission.update_frame(frame, navigator.state.estimated_pose))
         cmd = navigator.step(frame)
+        if competition_v2_active:
+            feedback_changed = mission.observe_navigation_feedback(
+                navigation_feedback_for_competition_v2(navigator, cmd, frame)
+            )
+            if feedback_changed:
+                mission_status = competition_v2_status_for_update(mission.current_update())
         if mission_status.get("stop_requested"):
-            cmd = ControlCommand("STOP", reason=f"{mission_status.get('phase', 'target')} reached inside accept radius")
+            cmd = ControlCommand(
+                "STOP",
+                reason=f"{mission_status.get('phase', 'target')} stop requested: {mission_status.get('speed_reason', mission_status.get('final_goal_source', 'mission'))}",
+            )
         speed_scale, speed_reason = mission.command_speed_scale()
         effective_speed_scale = speed_scale * drive_factor
         mission_status["drive_speed_level"] = drive_speed_level
@@ -4917,13 +5126,25 @@ def str_to_bool(value: str) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def competition_mode_cli_value(value: str) -> Tuple[bool, Optional[str]]:
+    text = str(value or "false").strip().lower().replace("-", "_").replace(" ", "_")
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True, None
+    if text in {"0", "false", "no", "n", "off", ""}:
+        return False, None
+    try:
+        return True, normalize_mission_mode(text)
+    except ValueError:
+        return str_to_bool(text), None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="UGV dual-mode navigation bridge, sim mode + real mode")
     parser.add_argument("--mode", choices=["sim", "real"], default="sim")
     parser.add_argument("--headless", action="store_true", help="sim mode without matplotlib GUI")
     parser.add_argument("--max-steps", type=int, default=900)
     parser.add_argument("--replay-json", type=str, default=None, help="use JSONL replay file for real mode testing")
-    parser.add_argument("--competition-mode", type=str_to_bool, default=False, help="enable corner startup/search mission logic in real mode")
+    parser.add_argument("--competition-mode", type=str, default="false", help="enable competition mode; accepts true/false or round1/round2/round3")
     parser.add_argument("--mission-mode", choices=["manual", "round1", "round2", "round3", "indoor"], default="manual")
     parser.add_argument("--start-corner", type=str, default="lower_left", help="one of lower_left, lower_right, upper_left, upper_right")
     parser.add_argument("--start-x-m", type=float, default=float("nan"), help="optional UGV start x in meters from the lower-left field origin")
@@ -4932,6 +5153,14 @@ def main() -> None:
     parser.add_argument("--center-loiter-radius-m", type=float, default=0.75)
     parser.add_argument("--target-accept-radius-m", type=float, default=YARD_TO_M, help="competition-mode radius that counts as reaching the marker")
     parser.add_argument("--straight-distance-m", type=float, default=yd(13.0), help="round1/round2 straight-ahead runout goal distance")
+    parser.add_argument("--competition-mission-v2-enabled", type=str_to_bool, default=True, help="use formal competition mission V2 for round1/round2/round3")
+    parser.add_argument("--sweep-cell-size-m", type=float, default=0.75)
+    parser.add_argument("--sweep-lane-spacing-m", type=float, default=0.75)
+    parser.add_argument("--sweep-coverage-radius-m", type=float, default=0.55)
+    parser.add_argument("--sweep-coverage-threshold", type=float, default=0.85)
+    parser.add_argument("--sweep-goal-timeout-s", type=float, default=8.0)
+    parser.add_argument("--sweep-fail-limit", type=int, default=3)
+    parser.add_argument("--min-competition-speed-mps", type=float, default=0.0894, help="minimum moving speed required by competition rules, 0.2 mph in m/s")
     parser.add_argument("--field-map-topic", type=str, default="/ugv/field_map")
     parser.add_argument("--target-topic", type=str, default="/ugv/target")
     parser.add_argument("--marker-topic", type=str, default="/ugv/marker_detection")
@@ -4989,6 +5218,9 @@ def main() -> None:
     parser.add_argument("--local-costmap-lidar-clear-radius-m", type=float, default=0.05, help="radius used when ray-clearing dynamic local costmap cells")
     parser.add_argument("--local-costmap-max-raytrace-m", type=float, default=4.0, help="max LiDAR range used for local costmap no-hit ray clearing")
     args = parser.parse_args()
+    competition_mode_enabled, competition_mode_override = competition_mode_cli_value(args.competition_mode)
+    if competition_mode_override is not None and args.mission_mode == "manual":
+        args.mission_mode = competition_mode_override
 
     if args.mode == "sim":
         run_simulation(
@@ -5019,11 +5251,21 @@ def main() -> None:
             local_costmap_inflation_m=args.local_costmap_inflation_m,
             local_costmap_lidar_clear_radius_m=args.local_costmap_lidar_clear_radius_m,
             local_costmap_max_raytrace_m=args.local_costmap_max_raytrace_m,
+            mission_mode=args.mission_mode,
+            competition_mission_v2_enabled=args.competition_mission_v2_enabled,
+            straight_distance_m=args.straight_distance_m,
+            sweep_cell_size_m=args.sweep_cell_size_m,
+            sweep_lane_spacing_m=args.sweep_lane_spacing_m,
+            sweep_coverage_radius_m=args.sweep_coverage_radius_m,
+            sweep_coverage_threshold=args.sweep_coverage_threshold,
+            sweep_goal_timeout_s=args.sweep_goal_timeout_s,
+            sweep_fail_limit=args.sweep_fail_limit,
+            min_competition_speed_mps=args.min_competition_speed_mps,
         )
     else:
         run_real_mode(
             replay_json=args.replay_json,
-            competition_mode=args.competition_mode,
+            competition_mode=competition_mode_enabled,
             mission_mode=args.mission_mode,
             start_corner=args.start_corner,
             start_x_m=args.start_x_m,
@@ -5032,6 +5274,14 @@ def main() -> None:
             center_loiter_radius_m=args.center_loiter_radius_m,
             target_accept_radius_m=args.target_accept_radius_m,
             straight_distance_m=args.straight_distance_m,
+            competition_mission_v2_enabled=args.competition_mission_v2_enabled,
+            sweep_cell_size_m=args.sweep_cell_size_m,
+            sweep_lane_spacing_m=args.sweep_lane_spacing_m,
+            sweep_coverage_radius_m=args.sweep_coverage_radius_m,
+            sweep_coverage_threshold=args.sweep_coverage_threshold,
+            sweep_goal_timeout_s=args.sweep_goal_timeout_s,
+            sweep_fail_limit=args.sweep_fail_limit,
+            min_competition_speed_mps=args.min_competition_speed_mps,
             field_map_topic=args.field_map_topic,
             target_topic=args.target_topic,
             marker_topic=args.marker_topic,

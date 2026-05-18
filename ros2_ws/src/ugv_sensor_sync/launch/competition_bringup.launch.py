@@ -70,6 +70,14 @@ def generate_launch_description():
     min_speed_mps = LaunchConfiguration('min_speed_mps')
     drive_speed_level = LaunchConfiguration('drive_speed_level')
     straight_distance_m = LaunchConfiguration('straight_distance_m')
+    competition_mission_v2_enabled = LaunchConfiguration('competition_mission_v2_enabled')
+    sweep_cell_size_m = LaunchConfiguration('sweep_cell_size_m')
+    sweep_lane_spacing_m = LaunchConfiguration('sweep_lane_spacing_m')
+    sweep_coverage_radius_m = LaunchConfiguration('sweep_coverage_radius_m')
+    sweep_coverage_threshold = LaunchConfiguration('sweep_coverage_threshold')
+    sweep_goal_timeout_s = LaunchConfiguration('sweep_goal_timeout_s')
+    sweep_fail_limit = LaunchConfiguration('sweep_fail_limit')
+    min_competition_speed_mps = LaunchConfiguration('min_competition_speed_mps')
     bench_goal_x_m = LaunchConfiguration('bench_goal_x_m')
     bench_goal_y_m = LaunchConfiguration('bench_goal_y_m')
     bench_goal_period_s = LaunchConfiguration('bench_goal_period_s')
@@ -299,6 +307,22 @@ def generate_launch_description():
             target_accept_radius_m,
             '--straight-distance-m',
             straight_distance_m,
+            '--competition-mission-v2-enabled',
+            competition_mission_v2_enabled,
+            '--sweep-cell-size-m',
+            sweep_cell_size_m,
+            '--sweep-lane-spacing-m',
+            sweep_lane_spacing_m,
+            '--sweep-coverage-radius-m',
+            sweep_coverage_radius_m,
+            '--sweep-coverage-threshold',
+            sweep_coverage_threshold,
+            '--sweep-goal-timeout-s',
+            sweep_goal_timeout_s,
+            '--sweep-fail-limit',
+            sweep_fail_limit,
+            '--min-competition-speed-mps',
+            min_competition_speed_mps,
             '--target-topic',
             target_topic,
             '--mission-flag-topic',
@@ -534,6 +558,14 @@ def generate_launch_description():
         DeclareLaunchArgument('min_speed_mps', default_value='0.178816'),
         DeclareLaunchArgument('drive_speed_level', default_value='4'),
         DeclareLaunchArgument('straight_distance_m', default_value='11.8872'),
+        DeclareLaunchArgument('competition_mission_v2_enabled', default_value='true'),
+        DeclareLaunchArgument('sweep_cell_size_m', default_value='0.75'),
+        DeclareLaunchArgument('sweep_lane_spacing_m', default_value='0.75'),
+        DeclareLaunchArgument('sweep_coverage_radius_m', default_value='0.55'),
+        DeclareLaunchArgument('sweep_coverage_threshold', default_value='0.85'),
+        DeclareLaunchArgument('sweep_goal_timeout_s', default_value='8.0'),
+        DeclareLaunchArgument('sweep_fail_limit', default_value='3'),
+        DeclareLaunchArgument('min_competition_speed_mps', default_value='0.0894'),
         DeclareLaunchArgument('bench_goal_x_m', default_value='12.2'),
         DeclareLaunchArgument('bench_goal_y_m', default_value='12.0'),
         DeclareLaunchArgument('bench_goal_period_s', default_value='1.0'),

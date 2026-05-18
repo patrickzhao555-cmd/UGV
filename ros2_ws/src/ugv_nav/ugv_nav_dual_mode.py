@@ -541,6 +541,12 @@ class NavConfig:
     imu_yaw_max_rate_rps: float = 4.0
     min_motion_raw: float = 0.22
     recovery_turn_raw: float = 0.32
+    competition_sweep_active: bool = False
+    sweep_allow_pure_turn: bool = False
+    sweep_heading_tolerance_deg: float = 25.0
+    physical_stall_timeout_s: float = 1.5
+    physical_stall_min_raw: float = 0.12
+    physical_stall_min_v_mps: float = 0.04
 
 
 @dataclass
@@ -567,6 +573,60 @@ def wrap_to_pi(a: float) -> float:
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
+
+
+@dataclass
+class PhysicalStallState:
+    detected: bool = False
+    steps: int = 0
+    duration_s: float = 0.0
+    reason: str = ""
+
+
+def command_meaningful_for_physical_stall(
+    cmd: ControlCommand,
+    *,
+    min_raw: float = 0.12,
+    min_v_mps: float = 0.04,
+) -> bool:
+    if cmd.mode == "STOP":
+        return False
+    raw_meaningful = max(abs(float(cmd.raw_left)), abs(float(cmd.raw_right))) >= max(0.0, float(min_raw))
+    velocity_meaningful = abs(float(cmd.v_mps)) >= max(0.0, float(min_v_mps)) or abs(float(cmd.omega_radps)) >= 0.12
+    return bool(raw_meaningful or velocity_meaningful)
+
+
+def update_physical_stall_state(
+    state: PhysicalStallState,
+    cmd: ControlCommand,
+    odom_delta: Dict[str, Any],
+    *,
+    timeout_s: float = 1.5,
+    min_raw: float = 0.12,
+    min_v_mps: float = 0.04,
+    linear_epsilon_m: float = 0.006,
+    angular_epsilon_deg: float = 1.0,
+) -> PhysicalStallState:
+    dt_s = max(0.0, float(odom_delta.get("dt_s") or 0.0))
+    ds_m = abs(float(odom_delta.get("ds_used_m", odom_delta.get("ds_m", 0.0)) or 0.0))
+    dtheta_deg = abs(float(odom_delta.get("dtheta_deg") or 0.0))
+    meaningful = command_meaningful_for_physical_stall(cmd, min_raw=min_raw, min_v_mps=min_v_mps)
+    no_motion = ds_m <= max(0.0, float(linear_epsilon_m)) and dtheta_deg <= max(0.0, float(angular_epsilon_deg))
+    if meaningful and no_motion and dt_s > 0.0:
+        state.steps += 1
+        state.duration_s += dt_s
+        state.detected = state.duration_s >= max(0.0, float(timeout_s))
+        state.reason = (
+            f"active_command_zero_odom_{state.duration_s:.2f}s"
+            if state.detected
+            else f"active_command_zero_odom_{state.duration_s:.2f}s_pending"
+        )
+    else:
+        state.detected = False
+        state.steps = 0
+        state.duration_s = 0.0
+        state.reason = ""
+    return state
 
 
 def normalize_corner_name(name: str) -> str:
@@ -1887,6 +1947,13 @@ class VelocityLocalPlanner:
                 path_clearance_source = "arc_gap"
         speed_cap, safety_state = self._speed_cap_from_clearance(path_clearance)
         v_samples, omega_samples = self._sample_velocities(speed_cap)
+        sweep_no_pure_turn = (
+            bool(self.nav_cfg.competition_sweep_active)
+            and not bool(self.nav_cfg.sweep_allow_pure_turn)
+            and safety_state != "stop"
+            and goal_dist > self.nav_cfg.goal_tol_m
+        )
+        sweep_large_heading_rad = math.radians(max(70.0, 2.5 * float(self.nav_cfg.sweep_heading_tolerance_deg)))
 
         samples = 0
         safe_samples = 0
@@ -1895,6 +1962,7 @@ class VelocityLocalPlanner:
             "rejected_clearance": 0,
             "rejected_reverse_disabled": 0,
             "rejected_arc_constraint": 0,
+            "rejected_sweep_pure_turn": 0,
             "rejected_other": 0,
         }
         best_score = -1e18
@@ -1918,6 +1986,9 @@ class VelocityLocalPlanner:
         for v in v_samples:
             for omega in omega_samples:
                 samples += 1
+                if sweep_no_pure_turn and v <= 1e-6 and abs(desired_heading) <= sweep_large_heading_rad:
+                    rejections["rejected_sweep_pure_turn"] += 1
+                    continue
                 left_mps = v - 0.5 * omega * self.robot_cfg.track_width_m
                 right_mps = v + 0.5 * omega * self.robot_cfg.track_width_m
                 if v > 0.005 and (left_mps < -1e-6 or right_mps < -1e-6):
@@ -2042,6 +2113,12 @@ class VelocityLocalPlanner:
             return self._velocity_to_command(v, omega, "velocity no safe trajectory", horizon)
 
         target_v, target_omega, _, min_clearance = best
+        sweep_turn_suppressed = False
+        if sweep_no_pure_turn and target_v <= 1e-6 and abs(desired_heading) <= sweep_large_heading_rad:
+            target_v = min(max(0.0, speed_cap), max(self.nav_cfg.continuous_min_speed_mps, 0.05))
+            max_arc_omega = 1.85 * target_v / max(1e-6, self.robot_cfg.track_width_m)
+            target_omega = clamp(target_omega, -max_arc_omega, max_arc_omega)
+            sweep_turn_suppressed = True
         immediate_stop = safety_state == "stop" and abs(target_omega) < 1e-6 and target_v <= 1e-6
         v, omega = self._apply_velocity_limits(target_v, target_omega, timestamp, immediate_stop=immediate_stop)
         cmd = self._velocity_to_command(
@@ -2055,6 +2132,21 @@ class VelocityLocalPlanner:
             ),
             horizon,
         )
+        if sweep_no_pure_turn and cmd.mode in {"TURN_LEFT", "TURN_RIGHT"} and abs(desired_heading) <= sweep_large_heading_rad:
+            forced_v = max(v, min(speed_cap, max(self.nav_cfg.continuous_min_speed_mps, 0.05)))
+            forced_omega = clamp(
+                omega,
+                -1.85 * forced_v / max(1e-6, self.robot_cfg.track_width_m),
+                1.85 * forced_v / max(1e-6, self.robot_cfg.track_width_m),
+            )
+            cmd = self._velocity_to_command(
+                forced_v,
+                forced_omega,
+                cmd.reason + "; competition sweep forward arc",
+                horizon,
+            )
+            v, omega = forced_v, forced_omega
+            sweep_turn_suppressed = True
         self.last_debug = {
             "enabled": True,
             "samples": samples,
@@ -2085,6 +2177,8 @@ class VelocityLocalPlanner:
             "best_gap_heading_deg": round(gap["best_heading_deg"], 1),
             "best_gap_depth_m": round(gap["best_depth_m"], 3),
             "safety_state": safety_state,
+            "competition_sweep_active": bool(self.nav_cfg.competition_sweep_active),
+            "sweep_pure_turn_suppressed": bool(sweep_turn_suppressed),
             "prev_v_mps": round(self.last_v, 4),
             "prev_omega_radps": round(self.last_omega, 4),
             **rejections,
@@ -2780,6 +2874,8 @@ class UGVNavigator:
         self._plan_failed_counter = 0
         self.recovery_state = RecoveryState.NORMAL
         self._odom_warning_counter = 0
+        self.last_sent_cmd = ControlCommand("STOP")
+        self.physical_stall = PhysicalStallState()
         self._last_field_map_version = -1
         self._last_field_map_key = None
         self.last_odom_delta = {
@@ -2789,6 +2885,17 @@ class UGVNavigator:
             "dtheta_deg": 0.0,
             "dt_s": 0.0,
             "warning": None,
+        }
+
+    def note_sent_command(self, cmd: ControlCommand) -> None:
+        self.last_sent_cmd = cmd
+
+    def physical_stall_status(self) -> Dict[str, Any]:
+        return {
+            "physical_stall_detected": bool(self.physical_stall.detected),
+            "physical_stall_steps": int(self.physical_stall.steps),
+            "physical_stall_duration_s": round(float(self.physical_stall.duration_s), 3),
+            "physical_stall_reason": self.physical_stall.reason,
         }
 
     def _touch_map(self) -> None:
@@ -3675,6 +3782,14 @@ class UGVNavigator:
         if math.isfinite(frame.goal.x) and math.isfinite(frame.goal.y):
             self.state.goal_pose = Pose2D(frame.goal.x, frame.goal.y, 0.0)
         moved_m = self._update_pose_from_encoders(frame.encoder, frame.imu)
+        update_physical_stall_state(
+            self.physical_stall,
+            self.last_sent_cmd,
+            self.last_odom_delta,
+            timeout_s=self.nav_cfg.physical_stall_timeout_s,
+            min_raw=self.nav_cfg.physical_stall_min_raw,
+            min_v_mps=self.nav_cfg.physical_stall_min_v_mps,
+        )
 
         self.blocked_memory.step()
         if self.blocked_memory.version != self._plan_costmap_cache_key[1]:
@@ -3813,6 +3928,9 @@ class UGVNavigator:
         if math.hypot(g.x - p.x, g.y - p.y) <= self.nav_cfg.goal_tol_m:
             if self.nav_cfg.allow_stop_at_goal:
                 cmd = ControlCommand('STOP', reason='goal reached')
+            elif self.nav_cfg.competition_sweep_active and not self.nav_cfg.sweep_allow_pure_turn:
+                raw = max(0.30, self.nav_cfg.min_motion_raw)
+                cmd = ControlCommand('FORWARD', move_m=min(self.nav_cfg.forward_step_choices_m), raw_left=raw, raw_right=raw, reason='competition sweep forward probe at transient goal')
             else:
                 cmd = ControlCommand('TURN_LEFT', turn_deg=10.0, raw_left=-0.24, raw_right=0.24, reason='goal reached loiter scan')
             self.state.finish_reason = 'goal reached'
@@ -3989,6 +4107,25 @@ class UGVNavigator:
             self.state.sectors,
             self.state.latest_cmd,
         )
+
+        if (
+            self.nav_cfg.competition_sweep_active
+            and not self.nav_cfg.sweep_allow_pure_turn
+            and cmd.mode in {'TURN_LEFT', 'TURN_RIGHT'}
+        ):
+            yaw_err = wrap_to_pi(math.atan2(target.y - self.state.estimated_pose.y, target.x - self.state.estimated_pose.x) - self.state.estimated_pose.yaw)
+            large_heading = math.radians(max(70.0, 2.5 * float(self.nav_cfg.sweep_heading_tolerance_deg)))
+            if abs(yaw_err) <= large_heading and self.local_planner._corridor_forward_clear(self.state.sectors):
+                base = max(0.30, self.nav_cfg.min_motion_raw)
+                steer_ratio = clamp(yaw_err / math.radians(35.0), -1.0, 1.0)
+                inner = max(self.nav_cfg.min_motion_raw, base * (1.0 - 0.45 * abs(steer_ratio)))
+                outer = min(0.55, base * (1.0 + 0.16 * abs(steer_ratio)))
+                if steer_ratio >= 0.0:
+                    probe = ControlCommand('FORWARD', move_m=min(self.nav_cfg.forward_step_choices_m), raw_left=inner, raw_right=outer, reason='competition sweep forward arc left')
+                else:
+                    probe = ControlCommand('FORWARD', move_m=min(self.nav_cfg.forward_step_choices_m), raw_left=outer, raw_right=inner, reason='competition sweep forward arc right')
+                if self.local_planner._safe_on_costmap(local_map, self.state.estimated_pose, probe) and self.local_planner._safe_on_sectors(probe, self.state.sectors):
+                    cmd = probe
 
         if cmd.mode in {'TURN_LEFT', 'TURN_RIGHT'}:
             if self.state.latest_cmd.mode in {'TURN_LEFT', 'TURN_RIGHT'} and cmd.mode != self.state.latest_cmd.mode:
@@ -4513,6 +4650,10 @@ def run_simulation(
     sweep_coverage_threshold: float = 0.85,
     sweep_goal_timeout_s: float = 8.0,
     sweep_fail_limit: int = 3,
+    sweep_lane_tolerance_m: float = 0.30,
+    sweep_heading_tolerance_deg: float = 25.0,
+    sweep_allow_pure_turn: bool = False,
+    sweep_stall_action: str = "skip",
     min_competition_speed_mps: float = 0.0894,
 ) -> dict:
     mission_mode = normalize_mission_mode(mission_mode)
@@ -4580,6 +4721,10 @@ def run_simulation(
                 sweep_coverage_threshold=sweep_coverage_threshold,
                 sweep_fail_limit=sweep_fail_limit,
                 sweep_goal_timeout_s=sweep_goal_timeout_s,
+                sweep_lane_tolerance_m=sweep_lane_tolerance_m,
+                sweep_heading_tolerance_deg=sweep_heading_tolerance_deg,
+                sweep_allow_pure_turn=sweep_allow_pure_turn,
+                sweep_stall_action=sweep_stall_action,
                 target_accept_radius_m=YARD_TO_M,
                 obstacle_aware=mission_mode == "round3",
             ),
@@ -4613,12 +4758,14 @@ def run_simulation(
         frame = sensors.read(robot.state, active_goal_xy, ts)
         if mission_update is not None:
             frame.goal = GoalPacket(active_goal_xy[0], active_goal_xy[1], ts)
+            apply_competition_v2_motion_policy(navigator, competition_v2_status_for_update(mission_update))
         cmd = navigator.step(frame)
         if mission_v2 is not None:
             mission_v2.observe_navigation_feedback(navigation_feedback_for_competition_v2(navigator, cmd, frame))
             if mission_update is not None and mission_update.stop_requested:
                 cmd = ControlCommand("STOP", reason=f"{mission_update.phase} stop requested: {mission_update.reason}")
         print(f"SIM CMD step={step_i_local:03d}: {json.dumps(cmd.as_dict())}")
+        navigator.note_sent_command(cmd)
         robot.apply_command(cmd, world, control_planner, sim_cfg.dt_s)
         true_trail.append((robot.state.true_pose.x, robot.state.true_pose.y))
         est = navigator.state.estimated_pose
@@ -4703,6 +4850,7 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
         "path_idx": navigator.state.path_idx,
         "active_scan": navigator.active_scan_status(),
         "recovery_state": navigator.recovery_state.value,
+        **navigator.physical_stall_status(),
         "local_costmap": navigator.local_costmap_debug,
         "velocity_control": navigator.velocity_debug,
         "sectors_m": {
@@ -4752,6 +4900,19 @@ def competition_v2_status_for_update(update) -> dict:
     }
 
 
+def apply_competition_v2_motion_policy(navigator: UGVNavigator, mission_status: dict) -> None:
+    v2 = mission_status.get("competition_v2") if isinstance(mission_status, dict) else None
+    if not isinstance(v2, dict):
+        navigator.nav_cfg.competition_sweep_active = False
+        return
+    navigator.nav_cfg.competition_sweep_active = bool(v2.get("enabled", False) and v2.get("phase") == "sweep_search")
+    navigator.nav_cfg.sweep_allow_pure_turn = bool(v2.get("sweep_allow_pure_turn", False))
+    try:
+        navigator.nav_cfg.sweep_heading_tolerance_deg = max(0.0, float(v2.get("sweep_heading_tolerance_deg", 25.0)))
+    except (TypeError, ValueError):
+        navigator.nav_cfg.sweep_heading_tolerance_deg = 25.0
+
+
 def navigation_feedback_for_competition_v2(
     navigator: UGVNavigator,
     cmd: ControlCommand,
@@ -4774,6 +4935,9 @@ def navigation_feedback_for_competition_v2(
         local_planner_failed=bool(planner_failed),
         stuck=bool(stuck),
         stuck_steps=stuck_steps,
+        physical_stall_detected=bool(navigator.physical_stall.detected),
+        physical_stall_steps=int(navigator.physical_stall.steps),
+        physical_stall_reason=navigator.physical_stall.reason,
         finish_reason=finish_reason,
         progress_m=progress_m,
     )
@@ -4797,6 +4961,10 @@ def run_real_mode(
     sweep_coverage_threshold: float = 0.85,
     sweep_goal_timeout_s: float = 8.0,
     sweep_fail_limit: int = 3,
+    sweep_lane_tolerance_m: float = 0.30,
+    sweep_heading_tolerance_deg: float = 25.0,
+    sweep_allow_pure_turn: bool = False,
+    sweep_stall_action: str = "skip",
     min_competition_speed_mps: float = 0.0894,
     field_map_topic: str = "/ugv/field_map",
     target_topic: str = "/ugv/target",
@@ -4977,6 +5145,10 @@ def run_real_mode(
                 sweep_coverage_threshold=sweep_coverage_threshold,
                 sweep_fail_limit=sweep_fail_limit,
                 sweep_goal_timeout_s=sweep_goal_timeout_s,
+                sweep_lane_tolerance_m=sweep_lane_tolerance_m,
+                sweep_heading_tolerance_deg=sweep_heading_tolerance_deg,
+                sweep_allow_pure_turn=sweep_allow_pure_turn,
+                sweep_stall_action=sweep_stall_action,
                 target_accept_radius_m=target_accept_radius_m,
                 obstacle_aware=mission_mode == "round3",
                 use_legacy_center_expand=False,
@@ -5020,6 +5192,8 @@ def run_real_mode(
         f"straight_distance_m={straight_distance_m:.2f}, "
         f"sweep_cell={sweep_cell_size_m:.2f}m lane={sweep_lane_spacing_m:.2f}m "
         f"coverage_radius={sweep_coverage_radius_m:.2f}m threshold={sweep_coverage_threshold:.2f}, "
+        f"lane_tol={sweep_lane_tolerance_m:.2f}m heading_tol={sweep_heading_tolerance_deg:.1f}deg "
+        f"pure_turn={sweep_allow_pure_turn}, "
         f"min_competition_speed={min_competition_speed_mps:.3f}m/s, "
         f"drive_speed_level={drive_speed_level}/4 ({drive_factor:.2f}x), "
         f"robot=({robot_cfg.length_m:.2f}m x {robot_cfg.width_m:.2f}m), "
@@ -5085,8 +5259,10 @@ def run_real_mode(
             )
             frame.goal = GoalPacket(update.active_goal_m[0], update.active_goal_m[1], frame.encoder.timestamp, marker_distance_m)
             mission_status = competition_v2_status_for_update(update)
+            apply_competition_v2_motion_policy(navigator, mission_status)
         else:
             mission_status = dict(mission.update_frame(frame, navigator.state.estimated_pose))
+            apply_competition_v2_motion_policy(navigator, {})
         cmd = navigator.step(frame)
         if competition_v2_active:
             feedback_changed = mission.observe_navigation_feedback(
@@ -5115,6 +5291,7 @@ def run_real_mode(
             combined_reason,
             nav_cfg.min_motion_raw,
         )
+        navigator.note_sent_command(cmd)
         bridge.send_control(cmd)
         now_s = time.monotonic()
         if now_s - last_status_s >= max(nav_status_period_s, 0.2):
@@ -5168,6 +5345,10 @@ def main() -> None:
     parser.add_argument("--sweep-coverage-threshold", type=float, default=0.85)
     parser.add_argument("--sweep-goal-timeout-s", type=float, default=8.0)
     parser.add_argument("--sweep-fail-limit", type=int, default=3)
+    parser.add_argument("--sweep-lane-tolerance-m", type=float, default=0.30)
+    parser.add_argument("--sweep-heading-tolerance-deg", type=float, default=25.0)
+    parser.add_argument("--sweep-allow-pure-turn", type=str_to_bool, default=False)
+    parser.add_argument("--sweep-stall-action", choices=["skip", "stop"], default="skip")
     parser.add_argument("--min-competition-speed-mps", type=float, default=0.0894, help="minimum moving speed required by competition rules, 0.2 mph in m/s")
     parser.add_argument("--field-map-topic", type=str, default="/ugv/field_map")
     parser.add_argument("--target-topic", type=str, default="/ugv/target")
@@ -5270,6 +5451,10 @@ def main() -> None:
             sweep_coverage_threshold=args.sweep_coverage_threshold,
             sweep_goal_timeout_s=args.sweep_goal_timeout_s,
             sweep_fail_limit=args.sweep_fail_limit,
+            sweep_lane_tolerance_m=args.sweep_lane_tolerance_m,
+            sweep_heading_tolerance_deg=args.sweep_heading_tolerance_deg,
+            sweep_allow_pure_turn=args.sweep_allow_pure_turn,
+            sweep_stall_action=args.sweep_stall_action,
             min_competition_speed_mps=args.min_competition_speed_mps,
         )
     else:
@@ -5291,6 +5476,10 @@ def main() -> None:
             sweep_coverage_threshold=args.sweep_coverage_threshold,
             sweep_goal_timeout_s=args.sweep_goal_timeout_s,
             sweep_fail_limit=args.sweep_fail_limit,
+            sweep_lane_tolerance_m=args.sweep_lane_tolerance_m,
+            sweep_heading_tolerance_deg=args.sweep_heading_tolerance_deg,
+            sweep_allow_pure_turn=args.sweep_allow_pure_turn,
+            sweep_stall_action=args.sweep_stall_action,
             min_competition_speed_mps=args.min_competition_speed_mps,
             field_map_topic=args.field_map_topic,
             target_topic=args.target_topic,

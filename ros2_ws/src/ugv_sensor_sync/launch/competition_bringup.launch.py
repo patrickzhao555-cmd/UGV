@@ -77,6 +77,10 @@ def generate_launch_description():
     sweep_coverage_threshold = LaunchConfiguration('sweep_coverage_threshold')
     sweep_goal_timeout_s = LaunchConfiguration('sweep_goal_timeout_s')
     sweep_fail_limit = LaunchConfiguration('sweep_fail_limit')
+    sweep_lane_tolerance_m = LaunchConfiguration('sweep_lane_tolerance_m')
+    sweep_heading_tolerance_deg = LaunchConfiguration('sweep_heading_tolerance_deg')
+    sweep_allow_pure_turn = LaunchConfiguration('sweep_allow_pure_turn')
+    sweep_stall_action = LaunchConfiguration('sweep_stall_action')
     min_competition_speed_mps = LaunchConfiguration('min_competition_speed_mps')
     bench_goal_x_m = LaunchConfiguration('bench_goal_x_m')
     bench_goal_y_m = LaunchConfiguration('bench_goal_y_m')
@@ -324,6 +328,14 @@ def generate_launch_description():
             sweep_goal_timeout_s,
             '--sweep-fail-limit',
             sweep_fail_limit,
+            '--sweep-lane-tolerance-m',
+            sweep_lane_tolerance_m,
+            '--sweep-heading-tolerance-deg',
+            sweep_heading_tolerance_deg,
+            '--sweep-allow-pure-turn',
+            sweep_allow_pure_turn,
+            '--sweep-stall-action',
+            sweep_stall_action,
             '--min-competition-speed-mps',
             min_competition_speed_mps,
             '--target-topic',
@@ -570,6 +582,10 @@ def generate_launch_description():
         DeclareLaunchArgument('sweep_coverage_threshold', default_value='0.85'),
         DeclareLaunchArgument('sweep_goal_timeout_s', default_value='8.0'),
         DeclareLaunchArgument('sweep_fail_limit', default_value='3'),
+        DeclareLaunchArgument('sweep_lane_tolerance_m', default_value='0.30'),
+        DeclareLaunchArgument('sweep_heading_tolerance_deg', default_value='25.0'),
+        DeclareLaunchArgument('sweep_allow_pure_turn', default_value='false'),
+        DeclareLaunchArgument('sweep_stall_action', default_value='skip'),
         DeclareLaunchArgument('min_competition_speed_mps', default_value='0.0894'),
         DeclareLaunchArgument('bench_goal_x_m', default_value='12.2'),
         DeclareLaunchArgument('bench_goal_y_m', default_value='12.0'),

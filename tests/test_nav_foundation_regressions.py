@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 
 from ugv_nav_dual_mode import (  # noqa: E402
     Costmap2D,
+    ControlCommand,
     EncoderPacket,
     FieldMapPacket,
     GoalPacket,
@@ -18,6 +19,7 @@ from ugv_nav_dual_mode import (  # noqa: E402
     ImuPacket,
     LidarPacket,
     NavConfig,
+    PhysicalStallState,
     Pose2D,
     RobotConfig,
     Ros2Bridge,
@@ -29,6 +31,7 @@ from ugv_nav_dual_mode import (  # noqa: E402
     ZedPacket,
     field_cell_to_world,
     laser_scan_to_lidar_observations,
+    update_physical_stall_state,
 )
 
 
@@ -190,6 +193,67 @@ def test_velocity_planner_hard_rejects_local_costmap_collision_by_default():
     assert planner.last_debug["rejected_collision"] > 0
     assert planner.last_debug["costmap_soft_penalty"] == 0.0
     assert cmd.v_mps <= 1e-6
+
+
+def test_competition_sweep_velocity_planner_prefers_forward_arc_over_pure_turn():
+    robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.61)
+    nav_cfg = NavConfig()
+    nav_cfg.competition_sweep_active = True
+    nav_cfg.sweep_allow_pure_turn = False
+    nav_cfg.sweep_heading_tolerance_deg = 25.0
+    nav_cfg.continuous_min_speed_mps = 0.0894
+    nav_cfg.continuous_max_speed_mps = 0.36
+    nav_cfg.continuous_horizon_s = 1.0
+    nav_cfg.continuous_dt_s = 0.1
+    nav_cfg.continuous_v_samples = 4
+    nav_cfg.continuous_omega_samples = 7
+    planner = VelocityLocalPlanner(robot_cfg, nav_cfg, HybridAStarPlanner(robot_cfg))
+
+    spec = GridSpec(resolution=0.10, origin_x=-1.0, origin_y=-1.0, width=80, height=80)
+    costmap = Costmap2D(spec, np.zeros((spec.height, spec.width), dtype=np.uint8))
+    pose = Pose2D(2.38, 0.637, np.deg2rad(-26.0))
+    target = Pose2D(3.45, 0.45, 0.0)
+
+    cmd = planner.choose_command(
+        pose=pose,
+        target=target,
+        goal=target,
+        costmap=costmap,
+        sectors=SectorSnapshot(),
+        prev_cmd=ControlCommand("FORWARD", controller="velocity", v_mps=0.08),
+        hits_local=[],
+        timestamp=1.0,
+    )
+
+    assert cmd.mode == "FORWARD"
+    assert cmd.v_mps > 0.0
+    assert planner.last_debug["competition_sweep_active"]
+    assert planner.last_debug["rejected_sweep_pure_turn"] > 0
+
+
+def test_physical_stall_triggers_after_active_command_and_zero_odom():
+    state = PhysicalStallState()
+    cmd = ControlCommand(
+        "TURN_RIGHT",
+        raw_left=0.28,
+        raw_right=-0.28,
+        v_mps=0.0,
+        omega_radps=-0.4,
+        controller="velocity",
+        command_type="velocity",
+    )
+
+    for _ in range(16):
+        update_physical_stall_state(
+            state,
+            cmd,
+            {"dt_s": 0.1, "ds_used_m": 0.0, "dtheta_deg": 0.0},
+            timeout_s=1.5,
+        )
+
+    assert state.detected
+    assert state.steps == 16
+    assert "active_command_zero_odom" in state.reason
 
 
 def test_local_costmap_cli_launch_and_env_parameters_are_wired():

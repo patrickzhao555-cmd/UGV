@@ -139,6 +139,10 @@ class CompetitionMissionConfig:
     sweep_coverage_threshold: float = 0.85
     sweep_fail_limit: int = 3
     sweep_goal_timeout_s: float = 8.0
+    sweep_lane_tolerance_m: float = 0.30
+    sweep_heading_tolerance_deg: float = 25.0
+    sweep_allow_pure_turn: bool = False
+    sweep_stall_action: str = "skip"
     target_accept_radius_m: float = YARD_TO_M
     stop_on_uav_landed: bool = True
     stop_on_marker_reached: bool = False
@@ -162,6 +166,10 @@ class CompetitionMissionConfig:
             sweep_coverage_threshold=max(0.0, min(1.0, float(self.sweep_coverage_threshold))),
             sweep_fail_limit=max(1, int(self.sweep_fail_limit)),
             sweep_goal_timeout_s=max(0.1, float(self.sweep_goal_timeout_s)),
+            sweep_lane_tolerance_m=max(0.0, float(self.sweep_lane_tolerance_m)),
+            sweep_heading_tolerance_deg=max(0.0, float(self.sweep_heading_tolerance_deg)),
+            sweep_allow_pure_turn=bool(self.sweep_allow_pure_turn),
+            sweep_stall_action=_norm_text(self.sweep_stall_action) if _norm_text(self.sweep_stall_action) in {"skip", "stop"} else "skip",
             target_accept_radius_m=max(0.05, float(self.target_accept_radius_m)),
             stop_on_uav_landed=bool(self.stop_on_uav_landed),
             stop_on_marker_reached=False if round_name in {"round2", "round3"} else bool(self.stop_on_marker_reached),
@@ -397,6 +405,9 @@ class NavigationFeedback:
     local_planner_failed: bool = False
     stuck: bool = False
     stuck_steps: int = 0
+    physical_stall_detected: bool = False
+    physical_stall_steps: int = 0
+    physical_stall_reason: str = ""
     finish_reason: str = ""
     progress_m: float = 0.0
 
@@ -445,6 +456,12 @@ class CompetitionMissionV2:
         self._active_cell_best_distance_m: Optional[float] = None
         self._target_loiter_index = 0
         self._target_loiter_goal_m: Optional[Tuple[float, float]] = None
+        self._last_sweep_lane_y_m: Optional[float] = None
+        self._last_sweep_lateral_error_m: Optional[float] = None
+        self._last_sweep_heading_error_deg: Optional[float] = None
+        self._physical_stall_detected = False
+        self._physical_stall_steps = 0
+        self._physical_stall_reason = ""
         self._last_update = self._make_update((0.0, 0.0), False)
 
     def _ensure_start_pose(self, pose: Tuple[float, float, float]) -> Tuple[float, float, float]:
@@ -523,6 +540,47 @@ class CompetitionMissionV2:
             1.20 * self.config.sweep_coverage_radius_m,
             0.90 * self.config.sweep_cell_size_m,
         )
+
+    def _sweep_lane_lookahead_m(self) -> float:
+        return max(1.0, min(1.5, 2.0 * self.config.sweep_cell_size_m))
+
+    @staticmethod
+    def _sweep_row_direction(row: int) -> float:
+        return 1.0 if int(row) % 2 == 0 else -1.0
+
+    @staticmethod
+    def _angle_error_deg(target_yaw: float, current_yaw: float) -> float:
+        return abs(math.degrees(math.atan2(math.sin(target_yaw - current_yaw), math.cos(target_yaw - current_yaw))))
+
+    def _sweep_navigation_goal(
+        self,
+        pose: Tuple[float, float, float],
+        active: SweepCell,
+    ) -> Tuple[float, float]:
+        pose_xy = (pose[0], pose[1])
+        lane_y = float(active.y)
+        lateral_error = float(pose[1] - lane_y)
+        direction = self._sweep_row_direction(active.row)
+        lane_yaw = 0.0 if direction > 0.0 else math.pi
+        heading_error_deg = self._angle_error_deg(lane_yaw, pose[2])
+        self._last_sweep_lane_y_m = lane_y
+        self._last_sweep_lateral_error_m = lateral_error
+        self._last_sweep_heading_error_deg = heading_error_deg
+
+        if abs(lateral_error) <= self.config.sweep_lane_tolerance_m:
+            lookahead = self._sweep_lane_lookahead_m()
+            target_x = pose[0] + direction * lookahead
+            if direction > 0.0:
+                target_x = max(target_x, active.x)
+            else:
+                target_x = min(target_x, active.x)
+            goal = self._clamp_to_field((target_x, lane_y), margin_m=self.config.sweep_boundary_margin_m)
+            if math.hypot(goal[0] - pose_xy[0], goal[1] - pose_xy[1]) >= 0.75:
+                return goal
+
+        if math.hypot(active.x - pose_xy[0], active.y - pose_xy[1]) < 0.75:
+            return self._forward_field_goal(pose, self._sweep_lane_lookahead_m())
+        return active.xy
 
     def _target_loiter_points(self, pose: Tuple[float, float, float]) -> List[Tuple[float, float]]:
         if self.target_goal is None:
@@ -660,13 +718,14 @@ class CompetitionMissionV2:
         if active is None:
             self.reason = "sweep_no_reachable_cells_forward_patrol"
             return self._make_update(self._forward_field_goal(pose, self._sweep_patrol_min_distance()), False)
+        goal = self._sweep_navigation_goal(pose, active)
         if reached:
             self.reason = "sweep_cell_visited_advanced"
         elif coverage_reached:
             self.reason = "coverage_threshold_reached_continuing_patrol"
         else:
             self.reason = "sweep_searching"
-        return self._make_update(active.xy, False)
+        return self._make_update(goal, False)
 
     def _refresh_active_cell_progress(
         self,
@@ -720,10 +779,11 @@ class CompetitionMissionV2:
             self._active_cell_best_distance_m = None
 
     def observe_navigation_feedback(self, feedback: NavigationFeedback) -> bool:
+        self._physical_stall_detected = bool(feedback.physical_stall_detected)
+        self._physical_stall_steps = int(feedback.physical_stall_steps)
+        self._physical_stall_reason = str(feedback.physical_stall_reason or "")
         if (
             not self.enabled
-            or self.round != "round3"
-            or not self.config.obstacle_aware
             or self.phase != "sweep_search"
             or self.grid is None
         ):
@@ -731,7 +791,36 @@ class CompetitionMissionV2:
         active = self.grid.active_cell()
         if active is None:
             return False
+        if feedback.physical_stall_detected:
+            reason = "physical_stall"
+            if feedback.physical_stall_reason:
+                reason += f"_{_norm_text(feedback.physical_stall_reason)}"
+            if self.round == "round3":
+                self.grid.mark_active_skipped(reason, feedback.now_s)
+                self.grid.select_next(feedback.now_s)
+                self._active_cell_start_time_s = None
+                self._active_cell_start_distance_m = None
+                self._active_cell_best_distance_m = None
+                self.reason = "active_cell_skipped_physical_stall"
+                self._last_update = self._make_update_from_active_or_previous()
+                return True
+            if self.round == "round2":
+                if self.config.sweep_stall_action == "stop":
+                    self.phase = "complete"
+                    self.reason = "round2_physical_stall_safety_stop"
+                    self._last_update = self._make_update(self._last_update.active_goal_m, True)
+                    return True
+                self.grid.mark_active_skipped(reason, feedback.now_s)
+                self.grid.select_next(feedback.now_s)
+                self._active_cell_start_time_s = None
+                self._active_cell_start_distance_m = None
+                self._active_cell_best_distance_m = None
+                self.reason = "active_cell_skipped_physical_stall"
+                self._last_update = self._make_update_from_active_or_previous()
+                return True
         failed = bool(feedback.no_safe_trajectory or feedback.local_planner_failed or feedback.stuck)
+        if self.round != "round3" or not self.config.obstacle_aware:
+            return False
         if not failed:
             return False
         active.failed_attempts += 1
@@ -743,6 +832,8 @@ class CompetitionMissionV2:
             reasons.append("local_planner_failed")
         if feedback.stuck:
             reasons.append("stuck")
+        if feedback.physical_stall_detected:
+            reasons.append("physical_stall")
         self.reason = "active_cell_failure_" + "_".join(reasons or ["unknown"])
         if active.failed_attempts >= self.config.sweep_fail_limit:
             self.grid.mark_active_blocked(self.reason, feedback.now_s)
@@ -824,6 +915,16 @@ class CompetitionMissionV2:
             "total_cells": int(total),
             "coverage_fraction": round(float(coverage), 4),
             "coverage_threshold": round(float(self.config.sweep_coverage_threshold), 4),
+            "sweep_lane_tolerance_m": round(float(self.config.sweep_lane_tolerance_m), 4),
+            "sweep_heading_tolerance_deg": round(float(self.config.sweep_heading_tolerance_deg), 2),
+            "sweep_allow_pure_turn": bool(self.config.sweep_allow_pure_turn),
+            "sweep_stall_action": self.config.sweep_stall_action,
+            "active_lane_y_m": None if self._last_sweep_lane_y_m is None else round(float(self._last_sweep_lane_y_m), 3),
+            "sweep_lateral_error_m": None if self._last_sweep_lateral_error_m is None else round(float(self._last_sweep_lateral_error_m), 3),
+            "sweep_heading_error_deg": None if self._last_sweep_heading_error_deg is None else round(float(self._last_sweep_heading_error_deg), 1),
+            "physical_stall_detected": bool(self._physical_stall_detected),
+            "physical_stall_steps": int(self._physical_stall_steps),
+            "physical_stall_reason": self._physical_stall_reason,
             "minimum_speed_mps": round(float(self.config.min_competition_speed_mps), 4),
             "reason": self.reason,
             "stop_requested": bool(stop_requested),

@@ -65,7 +65,28 @@ def test_next_cell_advances_after_visited():
     mission = CompetitionMissionV2("round2", small_config())
     update = mission.update((0.25, 0.25, 0.0), 0.0)
     assert update.status["active_cell"] == 1
-    assert update.active_goal_m == (0.75, 0.25)
+    assert update.active_goal_m == (1.25, 0.25)
+
+
+def test_sweep_search_with_lateral_error_within_tolerance_uses_lane_lookahead():
+    mission = CompetitionMissionV2(
+        "round2",
+        small_config(
+            field_width_m=5.0,
+            field_height_m=2.0,
+            sweep_cell_size_m=0.75,
+            sweep_lane_spacing_m=0.75,
+            sweep_boundary_margin_m=0.45,
+            sweep_coverage_radius_m=0.55,
+            sweep_lane_tolerance_m=0.30,
+        ),
+    )
+    update = mission.update((2.38, 0.637, math.radians(-26.0)), 0.0)
+    assert update.phase == "sweep_search"
+    assert update.active_goal_m[0] >= 3.35
+    assert abs(update.active_goal_m[1] - 0.45) <= 1e-6
+    assert math.hypot(update.active_goal_m[0] - 2.38, update.active_goal_m[1] - 0.637) >= 1.0
+    assert update.status["sweep_lane_tolerance_m"] == 0.3
 
 
 def test_after_coverage_threshold_uses_forward_patrol_goal_not_tiny_turn_goal():
@@ -116,7 +137,7 @@ def test_round2_selects_sweep_goal_when_no_target_is_known():
     mission = CompetitionMissionV2("round2", small_config())
     update = mission.update((0.0, 0.0, 0.0), 0.0)
     assert update.phase == "sweep_search"
-    assert update.active_goal_m == (0.25, 0.25)
+    assert update.active_goal_m == (1.0, 0.25)
     assert not update.target_known
 
 
@@ -199,6 +220,43 @@ def test_round3_marks_cell_blocked_after_repeated_failure_and_chooses_another():
     assert status["active_cell"] != first_cell
 
 
+def test_round2_skips_active_cell_on_physical_stall_instead_of_repeating_turn():
+    mission = CompetitionMissionV2("round2", small_config())
+    update = mission.update((0.0, 0.0, 0.0), 0.0)
+    first_cell = update.status["active_cell"]
+    changed = mission.observe_navigation_feedback(
+        NavigationFeedback(
+            1.6,
+            physical_stall_detected=True,
+            physical_stall_steps=16,
+            physical_stall_reason="active_command_zero_odom",
+        )
+    )
+    status = mission.status_dict()
+    assert changed
+    assert status["skipped_count"] == 1
+    assert status["active_cell"] != first_cell
+    assert not status["stop_requested"]
+
+
+def test_round3_skips_active_cell_on_physical_stall():
+    mission = CompetitionMissionV2("round3", small_config())
+    update = mission.update((0.0, 0.0, 0.0), 0.0)
+    first_cell = update.status["active_cell"]
+    changed = mission.observe_navigation_feedback(
+        NavigationFeedback(
+            1.6,
+            physical_stall_detected=True,
+            physical_stall_steps=16,
+            physical_stall_reason="active_command_zero_odom",
+        )
+    )
+    status = mission.status_dict()
+    assert changed
+    assert status["skipped_count"] == 1
+    assert status["active_cell"] != first_cell
+
+
 def test_competition_v2_status_contains_coverage_fields():
     mission = CompetitionMissionV2("round2", small_config())
     update = mission.update((0.25, 0.25, 0.0), 0.0)
@@ -210,6 +268,9 @@ def test_competition_v2_status_contains_coverage_fields():
         "coverage_fraction",
         "coverage_threshold",
         "minimum_speed_mps",
+        "physical_stall_detected",
+        "physical_stall_steps",
+        "physical_stall_reason",
     ]:
         assert key in update.status
 
@@ -229,6 +290,10 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--sweep-coverage-threshold",
         "--sweep-goal-timeout-s",
         "--sweep-fail-limit",
+        "--sweep-lane-tolerance-m",
+        "--sweep-heading-tolerance-deg",
+        "--sweep-allow-pure-turn",
+        "--sweep-stall-action",
         "--min-competition-speed-mps",
         "--recovery-turn-raw",
     ]:
@@ -243,6 +308,10 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "SWEEP_COVERAGE_THRESHOLD",
         "SWEEP_GOAL_TIMEOUT_S",
         "SWEEP_FAIL_LIMIT",
+        "SWEEP_LANE_TOLERANCE_M",
+        "SWEEP_HEADING_TOLERANCE_DEG",
+        "SWEEP_ALLOW_PURE_TURN",
+        "SWEEP_STALL_ACTION",
         "MIN_COMPETITION_SPEED_MPS",
         "NAV_RECOVERY_TURN_RAW",
     ]:

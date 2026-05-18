@@ -312,6 +312,9 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--lane-follow-deadband-m",
         "--lane-follow-max-heading-deg",
         "--lane-follow-max-omega-rps",
+        "--forward-arc-only-enabled",
+        "--forward-arc-margin",
+        "--min-sweep-v-mps",
     ]:
         assert token in nav_script
         assert token in launch_file
@@ -342,5 +345,8 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "NAV_LANE_FOLLOW_DEADBAND_M",
         "NAV_LANE_FOLLOW_MAX_HEADING_DEG",
         "NAV_LANE_FOLLOW_MAX_OMEGA_RPS",
+        "NAV_FORWARD_ARC_ONLY_ENABLED",
+        "NAV_FORWARD_ARC_MARGIN",
+        "NAV_MIN_SWEEP_V_MPS",
     ]:
         assert token in bringup

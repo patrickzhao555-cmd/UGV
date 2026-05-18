@@ -217,6 +217,9 @@ def generate_launch_description():
     lane_follow_deadband_m = LaunchConfiguration('lane_follow_deadband_m')
     lane_follow_max_heading_deg = LaunchConfiguration('lane_follow_max_heading_deg')
     lane_follow_max_omega_rps = LaunchConfiguration('lane_follow_max_omega_rps')
+    forward_arc_only_enabled = LaunchConfiguration('forward_arc_only_enabled')
+    forward_arc_margin = LaunchConfiguration('forward_arc_margin')
+    min_sweep_v_mps = LaunchConfiguration('min_sweep_v_mps')
     local_costmap_enabled = LaunchConfiguration('local_costmap_enabled')
     local_costmap_width_m = LaunchConfiguration('local_costmap_width_m')
     local_costmap_height_m = LaunchConfiguration('local_costmap_height_m')
@@ -464,6 +467,12 @@ def generate_launch_description():
             lane_follow_max_heading_deg,
             '--lane-follow-max-omega-rps',
             lane_follow_max_omega_rps,
+            '--forward-arc-only-enabled',
+            forward_arc_only_enabled,
+            '--forward-arc-margin',
+            forward_arc_margin,
+            '--min-sweep-v-mps',
+            min_sweep_v_mps,
             '--local-costmap-enabled',
             local_costmap_enabled,
             '--local-costmap-width-m',
@@ -723,6 +732,9 @@ def generate_launch_description():
         DeclareLaunchArgument('lane_follow_deadband_m', default_value='0.03'),
         DeclareLaunchArgument('lane_follow_max_heading_deg', default_value='18.0'),
         DeclareLaunchArgument('lane_follow_max_omega_rps', default_value='0.35'),
+        DeclareLaunchArgument('forward_arc_only_enabled', default_value='true'),
+        DeclareLaunchArgument('forward_arc_margin', default_value='0.75'),
+        DeclareLaunchArgument('min_sweep_v_mps', default_value='0.08'),
         DeclareLaunchArgument('local_costmap_enabled', default_value='true'),
         DeclareLaunchArgument('local_costmap_width_m', default_value='4.0'),
         DeclareLaunchArgument('local_costmap_height_m', default_value='4.0'),

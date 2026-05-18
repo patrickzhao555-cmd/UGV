@@ -81,6 +81,38 @@ def compute_lane_follow_correction(
     return cross_track_error, desired_heading_offset, omega
 
 
+def wheel_targets_from_v_omega(v_mps: float, omega_radps: float, track_width_m: float) -> Tuple[float, float]:
+    half_track = 0.5 * max(1e-6, float(track_width_m))
+    left_target_mps = float(v_mps) - float(omega_radps) * half_track
+    right_target_mps = float(v_mps) + float(omega_radps) * half_track
+    return left_target_mps, right_target_mps
+
+
+def apply_forward_arc_only_limit(
+    v_mps: float,
+    omega_radps: float,
+    track_width_m: float,
+    *,
+    enabled: bool = True,
+    margin: float = 0.75,
+    min_v_mps: float = 0.08,
+) -> Tuple[float, float, Optional[float], bool, float, float]:
+    final_v = float(v_mps)
+    final_omega = float(omega_radps)
+    if not enabled:
+        left, right = wheel_targets_from_v_omega(final_v, final_omega, track_width_m)
+        return final_v, final_omega, None, False, left, right
+
+    final_v = max(final_v, max(0.0, float(min_v_mps)))
+    track_width = max(1e-6, float(track_width_m))
+    forward_margin = clamp(float(margin), 0.0, 1.0)
+    omega_limit = 2.0 * final_v / track_width * forward_margin
+    clamped_omega = clamp(final_omega, -omega_limit, omega_limit)
+    clamped = abs(clamped_omega - final_omega) > 1e-9
+    left, right = wheel_targets_from_v_omega(final_v, clamped_omega, track_width)
+    return final_v, clamped_omega, omega_limit, clamped, left, right
+
+
 def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
     return {
         "closed_loop_enabled": _cfg_bool(nav_cfg, "competition_closed_loop_enabled") if nav_cfg is not None else False,
@@ -96,6 +128,13 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "lane_follow_deadband_m": _cfg_float(nav_cfg, "lane_follow_deadband_m", 0.03) if nav_cfg is not None else 0.03,
         "lane_follow_max_heading_deg": _cfg_float(nav_cfg, "lane_follow_max_heading_deg", 18.0) if nav_cfg is not None else 18.0,
         "lane_follow_max_omega_rps": _cfg_float(nav_cfg, "lane_follow_max_omega_rps", 0.35) if nav_cfg is not None else 0.35,
+        "forward_arc_only_enabled": _cfg_bool(nav_cfg, "forward_arc_only_enabled", True) if nav_cfg is not None else True,
+        "forward_arc_margin": _cfg_float(nav_cfg, "forward_arc_margin", 0.75) if nav_cfg is not None else 0.75,
+        "min_sweep_v_mps": _cfg_float(nav_cfg, "min_sweep_v_mps", 0.08) if nav_cfg is not None else 0.08,
+        "forward_arc_omega_limit_radps": None,
+        "forward_arc_clamped": False,
+        "final_left_target_mps": 0.0,
+        "final_right_target_mps": 0.0,
         "target_yaw_deg": None,
         "estimated_yaw_deg": None,
         "heading_error_deg": None,
@@ -230,9 +269,14 @@ def apply_competition_closed_loop_command(
         -nav_cfg.continuous_max_omega_rps,
         nav_cfg.continuous_max_omega_rps,
     )
-    if final_v > 0.005:
-        max_arc_omega = max(0.02, 1.75 * final_v / max(1e-6, navigator.robot_cfg.track_width_m))
-        final_omega = clamp(final_omega, -max_arc_omega, max_arc_omega)
+    final_v, final_omega, forward_arc_limit, forward_arc_clamped, left_target, right_target = apply_forward_arc_only_limit(
+        final_v,
+        final_omega,
+        navigator.robot_cfg.track_width_m,
+        enabled=bool(nav_cfg.forward_arc_only_enabled),
+        margin=nav_cfg.forward_arc_margin,
+        min_v_mps=min(nav_cfg.continuous_max_speed_mps, max(nav_cfg.min_sweep_v_mps, min_v)),
+    )
 
     adjusted = navigator.velocity_planner._velocity_to_command(
         final_v,
@@ -257,6 +301,10 @@ def apply_competition_closed_loop_command(
             "lane_heading_offset_deg": round(math.degrees(lane_heading_offset), 2),
             "final_v_mps": round(final_v, 4),
             "final_omega_radps": round(final_omega, 4),
+            "forward_arc_omega_limit_radps": None if forward_arc_limit is None else round(forward_arc_limit, 4),
+            "forward_arc_clamped": bool(forward_arc_clamped),
+            "final_left_target_mps": round(left_target, 4),
+            "final_right_target_mps": round(right_target, 4),
             "heading_source": heading_source,
             "reason": "sweep_lane_heading_closed_loop",
         }

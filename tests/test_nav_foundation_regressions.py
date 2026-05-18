@@ -10,9 +10,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 
 from ugv_nav_core.closed_loop_controller import (  # noqa: E402
+    apply_forward_arc_only_limit,
     apply_competition_closed_loop_command,
     compute_heading_hold_correction,
     compute_lane_follow_correction,
+    wheel_targets_from_v_omega,
 )
 from ugv_nav_dual_mode import (  # noqa: E402
     Costmap2D,
@@ -369,6 +371,119 @@ def test_competition_closed_loop_sweep_keeps_forward_velocity_and_avoids_pure_tu
     assert navigator.closed_loop_debug["closed_loop_active"]
     assert navigator.closed_loop_debug["cross_track_error_m"] > 0.0
     assert navigator.closed_loop_debug["omega_lane_radps"] > 0.0
+    assert navigator.closed_loop_debug["final_v_mps"] > 0.0
+    assert navigator.closed_loop_debug["final_left_target_mps"] >= 0.0
+    assert navigator.closed_loop_debug["final_right_target_mps"] >= 0.0
+
+
+def test_forward_arc_only_clamps_small_reverse_inner_wheel_targets():
+    v_mps, omega, limit, clamped, left, right = apply_forward_arc_only_limit(
+        0.10,
+        0.50,
+        0.6096,
+        enabled=True,
+        margin=0.75,
+        min_v_mps=0.08,
+    )
+
+    assert v_mps == 0.10
+    assert clamped
+    assert limit is not None
+    assert abs(omega) <= limit
+    assert left >= 0.0
+    assert right >= 0.0
+    assert right > left
+
+
+def test_forward_arc_only_disabled_preserves_requested_omega():
+    v_mps, omega, limit, clamped, left, right = apply_forward_arc_only_limit(
+        0.10,
+        0.50,
+        0.6096,
+        enabled=False,
+        margin=0.75,
+        min_v_mps=0.08,
+    )
+
+    assert v_mps == 0.10
+    assert omega == 0.50
+    assert limit is None
+    assert not clamped
+    assert left < 0.0
+    assert right > 0.0
+
+
+def test_forward_arc_only_raises_tiny_sweep_velocity_before_clamping():
+    v_mps, omega, _limit, clamped, left, right = apply_forward_arc_only_limit(
+        0.0,
+        0.50,
+        0.6096,
+        enabled=True,
+        margin=0.75,
+        min_v_mps=0.08,
+    )
+
+    assert v_mps == 0.08
+    assert clamped
+    assert left >= 0.0
+    assert right >= 0.0
+    assert omega > 0.0
+
+
+def test_forward_arc_left_and_right_target_signs_are_correct():
+    left_turn_left, left_turn_right = wheel_targets_from_v_omega(0.10, 0.20, 0.6096)
+    right_turn_left, right_turn_right = wheel_targets_from_v_omega(0.10, -0.20, 0.6096)
+
+    assert left_turn_right > left_turn_left
+    assert right_turn_left > right_turn_right
+    assert left_turn_left >= 0.0
+    assert left_turn_right >= 0.0
+    assert right_turn_left >= 0.0
+    assert right_turn_right >= 0.0
+
+
+def test_physical_stall_recovery_path_is_not_forward_arc_clamped():
+    robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.6096)
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    nav_cfg.competition_closed_loop_enabled = True
+    nav_cfg.forward_arc_only_enabled = True
+    navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, 5.0, 2.0, Pose2D(0.0, 0.0, 0.0), Pose2D(1.0, 0.0, 0.0))
+    navigator.velocity_debug = {"safety_state": "clear"}
+    navigator.physical_stall.detected = True
+    navigator.physical_stall.reason = "active_command_zero_odom"
+
+    frame = SensorFrame(
+        encoder=EncoderPacket(0, 0, 1.0),
+        lidar=LidarPacket(hit_points_local=[], ranges_m=[], angles_rad=[], timestamp=1.0),
+        zed=ZedPacket(hit_points_local=[], timestamp=1.0),
+        goal=GoalPacket(1.0, 0.0, 1.0),
+    )
+    recovery_cmd = ControlCommand(
+        "TURN_LEFT",
+        v_mps=0.10,
+        omega_radps=0.50,
+        controller="velocity",
+        command_type="velocity",
+        reason="recovery turn",
+    )
+    mission_status = {
+        "competition_v2": {
+            "enabled": True,
+            "phase": "sweep_search",
+            "active_lane_y_m": 0.45,
+            "active_cell_row": 0,
+            "minimum_speed_mps": 0.0894,
+            "sweep_target_yaw_deg": 0.0,
+        }
+    }
+
+    adjusted = apply_competition_closed_loop_command(navigator, recovery_cmd, frame, mission_status)
+
+    assert adjusted is recovery_cmd
+    assert adjusted.omega_radps == 0.50
+    assert navigator.closed_loop_debug["reason"] == "physical_stall_recovery"
+    assert not navigator.closed_loop_debug["forward_arc_clamped"]
 
 
 def test_nav_status_exposes_competition_closed_loop_fields():
@@ -390,6 +505,13 @@ def test_nav_status_exposes_competition_closed_loop_fields():
             "lane_follow_deadband_m": 0.08,
             "lane_follow_max_heading_deg": 15.0,
             "lane_follow_max_omega_rps": 0.25,
+            "forward_arc_only_enabled": True,
+            "forward_arc_margin": 0.75,
+            "min_sweep_v_mps": 0.08,
+            "forward_arc_omega_limit_radps": 0.20,
+            "forward_arc_clamped": True,
+            "final_left_target_mps": 0.04,
+            "final_right_target_mps": 0.16,
             "target_yaw_deg": 0.0,
             "estimated_yaw_deg": 1.0,
             "heading_error_deg": -1.0,
@@ -435,6 +557,13 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "lane_follow_deadband_m",
         "lane_follow_max_heading_deg",
         "lane_follow_max_omega_rps",
+        "forward_arc_only_enabled",
+        "forward_arc_margin",
+        "min_sweep_v_mps",
+        "forward_arc_omega_limit_radps",
+        "forward_arc_clamped",
+        "final_left_target_mps",
+        "final_right_target_mps",
     ]:
         assert key in status["competition_closed_loop"]
 

@@ -538,6 +538,9 @@ class NavConfig:
     lane_follow_deadband_m: float = 0.03
     lane_follow_max_heading_deg: float = 18.0
     lane_follow_max_omega_rps: float = 0.35
+    forward_arc_only_enabled: bool = True
+    forward_arc_margin: float = 0.75
+    min_sweep_v_mps: float = 0.08
     local_costmap_enabled: bool = True
     local_costmap_width_m: float = 4.0
     local_costmap_height_m: float = 4.0
@@ -4662,6 +4665,9 @@ def run_simulation(
     lane_follow_deadband_m: float = 0.03,
     lane_follow_max_heading_deg: float = 18.0,
     lane_follow_max_omega_rps: float = 0.35,
+    forward_arc_only_enabled: bool = True,
+    forward_arc_margin: float = 0.75,
+    min_sweep_v_mps: float = 0.08,
     local_costmap_enabled: bool = True,
     local_costmap_width_m: float = 4.0,
     local_costmap_height_m: float = 4.0,
@@ -4720,6 +4726,9 @@ def run_simulation(
     nav_cfg.lane_follow_deadband_m = clamp(float(lane_follow_deadband_m), 0.0, 1.0)
     nav_cfg.lane_follow_max_heading_deg = clamp(float(lane_follow_max_heading_deg), 0.0, 60.0)
     nav_cfg.lane_follow_max_omega_rps = clamp(float(lane_follow_max_omega_rps), 0.0, 3.0)
+    nav_cfg.forward_arc_only_enabled = bool(forward_arc_only_enabled)
+    nav_cfg.forward_arc_margin = clamp(float(forward_arc_margin), 0.0, 1.0)
+    nav_cfg.min_sweep_v_mps = clamp(float(min_sweep_v_mps), 0.0, 1.0)
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
     nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
     nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
@@ -5087,6 +5096,9 @@ def run_real_mode(
     lane_follow_deadband_m: float = 0.03,
     lane_follow_max_heading_deg: float = 18.0,
     lane_follow_max_omega_rps: float = 0.35,
+    forward_arc_only_enabled: bool = True,
+    forward_arc_margin: float = 0.75,
+    min_sweep_v_mps: float = 0.08,
     local_costmap_enabled: bool = True,
     local_costmap_width_m: float = 4.0,
     local_costmap_height_m: float = 4.0,
@@ -5159,6 +5171,9 @@ def run_real_mode(
     nav_cfg.lane_follow_deadband_m = clamp(float(lane_follow_deadband_m), 0.0, 1.0)
     nav_cfg.lane_follow_max_heading_deg = clamp(float(lane_follow_max_heading_deg), 0.0, 60.0)
     nav_cfg.lane_follow_max_omega_rps = clamp(float(lane_follow_max_omega_rps), 0.0, 3.0)
+    nav_cfg.forward_arc_only_enabled = bool(forward_arc_only_enabled)
+    nav_cfg.forward_arc_margin = clamp(float(forward_arc_margin), 0.0, 1.0)
+    nav_cfg.min_sweep_v_mps = clamp(float(min_sweep_v_mps), 0.0, 1.0)
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
     nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
     nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
@@ -5305,6 +5320,9 @@ def run_real_mode(
         f"lane_deadband={nav_cfg.lane_follow_deadband_m:.2f}m, "
         f"lane_heading_max={nav_cfg.lane_follow_max_heading_deg:.1f}deg, "
         f"lane_omax={nav_cfg.lane_follow_max_omega_rps:.2f}rad/s, "
+        f"forward_arc_only={nav_cfg.forward_arc_only_enabled}, "
+        f"forward_arc_margin={nav_cfg.forward_arc_margin:.2f}, "
+        f"min_sweep_v={nav_cfg.min_sweep_v_mps:.2f}m/s, "
         f"local_costmap={nav_cfg.local_costmap_enabled})"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
@@ -5508,6 +5526,9 @@ def main() -> None:
     parser.add_argument("--lane-follow-deadband-m", type=float, default=0.03, help="cross-track deadband for sweep lane following")
     parser.add_argument("--lane-follow-max-heading-deg", type=float, default=18.0, help="max desired heading offset from sweep lane following")
     parser.add_argument("--lane-follow-max-omega-rps", type=float, default=0.35, help="max omega contribution from sweep lane following")
+    parser.add_argument("--forward-arc-only-enabled", type=str_to_bool, default=True, help="keep normal competition sweep arcs forward-only so neither wheel target reverses")
+    parser.add_argument("--forward-arc-margin", type=float, default=0.75, help="fraction of the no-reverse arc omega limit used during normal sweep")
+    parser.add_argument("--min-sweep-v-mps", type=float, default=0.08, help="minimum forward velocity used by normal competition sweep closed-loop control")
     parser.add_argument("--local-costmap-enabled", type=str_to_bool, default=True, help="use rolling local costmap for local safety/collision checks")
     parser.add_argument("--local-costmap-width-m", type=float, default=4.0, help="rolling local costmap width in meters")
     parser.add_argument("--local-costmap-height-m", type=float, default=4.0, help="rolling local costmap height in meters")
@@ -5554,6 +5575,9 @@ def main() -> None:
             lane_follow_deadband_m=args.lane_follow_deadband_m,
             lane_follow_max_heading_deg=args.lane_follow_max_heading_deg,
             lane_follow_max_omega_rps=args.lane_follow_max_omega_rps,
+            forward_arc_only_enabled=args.forward_arc_only_enabled,
+            forward_arc_margin=args.forward_arc_margin,
+            min_sweep_v_mps=args.min_sweep_v_mps,
             local_costmap_enabled=args.local_costmap_enabled,
             local_costmap_width_m=args.local_costmap_width_m,
             local_costmap_height_m=args.local_costmap_height_m,
@@ -5663,6 +5687,9 @@ def main() -> None:
             lane_follow_deadband_m=args.lane_follow_deadband_m,
             lane_follow_max_heading_deg=args.lane_follow_max_heading_deg,
             lane_follow_max_omega_rps=args.lane_follow_max_omega_rps,
+            forward_arc_only_enabled=args.forward_arc_only_enabled,
+            forward_arc_margin=args.forward_arc_margin,
+            min_sweep_v_mps=args.min_sweep_v_mps,
             local_costmap_enabled=args.local_costmap_enabled,
             local_costmap_width_m=args.local_costmap_width_m,
             local_costmap_height_m=args.local_costmap_height_m,

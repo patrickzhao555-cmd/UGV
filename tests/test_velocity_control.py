@@ -499,6 +499,12 @@ def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
     assert "motor_velocity_raw_fallback_min_target_raw" in competition_launch
     assert "DeclareLaunchArgument('motor_velocity_control_enabled', default_value='true')" in competition_launch
     assert "MOTOR_VELOCITY_CONTROL_ENABLED_WAS_SET" in bringup
+    assert "MOTOR_WHEEL_RADIUS_M_WAS_SET" in bringup
+    assert "MOTOR_TICKS_PER_REV_WAS_SET" in bringup
+    assert 'MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-${ROBOT_WHEEL_RADIUS_M}}"' in bringup
+    assert 'MOTOR_TICKS_PER_REV="${MOTOR_TICKS_PER_REV:-${ROBOT_TICKS_PER_REV}}"' in bringup
+    assert "MOTOR_TICKS_DELTA_PCT" in bringup
+    assert "MOTOR_TICKS_PER_REV=${MOTOR_TICKS_PER_REV} differs from ROBOT_TICKS_PER_REV=${ROBOT_TICKS_PER_REV}" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_TURN_RAW" in bringup

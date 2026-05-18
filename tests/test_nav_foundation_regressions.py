@@ -9,6 +9,11 @@ import numpy as np
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 
+from ugv_nav_core.closed_loop_controller import (  # noqa: E402
+    apply_competition_closed_loop_command,
+    compute_heading_hold_correction,
+    compute_lane_follow_correction,
+)
 from ugv_nav_dual_mode import (  # noqa: E402
     Costmap2D,
     ControlCommand,
@@ -30,10 +35,7 @@ from ugv_nav_dual_mode import (  # noqa: E402
     UGVNavigator,
     VelocityLocalPlanner,
     ZedPacket,
-    apply_competition_closed_loop_command,
     build_nav_status,
-    compute_heading_hold_correction,
-    compute_lane_follow_correction,
     field_cell_to_world,
     laser_scan_to_lidar_observations,
     update_physical_stall_state,
@@ -379,6 +381,15 @@ def test_nav_status_exposes_competition_closed_loop_fields():
             "closed_loop_enabled": True,
             "heading_hold_enabled": True,
             "lane_follow_enabled": True,
+            "heading_hold_kp": 1.23,
+            "heading_hold_kd": 0.07,
+            "heading_hold_deadband_deg": 4.0,
+            "heading_hold_max_omega_rps": 0.44,
+            "lane_follow_kp_heading": 1.45,
+            "lane_follow_kp_omega": 0.90,
+            "lane_follow_deadband_m": 0.08,
+            "lane_follow_max_heading_deg": 15.0,
+            "lane_follow_max_omega_rps": 0.25,
             "target_yaw_deg": 0.0,
             "estimated_yaw_deg": 1.0,
             "heading_error_deg": -1.0,
@@ -414,6 +425,18 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "heading_source",
     ]:
         assert key in status
+    for key in [
+        "heading_hold_kp",
+        "heading_hold_kd",
+        "heading_hold_deadband_deg",
+        "heading_hold_max_omega_rps",
+        "lane_follow_kp_heading",
+        "lane_follow_kp_omega",
+        "lane_follow_deadband_m",
+        "lane_follow_max_heading_deg",
+        "lane_follow_max_omega_rps",
+    ]:
+        assert key in status["competition_closed_loop"]
 
 
 def test_local_costmap_cli_launch_and_env_parameters_are_wired():
@@ -494,7 +517,15 @@ def test_real_nav_odometry_calibration_parameters_are_wired():
     for token in [
         'ROBOT_WHEEL_RADIUS_M="${ROBOT_WHEEL_RADIUS_M:-0.06}"',
         'ROBOT_TICKS_PER_REV="${ROBOT_TICKS_PER_REV:-1000}"',
+        'MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-${ROBOT_WHEEL_RADIUS_M}}"',
+        'MOTOR_TICKS_PER_REV="${MOTOR_TICKS_PER_REV:-${ROBOT_TICKS_PER_REV}}"',
+        'UGV robot odometry: ROBOT_WHEEL_RADIUS_M=',
+        'UGV motor velocity odometry: MOTOR_WHEEL_RADIUS_M=',
+        'MOTOR_TICKS_DELTA_PCT',
+        'WARNING: MOTOR_VELOCITY_CONTROL_ENABLED=true but MOTOR_TICKS_PER_REV=',
         'robot_wheel_radius_m:="${ROBOT_WHEEL_RADIUS_M}"',
         'robot_ticks_per_rev:="${ROBOT_TICKS_PER_REV}"',
+        'motor_wheel_radius_m:="${MOTOR_WHEEL_RADIUS_M}"',
+        'motor_ticks_per_rev:="${MOTOR_TICKS_PER_REV}"',
     ]:
         assert token in bringup

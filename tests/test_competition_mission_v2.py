@@ -303,6 +303,15 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--competition-closed-loop-enabled",
         "--heading-hold-enabled",
         "--lane-follow-enabled",
+        "--heading-hold-kp",
+        "--heading-hold-kd",
+        "--heading-hold-deadband-deg",
+        "--heading-hold-max-omega-rps",
+        "--lane-follow-kp-heading",
+        "--lane-follow-kp-omega",
+        "--lane-follow-deadband-m",
+        "--lane-follow-max-heading-deg",
+        "--lane-follow-max-omega-rps",
     ]:
         assert token in nav_script
         assert token in launch_file
@@ -324,5 +333,14 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "NAV_COMPETITION_CLOSED_LOOP_ENABLED",
         "NAV_HEADING_HOLD_ENABLED",
         "NAV_LANE_FOLLOW_ENABLED",
+        "NAV_HEADING_HOLD_KP",
+        "NAV_HEADING_HOLD_KD",
+        "NAV_HEADING_HOLD_DEADBAND_DEG",
+        "NAV_HEADING_HOLD_MAX_OMEGA_RPS",
+        "NAV_LANE_FOLLOW_KP_HEADING",
+        "NAV_LANE_FOLLOW_KP_OMEGA",
+        "NAV_LANE_FOLLOW_DEADBAND_M",
+        "NAV_LANE_FOLLOW_MAX_HEADING_DEG",
+        "NAV_LANE_FOLLOW_MAX_OMEGA_RPS",
     ]:
         assert token in bringup

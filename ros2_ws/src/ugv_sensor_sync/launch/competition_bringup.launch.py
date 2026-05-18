@@ -208,6 +208,15 @@ def generate_launch_description():
     competition_closed_loop_enabled = LaunchConfiguration('competition_closed_loop_enabled')
     heading_hold_enabled = LaunchConfiguration('heading_hold_enabled')
     lane_follow_enabled = LaunchConfiguration('lane_follow_enabled')
+    heading_hold_kp = LaunchConfiguration('heading_hold_kp')
+    heading_hold_kd = LaunchConfiguration('heading_hold_kd')
+    heading_hold_deadband_deg = LaunchConfiguration('heading_hold_deadband_deg')
+    heading_hold_max_omega_rps = LaunchConfiguration('heading_hold_max_omega_rps')
+    lane_follow_kp_heading = LaunchConfiguration('lane_follow_kp_heading')
+    lane_follow_kp_omega = LaunchConfiguration('lane_follow_kp_omega')
+    lane_follow_deadband_m = LaunchConfiguration('lane_follow_deadband_m')
+    lane_follow_max_heading_deg = LaunchConfiguration('lane_follow_max_heading_deg')
+    lane_follow_max_omega_rps = LaunchConfiguration('lane_follow_max_omega_rps')
     local_costmap_enabled = LaunchConfiguration('local_costmap_enabled')
     local_costmap_width_m = LaunchConfiguration('local_costmap_width_m')
     local_costmap_height_m = LaunchConfiguration('local_costmap_height_m')
@@ -437,6 +446,24 @@ def generate_launch_description():
             heading_hold_enabled,
             '--lane-follow-enabled',
             lane_follow_enabled,
+            '--heading-hold-kp',
+            heading_hold_kp,
+            '--heading-hold-kd',
+            heading_hold_kd,
+            '--heading-hold-deadband-deg',
+            heading_hold_deadband_deg,
+            '--heading-hold-max-omega-rps',
+            heading_hold_max_omega_rps,
+            '--lane-follow-kp-heading',
+            lane_follow_kp_heading,
+            '--lane-follow-kp-omega',
+            lane_follow_kp_omega,
+            '--lane-follow-deadband-m',
+            lane_follow_deadband_m,
+            '--lane-follow-max-heading-deg',
+            lane_follow_max_heading_deg,
+            '--lane-follow-max-omega-rps',
+            lane_follow_max_omega_rps,
             '--local-costmap-enabled',
             local_costmap_enabled,
             '--local-costmap-width-m',
@@ -687,6 +714,15 @@ def generate_launch_description():
         DeclareLaunchArgument('competition_closed_loop_enabled', default_value='true'),
         DeclareLaunchArgument('heading_hold_enabled', default_value='true'),
         DeclareLaunchArgument('lane_follow_enabled', default_value='true'),
+        DeclareLaunchArgument('heading_hold_kp', default_value='1.10'),
+        DeclareLaunchArgument('heading_hold_kd', default_value='0.05'),
+        DeclareLaunchArgument('heading_hold_deadband_deg', default_value='3.0'),
+        DeclareLaunchArgument('heading_hold_max_omega_rps', default_value='0.55'),
+        DeclareLaunchArgument('lane_follow_kp_heading', default_value='1.10'),
+        DeclareLaunchArgument('lane_follow_kp_omega', default_value='1.00'),
+        DeclareLaunchArgument('lane_follow_deadband_m', default_value='0.03'),
+        DeclareLaunchArgument('lane_follow_max_heading_deg', default_value='18.0'),
+        DeclareLaunchArgument('lane_follow_max_omega_rps', default_value='0.35'),
         DeclareLaunchArgument('local_costmap_enabled', default_value='true'),
         DeclareLaunchArgument('local_costmap_width_m', default_value='4.0'),
         DeclareLaunchArgument('local_costmap_height_m', default_value='4.0'),

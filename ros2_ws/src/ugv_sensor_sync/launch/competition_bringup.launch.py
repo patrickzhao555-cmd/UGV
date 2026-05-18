@@ -82,6 +82,10 @@ def generate_launch_description():
     sweep_max_rows = LaunchConfiguration('sweep_max_rows')
     sweep_row_end_tolerance_m = LaunchConfiguration('sweep_row_end_tolerance_m')
     sweep_turn_90_yaw_tolerance_deg = LaunchConfiguration('sweep_turn_90_yaw_tolerance_deg')
+    sweep_turn_strong_error_deg = LaunchConfiguration('sweep_turn_strong_error_deg')
+    sweep_turn_capture_error_deg = LaunchConfiguration('sweep_turn_capture_error_deg')
+    sweep_turn_settle_error_deg = LaunchConfiguration('sweep_turn_settle_error_deg')
+    sweep_turn_settle_frames = LaunchConfiguration('sweep_turn_settle_frames')
     sweep_lane_capture_tolerance_m = LaunchConfiguration('sweep_lane_capture_tolerance_m')
     sweep_yaw_capture_tolerance_deg = LaunchConfiguration('sweep_yaw_capture_tolerance_deg')
     sweep_transition_min_emitted_v_mps = LaunchConfiguration('sweep_transition_min_emitted_v_mps')
@@ -400,6 +404,14 @@ def generate_launch_description():
             sweep_row_end_tolerance_m,
             '--sweep-turn-90-yaw-tolerance-deg',
             sweep_turn_90_yaw_tolerance_deg,
+            '--sweep-turn-strong-error-deg',
+            sweep_turn_strong_error_deg,
+            '--sweep-turn-capture-error-deg',
+            sweep_turn_capture_error_deg,
+            '--sweep-turn-settle-error-deg',
+            sweep_turn_settle_error_deg,
+            '--sweep-turn-settle-frames',
+            sweep_turn_settle_frames,
             '--sweep-lane-capture-tolerance-m',
             sweep_lane_capture_tolerance_m,
             '--sweep-yaw-capture-tolerance-deg',
@@ -773,6 +785,10 @@ def generate_launch_description():
         DeclareLaunchArgument('sweep_max_rows', default_value='0'),
         DeclareLaunchArgument('sweep_row_end_tolerance_m', default_value='0.35'),
         DeclareLaunchArgument('sweep_turn_90_yaw_tolerance_deg', default_value='7.0'),
+        DeclareLaunchArgument('sweep_turn_strong_error_deg', default_value='30.0'),
+        DeclareLaunchArgument('sweep_turn_capture_error_deg', default_value='12.0'),
+        DeclareLaunchArgument('sweep_turn_settle_error_deg', default_value='7.0'),
+        DeclareLaunchArgument('sweep_turn_settle_frames', default_value='3'),
         DeclareLaunchArgument('sweep_lane_capture_tolerance_m', default_value='0.20'),
         DeclareLaunchArgument('sweep_yaw_capture_tolerance_deg', default_value='8.0'),
         DeclareLaunchArgument('sweep_transition_min_emitted_v_mps', default_value='0.12'),

@@ -435,6 +435,12 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "row_transition_timeout": False,
         "row_transition_geometry_warning": "",
         "row_transition_target_m": None,
+        "turn_capture_zone": None,
+        "turn_settle_count": None,
+        "turn_yaw_error_sign_changed": False,
+        "turn_overshoot_deg": None,
+        "turn_effective_target_yaw_deg": None,
+        "turn_command_phase": None,
         "turn_radius_m": None,
         "turn_side": "",
         "target_side_yaw_deg": None,
@@ -448,6 +454,7 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "transition_emitted_omega_radps": None,
         "transition_left_target_mps": None,
         "transition_right_target_mps": None,
+        "active_robot_track_width_m": None,
         "forward_arc_only_enabled": _cfg_bool(nav_cfg, "forward_arc_only_enabled", True) if nav_cfg is not None else True,
         "forward_arc_margin": _cfg_float(nav_cfg, "forward_arc_margin", 0.75) if nav_cfg is not None else 0.75,
         "min_sweep_v_mps": _cfg_float(nav_cfg, "min_sweep_v_mps", 0.08) if nav_cfg is not None else 0.08,
@@ -541,6 +548,7 @@ def apply_competition_closed_loop_command(
     transition_active = bool(v2.get("row_transition_active", False)) or sweep_subphase in TRANSITION_SEGMENTS
     debug["sweep_subphase"] = sweep_subphase
     debug["row_transition_active"] = bool(transition_active)
+    debug["active_robot_track_width_m"] = round(float(getattr(navigator.robot_cfg, "track_width_m", 0.0)), 4)
     if navigator.physical_stall.detected:
         if transition_active:
             debug.update(
@@ -620,6 +628,10 @@ def apply_competition_closed_loop_command(
             inner_wheel_min_mps=finite_optional(v2.get("sweep_transition_inner_wheel_min_mps")) or 0.04,
             max_v_mps=nav_cfg.continuous_max_speed_mps,
             turn_90_yaw_tolerance_rad=math.radians(finite_optional(v2.get("sweep_turn_90_yaw_tolerance_deg")) or 7.0),
+            turn_strong_error_rad=math.radians(finite_optional(v2.get("sweep_turn_strong_error_deg")) or 30.0),
+            turn_capture_error_rad=math.radians(finite_optional(v2.get("sweep_turn_capture_error_deg")) or 12.0),
+            turn_settle_error_rad=math.radians(finite_optional(v2.get("sweep_turn_settle_error_deg")) or 7.0),
+            turn_settle_frames=int(finite_optional(v2.get("sweep_turn_settle_frames")) or 3),
             lane_capture_tolerance_m=finite_optional(v2.get("sweep_lane_capture_tolerance_m")) or 0.20,
             yaw_capture_tolerance_rad=math.radians(finite_optional(v2.get("sweep_yaw_capture_tolerance_deg")) or 8.0),
             forward_corridor_safe=forward_corridor_safe,

@@ -343,6 +343,10 @@ def row_transition_config(**overrides):
         "sweep_max_rows": 3,
         "sweep_row_end_tolerance_m": 0.35,
         "sweep_turn_90_yaw_tolerance_deg": 7.0,
+        "sweep_turn_strong_error_deg": 30.0,
+        "sweep_turn_capture_error_deg": 12.0,
+        "sweep_turn_settle_error_deg": 7.0,
+        "sweep_turn_settle_frames": 3,
         "sweep_lane_capture_tolerance_m": 0.20,
         "sweep_yaw_capture_tolerance_deg": 8.0,
         "sweep_transition_min_emitted_v_mps": 0.12,
@@ -398,6 +402,10 @@ def transition_request(segment: str, *, pose_y: float = 0.45, yaw: float = 0.0, 
         inner_wheel_min_mps=0.04,
         max_v_mps=0.36,
         turn_90_yaw_tolerance_rad=math.radians(7.0),
+        turn_strong_error_rad=math.radians(30.0),
+        turn_capture_error_rad=math.radians(12.0),
+        turn_settle_error_rad=math.radians(7.0),
+        turn_settle_frames=3,
         lane_capture_tolerance_m=0.20,
         yaw_capture_tolerance_rad=math.radians(8.0),
     )
@@ -406,12 +414,17 @@ def transition_request(segment: str, *, pose_y: float = 0.45, yaw: float = 0.0, 
 def test_turn_out_90_does_not_complete_until_yaw_near_side_yaw():
     controller = RowTransitionController()
     far = controller.compute(transition_request("turn_out_90", yaw=math.radians(50.0)))
-    near = controller.compute(transition_request("turn_out_90", yaw=math.radians(85.0)))
+    near1 = controller.compute(transition_request("turn_out_90", yaw=math.radians(85.0)))
+    near2 = controller.compute(transition_request("turn_out_90", yaw=math.radians(85.0)))
+    near3 = controller.compute(transition_request("turn_out_90", yaw=math.radians(85.0)))
 
     assert not far.segment_done
     assert far.debug["row_transition_reason"] == "side_yaw_not_captured"
-    assert near.segment_done
-    assert not near.transition_done
+    assert not near1.segment_done
+    assert not near2.segment_done
+    assert near3.segment_done
+    assert near3.debug["turn_settle_count"] == 3
+    assert not near3.transition_done
 
 
 def test_cross_lane_does_not_complete_until_y_is_near_next_lane():
@@ -428,12 +441,16 @@ def test_cross_lane_does_not_complete_until_y_is_near_next_lane():
 def test_turn_in_90_does_not_complete_until_yaw_near_next_row_yaw():
     controller = RowTransitionController()
     far = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(120.0)))
-    near = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(176.0)))
+    near1 = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(176.0)))
+    near2 = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(176.0)))
+    near3 = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(176.0)))
 
     assert not far.segment_done
     assert far.debug["row_transition_reason"] == "next_row_yaw_not_captured"
-    assert near.segment_done
-    assert not near.transition_done
+    assert not near1.segment_done
+    assert not near2.segment_done
+    assert near3.segment_done
+    assert not near3.transition_done
 
 
 def test_acquire_next_row_only_commits_after_lane_and_yaw_are_captured():
@@ -441,20 +458,24 @@ def test_acquire_next_row_only_commits_after_lane_and_yaw_are_captured():
     mission.update((3.75, 0.45, 0.0), 0.0)
     mission.update((4.42, 0.45, 0.0), 0.1)
 
-    crossing = mission.update((4.42, 0.45, math.radians(90.0)), 0.2)
+    mission.update((4.42, 0.45, math.radians(90.0)), 0.2)
+    mission.update((4.42, 0.45, math.radians(90.0)), 0.3)
+    crossing = mission.update((4.42, 0.45, math.radians(90.0)), 0.4)
     assert crossing.status["sweep_subphase"] == "cross_lane"
     assert crossing.status["row_index"] == 0
 
-    turning_in = mission.update((4.42, 0.95, math.radians(90.0)), 0.3)
+    turning_in = mission.update((4.42, 0.95, math.radians(90.0)), 0.5)
     assert turning_in.status["sweep_subphase"] == "turn_in_90"
     assert turning_in.status["row_index"] == 0
 
-    acquiring = mission.update((4.42, 0.95, math.pi), 0.4)
+    mission.update((4.42, 0.95, math.pi), 0.6)
+    mission.update((4.42, 0.95, math.pi), 0.7)
+    acquiring = mission.update((4.42, 0.95, math.pi), 0.8)
     assert acquiring.status["sweep_subphase"] == "acquire_next_row"
     assert acquiring.status["row_index"] == 0
     assert acquiring.status["row_transition_done"]
 
-    captured = mission.update((4.42, 0.95, math.pi), 0.5)
+    captured = mission.update((4.42, 0.95, math.pi), 0.9)
     assert captured.status["sweep_subphase"] == "follow_row"
     assert captured.status["row_index"] == 1
     assert captured.status["row_direction"] == -1.0
@@ -470,12 +491,64 @@ def test_segmented_transition_never_completes_based_on_time_alone():
     assert timed_out.status["row_index"] == 0
     assert timed_out.status["sweep_subphase"] == "turn_out_90"
     assert timed_out.status["row_transition_timeout"]
-    assert timed_out.reason == "row_transition_timeout"
+    assert timed_out.reason == "row_transition_yaw_capture_failed"
+
+
+def test_turn_out_90_uses_strong_omega_when_yaw_error_is_large():
+    controller = RowTransitionController()
+    cmd = controller.compute(transition_request("turn_out_90", yaw=math.radians(0.0)))
+
+    assert cmd.debug["turn_capture_zone"] == "strong"
+    assert cmd.debug["turn_command_phase"] == "approach"
+    assert abs(cmd.debug["transition_emitted_omega_radps"]) == 0.4
+
+
+def test_turn_out_90_reduces_omega_in_capture_zone():
+    controller = RowTransitionController()
+    strong = controller.compute(transition_request("turn_out_90", yaw=math.radians(65.0)))
+    capture = controller.compute(transition_request("turn_out_90", yaw=math.radians(80.0)))
+
+    assert strong.debug["turn_capture_zone"] == "medium"
+    assert capture.debug["turn_capture_zone"] == "capture"
+    assert abs(capture.debug["transition_emitted_omega_radps"]) < abs(strong.debug["transition_emitted_omega_radps"])
+
+
+def test_turn_sign_change_enters_capture_settle_logic():
+    controller = RowTransitionController()
+    before = controller.compute(transition_request("turn_out_90", yaw=math.radians(85.0)))
+    crossed = controller.compute(transition_request("turn_out_90", yaw=math.radians(95.0)))
+
+    assert before.debug["turn_capture_zone"] == "settle"
+    assert crossed.debug["turn_yaw_error_sign_changed"]
+    assert crossed.debug["turn_capture_zone"] == "settle"
+    assert crossed.debug["turn_command_phase"] == "settle"
+
+
+def test_segment_does_not_complete_until_required_settle_frames():
+    controller = RowTransitionController()
+    first = controller.compute(transition_request("turn_out_90", yaw=math.radians(90.0)))
+    second = controller.compute(transition_request("turn_out_90", yaw=math.radians(90.0)))
+    third = controller.compute(transition_request("turn_out_90", yaw=math.radians(90.0)))
+
+    assert not first.segment_done
+    assert not second.segment_done
+    assert third.segment_done
+
+
+def test_turn_overshoot_correction_is_capped():
+    controller = RowTransitionController()
+    approach = controller.compute(transition_request("turn_out_90", yaw=math.radians(50.0)))
+    overshoot = controller.compute(transition_request("turn_out_90", yaw=math.radians(125.0)))
+
+    assert overshoot.debug["turn_command_phase"] == "correct_overshoot"
+    assert overshoot.debug["turn_overshoot_deg"] > 30.0
+    assert abs(overshoot.debug["transition_emitted_omega_radps"]) <= 0.2
+    assert abs(overshoot.debug["transition_emitted_omega_radps"]) < abs(approach.debug["transition_emitted_omega_radps"])
 
 
 def test_emitted_omega_minimum_is_enforced_during_turn_phase():
     controller = RowTransitionController()
-    cmd = controller.compute(transition_request("turn_out_90", yaw=math.radians(80.0), drive_speed_factor=0.5))
+    cmd = controller.compute(transition_request("turn_out_90", yaw=math.radians(45.0), drive_speed_factor=0.5))
 
     assert not cmd.segment_done
     assert abs(cmd.debug["transition_emitted_omega_radps"]) >= 0.20
@@ -556,6 +629,10 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--sweep-max-rows",
         "--sweep-row-end-tolerance-m",
         "--sweep-turn-90-yaw-tolerance-deg",
+        "--sweep-turn-strong-error-deg",
+        "--sweep-turn-capture-error-deg",
+        "--sweep-turn-settle-error-deg",
+        "--sweep-turn-settle-frames",
         "--sweep-lane-capture-tolerance-m",
         "--sweep-yaw-capture-tolerance-deg",
         "--sweep-transition-min-emitted-v-mps",
@@ -636,6 +713,10 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "SWEEP_MAX_ROWS",
         "SWEEP_ROW_END_TOLERANCE_M",
         "SWEEP_TURN_90_YAW_TOLERANCE_DEG",
+        "SWEEP_TURN_STRONG_ERROR_DEG",
+        "SWEEP_TURN_CAPTURE_ERROR_DEG",
+        "SWEEP_TURN_SETTLE_ERROR_DEG",
+        "SWEEP_TURN_SETTLE_FRAMES",
         "SWEEP_LANE_CAPTURE_TOLERANCE_M",
         "SWEEP_YAW_CAPTURE_TOLERANCE_DEG",
         "SWEEP_TRANSITION_MIN_EMITTED_V_MPS",

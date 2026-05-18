@@ -54,6 +54,12 @@ class SweepMetricsLogger:
         "row_transition_diverging",
         "row_transition_timeout",
         "row_transition_geometry_warning",
+        "turn_capture_zone",
+        "turn_settle_count",
+        "turn_yaw_error_sign_changed",
+        "turn_overshoot_deg",
+        "turn_effective_target_yaw_deg",
+        "turn_command_phase",
         "target_side_yaw_deg",
         "target_next_row_yaw_deg",
         "segment_yaw_error_deg",
@@ -67,6 +73,7 @@ class SweepMetricsLogger:
         "transition_emitted_omega_radps",
         "transition_left_target_mps",
         "transition_right_target_mps",
+        "active_robot_track_width_m",
     ]
 
     def __init__(self, log_dir: str = "~/.ros/ugv_sweep_metrics"):
@@ -161,6 +168,12 @@ class SweepMetricsLogger:
             "row_transition_diverging": bool(v2.get("row_transition_diverging", False)),
             "row_transition_timeout": bool(v2.get("row_transition_timeout", False)),
             "row_transition_geometry_warning": v2.get("row_transition_geometry_warning", ""),
+            "turn_capture_zone": v2.get("turn_capture_zone", ""),
+            "turn_settle_count": v2.get("turn_settle_count"),
+            "turn_yaw_error_sign_changed": bool(v2.get("turn_yaw_error_sign_changed", False)),
+            "turn_overshoot_deg": v2.get("turn_overshoot_deg"),
+            "turn_effective_target_yaw_deg": v2.get("turn_effective_target_yaw_deg"),
+            "turn_command_phase": v2.get("turn_command_phase", ""),
             "target_side_yaw_deg": v2.get("target_side_yaw_deg"),
             "target_next_row_yaw_deg": v2.get("target_next_row_yaw_deg"),
             "segment_yaw_error_deg": v2.get("segment_yaw_error_deg"),
@@ -174,6 +187,7 @@ class SweepMetricsLogger:
             "transition_emitted_omega_radps": v2.get("transition_emitted_omega_radps"),
             "transition_left_target_mps": v2.get("transition_left_target_mps"),
             "transition_right_target_mps": v2.get("transition_right_target_mps"),
+            "active_robot_track_width_m": status.get("active_robot_track_width_m", v2.get("active_robot_track_width_m")),
         }
         self._writer.writerow(row)
         self._fp.flush()

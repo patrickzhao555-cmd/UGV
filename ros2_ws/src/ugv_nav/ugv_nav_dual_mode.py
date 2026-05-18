@@ -4060,6 +4060,10 @@ def run_simulation(
     sweep_max_rows: int = 0,
     sweep_row_end_tolerance_m: float = 0.35,
     sweep_turn_90_yaw_tolerance_deg: float = 7.0,
+    sweep_turn_strong_error_deg: float = 30.0,
+    sweep_turn_capture_error_deg: float = 12.0,
+    sweep_turn_settle_error_deg: float = 7.0,
+    sweep_turn_settle_frames: int = 3,
     sweep_lane_capture_tolerance_m: float = 0.20,
     sweep_yaw_capture_tolerance_deg: float = 8.0,
     sweep_transition_min_emitted_v_mps: float = 0.12,
@@ -4209,6 +4213,10 @@ def run_simulation(
                 sweep_max_rows=sweep_max_rows,
                 sweep_row_end_tolerance_m=sweep_row_end_tolerance_m,
                 sweep_turn_90_yaw_tolerance_deg=sweep_turn_90_yaw_tolerance_deg,
+                sweep_turn_strong_error_deg=sweep_turn_strong_error_deg,
+                sweep_turn_capture_error_deg=sweep_turn_capture_error_deg,
+                sweep_turn_settle_error_deg=sweep_turn_settle_error_deg,
+                sweep_turn_settle_frames=sweep_turn_settle_frames,
                 sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
                 sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
                 sweep_transition_min_emitted_v_mps=sweep_transition_min_emitted_v_mps,
@@ -4350,6 +4358,10 @@ def run_real_mode(
     sweep_max_rows: int = 0,
     sweep_row_end_tolerance_m: float = 0.35,
     sweep_turn_90_yaw_tolerance_deg: float = 7.0,
+    sweep_turn_strong_error_deg: float = 30.0,
+    sweep_turn_capture_error_deg: float = 12.0,
+    sweep_turn_settle_error_deg: float = 7.0,
+    sweep_turn_settle_frames: int = 3,
     sweep_lane_capture_tolerance_m: float = 0.20,
     sweep_yaw_capture_tolerance_deg: float = 8.0,
     sweep_transition_min_emitted_v_mps: float = 0.12,
@@ -4645,6 +4657,10 @@ def run_real_mode(
                 sweep_max_rows=sweep_max_rows,
                 sweep_row_end_tolerance_m=sweep_row_end_tolerance_m,
                 sweep_turn_90_yaw_tolerance_deg=sweep_turn_90_yaw_tolerance_deg,
+                sweep_turn_strong_error_deg=sweep_turn_strong_error_deg,
+                sweep_turn_capture_error_deg=sweep_turn_capture_error_deg,
+                sweep_turn_settle_error_deg=sweep_turn_settle_error_deg,
+                sweep_turn_settle_frames=sweep_turn_settle_frames,
                 sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
                 sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
                 sweep_transition_min_emitted_v_mps=sweep_transition_min_emitted_v_mps,
@@ -4709,7 +4725,7 @@ def run_real_mode(
         f"pure_turn={sweep_allow_pure_turn}, "
         f"min_competition_speed={min_competition_speed_mps:.3f}m/s, "
         f"drive_speed_level={drive_speed_level}/4 ({drive_factor:.2f}x), "
-        f"robot=({robot_cfg.length_m:.2f}m x {robot_cfg.width_m:.2f}m), "
+        f"robot=({robot_cfg.length_m:.2f}m x {robot_cfg.width_m:.2f}m track={robot_cfg.track_width_m:.4f}m), "
         f"lidar_offset=({robot_cfg.lidar_offset_x_m:.2f}, {robot_cfg.lidar_offset_y_m:.2f})m, "
         f"lidar_fov={nav_cfg.lidar_used_fov_deg:.0f}deg, allow_reverse={nav_cfg.allow_reverse}, "
         f"active_scan={nav_cfg.active_scan_enabled} "
@@ -4925,6 +4941,10 @@ def main() -> None:
     parser.add_argument("--sweep-max-rows", type=int, default=0, help="0 means all rows that fit in the configured field")
     parser.add_argument("--sweep-row-end-tolerance-m", type=float, default=0.35)
     parser.add_argument("--sweep-turn-90-yaw-tolerance-deg", type=float, default=7.0)
+    parser.add_argument("--sweep-turn-strong-error-deg", type=float, default=30.0)
+    parser.add_argument("--sweep-turn-capture-error-deg", type=float, default=12.0)
+    parser.add_argument("--sweep-turn-settle-error-deg", type=float, default=7.0)
+    parser.add_argument("--sweep-turn-settle-frames", type=int, default=3)
     parser.add_argument("--sweep-lane-capture-tolerance-m", type=float, default=0.20)
     parser.add_argument("--sweep-yaw-capture-tolerance-deg", type=float, default=8.0)
     parser.add_argument("--sweep-transition-min-emitted-v-mps", type=float, default=0.12)
@@ -5131,6 +5151,10 @@ def main() -> None:
             sweep_max_rows=args.sweep_max_rows,
             sweep_row_end_tolerance_m=args.sweep_row_end_tolerance_m,
             sweep_turn_90_yaw_tolerance_deg=args.sweep_turn_90_yaw_tolerance_deg,
+            sweep_turn_strong_error_deg=args.sweep_turn_strong_error_deg,
+            sweep_turn_capture_error_deg=args.sweep_turn_capture_error_deg,
+            sweep_turn_settle_error_deg=args.sweep_turn_settle_error_deg,
+            sweep_turn_settle_frames=args.sweep_turn_settle_frames,
             sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
             sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
             sweep_transition_min_emitted_v_mps=args.sweep_transition_min_emitted_v_mps,
@@ -5180,6 +5204,10 @@ def main() -> None:
             sweep_max_rows=args.sweep_max_rows,
             sweep_row_end_tolerance_m=args.sweep_row_end_tolerance_m,
             sweep_turn_90_yaw_tolerance_deg=args.sweep_turn_90_yaw_tolerance_deg,
+            sweep_turn_strong_error_deg=args.sweep_turn_strong_error_deg,
+            sweep_turn_capture_error_deg=args.sweep_turn_capture_error_deg,
+            sweep_turn_settle_error_deg=args.sweep_turn_settle_error_deg,
+            sweep_turn_settle_frames=args.sweep_turn_settle_frames,
             sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
             sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
             sweep_transition_min_emitted_v_mps=args.sweep_transition_min_emitted_v_mps,

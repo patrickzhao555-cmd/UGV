@@ -37,6 +37,7 @@ def build_nav_status(navigator: Any, frame: Any, cmd: Any, mission_status: dict)
         "emitted_command_meaning": "post_drive_scale_ugv_nav_cmd",
     }
     closed_loop_status.update(command_scaling_status)
+    closed_loop_status["active_robot_track_width_m"] = round(track_width, 4)
     status = {
         "stamp": round(frame.encoder.timestamp, 3),
         "mission": mission_status,
@@ -72,6 +73,7 @@ def build_nav_status(navigator: Any, frame: Any, cmd: Any, mission_status: dict)
         "omega_lane_radps": closed_loop_status.get("omega_lane_radps"),
         "final_v_mps": closed_loop_status.get("final_v_mps"),
         "final_omega_radps": closed_loop_status.get("final_omega_radps"),
+        "active_robot_track_width_m": round(track_width, 4),
         **command_scaling_status,
         "heading_source": closed_loop_status.get("heading_source"),
         "competition_closed_loop": closed_loop_status,
@@ -120,6 +122,12 @@ def build_nav_status(navigator: Any, frame: Any, cmd: Any, mission_status: dict)
             "row_transition_diverging",
             "row_transition_timeout",
             "row_transition_geometry_warning",
+            "turn_capture_zone",
+            "turn_settle_count",
+            "turn_yaw_error_sign_changed",
+            "turn_overshoot_deg",
+            "turn_effective_target_yaw_deg",
+            "turn_command_phase",
             "target_side_yaw_deg",
             "target_next_row_yaw_deg",
             "segment_yaw_error_deg",
@@ -133,8 +141,9 @@ def build_nav_status(navigator: Any, frame: Any, cmd: Any, mission_status: dict)
             "transition_emitted_omega_radps",
             "transition_left_target_mps",
             "transition_right_target_mps",
+            "active_robot_track_width_m",
         ]:
-            status[key] = v2.get(key)
+            status[key] = v2.get(key, status.get(key))
     return status
 
 

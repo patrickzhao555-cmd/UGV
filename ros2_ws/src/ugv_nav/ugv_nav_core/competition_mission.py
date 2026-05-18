@@ -159,6 +159,10 @@ class CompetitionMissionConfig:
     sweep_max_rows: int = 0
     sweep_row_end_tolerance_m: float = 0.35
     sweep_turn_90_yaw_tolerance_deg: float = 7.0
+    sweep_turn_strong_error_deg: float = 30.0
+    sweep_turn_capture_error_deg: float = 12.0
+    sweep_turn_settle_error_deg: float = 7.0
+    sweep_turn_settle_frames: int = 3
     sweep_lane_capture_tolerance_m: float = 0.20
     sweep_yaw_capture_tolerance_deg: float = 8.0
     sweep_transition_min_emitted_v_mps: float = 0.12
@@ -224,6 +228,10 @@ class CompetitionMissionConfig:
             sweep_max_rows=max(0, int(self.sweep_max_rows)),
             sweep_row_end_tolerance_m=max(0.02, float(self.sweep_row_end_tolerance_m)),
             sweep_turn_90_yaw_tolerance_deg=max(0.5, float(self.sweep_turn_90_yaw_tolerance_deg)),
+            sweep_turn_strong_error_deg=max(0.5, float(self.sweep_turn_strong_error_deg)),
+            sweep_turn_capture_error_deg=max(0.5, float(self.sweep_turn_capture_error_deg)),
+            sweep_turn_settle_error_deg=max(0.5, float(self.sweep_turn_settle_error_deg)),
+            sweep_turn_settle_frames=max(1, int(self.sweep_turn_settle_frames)),
             sweep_lane_capture_tolerance_m=max(0.01, float(self.sweep_lane_capture_tolerance_m)),
             sweep_yaw_capture_tolerance_deg=max(0.0, float(self.sweep_yaw_capture_tolerance_deg)),
             sweep_transition_min_emitted_v_mps=max(0.0, float(self.sweep_transition_min_emitted_v_mps)),
@@ -811,6 +819,10 @@ class CompetitionMissionV2:
             inner_wheel_min_mps=self.config.sweep_transition_inner_wheel_min_mps,
             max_v_mps=0.36,
             turn_90_yaw_tolerance_rad=math.radians(self.config.sweep_turn_90_yaw_tolerance_deg),
+            turn_strong_error_rad=math.radians(self.config.sweep_turn_strong_error_deg),
+            turn_capture_error_rad=math.radians(self.config.sweep_turn_capture_error_deg),
+            turn_settle_error_rad=math.radians(self.config.sweep_turn_settle_error_deg),
+            turn_settle_frames=self.config.sweep_turn_settle_frames,
             lane_capture_tolerance_m=self.config.sweep_lane_capture_tolerance_m,
             yaw_capture_tolerance_rad=math.radians(self.config.sweep_yaw_capture_tolerance_deg),
             forward_corridor_safe=self._last_forward_corridor_safe,
@@ -821,9 +833,11 @@ class CompetitionMissionV2:
         elapsed_s = 0.0 if self._transition_segment_start_s is None else max(0.0, float(now_s) - self._transition_segment_start_s)
         self._transition_timeout = elapsed_s > self.config.sweep_transition_timeout_s
         if self._transition_timeout:
-            self._transition_health = "timeout"
+            turn_timeout = segment in {"turn_out_90", "turn_in_90"}
+            self._transition_health = "yaw_capture_failed" if turn_timeout else "timeout"
             self._transition_diverging = False
-            self.reason = "row_transition_timeout"
+            self.reason = "row_transition_yaw_capture_failed" if turn_timeout else "row_transition_timeout"
+            debug["row_transition_reason"] = self.reason
             if self.config.sweep_transition_divergence_action == "stop":
                 self._safety_stop_requested = True
             return
@@ -866,6 +880,7 @@ class CompetitionMissionV2:
                 if segment in {"turn_out_90", "turn_in_90", "acquire_next_row"}
                 else "row_transition_lane_diverging"
             )
+            debug["row_transition_reason"] = self.reason
             if self.config.sweep_transition_divergence_action == "stop":
                 self._safety_stop_requested = True
         else:
@@ -1455,6 +1470,12 @@ class CompetitionMissionV2:
             "row_transition_diverging": bool(self._transition_diverging),
             "row_transition_timeout": bool(self._transition_timeout),
             "row_transition_geometry_warning": self._transition_geometry_warning,
+            "turn_capture_zone": transition_debug.get("turn_capture_zone"),
+            "turn_settle_count": transition_debug.get("turn_settle_count"),
+            "turn_yaw_error_sign_changed": transition_debug.get("turn_yaw_error_sign_changed"),
+            "turn_overshoot_deg": transition_debug.get("turn_overshoot_deg"),
+            "turn_effective_target_yaw_deg": transition_debug.get("turn_effective_target_yaw_deg"),
+            "turn_command_phase": transition_debug.get("turn_command_phase"),
             "target_row_yaw_deg": target_row_yaw_deg,
             "target_side_yaw_deg": transition_debug.get("target_side_yaw_deg"),
             "target_next_row_yaw_deg": transition_debug.get("target_next_row_yaw_deg"),
@@ -1474,6 +1495,10 @@ class CompetitionMissionV2:
             "sweep_headland_margin_m": round(float(self.config.sweep_headland_margin_m), 3),
             "sweep_row_end_tolerance_m": round(float(self.config.sweep_row_end_tolerance_m), 3),
             "sweep_turn_90_yaw_tolerance_deg": round(float(self.config.sweep_turn_90_yaw_tolerance_deg), 2),
+            "sweep_turn_strong_error_deg": round(float(self.config.sweep_turn_strong_error_deg), 2),
+            "sweep_turn_capture_error_deg": round(float(self.config.sweep_turn_capture_error_deg), 2),
+            "sweep_turn_settle_error_deg": round(float(self.config.sweep_turn_settle_error_deg), 2),
+            "sweep_turn_settle_frames": int(self.config.sweep_turn_settle_frames),
             "sweep_lane_capture_tolerance_m": round(float(self.config.sweep_lane_capture_tolerance_m), 3),
             "sweep_yaw_capture_tolerance_deg": round(float(self.config.sweep_yaw_capture_tolerance_deg), 2),
             "sweep_transition_min_emitted_v_mps": round(float(self.config.sweep_transition_min_emitted_v_mps), 4),

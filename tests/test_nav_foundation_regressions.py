@@ -50,6 +50,7 @@ from ugv_nav_dual_mode import (  # noqa: E402
     laser_scan_to_lidar_observations,
     update_physical_stall_state,
 )
+from tools.turn_odom_calibration import recommended_track_width_m  # noqa: E402
 
 
 def test_dynamic_sensor_hits_do_not_persist_in_global_planning_map():
@@ -74,6 +75,11 @@ def test_dynamic_sensor_hits_do_not_persist_in_global_planning_map():
 
     assert int(np.count_nonzero(navigator.known_costmap.data)) == before
     assert navigator.local_costmap.dynamic_cells
+
+
+def test_turn_odom_calibration_scale_formula():
+    assert math.isclose(recommended_track_width_m(0.6096, 100.0, 75.0), 0.8128)
+    assert math.isclose(recommended_track_width_m(0.6096, -100.0, -75.0), 0.8128)
 
 
 def test_laser_scan_conversion_preserves_no_return_beams_for_clearing():
@@ -903,6 +909,7 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "emitted_omega_radps",
         "emitted_left_target_mps",
         "emitted_right_target_mps",
+        "active_robot_track_width_m",
         "final_v_mps_meaning",
         "final_omega_radps_meaning",
         "emitted_command_meaning",
@@ -913,6 +920,7 @@ def test_nav_status_exposes_competition_closed_loop_fields():
     assert status["pre_scale_final_omega_radps"] == 0.06
     assert status["emitted_v_mps"] == 0.05
     assert status["emitted_omega_radps"] == 0.10
+    assert status["active_robot_track_width_m"] == 0.6096
     assert math.isclose(status["emitted_left_target_mps"], 0.0195, abs_tol=1e-4)
     assert math.isclose(status["emitted_right_target_mps"], 0.0805, abs_tol=1e-4)
     assert status["final_v_mps_meaning"] == "pre_drive_scale_closed_loop_command"
@@ -964,6 +972,7 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "emitted_omega_radps",
         "emitted_left_target_mps",
         "emitted_right_target_mps",
+        "active_robot_track_width_m",
         "final_v_mps_meaning",
         "emitted_command_meaning",
     ]:
@@ -1102,10 +1111,15 @@ def test_round2_row_transition_test_profile_resolves_row_length():
         'profile_default SWEEP_FIELD_HEIGHT_M "4.2"',
         'profile_default SWEEP_LANE_SPACING_M "1.5"',
         'profile_default SWEEP_TURN_90_YAW_TOLERANCE_DEG "7.0"',
+        'profile_default SWEEP_TURN_STRONG_ERROR_DEG "30.0"',
+        'profile_default SWEEP_TURN_CAPTURE_ERROR_DEG "12.0"',
+        'profile_default SWEEP_TURN_SETTLE_ERROR_DEG "7.0"',
+        'profile_default SWEEP_TURN_SETTLE_FRAMES "3"',
         'profile_default SWEEP_LANE_CAPTURE_TOLERANCE_M "0.20"',
         'profile_default SWEEP_YAW_CAPTURE_TOLERANCE_DEG "8.0"',
         'profile_default SWEEP_TRANSITION_MIN_EMITTED_OMEGA_RPS "0.20"',
         'profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"',
+        'UGV robot track width: ROBOT_TRACK_WIDTH_M=${ROBOT_TRACK_WIDTH_M}',
     ]:
         assert token in bringup
     assert 'export UGV_PROFILE="${UGV_PROFILE:-round2_row_transition_test}"' in script

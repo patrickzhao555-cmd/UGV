@@ -33,6 +33,14 @@ def yaw_deg(yaw_rad: float) -> float:
     return math.degrees(wrap_to_pi(float(yaw_rad)))
 
 
+def sign_nonzero(value: float) -> int:
+    if value > 1e-9:
+        return 1
+    if value < -1e-9:
+        return -1
+    return 0
+
+
 @dataclass
 class RowTransitionRequest:
     segment: str
@@ -52,6 +60,10 @@ class RowTransitionRequest:
     inner_wheel_min_mps: float = 0.04
     max_v_mps: float = 0.36
     turn_90_yaw_tolerance_rad: float = math.radians(7.0)
+    turn_strong_error_rad: float = math.radians(30.0)
+    turn_capture_error_rad: float = math.radians(12.0)
+    turn_settle_error_rad: float = math.radians(7.0)
+    turn_settle_frames: int = 3
     lane_capture_tolerance_m: float = 0.20
     yaw_capture_tolerance_rad: float = math.radians(8.0)
     forward_corridor_safe: bool = True
@@ -73,6 +85,13 @@ class RowTransitionController:
     """Closed-loop segmented 90/cross/90 row transition controller."""
 
     style = SEGMENTED_TURN_STYLE
+
+    def __init__(self) -> None:
+        self._turn_key: Optional[Tuple[Any, ...]] = None
+        self._turn_initial_error_sign = 0
+        self._turn_last_error_sign = 0
+        self._turn_sign_changed = False
+        self._turn_settle_count = 0
 
     @staticmethod
     def row_direction(value: float) -> float:
@@ -139,17 +158,121 @@ class RowTransitionController:
             left, right = wheel_targets_from_v_omega(v, omega, track)
         return v, omega, left, right, raised_v, reduced_omega
 
-    def _yaw_command(self, yaw_error: float, request: RowTransitionRequest) -> float:
+    @staticmethod
+    def _turn_state_key(request: RowTransitionRequest, target_yaw: float) -> Tuple[Any, ...]:
+        return (
+            str(request.segment or "").strip().lower(),
+            round(float(target_yaw), 4),
+            round(float(request.current_lane_y_m), 3),
+            round(float(request.next_lane_y_m), 3),
+            RowTransitionController.row_direction(request.row_direction),
+        )
+
+    def _reset_turn_state(self, key: Tuple[Any, ...], yaw_error: float) -> None:
+        sign = sign_nonzero(float(yaw_error))
+        self._turn_key = key
+        self._turn_initial_error_sign = sign
+        self._turn_last_error_sign = sign
+        self._turn_sign_changed = False
+        self._turn_settle_count = 0
+
+    def _update_turn_capture_state(
+        self,
+        request: RowTransitionRequest,
+        target_yaw: float,
+        yaw_error: float,
+    ) -> Dict[str, Any]:
+        key = self._turn_state_key(request, target_yaw)
+        if self._turn_key != key:
+            self._reset_turn_state(key, yaw_error)
+
+        sign = sign_nonzero(float(yaw_error))
+        sign_changed_now = (
+            bool(self._turn_last_error_sign)
+            and bool(sign)
+            and sign != self._turn_last_error_sign
+        )
+        if sign_changed_now:
+            self._turn_sign_changed = True
+        if self._turn_initial_error_sign == 0 and sign != 0:
+            self._turn_initial_error_sign = sign
+        if sign != 0:
+            self._turn_last_error_sign = sign
+
+        abs_error_rad = abs(float(yaw_error))
+        strong_error_rad = max(0.0, float(request.turn_strong_error_rad))
+        capture_error_rad = max(0.0, float(request.turn_capture_error_rad))
+        settle_error_rad = max(0.0, float(request.turn_settle_error_rad))
+        settle_frames = max(1, int(request.turn_settle_frames))
+        overshot = bool(
+            self._turn_sign_changed
+            and self._turn_initial_error_sign
+            and sign
+            and sign != self._turn_initial_error_sign
+        )
+
+        if abs_error_rad <= settle_error_rad:
+            self._turn_settle_count += 1
+        else:
+            self._turn_settle_count = 0
+
+        if overshot and abs_error_rad > capture_error_rad:
+            zone = "overshoot"
+            phase = "correct_overshoot"
+        elif abs_error_rad <= settle_error_rad:
+            zone = "settle"
+            phase = "settle"
+        elif self._turn_sign_changed or abs_error_rad <= capture_error_rad:
+            zone = "capture"
+            phase = "capture"
+        elif abs_error_rad <= strong_error_rad:
+            zone = "medium"
+            phase = "approach"
+        else:
+            zone = "strong"
+            phase = "approach"
+
+        return {
+            "turn_capture_zone": zone,
+            "turn_command_phase": phase,
+            "turn_settle_count": int(self._turn_settle_count),
+            "turn_settle_frames_required": int(settle_frames),
+            "turn_yaw_error_sign_changed": bool(self._turn_sign_changed or sign_changed_now),
+            "turn_overshoot_deg": round(math.degrees(abs_error_rad) if overshot else 0.0, 3),
+            "turn_effective_target_yaw_deg": round(yaw_deg(target_yaw), 2),
+            "turn_settled": bool(self._turn_settle_count >= settle_frames),
+        }
+
+    def _yaw_command(self, yaw_error: float, request: RowTransitionRequest, command_phase: str = "approach", capture_zone: str = "strong") -> float:
         yaw_rate = 0.0
         if request.yaw_rate_radps is not None and math.isfinite(float(request.yaw_rate_radps)):
             yaw_rate = float(request.yaw_rate_radps)
         omega = float(request.kp_yaw) * float(yaw_error) - float(request.kd_yaw) * yaw_rate
         drive_scale = max(1e-6, float(request.drive_speed_factor))
-        min_omega = max(0.0, float(request.min_emitted_omega_radps)) / drive_scale
-        max_omega = max(min_omega, float(request.max_emitted_omega_radps) / drive_scale)
-        if abs(yaw_error) > 1e-6:
-            omega = math.copysign(max(min_omega, abs(omega)), yaw_error)
-        return clamp(omega, -max_omega, max_omega)
+        min_emitted = max(0.0, float(request.min_emitted_omega_radps))
+        max_emitted = max(min_emitted, float(request.max_emitted_omega_radps))
+        if command_phase == "correct_overshoot":
+            cap_emitted = min(max_emitted, max(0.10, 0.50 * max_emitted))
+            floor_emitted = min(cap_emitted, max(0.06, 0.40 * min_emitted))
+        elif command_phase == "capture":
+            cap_emitted = min(max_emitted, max(0.10, 0.45 * max_emitted))
+            floor_emitted = min(cap_emitted, max(0.05, 0.35 * min_emitted))
+        elif command_phase == "settle":
+            cap_emitted = min(max_emitted, max(0.06, 0.25 * max_emitted))
+            floor_emitted = 0.0
+        elif capture_zone == "medium":
+            cap_emitted = max(min_emitted, 0.75 * max_emitted)
+            floor_emitted = min_emitted
+        else:
+            cap_emitted = max_emitted
+            floor_emitted = min_emitted
+
+        cap_omega = max(0.0, cap_emitted) / drive_scale
+        floor_omega = min(max(0.0, floor_emitted), max(0.0, cap_emitted)) / drive_scale
+        omega = clamp(omega, -cap_omega, cap_omega)
+        if floor_omega > 0.0 and abs(yaw_error) > 1e-6:
+            omega = math.copysign(max(floor_omega, abs(omega)), yaw_error)
+        return omega
 
     def compute(self, request: RowTransitionRequest) -> RowTransitionCommand:
         segment = str(request.segment or "").strip().lower()
@@ -163,9 +286,22 @@ class RowTransitionController:
         side_yaw_error = wrap_to_pi(side_yaw - float(request.pose_yaw_rad))
         next_yaw_error = wrap_to_pi(next_yaw - float(request.pose_yaw_rad))
 
-        turn_90_done = abs(yaw_error) < max(0.0, float(request.turn_90_yaw_tolerance_rad))
         lane_done = abs(lane_error) < max(0.0, float(request.lane_capture_tolerance_m))
         next_yaw_done = abs(next_yaw_error) < max(0.0, float(request.yaw_capture_tolerance_rad))
+        turn_debug: Dict[str, Any] = {
+            "turn_capture_zone": "",
+            "turn_settle_count": 0,
+            "turn_settle_frames_required": max(1, int(request.turn_settle_frames)),
+            "turn_yaw_error_sign_changed": False,
+            "turn_overshoot_deg": 0.0,
+            "turn_effective_target_yaw_deg": round(yaw_deg(target_yaw), 2),
+            "turn_command_phase": "",
+            "turn_settled": False,
+        }
+        turn_segment = segment in {"turn_out_90", "turn_in_90"}
+        if turn_segment:
+            turn_debug = self._update_turn_capture_state(request, target_yaw, yaw_error)
+        turn_90_done = bool(turn_debug.get("turn_settled", False)) if turn_segment else abs(yaw_error) < max(0.0, float(request.turn_90_yaw_tolerance_rad))
 
         if segment == "turn_out_90":
             segment_done = turn_90_done
@@ -177,7 +313,7 @@ class RowTransitionController:
             lane_span = max(1e-6, abs(float(request.next_lane_y_m) - float(request.current_lane_y_m)))
             progress = 1.0 - min(1.0, abs(lane_error) / lane_span)
         elif segment == "turn_in_90":
-            segment_done = next_yaw_done
+            segment_done = turn_90_done
             transition_done = False
             progress = 1.0 - min(1.0, abs(next_yaw_error) / max(math.radians(90.0), 1e-6))
         elif segment == "acquire_next_row":
@@ -198,7 +334,12 @@ class RowTransitionController:
             omega = self._yaw_command(yaw_error, request)
             v = min(max_v, max(min_v, inner_min + 0.5 * request.track_width_m * abs(omega)))
         elif segment in {"turn_out_90", "turn_in_90", "acquire_next_row"}:
-            omega = self._yaw_command(yaw_error, request)
+            omega = self._yaw_command(
+                yaw_error,
+                request,
+                str(turn_debug.get("turn_command_phase") or "approach"),
+                str(turn_debug.get("turn_capture_zone") or "strong"),
+            )
             v = min(max_v, max(min_v, inner_min + 0.5 * request.track_width_m * abs(omega)))
         else:
             omega = 0.0
@@ -222,11 +363,15 @@ class RowTransitionController:
         emitted_right = right * drive_scale
 
         reasons = []
-        if segment in {"turn_out_90", "cross_lane"} and not turn_90_done:
+        if segment == "turn_out_90" and not turn_90_done:
+            reasons.append("side_yaw_not_settled" if abs(yaw_error) <= max(0.0, float(request.turn_settle_error_rad)) else "side_yaw_not_captured")
+        elif segment == "cross_lane" and abs(wrap_to_pi(side_yaw - float(request.pose_yaw_rad))) >= max(0.0, float(request.turn_settle_error_rad)):
             reasons.append("side_yaw_not_captured")
         if segment in {"cross_lane", "acquire_next_row"} and not lane_done:
             reasons.append("lane_not_captured")
-        if segment in {"turn_in_90", "acquire_next_row"} and not next_yaw_done:
+        if segment == "turn_in_90" and not turn_90_done:
+            reasons.append("next_row_yaw_not_settled" if abs(next_yaw_error) <= max(0.0, float(request.turn_settle_error_rad)) else "next_row_yaw_not_captured")
+        elif segment == "acquire_next_row" and not next_yaw_done:
             reasons.append("next_row_yaw_not_captured")
         if segment == "acquire_next_row" and not request.forward_corridor_safe:
             reasons.append("forward_corridor_unsafe")
@@ -262,6 +407,11 @@ class RowTransitionController:
             "transition_omega_reduced_for_inner_wheel": bool(reduced_omega),
             "forward_corridor_safe": bool(request.forward_corridor_safe),
             "drive_speed_factor": round(drive_scale, 4),
+            "active_robot_track_width_m": round(float(request.track_width_m), 4),
+            "sweep_turn_strong_error_deg": round(math.degrees(float(request.turn_strong_error_rad)), 3),
+            "sweep_turn_capture_error_deg": round(math.degrees(float(request.turn_capture_error_rad)), 3),
+            "sweep_turn_settle_error_deg": round(math.degrees(float(request.turn_settle_error_rad)), 3),
+            **turn_debug,
         }
         return RowTransitionCommand(
             desired_v_mps=v,
@@ -280,6 +430,7 @@ __all__ = [
     "RowTransitionController",
     "RowTransitionRequest",
     "clamp",
+    "sign_nonzero",
     "wheel_targets_from_v_omega",
     "wrap_to_pi",
     "yaw_deg",

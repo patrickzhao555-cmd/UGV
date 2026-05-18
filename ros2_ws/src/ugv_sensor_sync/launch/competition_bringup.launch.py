@@ -77,11 +77,19 @@ def generate_launch_description():
     sweep_headland_margin_m = LaunchConfiguration('sweep_headland_margin_m')
     sweep_boundary_margin_m = LaunchConfiguration('sweep_boundary_margin_m')
     sweep_turn_radius_m = LaunchConfiguration('sweep_turn_radius_m')
+    sweep_turn_style = LaunchConfiguration('sweep_turn_style')
     sweep_row_transition_enabled = LaunchConfiguration('sweep_row_transition_enabled')
     sweep_max_rows = LaunchConfiguration('sweep_max_rows')
     sweep_row_end_tolerance_m = LaunchConfiguration('sweep_row_end_tolerance_m')
+    sweep_turn_90_yaw_tolerance_deg = LaunchConfiguration('sweep_turn_90_yaw_tolerance_deg')
     sweep_lane_capture_tolerance_m = LaunchConfiguration('sweep_lane_capture_tolerance_m')
     sweep_yaw_capture_tolerance_deg = LaunchConfiguration('sweep_yaw_capture_tolerance_deg')
+    sweep_transition_min_emitted_v_mps = LaunchConfiguration('sweep_transition_min_emitted_v_mps')
+    sweep_transition_min_emitted_omega_rps = LaunchConfiguration('sweep_transition_min_emitted_omega_rps')
+    sweep_transition_max_emitted_omega_rps = LaunchConfiguration('sweep_transition_max_emitted_omega_rps')
+    sweep_transition_inner_wheel_min_mps = LaunchConfiguration('sweep_transition_inner_wheel_min_mps')
+    sweep_transition_timeout_s = LaunchConfiguration('sweep_transition_timeout_s')
+    sweep_transition_divergence_action = LaunchConfiguration('sweep_transition_divergence_action')
     sweep_cell_size_m = LaunchConfiguration('sweep_cell_size_m')
     sweep_lane_spacing_m = LaunchConfiguration('sweep_lane_spacing_m')
     sweep_lane_spacing_manual_override = LaunchConfiguration('sweep_lane_spacing_manual_override')
@@ -382,16 +390,32 @@ def generate_launch_description():
             sweep_boundary_margin_m,
             '--sweep-turn-radius-m',
             sweep_turn_radius_m,
+            '--sweep-turn-style',
+            sweep_turn_style,
             '--sweep-row-transition-enabled',
             sweep_row_transition_enabled,
             '--sweep-max-rows',
             sweep_max_rows,
             '--sweep-row-end-tolerance-m',
             sweep_row_end_tolerance_m,
+            '--sweep-turn-90-yaw-tolerance-deg',
+            sweep_turn_90_yaw_tolerance_deg,
             '--sweep-lane-capture-tolerance-m',
             sweep_lane_capture_tolerance_m,
             '--sweep-yaw-capture-tolerance-deg',
             sweep_yaw_capture_tolerance_deg,
+            '--sweep-transition-min-emitted-v-mps',
+            sweep_transition_min_emitted_v_mps,
+            '--sweep-transition-min-emitted-omega-rps',
+            sweep_transition_min_emitted_omega_rps,
+            '--sweep-transition-max-emitted-omega-rps',
+            sweep_transition_max_emitted_omega_rps,
+            '--sweep-transition-inner-wheel-min-mps',
+            sweep_transition_inner_wheel_min_mps,
+            '--sweep-transition-timeout-s',
+            sweep_transition_timeout_s,
+            '--sweep-transition-divergence-action',
+            sweep_transition_divergence_action,
             '--sweep-cell-size-m',
             sweep_cell_size_m,
             '--sweep-lane-spacing-m',
@@ -744,11 +768,19 @@ def generate_launch_description():
         DeclareLaunchArgument('sweep_headland_margin_m', default_value='0.75'),
         DeclareLaunchArgument('sweep_boundary_margin_m', default_value='0.45'),
         DeclareLaunchArgument('sweep_turn_radius_m', default_value='1.0'),
+        DeclareLaunchArgument('sweep_turn_style', default_value='segmented_90'),
         DeclareLaunchArgument('sweep_row_transition_enabled', default_value='false'),
         DeclareLaunchArgument('sweep_max_rows', default_value='0'),
         DeclareLaunchArgument('sweep_row_end_tolerance_m', default_value='0.35'),
-        DeclareLaunchArgument('sweep_lane_capture_tolerance_m', default_value='0.25'),
-        DeclareLaunchArgument('sweep_yaw_capture_tolerance_deg', default_value='12.0'),
+        DeclareLaunchArgument('sweep_turn_90_yaw_tolerance_deg', default_value='7.0'),
+        DeclareLaunchArgument('sweep_lane_capture_tolerance_m', default_value='0.20'),
+        DeclareLaunchArgument('sweep_yaw_capture_tolerance_deg', default_value='8.0'),
+        DeclareLaunchArgument('sweep_transition_min_emitted_v_mps', default_value='0.12'),
+        DeclareLaunchArgument('sweep_transition_min_emitted_omega_rps', default_value='0.20'),
+        DeclareLaunchArgument('sweep_transition_max_emitted_omega_rps', default_value='0.40'),
+        DeclareLaunchArgument('sweep_transition_inner_wheel_min_mps', default_value='0.04'),
+        DeclareLaunchArgument('sweep_transition_timeout_s', default_value='20.0'),
+        DeclareLaunchArgument('sweep_transition_divergence_action', default_value='stop'),
         DeclareLaunchArgument('sweep_cell_size_m', default_value='0.75'),
         DeclareLaunchArgument('sweep_lane_spacing_m', default_value='0.75'),
         DeclareLaunchArgument('sweep_lane_spacing_manual_override', default_value='false'),

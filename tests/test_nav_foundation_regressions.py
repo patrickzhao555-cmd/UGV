@@ -1096,9 +1096,15 @@ def test_round2_row_transition_test_profile_resolves_row_length():
         'profile_default START_MARKER_VISION "false"',
         'profile_default NAV_ACTIVE_SCAN_ENABLED "false"',
         'profile_default SWEEP_ROW_TRANSITION_ENABLED "true"',
+        'profile_default SWEEP_TURN_STYLE "segmented_90"',
         'profile_default SWEEP_ROW_LENGTH_M "4.0"',
         'profile_default SWEEP_FIELD_WIDTH_M "5.0"',
-        'profile_default SWEEP_FIELD_HEIGHT_M "2.6"',
+        'profile_default SWEEP_FIELD_HEIGHT_M "4.2"',
+        'profile_default SWEEP_LANE_SPACING_M "1.5"',
+        'profile_default SWEEP_TURN_90_YAW_TOLERANCE_DEG "7.0"',
+        'profile_default SWEEP_LANE_CAPTURE_TOLERANCE_M "0.20"',
+        'profile_default SWEEP_YAW_CAPTURE_TOLERANCE_DEG "8.0"',
+        'profile_default SWEEP_TRANSITION_MIN_EMITTED_OMEGA_RPS "0.20"',
         'profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"',
     ]:
         assert token in bringup

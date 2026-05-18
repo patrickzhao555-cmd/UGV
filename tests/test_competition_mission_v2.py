@@ -331,20 +331,28 @@ def test_competition_v2_status_contains_coverage_fields():
 
 
 def row_transition_config(**overrides):
-    return small_config(
-        field_width_m=5.0,
-        field_height_m=2.6,
-        sweep_row_length_m=4.0,
-        sweep_boundary_margin_m=0.45,
-        sweep_headland_margin_m=0.75,
-        sweep_turn_radius_m=1.0,
-        sweep_row_transition_enabled=True,
-        sweep_max_rows=3,
-        sweep_row_end_tolerance_m=0.35,
-        sweep_lane_capture_tolerance_m=0.25,
-        sweep_yaw_capture_tolerance_deg=12.0,
-        **overrides,
-    )
+    values = {
+        "field_width_m": 5.0,
+        "field_height_m": 2.6,
+        "sweep_row_length_m": 4.0,
+        "sweep_boundary_margin_m": 0.45,
+        "sweep_headland_margin_m": 0.75,
+        "sweep_turn_radius_m": 1.0,
+        "sweep_turn_style": "segmented_90",
+        "sweep_row_transition_enabled": True,
+        "sweep_max_rows": 3,
+        "sweep_row_end_tolerance_m": 0.35,
+        "sweep_turn_90_yaw_tolerance_deg": 7.0,
+        "sweep_lane_capture_tolerance_m": 0.20,
+        "sweep_yaw_capture_tolerance_deg": 8.0,
+        "sweep_transition_min_emitted_v_mps": 0.12,
+        "sweep_transition_min_emitted_omega_rps": 0.20,
+        "sweep_transition_max_emitted_omega_rps": 0.40,
+        "sweep_transition_inner_wheel_min_mps": 0.04,
+        "sweep_transition_timeout_s": 20.0,
+    }
+    values.update(overrides)
+    return small_config(**values)
 
 
 def test_row_end_prep_triggers_before_row_boundary():
@@ -357,59 +365,152 @@ def test_row_end_prep_triggers_before_row_boundary():
     assert update.reason == "row_end_prep_within_headland_margin"
 
 
-def test_headland_turn_selects_next_lane():
+def test_turn_out_90_selects_next_lane():
     mission = CompetitionMissionV2("round2", row_transition_config())
     mission.update((3.75, 0.45, 0.0), 0.0)
     update = mission.update((4.42, 0.45, 0.0), 0.1)
 
-    assert update.status["sweep_subphase"] == "headland_turn"
+    assert update.status["sweep_subphase"] == "turn_out_90"
     assert update.status["row_transition_active"]
+    assert update.status["row_transition_segment"] == "turn_out_90"
     assert update.status["current_lane_y_m"] == 0.45
     assert update.status["next_lane_y_m"] == 0.95
     assert update.status["turn_side"] == "left"
+    assert update.status["target_side_yaw_deg"] == 90.0
+    assert update.status["target_next_row_yaw_deg"] == 180.0
 
 
-def test_transition_does_not_complete_until_lane_and_yaw_are_captured():
+def transition_request(segment: str, *, pose_y: float = 0.45, yaw: float = 0.0, drive_speed_factor: float = 1.0):
+    return RowTransitionRequest(
+        segment=segment,
+        pose_x_m=4.40,
+        pose_y_m=pose_y,
+        pose_yaw_rad=yaw,
+        row_direction=1.0,
+        current_lane_y_m=0.45,
+        next_lane_y_m=0.95,
+        row_end_x_m=4.45,
+        track_width_m=0.6096,
+        drive_speed_factor=drive_speed_factor,
+        min_emitted_v_mps=0.12,
+        min_emitted_omega_radps=0.20,
+        max_emitted_omega_radps=0.40,
+        inner_wheel_min_mps=0.04,
+        max_v_mps=0.36,
+        turn_90_yaw_tolerance_rad=math.radians(7.0),
+        lane_capture_tolerance_m=0.20,
+        yaw_capture_tolerance_rad=math.radians(8.0),
+    )
+
+
+def test_turn_out_90_does_not_complete_until_yaw_near_side_yaw():
+    controller = RowTransitionController()
+    far = controller.compute(transition_request("turn_out_90", yaw=math.radians(50.0)))
+    near = controller.compute(transition_request("turn_out_90", yaw=math.radians(85.0)))
+
+    assert not far.segment_done
+    assert far.debug["row_transition_reason"] == "side_yaw_not_captured"
+    assert near.segment_done
+    assert not near.transition_done
+
+
+def test_cross_lane_does_not_complete_until_y_is_near_next_lane():
+    controller = RowTransitionController()
+    far = controller.compute(transition_request("cross_lane", pose_y=0.60, yaw=math.radians(90.0)))
+    near = controller.compute(transition_request("cross_lane", pose_y=0.94, yaw=math.radians(90.0)))
+
+    assert not far.segment_done
+    assert far.debug["row_transition_reason"] == "lane_not_captured"
+    assert near.segment_done
+    assert not near.transition_done
+
+
+def test_turn_in_90_does_not_complete_until_yaw_near_next_row_yaw():
+    controller = RowTransitionController()
+    far = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(120.0)))
+    near = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(176.0)))
+
+    assert not far.segment_done
+    assert far.debug["row_transition_reason"] == "next_row_yaw_not_captured"
+    assert near.segment_done
+    assert not near.transition_done
+
+
+def test_acquire_next_row_only_commits_after_lane_and_yaw_are_captured():
     mission = CompetitionMissionV2("round2", row_transition_config())
     mission.update((3.75, 0.45, 0.0), 0.0)
     mission.update((4.42, 0.45, 0.0), 0.1)
 
-    not_done = mission.update((4.0, 0.95, 0.0), 0.2)
-    assert not_done.status["sweep_subphase"] in {"headland_turn", "acquire_next_row"}
-    assert not_done.status["row_transition_active"]
-    assert not not_done.status["row_transition_done"]
-    assert not_done.status["row_index"] == 0
+    crossing = mission.update((4.42, 0.45, math.radians(90.0)), 0.2)
+    assert crossing.status["sweep_subphase"] == "cross_lane"
+    assert crossing.status["row_index"] == 0
 
-    captured = mission.update((4.0, 0.95, math.pi), 0.3)
+    turning_in = mission.update((4.42, 0.95, math.radians(90.0)), 0.3)
+    assert turning_in.status["sweep_subphase"] == "turn_in_90"
+    assert turning_in.status["row_index"] == 0
+
+    acquiring = mission.update((4.42, 0.95, math.pi), 0.4)
+    assert acquiring.status["sweep_subphase"] == "acquire_next_row"
+    assert acquiring.status["row_index"] == 0
+    assert acquiring.status["row_transition_done"]
+
+    captured = mission.update((4.42, 0.95, math.pi), 0.5)
     assert captured.status["sweep_subphase"] == "follow_row"
     assert captured.status["row_index"] == 1
     assert captured.status["row_direction"] == -1.0
 
 
-def test_wide_forward_arc_transition_keeps_wheel_targets_nonnegative():
+def test_segmented_transition_never_completes_based_on_time_alone():
+    mission = CompetitionMissionV2("round2", row_transition_config(sweep_transition_timeout_s=1.0))
+    mission.update((3.75, 0.45, 0.0), 0.0)
+    mission.update((4.42, 0.45, 0.0), 0.1)
+    timed_out = mission.update((4.42, 0.45, 0.0), 2.0)
+
+    assert timed_out.stop_requested
+    assert timed_out.status["row_index"] == 0
+    assert timed_out.status["sweep_subphase"] == "turn_out_90"
+    assert timed_out.status["row_transition_timeout"]
+    assert timed_out.reason == "row_transition_timeout"
+
+
+def test_emitted_omega_minimum_is_enforced_during_turn_phase():
     controller = RowTransitionController()
-    cmd = controller.compute(
-        RowTransitionRequest(
-            pose_x_m=4.40,
-            pose_y_m=0.45,
-            pose_yaw_rad=0.0,
-            row_direction=1.0,
-            current_lane_y_m=0.45,
-            next_lane_y_m=0.95,
-            row_end_x_m=4.45,
-            turn_radius_m=1.0,
-            track_width_m=0.6096,
-            min_v_mps=0.12,
-            max_v_mps=0.36,
-            forward_arc_only_enabled=True,
-            forward_arc_margin=0.60,
-        )
-    )
+    cmd = controller.compute(transition_request("turn_out_90", yaw=math.radians(80.0), drive_speed_factor=0.5))
+
+    assert not cmd.segment_done
+    assert abs(cmd.debug["transition_emitted_omega_radps"]) >= 0.20
+
+
+def test_segmented_transition_keeps_inner_wheel_above_minimum():
+    controller = RowTransitionController()
+    cmd = controller.compute(transition_request("turn_out_90", yaw=0.0, drive_speed_factor=0.5))
 
     assert cmd.desired_v_mps > 0.0
-    assert cmd.debug["desired_left_target_mps"] >= -1e-9
-    assert cmd.debug["desired_right_target_mps"] >= -1e-9
+    assert cmd.debug["transition_left_target_mps"] >= 0.04 - 1e-9
+    assert cmd.debug["transition_right_target_mps"] >= 0.04 - 1e-9
     assert not cmd.transition_done
+
+
+def test_physical_stall_during_transition_requests_stop():
+    mission = CompetitionMissionV2("round2", row_transition_config())
+    mission.update((3.75, 0.45, 0.0), 0.0)
+    mission.update((4.42, 0.45, 0.0), 0.1)
+
+    changed = mission.observe_navigation_feedback(
+        NavigationFeedback(
+            0.2,
+            physical_stall_detected=True,
+            physical_stall_steps=12,
+            physical_stall_reason="active_command_zero_odom",
+        )
+    )
+    update = mission.current_update()
+
+    assert changed
+    assert update.stop_requested
+    assert update.status["sweep_subphase"] == "turn_out_90"
+    assert update.status["row_transition_health"] == "physical_stall"
+    assert update.reason.startswith("row_transition_physical_stall")
 
 
 def test_marker_auto_lane_spacing_recommends_but_manual_override_wins():
@@ -450,11 +551,19 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--sweep-headland-margin-m",
         "--sweep-boundary-margin-m",
         "--sweep-turn-radius-m",
+        "--sweep-turn-style",
         "--sweep-row-transition-enabled",
         "--sweep-max-rows",
         "--sweep-row-end-tolerance-m",
+        "--sweep-turn-90-yaw-tolerance-deg",
         "--sweep-lane-capture-tolerance-m",
         "--sweep-yaw-capture-tolerance-deg",
+        "--sweep-transition-min-emitted-v-mps",
+        "--sweep-transition-min-emitted-omega-rps",
+        "--sweep-transition-max-emitted-omega-rps",
+        "--sweep-transition-inner-wheel-min-mps",
+        "--sweep-transition-timeout-s",
+        "--sweep-transition-divergence-action",
         "--sweep-cell-size-m",
         "--sweep-lane-spacing-m",
         "--sweep-lane-spacing-manual-override",
@@ -522,11 +631,19 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "SWEEP_HEADLAND_MARGIN_M",
         "SWEEP_BOUNDARY_MARGIN_M",
         "SWEEP_TURN_RADIUS_M",
+        "SWEEP_TURN_STYLE",
         "SWEEP_ROW_TRANSITION_ENABLED",
         "SWEEP_MAX_ROWS",
         "SWEEP_ROW_END_TOLERANCE_M",
+        "SWEEP_TURN_90_YAW_TOLERANCE_DEG",
         "SWEEP_LANE_CAPTURE_TOLERANCE_M",
         "SWEEP_YAW_CAPTURE_TOLERANCE_DEG",
+        "SWEEP_TRANSITION_MIN_EMITTED_V_MPS",
+        "SWEEP_TRANSITION_MIN_EMITTED_OMEGA_RPS",
+        "SWEEP_TRANSITION_MAX_EMITTED_OMEGA_RPS",
+        "SWEEP_TRANSITION_INNER_WHEEL_MIN_MPS",
+        "SWEEP_TRANSITION_TIMEOUT_S",
+        "SWEEP_TRANSITION_DIVERGENCE_ACTION",
         "SWEEP_CELL_SIZE_M",
         "SWEEP_LANE_SPACING_M",
         "SWEEP_LANE_SPACING_MANUAL_OVERRIDE",

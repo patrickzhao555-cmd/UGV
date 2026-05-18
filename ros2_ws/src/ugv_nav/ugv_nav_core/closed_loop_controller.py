@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
-from ugv_nav_core.row_transition_controller import RowTransitionController, RowTransitionRequest
+from ugv_nav_core.row_transition_controller import TRANSITION_SEGMENTS, RowTransitionController, RowTransitionRequest
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
@@ -426,15 +426,28 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "sweep_subphase": "",
         "row_transition_active": False,
         "row_transition_style": "",
+        "row_transition_segment": "",
         "row_transition_progress": 0.0,
         "row_transition_done": False,
         "row_transition_reason": "",
+        "row_transition_health": "",
+        "row_transition_diverging": False,
+        "row_transition_timeout": False,
+        "row_transition_geometry_warning": "",
         "row_transition_target_m": None,
         "turn_radius_m": None,
         "turn_side": "",
+        "target_side_yaw_deg": None,
+        "target_next_row_yaw_deg": None,
         "target_row_yaw_deg": None,
+        "segment_yaw_error_deg": None,
+        "segment_lane_error_m": None,
         "yaw_capture_error_deg": None,
         "lane_capture_error_m": None,
+        "transition_emitted_v_mps": None,
+        "transition_emitted_omega_radps": None,
+        "transition_left_target_mps": None,
+        "transition_right_target_mps": None,
         "forward_arc_only_enabled": _cfg_bool(nav_cfg, "forward_arc_only_enabled", True) if nav_cfg is not None else True,
         "forward_arc_margin": _cfg_float(nav_cfg, "forward_arc_margin", 0.75) if nav_cfg is not None else 0.75,
         "min_sweep_v_mps": _cfg_float(nav_cfg, "min_sweep_v_mps", 0.08) if nav_cfg is not None else 0.08,
@@ -522,17 +535,32 @@ def apply_competition_closed_loop_command(
         debug["reason"] = "active_scan_command"
         navigator.closed_loop_debug = debug
         return cmd
-    if navigator.physical_stall.detected:
-        debug["reason"] = "physical_stall_recovery"
-        navigator.closed_loop_debug = debug
-        return cmd
-
     velocity_debug = navigator.velocity_debug or {}
     safety_state = str(velocity_debug.get("safety_state") or "")
     sweep_subphase = str(v2.get("sweep_subphase") or "")
-    transition_active = bool(v2.get("row_transition_active", False)) or sweep_subphase in {"headland_turn", "acquire_next_row"}
+    transition_active = bool(v2.get("row_transition_active", False)) or sweep_subphase in TRANSITION_SEGMENTS
     debug["sweep_subphase"] = sweep_subphase
     debug["row_transition_active"] = bool(transition_active)
+    if navigator.physical_stall.detected:
+        if transition_active:
+            debug.update(
+                {
+                    "closed_loop_active": True,
+                    "row_transition_reason": "row_transition_physical_stall",
+                    "row_transition_health": "physical_stall",
+                    "reason": "row_transition_physical_stall",
+                }
+            )
+            navigator.closed_loop_debug = debug
+            return cmd.__class__(
+                "STOP",
+                reason="row transition physical stall",
+                controller="velocity",
+                command_type="stop",
+            )
+        debug["reason"] = "physical_stall_recovery"
+        navigator.closed_loop_debug = debug
+        return cmd
     if safety_state in {"stop", "no_safe_trajectory"}:
         if transition_active:
             debug.update(
@@ -562,25 +590,20 @@ def apply_competition_closed_loop_command(
             navigator.closed_loop_debug = debug
             return cmd
         pose = navigator.state.estimated_pose
-        heading_source, _yaw_rate = competition_heading_source_and_rate(navigator, frame)
+        heading_source, yaw_rate = competition_heading_source_and_rate(navigator, frame)
         sectors = navigator.state.sectors
         stop_clearance = max(
             _cfg_float(nav_cfg, "continuous_stop_clearance_m", 0.48),
             0.5 * float(getattr(navigator.robot_cfg, "length_m", 0.762)) + _cfg_float(nav_cfg, "front_safety_margin_m", 0.08),
         )
         forward_corridor_safe = not math.isfinite(float(sectors.front_m)) or float(sectors.front_m) > stop_clearance
-        min_v = max(
-            nav_cfg.continuous_min_speed_mps,
-            finite_optional(v2.get("minimum_speed_mps")) or finite_optional(v2.get("min_speed_mps")) or 0.0,
-            _cfg_float(nav_cfg, "min_sweep_v_mps", 0.08),
-            0.02,
-        )
         controller = getattr(navigator, "row_transition_controller", None)
         if controller is None:
             controller = RowTransitionController()
             navigator.row_transition_controller = controller
-        turn_side = str(v2.get("turn_side") or "").strip().lower()
+        drive_speed_factor = finite_optional(mission_status.get("drive_speed_factor")) or finite_optional(v2.get("drive_speed_factor")) or 1.0
         request = RowTransitionRequest(
+            segment=sweep_subphase,
             pose_x_m=pose.x,
             pose_y_m=pose.y,
             pose_yaw_rad=pose.yaw,
@@ -588,31 +611,26 @@ def apply_competition_closed_loop_command(
             current_lane_y_m=current_lane_y,
             next_lane_y_m=next_lane_y,
             row_end_x_m=row_end_x,
-            turn_radius_m=finite_optional(v2.get("turn_radius_m")) or 1.0,
             track_width_m=navigator.robot_cfg.track_width_m,
-            min_v_mps=min_v,
+            drive_speed_factor=drive_speed_factor,
+            yaw_rate_radps=yaw_rate,
+            min_emitted_v_mps=finite_optional(v2.get("sweep_transition_min_emitted_v_mps")) or 0.12,
+            min_emitted_omega_radps=finite_optional(v2.get("sweep_transition_min_emitted_omega_rps")) or 0.20,
+            max_emitted_omega_radps=finite_optional(v2.get("sweep_transition_max_emitted_omega_rps")) or 0.40,
+            inner_wheel_min_mps=finite_optional(v2.get("sweep_transition_inner_wheel_min_mps")) or 0.04,
             max_v_mps=nav_cfg.continuous_max_speed_mps,
-            max_omega_radps=nav_cfg.continuous_max_omega_rps,
-            lookahead_m=max(0.50, min(1.25, finite_optional(v2.get("turn_radius_m")) or 1.0)),
-            forward_arc_only_enabled=bool(nav_cfg.forward_arc_only_enabled),
-            forward_arc_margin=nav_cfg.forward_arc_margin,
-            lane_capture_tolerance_m=finite_optional(v2.get("sweep_lane_capture_tolerance_m")) or 0.25,
-            yaw_capture_tolerance_rad=math.radians(finite_optional(v2.get("sweep_yaw_capture_tolerance_deg")) or 12.0),
-            row_end_tolerance_m=finite_optional(v2.get("sweep_row_end_tolerance_m")) or 0.35,
+            turn_90_yaw_tolerance_rad=math.radians(finite_optional(v2.get("sweep_turn_90_yaw_tolerance_deg")) or 7.0),
+            lane_capture_tolerance_m=finite_optional(v2.get("sweep_lane_capture_tolerance_m")) or 0.20,
+            yaw_capture_tolerance_rad=math.radians(finite_optional(v2.get("sweep_yaw_capture_tolerance_deg")) or 8.0),
             forward_corridor_safe=forward_corridor_safe,
-            turn_side=turn_side if turn_side in {"left", "right"} else None,
         )
         transition_cmd = controller.compute(request)
         final_v = transition_cmd.desired_v_mps
         final_omega = transition_cmd.desired_omega_radps
-        final_v, final_omega, forward_arc_limit, forward_arc_clamped, left_target, right_target = apply_forward_arc_only_limit(
-            final_v,
-            final_omega,
-            navigator.robot_cfg.track_width_m,
-            enabled=bool(nav_cfg.forward_arc_only_enabled),
-            margin=nav_cfg.forward_arc_margin,
-            min_v_mps=min(nav_cfg.continuous_max_speed_mps, min_v),
-        )
+        left_target = finite_optional(transition_cmd.debug.get("desired_left_target_mps"))
+        right_target = finite_optional(transition_cmd.debug.get("desired_right_target_mps"))
+        if left_target is None or right_target is None:
+            left_target, right_target = wheel_targets_from_v_omega(final_v, final_omega, navigator.robot_cfg.track_width_m)
         trajectory_collision = False
         try:
             local_map = navigator._local_safety_costmap()
@@ -653,15 +671,18 @@ def apply_competition_closed_loop_command(
         navigator.velocity_planner.last_omega = final_omega
         navigator.velocity_planner.last_timestamp = frame.encoder.timestamp
         navigator.state.latest_cmd = adjusted
+        transition_target_yaw_deg = transition_cmd.debug.get("target_next_row_yaw_deg")
+        if sweep_subphase in {"turn_out_90", "cross_lane"}:
+            transition_target_yaw_deg = transition_cmd.debug.get("target_side_yaw_deg", transition_target_yaw_deg)
         debug.update(
             {
                 "closed_loop_active": True,
                 "heading_source": heading_source,
-                "target_yaw_deg": transition_cmd.debug.get("target_row_yaw_deg"),
+                "target_yaw_deg": transition_target_yaw_deg,
                 "target_row_yaw_deg": transition_cmd.debug.get("target_row_yaw_deg"),
                 "estimated_yaw_deg": round(math.degrees(pose.yaw), 2),
-                "heading_error_deg": transition_cmd.debug.get("yaw_capture_error_deg"),
-                "cross_track_error_m": transition_cmd.debug.get("lane_capture_error_m"),
+                "heading_error_deg": transition_cmd.debug.get("segment_yaw_error_deg"),
+                "cross_track_error_m": transition_cmd.debug.get("segment_lane_error_m"),
                 "omega_heading_radps": 0.0,
                 "omega_lane_radps": 0.0,
                 "lane_heading_offset_deg": 0.0,
@@ -671,8 +692,8 @@ def apply_competition_closed_loop_command(
                 "planner_gap_reason": "row_transition_controller_authority",
                 "final_v_mps": round(final_v, 4),
                 "final_omega_radps": round(final_omega, 4),
-                "forward_arc_omega_limit_radps": None if forward_arc_limit is None else round(forward_arc_limit, 4),
-                "forward_arc_clamped": bool(forward_arc_clamped or transition_cmd.debug.get("forward_arc_clamped", False)),
+                "forward_arc_omega_limit_radps": None,
+                "forward_arc_clamped": False,
                 "final_left_target_mps": round(left_target, 4),
                 "final_right_target_mps": round(right_target, 4),
                 "reason": "row_transition_closed_loop",

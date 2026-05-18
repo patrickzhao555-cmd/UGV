@@ -4055,11 +4055,19 @@ def run_simulation(
     sweep_headland_margin_m: float = 0.75,
     sweep_boundary_margin_m: float = 0.45,
     sweep_turn_radius_m: float = 1.00,
+    sweep_turn_style: str = "segmented_90",
     sweep_row_transition_enabled: bool = False,
     sweep_max_rows: int = 0,
     sweep_row_end_tolerance_m: float = 0.35,
-    sweep_lane_capture_tolerance_m: float = 0.25,
-    sweep_yaw_capture_tolerance_deg: float = 12.0,
+    sweep_turn_90_yaw_tolerance_deg: float = 7.0,
+    sweep_lane_capture_tolerance_m: float = 0.20,
+    sweep_yaw_capture_tolerance_deg: float = 8.0,
+    sweep_transition_min_emitted_v_mps: float = 0.12,
+    sweep_transition_min_emitted_omega_rps: float = 0.20,
+    sweep_transition_max_emitted_omega_rps: float = 0.40,
+    sweep_transition_inner_wheel_min_mps: float = 0.04,
+    sweep_transition_timeout_s: float = 20.0,
+    sweep_transition_divergence_action: str = "stop",
     sweep_cell_size_m: float = 0.75,
     sweep_lane_spacing_m: float = 0.75,
     sweep_lane_spacing_manual_override: bool = False,
@@ -4196,11 +4204,19 @@ def run_simulation(
                 sweep_headland_margin_m=sweep_headland_margin_m,
                 sweep_boundary_margin_m=sweep_boundary_margin_m,
                 sweep_turn_radius_m=sweep_turn_radius_m,
+                sweep_turn_style=sweep_turn_style,
                 sweep_row_transition_enabled=sweep_row_transition_enabled,
                 sweep_max_rows=sweep_max_rows,
                 sweep_row_end_tolerance_m=sweep_row_end_tolerance_m,
+                sweep_turn_90_yaw_tolerance_deg=sweep_turn_90_yaw_tolerance_deg,
                 sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
                 sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
+                sweep_transition_min_emitted_v_mps=sweep_transition_min_emitted_v_mps,
+                sweep_transition_min_emitted_omega_rps=sweep_transition_min_emitted_omega_rps,
+                sweep_transition_max_emitted_omega_rps=sweep_transition_max_emitted_omega_rps,
+                sweep_transition_inner_wheel_min_mps=sweep_transition_inner_wheel_min_mps,
+                sweep_transition_timeout_s=sweep_transition_timeout_s,
+                sweep_transition_divergence_action=sweep_transition_divergence_action,
                 marker_camera_fov_deg=marker_camera_fov_deg,
                 marker_reliable_detection_range_m=finite_optional(marker_reliable_detection_range_m),
                 marker_coverage_overlap_ratio=marker_coverage_overlap_ratio,
@@ -4329,11 +4345,19 @@ def run_real_mode(
     sweep_headland_margin_m: float = 0.75,
     sweep_boundary_margin_m: float = 0.45,
     sweep_turn_radius_m: float = 1.00,
+    sweep_turn_style: str = "segmented_90",
     sweep_row_transition_enabled: bool = False,
     sweep_max_rows: int = 0,
     sweep_row_end_tolerance_m: float = 0.35,
-    sweep_lane_capture_tolerance_m: float = 0.25,
-    sweep_yaw_capture_tolerance_deg: float = 12.0,
+    sweep_turn_90_yaw_tolerance_deg: float = 7.0,
+    sweep_lane_capture_tolerance_m: float = 0.20,
+    sweep_yaw_capture_tolerance_deg: float = 8.0,
+    sweep_transition_min_emitted_v_mps: float = 0.12,
+    sweep_transition_min_emitted_omega_rps: float = 0.20,
+    sweep_transition_max_emitted_omega_rps: float = 0.40,
+    sweep_transition_inner_wheel_min_mps: float = 0.04,
+    sweep_transition_timeout_s: float = 20.0,
+    sweep_transition_divergence_action: str = "stop",
     sweep_cell_size_m: float = 0.75,
     sweep_lane_spacing_m: float = 0.75,
     sweep_lane_spacing_manual_override: bool = False,
@@ -4616,11 +4640,19 @@ def run_real_mode(
                 sweep_headland_margin_m=sweep_headland_margin_m,
                 sweep_boundary_margin_m=sweep_boundary_margin_m,
                 sweep_turn_radius_m=sweep_turn_radius_m,
+                sweep_turn_style=sweep_turn_style,
                 sweep_row_transition_enabled=sweep_row_transition_enabled,
                 sweep_max_rows=sweep_max_rows,
                 sweep_row_end_tolerance_m=sweep_row_end_tolerance_m,
+                sweep_turn_90_yaw_tolerance_deg=sweep_turn_90_yaw_tolerance_deg,
                 sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
                 sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
+                sweep_transition_min_emitted_v_mps=sweep_transition_min_emitted_v_mps,
+                sweep_transition_min_emitted_omega_rps=sweep_transition_min_emitted_omega_rps,
+                sweep_transition_max_emitted_omega_rps=sweep_transition_max_emitted_omega_rps,
+                sweep_transition_inner_wheel_min_mps=sweep_transition_inner_wheel_min_mps,
+                sweep_transition_timeout_s=sweep_transition_timeout_s,
+                sweep_transition_divergence_action=sweep_transition_divergence_action,
                 marker_camera_fov_deg=marker_camera_fov_deg,
                 marker_reliable_detection_range_m=finite_optional(marker_reliable_detection_range_m),
                 marker_coverage_overlap_ratio=marker_coverage_overlap_ratio,
@@ -4669,7 +4701,8 @@ def run_real_mode(
         f"straight_distance_m={straight_distance_m:.2f}, "
         f"sweep_cell={sweep_cell_size_m:.2f}m lane={sweep_lane_spacing_m:.2f}m "
         f"row_length={sweep_row_length_m:.2f}m headland={sweep_headland_margin_m:.2f}m "
-        f"boundary={sweep_boundary_margin_m:.2f}m turn_radius={sweep_turn_radius_m:.2f}m "
+        f"boundary={sweep_boundary_margin_m:.2f}m turn_style={sweep_turn_style} "
+        f"turn_radius={sweep_turn_radius_m:.2f}m "
         f"row_transition={sweep_row_transition_enabled} max_rows={sweep_max_rows}, "
         f"coverage_radius={sweep_coverage_radius_m:.2f}m threshold={sweep_coverage_threshold:.2f}, "
         f"lane_tol={sweep_lane_tolerance_m:.2f}m heading_tol={sweep_heading_tolerance_deg:.1f}deg "
@@ -4782,6 +4815,12 @@ def run_real_mode(
             else:
                 mission_status = dict(mission.update_frame(frame, navigator.state.estimated_pose))
                 apply_competition_v2_motion_policy(navigator, {})
+            speed_scale, speed_reason = mission.command_speed_scale()
+            effective_speed_scale = speed_scale * drive_factor
+            mission_status["drive_speed_level"] = drive_speed_level
+            mission_status["drive_speed_factor"] = round(drive_factor, 3)
+            mission_status["effective_speed_scale"] = round(effective_speed_scale, 3)
+            mission_status["min_motion_raw"] = round(nav_cfg.min_motion_raw, 3)
             cmd = navigator.step(frame)
             if competition_v2_active:
                 cmd = apply_competition_closed_loop_command(navigator, cmd, frame, mission_status)
@@ -4790,17 +4829,21 @@ def run_real_mode(
                 )
                 if feedback_changed:
                     mission_status = competition_v2_status_for_update(mission.current_update())
-            if mission_status.get("stop_requested"):
-                cmd = ControlCommand(
-                    "STOP",
-                    reason=f"{mission_status.get('phase', 'target')} stop requested: {mission_status.get('speed_reason', mission_status.get('final_goal_source', 'mission'))}",
-                )
+                    mission_status["drive_speed_level"] = drive_speed_level
+                    mission_status["drive_speed_factor"] = round(drive_factor, 3)
+                    mission_status["effective_speed_scale"] = round(effective_speed_scale, 3)
+                    mission_status["min_motion_raw"] = round(nav_cfg.min_motion_raw, 3)
             speed_scale, speed_reason = mission.command_speed_scale()
             effective_speed_scale = speed_scale * drive_factor
             mission_status["drive_speed_level"] = drive_speed_level
             mission_status["drive_speed_factor"] = round(drive_factor, 3)
             mission_status["effective_speed_scale"] = round(effective_speed_scale, 3)
             mission_status["min_motion_raw"] = round(nav_cfg.min_motion_raw, 3)
+            if mission_status.get("stop_requested"):
+                cmd = ControlCommand(
+                    "STOP",
+                    reason=f"{mission_status.get('phase', 'target')} stop requested: {mission_status.get('speed_reason', mission_status.get('final_goal_source', 'mission'))}",
+                )
             combined_reason = speed_reason
             if drive_speed_level != 4:
                 combined_reason = f"{combined_reason}; " if combined_reason else ""
@@ -4877,11 +4920,19 @@ def main() -> None:
     parser.add_argument("--sweep-headland-margin-m", type=float, default=0.75)
     parser.add_argument("--sweep-boundary-margin-m", type=float, default=0.45)
     parser.add_argument("--sweep-turn-radius-m", type=float, default=1.00)
+    parser.add_argument("--sweep-turn-style", choices=["segmented_90"], default="segmented_90")
     parser.add_argument("--sweep-row-transition-enabled", type=str_to_bool, default=False)
     parser.add_argument("--sweep-max-rows", type=int, default=0, help="0 means all rows that fit in the configured field")
     parser.add_argument("--sweep-row-end-tolerance-m", type=float, default=0.35)
-    parser.add_argument("--sweep-lane-capture-tolerance-m", type=float, default=0.25)
-    parser.add_argument("--sweep-yaw-capture-tolerance-deg", type=float, default=12.0)
+    parser.add_argument("--sweep-turn-90-yaw-tolerance-deg", type=float, default=7.0)
+    parser.add_argument("--sweep-lane-capture-tolerance-m", type=float, default=0.20)
+    parser.add_argument("--sweep-yaw-capture-tolerance-deg", type=float, default=8.0)
+    parser.add_argument("--sweep-transition-min-emitted-v-mps", type=float, default=0.12)
+    parser.add_argument("--sweep-transition-min-emitted-omega-rps", type=float, default=0.20)
+    parser.add_argument("--sweep-transition-max-emitted-omega-rps", type=float, default=0.40)
+    parser.add_argument("--sweep-transition-inner-wheel-min-mps", type=float, default=0.04)
+    parser.add_argument("--sweep-transition-timeout-s", type=float, default=20.0)
+    parser.add_argument("--sweep-transition-divergence-action", choices=["stop", "warn"], default="stop")
     parser.add_argument("--sweep-cell-size-m", type=float, default=0.75)
     parser.add_argument("--sweep-lane-spacing-m", type=float, default=0.75)
     parser.add_argument("--sweep-lane-spacing-manual-override", type=str_to_bool, default=False)
@@ -5075,11 +5126,19 @@ def main() -> None:
             sweep_headland_margin_m=args.sweep_headland_margin_m,
             sweep_boundary_margin_m=args.sweep_boundary_margin_m,
             sweep_turn_radius_m=args.sweep_turn_radius_m,
+            sweep_turn_style=args.sweep_turn_style,
             sweep_row_transition_enabled=args.sweep_row_transition_enabled,
             sweep_max_rows=args.sweep_max_rows,
             sweep_row_end_tolerance_m=args.sweep_row_end_tolerance_m,
+            sweep_turn_90_yaw_tolerance_deg=args.sweep_turn_90_yaw_tolerance_deg,
             sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
             sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
+            sweep_transition_min_emitted_v_mps=args.sweep_transition_min_emitted_v_mps,
+            sweep_transition_min_emitted_omega_rps=args.sweep_transition_min_emitted_omega_rps,
+            sweep_transition_max_emitted_omega_rps=args.sweep_transition_max_emitted_omega_rps,
+            sweep_transition_inner_wheel_min_mps=args.sweep_transition_inner_wheel_min_mps,
+            sweep_transition_timeout_s=args.sweep_transition_timeout_s,
+            sweep_transition_divergence_action=args.sweep_transition_divergence_action,
             sweep_cell_size_m=args.sweep_cell_size_m,
             sweep_lane_spacing_m=args.sweep_lane_spacing_m,
             sweep_lane_spacing_manual_override=args.sweep_lane_spacing_manual_override,
@@ -5116,11 +5175,19 @@ def main() -> None:
             sweep_headland_margin_m=args.sweep_headland_margin_m,
             sweep_boundary_margin_m=args.sweep_boundary_margin_m,
             sweep_turn_radius_m=args.sweep_turn_radius_m,
+            sweep_turn_style=args.sweep_turn_style,
             sweep_row_transition_enabled=args.sweep_row_transition_enabled,
             sweep_max_rows=args.sweep_max_rows,
             sweep_row_end_tolerance_m=args.sweep_row_end_tolerance_m,
+            sweep_turn_90_yaw_tolerance_deg=args.sweep_turn_90_yaw_tolerance_deg,
             sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
             sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
+            sweep_transition_min_emitted_v_mps=args.sweep_transition_min_emitted_v_mps,
+            sweep_transition_min_emitted_omega_rps=args.sweep_transition_min_emitted_omega_rps,
+            sweep_transition_max_emitted_omega_rps=args.sweep_transition_max_emitted_omega_rps,
+            sweep_transition_inner_wheel_min_mps=args.sweep_transition_inner_wheel_min_mps,
+            sweep_transition_timeout_s=args.sweep_transition_timeout_s,
+            sweep_transition_divergence_action=args.sweep_transition_divergence_action,
             sweep_cell_size_m=args.sweep_cell_size_m,
             sweep_lane_spacing_m=args.sweep_lane_spacing_m,
             sweep_lane_spacing_manual_override=args.sweep_lane_spacing_manual_override,

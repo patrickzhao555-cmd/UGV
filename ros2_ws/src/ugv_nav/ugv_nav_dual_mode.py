@@ -540,6 +540,7 @@ class NavConfig:
     imu_yaw_sign: float = 1.0
     imu_yaw_max_rate_rps: float = 4.0
     min_motion_raw: float = 0.22
+    recovery_turn_raw: float = 0.32
 
 
 @dataclass
@@ -1551,12 +1552,13 @@ class LocalPlanner:
                         best_cmd.reason = 'local forward arc right'
             return best_cmd
 
+        recovery_turn_raw = clamp(self.nav_cfg.recovery_turn_raw, 0.0, 1.0)
         if sectors.left_m + sectors.front_left_m >= sectors.right_m + sectors.front_right_m:
-            cmd = ControlCommand('TURN_LEFT', turn_deg=28.0, raw_left=-0.32, raw_right=0.32, reason='local escape turn')
+            cmd = ControlCommand('TURN_LEFT', turn_deg=28.0, raw_left=-recovery_turn_raw, raw_right=recovery_turn_raw, reason='local escape turn')
             if self._safe_on_costmap(costmap, pose, cmd):
                 return cmd
         else:
-            cmd = ControlCommand('TURN_RIGHT', turn_deg=28.0, raw_left=0.32, raw_right=-0.32, reason='local escape turn')
+            cmd = ControlCommand('TURN_RIGHT', turn_deg=28.0, raw_left=recovery_turn_raw, raw_right=-recovery_turn_raw, reason='local escape turn')
             if self._safe_on_costmap(costmap, pose, cmd):
                 return cmd
         if self.nav_cfg.allow_reverse and sectors.rear_m > self.robot_cfg.length_m * 0.45 + 0.08:
@@ -1566,6 +1568,7 @@ class LocalPlanner:
         return ControlCommand('STOP', reason='local no safe motion')
 
     def _nonstop_blocked_escape(self, sectors: SectorSnapshot, prev_cmd: ControlCommand) -> ControlCommand:
+        recovery_turn_raw = clamp(self.nav_cfg.recovery_turn_raw, 0.0, 1.0)
         if self.nav_cfg.allow_reverse and sectors.rear_m > self.robot_cfg.length_m * 0.25:
             return ControlCommand(
                 'BACKWARD',
@@ -1585,15 +1588,15 @@ class LocalPlanner:
             return ControlCommand(
                 'TURN_LEFT',
                 turn_deg=28.0,
-                raw_left=-0.30,
-                raw_right=0.30,
+                raw_left=-recovery_turn_raw,
+                raw_right=recovery_turn_raw,
                 reason='local no-stop turn left; no fully safe motion',
             )
         return ControlCommand(
             'TURN_RIGHT',
             turn_deg=28.0,
-            raw_left=0.30,
-            raw_right=-0.30,
+            raw_left=recovery_turn_raw,
+            raw_right=-recovery_turn_raw,
             reason='local no-stop turn right; no fully safe motion',
         )
 
@@ -3651,10 +3654,11 @@ class UGVNavigator:
         if math.isinf(sectors.left_m) and math.isinf(sectors.right_m):
             go_left = self._last_escape_side_left
         self._last_escape_side_left = go_left
+        recovery_turn_raw = clamp(self.nav_cfg.recovery_turn_raw, 0.0, 1.0)
         if go_left:
-            self._escape_queue.append(ControlCommand('TURN_LEFT', turn_deg=28.0, raw_left=-0.32, raw_right=0.32, reason='escape turn'))
+            self._escape_queue.append(ControlCommand('TURN_LEFT', turn_deg=28.0, raw_left=-recovery_turn_raw, raw_right=recovery_turn_raw, reason='escape turn'))
         else:
-            self._escape_queue.append(ControlCommand('TURN_RIGHT', turn_deg=28.0, raw_left=0.32, raw_right=-0.32, reason='escape turn'))
+            self._escape_queue.append(ControlCommand('TURN_RIGHT', turn_deg=28.0, raw_left=recovery_turn_raw, raw_right=-recovery_turn_raw, reason='escape turn'))
 
     def _consume_escape_queue(self, plan_map: Costmap2D) -> Optional[ControlCommand]:
         while self._escape_queue:
@@ -4499,6 +4503,7 @@ def run_simulation(
     local_costmap_inflation_m: float = 0.08,
     local_costmap_lidar_clear_radius_m: float = 0.05,
     local_costmap_max_raytrace_m: float = 4.0,
+    recovery_turn_raw: float = 0.32,
     mission_mode: str = "manual",
     competition_mission_v2_enabled: bool = True,
     straight_distance_m: float = yd(13.0),
@@ -4540,6 +4545,7 @@ def run_simulation(
     nav_cfg.local_costmap_inflation_m = clamp(float(local_costmap_inflation_m), 0.0, 0.80)
     nav_cfg.local_costmap_lidar_clear_radius_m = clamp(float(local_costmap_lidar_clear_radius_m), 0.0, 0.40)
     nav_cfg.local_costmap_max_raytrace_m = clamp(float(local_costmap_max_raytrace_m), 0.20, 12.0)
+    nav_cfg.recovery_turn_raw = clamp(float(recovery_turn_raw), 0.0, 1.0)
     nav_cfg.allow_stop_at_goal = not competition_v2_active
     if competition_v2_active:
         nav_cfg.continuous_min_speed_mps = clamp(
@@ -4848,6 +4854,7 @@ def run_real_mode(
     local_costmap_inflation_m: float = 0.08,
     local_costmap_lidar_clear_radius_m: float = 0.05,
     local_costmap_max_raytrace_m: float = 4.0,
+    recovery_turn_raw: float = 0.32,
     max_steps: int = 0,
 ) -> None:
     mission_mode = normalize_mission_mode(mission_mode, competition_mode)
@@ -4907,6 +4914,7 @@ def run_real_mode(
     nav_cfg.local_costmap_inflation_m = clamp(float(local_costmap_inflation_m), 0.0, 0.80)
     nav_cfg.local_costmap_lidar_clear_radius_m = clamp(float(local_costmap_lidar_clear_radius_m), 0.0, 0.40)
     nav_cfg.local_costmap_max_raytrace_m = clamp(float(local_costmap_max_raytrace_m), 0.20, 12.0)
+    nav_cfg.recovery_turn_raw = clamp(float(recovery_turn_raw), 0.0, 1.0)
     drive_speed_level = normalize_drive_speed_level(drive_speed_level)
     drive_factor = drive_speed_factor(drive_speed_level)
     if competition_v2_active:
@@ -5181,6 +5189,7 @@ def main() -> None:
     parser.add_argument("--lidar-used-fov-deg", type=float, default=180.0, help="front-centered LiDAR field of view used by nav; rear hits are ignored")
     parser.add_argument("--allow-reverse", type=str_to_bool, default=False, help="allow planner to command BACKWARD; default false because rear LiDAR is obstructed")
     parser.add_argument("--min-motion-raw", type=float, default=0.22, help="floor applied to non-stop raw wheel commands after mission speed scaling")
+    parser.add_argument("--recovery-turn-raw", type=float, default=0.32, help="strong in-place turn raw used only for blocked/stuck recovery")
     parser.add_argument("--min-speed-mps", type=float, default=0.178816, help="mission minimum moving-speed requirement, 0.4 mph expressed in m/s")
     parser.add_argument("--drive-speed-level", type=drive_speed_level_arg, default=4, help="overall real-mode drive speed cap: 1=25%%, 2=50%%, 3=75%%, 4=100%%")
     parser.add_argument("--front-safety-margin-m", type=float, default=0.08, help="extra front clearance required before forward commands")
@@ -5251,6 +5260,7 @@ def main() -> None:
             local_costmap_inflation_m=args.local_costmap_inflation_m,
             local_costmap_lidar_clear_radius_m=args.local_costmap_lidar_clear_radius_m,
             local_costmap_max_raytrace_m=args.local_costmap_max_raytrace_m,
+            recovery_turn_raw=args.recovery_turn_raw,
             mission_mode=args.mission_mode,
             competition_mission_v2_enabled=args.competition_mission_v2_enabled,
             straight_distance_m=args.straight_distance_m,
@@ -5302,6 +5312,7 @@ def main() -> None:
             lidar_used_fov_deg=args.lidar_used_fov_deg,
             allow_reverse=args.allow_reverse,
             min_motion_raw=args.min_motion_raw,
+            recovery_turn_raw=args.recovery_turn_raw,
             min_speed_mps=args.min_speed_mps,
             drive_speed_level=args.drive_speed_level,
             front_safety_margin_m=args.front_safety_margin_m,

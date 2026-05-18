@@ -106,6 +106,17 @@ class RawFallbackFloorResult:
     right_raw: float
     applied_left: bool
     applied_right: bool
+    turn_floor_applied_left: bool = False
+    turn_floor_applied_right: bool = False
+
+
+def raw_command_is_turn_like(left_raw: float, right_raw: float, mode: str) -> bool:
+    mode_text = str(mode or "").upper()
+    if mode_text in {"TURN_LEFT", "TURN_RIGHT"}:
+        return True
+    left = finite_float(left_raw, name="left_raw")
+    right = finite_float(right_raw, name="right_raw")
+    return left * right < 0.0
 
 
 def apply_velocity_raw_fallback_floor(
@@ -116,6 +127,7 @@ def apply_velocity_raw_fallback_floor(
     command_type: str,
     mode: str,
     min_wheel_raw: float,
+    min_turn_raw: float = 0.28,
     min_target_raw: float,
 ) -> RawFallbackFloorResult:
     if (
@@ -125,7 +137,8 @@ def apply_velocity_raw_fallback_floor(
     ):
         return RawFallbackFloorResult(float(left_raw), float(right_raw), False, False)
 
-    floor = abs(float(min_wheel_raw))
+    turn_like = raw_command_is_turn_like(left_raw, right_raw, mode)
+    floor = abs(float(min_turn_raw if turn_like else min_wheel_raw))
     threshold = abs(float(min_target_raw))
     if floor <= 0.0:
         return RawFallbackFloorResult(float(left_raw), float(right_raw), False, False)
@@ -141,7 +154,14 @@ def apply_velocity_raw_fallback_floor(
 
     left, applied_left = floor_one(left_raw)
     right, applied_right = floor_one(right_raw)
-    return RawFallbackFloorResult(left, right, applied_left, applied_right)
+    return RawFallbackFloorResult(
+        left,
+        right,
+        applied_left,
+        applied_right,
+        bool(turn_like and applied_left),
+        bool(turn_like and applied_right),
+    )
 
 
 def encoder_delta_to_wheel_speed_mps(

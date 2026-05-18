@@ -38,6 +38,7 @@ def generate_launch_description():
     velocity_encoder_speed_min_dt_s = LaunchConfiguration('velocity_encoder_speed_min_dt_s')
     velocity_raw_fallback_floor_enabled = LaunchConfiguration('velocity_raw_fallback_floor_enabled')
     velocity_raw_fallback_min_wheel_raw = LaunchConfiguration('velocity_raw_fallback_min_wheel_raw')
+    velocity_raw_fallback_min_turn_raw = LaunchConfiguration('velocity_raw_fallback_min_turn_raw')
     velocity_raw_fallback_min_target_raw = LaunchConfiguration('velocity_raw_fallback_min_target_raw')
 
     return LaunchDescription([
@@ -73,6 +74,7 @@ def generate_launch_description():
         DeclareLaunchArgument('velocity_encoder_speed_min_dt_s', default_value='0.015'),
         DeclareLaunchArgument('velocity_raw_fallback_floor_enabled', default_value='false'),
         DeclareLaunchArgument('velocity_raw_fallback_min_wheel_raw', default_value='0.0'),
+        DeclareLaunchArgument('velocity_raw_fallback_min_turn_raw', default_value='0.28'),
         DeclareLaunchArgument('velocity_raw_fallback_min_target_raw', default_value='0.001'),
         Node(
             package='ugv_motor_controller',
@@ -112,6 +114,7 @@ def generate_launch_description():
                 'velocity_encoder_speed_min_dt_s': ParameterValue(velocity_encoder_speed_min_dt_s, value_type=float),
                 'velocity_raw_fallback_floor_enabled': ParameterValue(velocity_raw_fallback_floor_enabled, value_type=bool),
                 'velocity_raw_fallback_min_wheel_raw': ParameterValue(velocity_raw_fallback_min_wheel_raw, value_type=float),
+                'velocity_raw_fallback_min_turn_raw': ParameterValue(velocity_raw_fallback_min_turn_raw, value_type=float),
                 'velocity_raw_fallback_min_target_raw': ParameterValue(velocity_raw_fallback_min_target_raw, value_type=float),
             }],
         ),

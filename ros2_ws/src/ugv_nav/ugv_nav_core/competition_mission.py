@@ -303,6 +303,47 @@ class SweepGrid:
         self.active_index = None
         return None
 
+    def select_patrol_cell(
+        self,
+        pose_xy: Tuple[float, float],
+        heading_yaw: float,
+        min_distance_m: float,
+        now_s: float,
+    ) -> Optional[SweepCell]:
+        candidates = [
+            cell for cell in self.cells
+            if cell.state not in {CELL_BLOCKED, CELL_SKIPPED}
+        ]
+        if not candidates:
+            self.active_index = None
+            return None
+
+        start = (self._cursor + 1) % len(self.cells)
+        ordered = [
+            self.cells[(start + offset) % len(self.cells)]
+            for offset in range(len(self.cells))
+            if self.cells[(start + offset) % len(self.cells)] in candidates
+        ]
+        if not ordered:
+            ordered = candidates
+
+        min_distance_m = max(0.0, float(min_distance_m))
+        hx = math.cos(float(heading_yaw))
+        hy = math.sin(float(heading_yaw))
+
+        def distance(cell: SweepCell) -> float:
+            return math.hypot(cell.x - pose_xy[0], cell.y - pose_xy[1])
+
+        far_enough = [cell for cell in ordered if distance(cell) >= min_distance_m]
+        pool = far_enough or ordered
+        forward_pool = [
+            cell for cell in pool
+            if (cell.x - pose_xy[0]) * hx + (cell.y - pose_xy[1]) * hy >= 0.10
+        ]
+        if forward_pool:
+            return self._set_active(forward_pool[0], now_s)
+        return self._set_active(max(pool, key=distance), now_s)
+
     def mark_active_visited(self, now_s: float) -> Optional[SweepCell]:
         cell = self.active_cell()
         if cell is None:
@@ -463,17 +504,44 @@ class CompetitionMissionV2:
             max(margin, min(self.config.field_height_m - margin, float(xy[1]))),
         )
 
-    def _target_loiter_points(self) -> List[Tuple[float, float]]:
+    def _moving_goal_min_distance(self) -> float:
+        return max(0.45, min(1.20, 0.75 * self.config.target_accept_radius_m))
+
+    def _forward_field_goal(self, pose: Tuple[float, float, float], distance_m: Optional[float] = None) -> Tuple[float, float]:
+        distance = self._moving_goal_min_distance() if distance_m is None else max(0.20, float(distance_m))
+        return self._clamp_to_field(
+            (
+                pose[0] + distance * math.cos(pose[2]),
+                pose[1] + distance * math.sin(pose[2]),
+            ),
+            margin_m=0.20,
+        )
+
+    def _sweep_patrol_min_distance(self) -> float:
+        return max(
+            0.45,
+            1.20 * self.config.sweep_coverage_radius_m,
+            0.90 * self.config.sweep_cell_size_m,
+        )
+
+    def _target_loiter_points(self, pose: Tuple[float, float, float]) -> List[Tuple[float, float]]:
         if self.target_goal is None:
             return []
         tx, ty = self.target_goal
-        radius = max(0.35, min(1.0, self.config.target_accept_radius_m))
-        raw_points = [
-            (tx + radius, ty),
-            (tx, ty + radius),
-            (tx - radius, ty),
-            (tx, ty - radius),
-        ]
+        min_goal_distance = self._moving_goal_min_distance()
+        radius_x = max(min_goal_distance, min(1.35, 1.25 * self.config.target_accept_radius_m))
+        radius_y = max(0.40, min(radius_x, 0.72 * radius_x))
+        dx = pose[0] - tx
+        dy = pose[1] - ty
+        if math.hypot(dx, dy) > 0.10:
+            base_angle = math.atan2(dy, dx)
+        else:
+            base_angle = float(pose[2])
+        raw_points = []
+        for offset in (0.85, 1.25, -0.85, 1.70, -1.25, 2.25, -1.70, math.pi):
+            angle = base_angle + offset
+            raw_points.append((tx + radius_x * math.cos(angle), ty + radius_y * math.sin(angle)))
+        raw_points.append((pose[0] + min_goal_distance * math.cos(pose[2]), pose[1] + min_goal_distance * math.sin(pose[2])))
         points: List[Tuple[float, float]] = []
         for point in raw_points:
             clamped = self._clamp_to_field(point, margin_m=0.20)
@@ -483,17 +551,33 @@ class CompetitionMissionV2:
             points.append(self._clamp_to_field((tx, ty), margin_m=0.20))
         return points
 
-    def _target_loiter_goal(self, pose_xy: Tuple[float, float]) -> Tuple[float, float]:
-        points = self._target_loiter_points()
+    def _target_loiter_goal(self, pose: Tuple[float, float, float]) -> Tuple[float, float]:
+        pose_xy = (pose[0], pose[1])
+        points = self._target_loiter_points(pose)
         if not points:
-            return pose_xy
-        if self._target_loiter_goal_m not in points:
-            self._target_loiter_index = 0
-            self._target_loiter_goal_m = points[0]
-        switch_radius_m = max(0.20, min(self.config.target_accept_radius_m * 0.50, 0.55))
+            return self._forward_field_goal(pose)
+        min_goal_distance = self._moving_goal_min_distance()
+        switch_radius_m = max(0.20, min(min_goal_distance * 0.55, 0.55))
+        if (
+            self._target_loiter_goal_m is not None
+            and math.hypot(self._target_loiter_goal_m[0] - pose_xy[0], self._target_loiter_goal_m[1] - pose_xy[1]) > switch_radius_m
+        ):
+            return self._target_loiter_goal_m
+        hx = math.cos(pose[2])
+        hy = math.sin(pose[2])
+
+        def score(point: Tuple[float, float]) -> float:
+            dx = point[0] - pose_xy[0]
+            dy = point[1] - pose_xy[1]
+            dist = math.hypot(dx, dy)
+            forward = dx * hx + dy * hy
+            near_penalty = 2.0 if dist < min_goal_distance else 0.0
+            behind_penalty = 1.5 if forward < 0.0 else 0.0
+            return 2.0 * forward + 0.35 * dist - near_penalty - behind_penalty
+
+        self._target_loiter_goal_m = max(points, key=score)
         if math.hypot(self._target_loiter_goal_m[0] - pose_xy[0], self._target_loiter_goal_m[1] - pose_xy[1]) <= switch_radius_m:
-            self._target_loiter_index = (self._target_loiter_index + 1) % len(points)
-            self._target_loiter_goal_m = points[self._target_loiter_index]
+            self._target_loiter_goal_m = self._forward_field_goal(pose, min_goal_distance)
         return self._target_loiter_goal_m
 
     def _stop_flag_active(self) -> bool:
@@ -534,7 +618,7 @@ class CompetitionMissionV2:
 
         if self.round == "round1":
             return self._store_update(self._update_round1(pose_xy))
-        return self._store_update(self._update_search_round(pose_xy, now_s))
+        return self._store_update(self._update_search_round(pose, now_s))
 
     def _update_round1(self, pose_xy: Tuple[float, float]) -> MissionUpdate:
         self.phase = "round1_straight"
@@ -549,12 +633,13 @@ class CompetitionMissionV2:
         self.reason = "round1_keep_moving_until_landed_or_complete"
         return self._make_update(self._straight_goal_m, False)
 
-    def _update_search_round(self, pose_xy: Tuple[float, float], now_s: float) -> MissionUpdate:
+    def _update_search_round(self, pose: Tuple[float, float, float], now_s: float) -> MissionUpdate:
+        pose_xy = (pose[0], pose[1])
         if self.target_goal is not None:
             if self._target_reached(pose_xy):
                 self.phase = "target_loiter_moving"
                 self.reason = "target_reached_keep_moving_until_landed_or_complete"
-                return self._make_update(self._target_loiter_goal(pose_xy), False)
+                return self._make_update(self._target_loiter_goal(pose), False)
             self.phase = "target_nav"
             self.reason = f"target_known_{self.target_source}"
             self._target_loiter_goal_m = None
@@ -568,13 +653,16 @@ class CompetitionMissionV2:
         self._maybe_timeout_active_cell(pose_xy, now_s)
         reached = self.grid.advance_if_reached(pose_xy, self.config.sweep_coverage_radius_m, now_s)
         active = self.grid.ensure_active(now_s)
+        coverage_reached = self.grid.coverage_fraction >= self.config.sweep_coverage_threshold
+        if coverage_reached:
+            active = self.grid.select_patrol_cell(pose_xy, pose[2], self._sweep_patrol_min_distance(), now_s)
         self._refresh_active_cell_progress(active, pose_xy, now_s)
         if active is None:
-            self.reason = "sweep_no_reachable_cells"
-            return self._make_update(pose_xy, False)
+            self.reason = "sweep_no_reachable_cells_forward_patrol"
+            return self._make_update(self._forward_field_goal(pose, self._sweep_patrol_min_distance()), False)
         if reached:
             self.reason = "sweep_cell_visited_advanced"
-        elif self.grid.coverage_fraction >= self.config.sweep_coverage_threshold:
+        elif coverage_reached:
             self.reason = "coverage_threshold_reached_continuing_patrol"
         else:
             self.reason = "sweep_searching"

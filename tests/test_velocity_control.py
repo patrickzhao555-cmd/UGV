@@ -86,6 +86,7 @@ def test_velocity_raw_fallback_floor_applies_per_wheel_independently():
         command_type="velocity",
         mode="FORWARD",
         min_wheel_raw=0.14,
+        min_turn_raw=0.28,
         min_target_raw=0.001,
     )
 
@@ -93,6 +94,8 @@ def test_velocity_raw_fallback_floor_applies_per_wheel_independently():
     assert floored.right_raw == 0.14
     assert floored.applied_left
     assert not floored.applied_right
+    assert not floored.turn_floor_applied_left
+    assert not floored.turn_floor_applied_right
 
 
 def test_velocity_raw_fallback_floor_preserves_turn_signs():
@@ -103,13 +106,52 @@ def test_velocity_raw_fallback_floor_preserves_turn_signs():
         command_type="velocity",
         mode="TURN_LEFT",
         min_wheel_raw=0.14,
+        min_turn_raw=0.28,
         min_target_raw=0.001,
     )
 
-    assert floored.left_raw == -0.14
-    assert floored.right_raw == 0.14
+    assert floored.left_raw == -0.28
+    assert floored.right_raw == 0.28
     assert floored.applied_left
     assert floored.applied_right
+    assert floored.turn_floor_applied_left
+    assert floored.turn_floor_applied_right
+
+
+def test_velocity_raw_fallback_turn_right_preserves_signs_with_turn_floor():
+    floored = apply_velocity_raw_fallback_floor(
+        0.035,
+        -0.005,
+        enabled=True,
+        command_type="velocity",
+        mode="TURN_RIGHT",
+        min_wheel_raw=0.14,
+        min_turn_raw=0.28,
+        min_target_raw=0.001,
+    )
+
+    assert floored.left_raw == 0.28
+    assert floored.right_raw == -0.28
+    assert floored.turn_floor_applied_left
+    assert floored.turn_floor_applied_right
+
+
+def test_velocity_raw_fallback_opposite_sign_raws_are_turn_like():
+    floored = apply_velocity_raw_fallback_floor(
+        -0.04,
+        0.06,
+        enabled=True,
+        command_type="velocity",
+        mode="VELOCITY",
+        min_wheel_raw=0.14,
+        min_turn_raw=0.28,
+        min_target_raw=0.001,
+    )
+
+    assert floored.left_raw == -0.28
+    assert floored.right_raw == 0.28
+    assert floored.turn_floor_applied_left
+    assert floored.turn_floor_applied_right
 
 
 def test_velocity_raw_fallback_floor_keeps_zero_and_stop_safe():
@@ -120,6 +162,7 @@ def test_velocity_raw_fallback_floor_keeps_zero_and_stop_safe():
         command_type="velocity",
         mode="FORWARD",
         min_wheel_raw=0.14,
+        min_turn_raw=0.28,
         min_target_raw=0.001,
     )
     assert zero.left_raw == 0.0
@@ -134,6 +177,7 @@ def test_velocity_raw_fallback_floor_keeps_zero_and_stop_safe():
         command_type="velocity",
         mode="STOP",
         min_wheel_raw=0.14,
+        min_turn_raw=0.28,
         min_target_raw=0.001,
     )
     assert stop.left_raw == 0.005
@@ -150,6 +194,7 @@ def test_velocity_raw_fallback_floor_does_not_change_legacy_raw_or_direct_comman
         command_type="raw",
         mode="FORWARD",
         min_wheel_raw=0.14,
+        min_turn_raw=0.28,
         min_target_raw=0.001,
     )
     assert legacy.left_raw == 0.005
@@ -164,6 +209,7 @@ def test_velocity_raw_fallback_floor_does_not_change_legacy_raw_or_direct_comman
         command_type="velocity",
         mode="FORWARD",
         min_wheel_raw=0.14,
+        min_turn_raw=0.28,
         min_target_raw=0.001,
     )
     assert disabled.left_raw == 0.005
@@ -213,6 +259,7 @@ def test_stop_command_still_overrides_refresh_and_timeout_logic():
         command_type=stop_payload["command_type"],
         mode=stop_payload["mode"],
         min_wheel_raw=0.14,
+        min_turn_raw=0.28,
         min_target_raw=0.001,
     ).applied_left
 
@@ -444,15 +491,20 @@ def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
     assert "MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S" in bringup
     assert "velocity_raw_fallback_floor_enabled" in launch_file
     assert "velocity_raw_fallback_min_wheel_raw" in launch_file
+    assert "velocity_raw_fallback_min_turn_raw" in launch_file
     assert "velocity_raw_fallback_min_target_raw" in launch_file
     assert "motor_velocity_raw_fallback_floor_enabled" in competition_launch
     assert "motor_velocity_raw_fallback_min_wheel_raw" in competition_launch
+    assert "motor_velocity_raw_fallback_min_turn_raw" in competition_launch
     assert "motor_velocity_raw_fallback_min_target_raw" in competition_launch
     assert "MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW" in bringup
+    assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_TURN_RAW" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_TARGET_RAW" in bringup
     assert "velocity_raw_fallback_floor_applied_left" in bridge_file
     assert "velocity_raw_fallback_floor_applied_right" in bridge_file
+    assert "velocity_raw_fallback_turn_floor_applied_left" in bridge_file
+    assert "velocity_raw_fallback_turn_floor_applied_right" in bridge_file
     assert "selected_raw_left" in bridge_file
     assert "selected_raw_right" in bridge_file
     assert "timeout_stop_count" in bridge_file

@@ -77,6 +77,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('velocity_encoder_speed_min_dt_s', 0.015)
         self.declare_parameter('velocity_raw_fallback_floor_enabled', False)
         self.declare_parameter('velocity_raw_fallback_min_wheel_raw', 0.0)
+        self.declare_parameter('velocity_raw_fallback_min_turn_raw', 0.28)
         self.declare_parameter('velocity_raw_fallback_min_target_raw', 0.001)
 
         self.port = self.get_parameter('port').value
@@ -136,6 +137,10 @@ class MotorControllerBridge(Node):
             0.0,
             float(self.get_parameter('velocity_raw_fallback_min_wheel_raw').value),
         )
+        self.velocity_raw_fallback_min_turn_raw = max(
+            0.0,
+            float(self.get_parameter('velocity_raw_fallback_min_turn_raw').value),
+        )
         self.velocity_raw_fallback_min_target_raw = max(
             0.0,
             float(self.get_parameter('velocity_raw_fallback_min_target_raw').value),
@@ -174,6 +179,8 @@ class MotorControllerBridge(Node):
         self.selected_raw_right = 0.0
         self.velocity_raw_fallback_floor_applied_left = False
         self.velocity_raw_fallback_floor_applied_right = False
+        self.velocity_raw_fallback_turn_floor_applied_left = False
+        self.velocity_raw_fallback_turn_floor_applied_right = False
         self.active_velocity_command: Optional[Tuple[float, float]] = None
         self.target_left_mps = 0.0
         self.target_right_mps = 0.0
@@ -263,6 +270,8 @@ class MotorControllerBridge(Node):
             self.selected_raw_right = 0.0
             self.velocity_raw_fallback_floor_applied_left = False
             self.velocity_raw_fallback_floor_applied_right = False
+            self.velocity_raw_fallback_turn_floor_applied_left = False
+            self.velocity_raw_fallback_turn_floor_applied_right = False
             self.last_velocity_safe_reason = None
             self._update_velocity_control(reason='nav velocity command')
         else:
@@ -288,6 +297,7 @@ class MotorControllerBridge(Node):
                 command_type=self.last_command_type or 'raw',
                 mode=self.last_command_mode or 'RAW',
                 min_wheel_raw=self.velocity_raw_fallback_min_wheel_raw,
+                min_turn_raw=self.velocity_raw_fallback_min_turn_raw,
                 min_target_raw=self.velocity_raw_fallback_min_target_raw,
             )
             left_raw = floor_result.left_raw
@@ -296,6 +306,8 @@ class MotorControllerBridge(Node):
             self.selected_raw_right = right_raw
             self.velocity_raw_fallback_floor_applied_left = floor_result.applied_left
             self.velocity_raw_fallback_floor_applied_right = floor_result.applied_right
+            self.velocity_raw_fallback_turn_floor_applied_left = floor_result.turn_floor_applied_left
+            self.velocity_raw_fallback_turn_floor_applied_right = floor_result.turn_floor_applied_right
             self.control_mode = 'raw_velocity_fallback' if velocity_raw_fallback else 'raw'
             self.last_command_received = time.monotonic()
             self.last_stop_sent = False
@@ -577,6 +589,8 @@ class MotorControllerBridge(Node):
         self.selected_raw_right = 0.0
         self.velocity_raw_fallback_floor_applied_left = False
         self.velocity_raw_fallback_floor_applied_right = False
+        self.velocity_raw_fallback_turn_floor_applied_left = False
+        self.velocity_raw_fallback_turn_floor_applied_right = False
         self.last_velocity_error_left_mps = 0.0
         self.last_velocity_error_right_mps = 0.0
         self.last_velocity_pid_left = None
@@ -707,9 +721,12 @@ class MotorControllerBridge(Node):
             'prefer_velocity_fields': self.prefer_velocity_fields,
             'velocity_raw_fallback_floor_enabled': self.velocity_raw_fallback_floor_enabled,
             'velocity_raw_fallback_min_wheel_raw': round(self.velocity_raw_fallback_min_wheel_raw, 4),
+            'velocity_raw_fallback_min_turn_raw': round(self.velocity_raw_fallback_min_turn_raw, 4),
             'velocity_raw_fallback_min_target_raw': round(self.velocity_raw_fallback_min_target_raw, 4),
             'velocity_raw_fallback_floor_applied_left': bool(self.velocity_raw_fallback_floor_applied_left),
             'velocity_raw_fallback_floor_applied_right': bool(self.velocity_raw_fallback_floor_applied_right),
+            'velocity_raw_fallback_turn_floor_applied_left': bool(self.velocity_raw_fallback_turn_floor_applied_left),
+            'velocity_raw_fallback_turn_floor_applied_right': bool(self.velocity_raw_fallback_turn_floor_applied_right),
             'selected_raw_left': round(self.selected_raw_left, 4),
             'selected_raw_right': round(self.selected_raw_right, 4),
             'command_timeout_s': round(self.command_timeout_s, 3),

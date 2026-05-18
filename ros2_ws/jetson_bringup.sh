@@ -95,6 +95,7 @@ LIDAR_OFFSET_X_M="${LIDAR_OFFSET_X_M:-0.30}"
 LIDAR_OFFSET_Y_M="${LIDAR_OFFSET_Y_M:-0.0}"
 LIDAR_USED_FOV_DEG="${LIDAR_USED_FOV_DEG:-180.0}"
 NAV_ALLOW_REVERSE="${NAV_ALLOW_REVERSE:-false}"
+NAV_RECOVERY_TURN_RAW="${NAV_RECOVERY_TURN_RAW:-0.32}"
 NAV_FRONT_SAFETY_MARGIN_M="${NAV_FRONT_SAFETY_MARGIN_M:-0.08}"
 NAV_REAR_SAFETY_MARGIN_M="${NAV_REAR_SAFETY_MARGIN_M:-0.08}"
 NAV_LOCAL_PLAN_INFLATION_M="${NAV_LOCAL_PLAN_INFLATION_M:-0.0}"
@@ -172,6 +173,7 @@ MOTOR_VELOCITY_ENCODER_SPEED_MAX_MPS="${MOTOR_VELOCITY_ENCODER_SPEED_MAX_MPS:-2.
 MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S="${MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S:-0.015}"
 MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED="${MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED:-false}"
 MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW="${MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW:-0.14}"
+MOTOR_VELOCITY_RAW_FALLBACK_MIN_TURN_RAW="${MOTOR_VELOCITY_RAW_FALLBACK_MIN_TURN_RAW:-0.28}"
 MOTOR_VELOCITY_RAW_FALLBACK_MIN_TARGET_RAW="${MOTOR_VELOCITY_RAW_FALLBACK_MIN_TARGET_RAW:-0.001}"
 MIN_MOTION_RAW="${MIN_MOTION_RAW:-0.22}"
 # Current chassis wiring maps positive logical left raw to physical left-forward,
@@ -362,6 +364,7 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   lidar_offset_y_m:="${LIDAR_OFFSET_Y_M}" \
   lidar_used_fov_deg:="${LIDAR_USED_FOV_DEG}" \
   allow_reverse:="${NAV_ALLOW_REVERSE}" \
+  recovery_turn_raw:="${NAV_RECOVERY_TURN_RAW}" \
   front_safety_margin_m:="${NAV_FRONT_SAFETY_MARGIN_M}" \
   rear_safety_margin_m:="${NAV_REAR_SAFETY_MARGIN_M}" \
   local_plan_inflation_m:="${NAV_LOCAL_PLAN_INFLATION_M}" \
@@ -422,6 +425,7 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   motor_velocity_encoder_speed_min_dt_s:="${MOTOR_VELOCITY_ENCODER_SPEED_MIN_DT_S}" \
   motor_velocity_raw_fallback_floor_enabled:="${MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED}" \
   motor_velocity_raw_fallback_min_wheel_raw:="${MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW}" \
+  motor_velocity_raw_fallback_min_turn_raw:="${MOTOR_VELOCITY_RAW_FALLBACK_MIN_TURN_RAW}" \
   motor_velocity_raw_fallback_min_target_raw:="${MOTOR_VELOCITY_RAW_FALLBACK_MIN_TARGET_RAW}" \
   min_motion_raw:="${MIN_MOTION_RAW}" \
   invert_left_command:="${INVERT_LEFT_COMMAND}" \

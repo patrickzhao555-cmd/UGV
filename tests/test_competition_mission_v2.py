@@ -1,3 +1,4 @@
+import math
 import pathlib
 import sys
 
@@ -67,6 +68,21 @@ def test_next_cell_advances_after_visited():
     assert update.active_goal_m == (0.75, 0.25)
 
 
+def test_after_coverage_threshold_uses_forward_patrol_goal_not_tiny_turn_goal():
+    mission = CompetitionMissionV2("round2", small_config(sweep_coverage_threshold=0.1))
+    pose = (0.25, 0.25, 0.0)
+    update = mission.update(pose, 0.0)
+    dx = update.active_goal_m[0] - pose[0]
+    dy = update.active_goal_m[1] - pose[1]
+    assert update.phase == "sweep_search"
+    assert update.reason in {
+        "sweep_cell_visited_advanced",
+        "coverage_threshold_reached_continuing_patrol",
+    }
+    assert math.hypot(dx, dy) >= 0.44
+    assert dx > 0.0
+
+
 def test_blocked_cell_is_skipped_by_sweep_grid():
     grid = SweepGrid(2.0, 1.0, 0.5, 0.5, 0.25)
     first = grid.ensure_active(0.0)
@@ -128,6 +144,18 @@ def test_round3_target_reached_without_landed_flag_keeps_moving():
     assert update.phase == "target_loiter_moving"
     assert not update.stop_requested
     assert update.active_goal_m != (1.5, 0.75)
+
+
+def test_target_loiter_moving_produces_forward_moving_goal_around_target():
+    mission = CompetitionMissionV2("round2", small_config())
+    pose = (1.0, 0.5, 0.0)
+    update = mission.update(pose, 0.0, field_map_goal=(1.0, 0.5), field_map_source="uav")
+    dx = update.active_goal_m[0] - pose[0]
+    dy = update.active_goal_m[1] - pose[1]
+    assert update.phase == "target_loiter_moving"
+    assert math.hypot(dx, dy) >= 0.44
+    assert dx > 0.0
+    assert not update.stop_requested
 
 
 def test_round2_target_reached_with_landed_flag_stops():
@@ -202,6 +230,7 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--sweep-goal-timeout-s",
         "--sweep-fail-limit",
         "--min-competition-speed-mps",
+        "--recovery-turn-raw",
     ]:
         assert token in nav_script
         assert token in launch_file
@@ -215,5 +244,6 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "SWEEP_GOAL_TIMEOUT_S",
         "SWEEP_FAIL_LIMIT",
         "MIN_COMPETITION_SPEED_MPS",
+        "NAV_RECOVERY_TURN_RAW",
     ]:
         assert token in bringup

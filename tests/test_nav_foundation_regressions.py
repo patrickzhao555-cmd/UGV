@@ -1,3 +1,4 @@
+import math
 import pathlib
 import sys
 from types import SimpleNamespace
@@ -29,6 +30,10 @@ from ugv_nav_dual_mode import (  # noqa: E402
     UGVNavigator,
     VelocityLocalPlanner,
     ZedPacket,
+    apply_competition_closed_loop_command,
+    build_nav_status,
+    compute_heading_hold_correction,
+    compute_lane_follow_correction,
     field_cell_to_world,
     laser_scan_to_lidar_observations,
     update_physical_stall_state,
@@ -254,6 +259,161 @@ def test_physical_stall_triggers_after_active_command_and_zero_odom():
     assert state.detected
     assert state.steps == 16
     assert "active_command_zero_odom" in state.reason
+
+
+def test_heading_hold_correction_sign_and_deadband():
+    error, omega = compute_heading_hold_correction(
+        math.radians(10.0),
+        0.0,
+        yaw_rate_radps=0.0,
+        kp=1.0,
+        kd=0.0,
+        deadband_deg=3.0,
+        max_omega_radps=0.6,
+    )
+    assert error > 0.0
+    assert omega > 0.0
+
+    small_error, small_omega = compute_heading_hold_correction(
+        math.radians(2.0),
+        0.0,
+        yaw_rate_radps=0.0,
+        kp=1.0,
+        kd=0.0,
+        deadband_deg=3.0,
+        max_omega_radps=0.6,
+    )
+    assert small_error > 0.0
+    assert small_omega == 0.0
+
+
+def test_lane_cross_track_correction_sign_uses_sweep_direction():
+    cte_even, heading_even, omega_even = compute_lane_follow_correction(
+        lane_y_m=0.45,
+        estimated_y_m=0.20,
+        row_direction=1.0,
+        kp_heading=1.0,
+        kp_omega=1.0,
+        deadband_m=0.01,
+        max_heading_deg=18.0,
+        max_omega_radps=0.35,
+    )
+    cte_odd, heading_odd, omega_odd = compute_lane_follow_correction(
+        lane_y_m=0.45,
+        estimated_y_m=0.20,
+        row_direction=-1.0,
+        kp_heading=1.0,
+        kp_omega=1.0,
+        deadband_m=0.01,
+        max_heading_deg=18.0,
+        max_omega_radps=0.35,
+    )
+    assert cte_even == cte_odd
+    assert heading_even > 0.0
+    assert omega_even > 0.0
+    assert heading_odd < 0.0
+    assert omega_odd < 0.0
+
+
+def test_competition_closed_loop_sweep_keeps_forward_velocity_and_avoids_pure_turn():
+    robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.6096)
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    nav_cfg.competition_closed_loop_enabled = True
+    nav_cfg.heading_hold_enabled = True
+    nav_cfg.lane_follow_enabled = True
+    nav_cfg.continuous_min_speed_mps = 0.0894
+    start = Pose2D(2.38, 0.20, 0.0)
+    goal = Pose2D(4.0, 0.45, 0.0)
+    navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, 5.0, 2.0, start, goal)
+    navigator.velocity_debug = {"safety_state": "clear"}
+
+    frame = SensorFrame(
+        encoder=EncoderPacket(0, 0, 1.0),
+        lidar=LidarPacket(hit_points_local=[], ranges_m=[], angles_rad=[], timestamp=1.0),
+        zed=ZedPacket(hit_points_local=[], timestamp=1.0),
+        goal=GoalPacket(goal.x, goal.y, 1.0),
+        imu=ImuPacket((0.0, 0.0, 0.0), (0.0, 0.0, 9.81), 1.0),
+    )
+    turn_cmd = ControlCommand(
+        "TURN_RIGHT",
+        raw_left=0.28,
+        raw_right=-0.28,
+        v_mps=0.0,
+        omega_radps=-0.4,
+        controller="velocity",
+        command_type="velocity",
+        reason="planner tiny turn",
+    )
+    mission_status = {
+        "competition_v2": {
+            "enabled": True,
+            "phase": "sweep_search",
+            "active_lane_y_m": 0.45,
+            "active_cell_row": 0,
+            "minimum_speed_mps": 0.0894,
+            "sweep_target_yaw_deg": 0.0,
+        }
+    }
+
+    adjusted = apply_competition_closed_loop_command(navigator, turn_cmd, frame, mission_status)
+
+    assert adjusted.controller == "velocity"
+    assert adjusted.command_type == "velocity"
+    assert adjusted.mode == "FORWARD"
+    assert adjusted.v_mps >= 0.0894
+    assert adjusted.raw_left >= 0.0
+    assert adjusted.raw_right >= 0.0
+    assert navigator.closed_loop_debug["closed_loop_active"]
+    assert navigator.closed_loop_debug["cross_track_error_m"] > 0.0
+    assert navigator.closed_loop_debug["omega_lane_radps"] > 0.0
+
+
+def test_nav_status_exposes_competition_closed_loop_fields():
+    robot_cfg = RobotConfig()
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, 5.0, 2.0, Pose2D(0.0, 0.0, 0.0), Pose2D(1.0, 0.0, 0.0))
+    navigator.closed_loop_debug.update(
+        {
+            "closed_loop_enabled": True,
+            "heading_hold_enabled": True,
+            "lane_follow_enabled": True,
+            "target_yaw_deg": 0.0,
+            "estimated_yaw_deg": 1.0,
+            "heading_error_deg": -1.0,
+            "cross_track_error_m": 0.12,
+            "omega_heading_radps": -0.02,
+            "omega_lane_radps": 0.08,
+            "final_v_mps": 0.10,
+            "final_omega_radps": 0.06,
+            "heading_source": "odom_yaw",
+        }
+    )
+    frame = SensorFrame(
+        encoder=EncoderPacket(0, 0, 1.0),
+        lidar=LidarPacket(hit_points_local=[], ranges_m=[], angles_rad=[], timestamp=1.0),
+        zed=ZedPacket(hit_points_local=[], timestamp=1.0),
+        goal=GoalPacket(1.0, 0.0, 1.0),
+    )
+
+    status = build_nav_status(navigator, frame, ControlCommand("FORWARD"), {})
+
+    for key in [
+        "closed_loop_enabled",
+        "heading_hold_enabled",
+        "lane_follow_enabled",
+        "target_yaw_deg",
+        "estimated_yaw_deg",
+        "heading_error_deg",
+        "cross_track_error_m",
+        "omega_heading_radps",
+        "omega_lane_radps",
+        "final_v_mps",
+        "final_omega_radps",
+        "heading_source",
+    ]:
+        assert key in status
 
 
 def test_local_costmap_cli_launch_and_env_parameters_are_wired():

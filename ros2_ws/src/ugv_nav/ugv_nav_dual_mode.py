@@ -520,6 +520,18 @@ class NavConfig:
     continuous_latency_buffer_s: float = 0.25
     continuous_allow_costmap_soft_penalty: bool = False
     emit_velocity_commands: bool = True
+    competition_closed_loop_enabled: bool = True
+    heading_hold_enabled: bool = True
+    lane_follow_enabled: bool = True
+    heading_hold_kp: float = 1.10
+    heading_hold_kd: float = 0.05
+    heading_hold_deadband_deg: float = 3.0
+    heading_hold_max_omega_rps: float = 0.55
+    lane_follow_kp_heading: float = 1.10
+    lane_follow_kp_omega: float = 1.00
+    lane_follow_deadband_m: float = 0.03
+    lane_follow_max_heading_deg: float = 18.0
+    lane_follow_max_omega_rps: float = 0.35
     local_costmap_enabled: bool = True
     local_costmap_width_m: float = 4.0
     local_costmap_height_m: float = 4.0
@@ -573,6 +585,75 @@ def wrap_to_pi(a: float) -> float:
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
+
+
+def compute_heading_hold_correction(
+    target_yaw_rad: float,
+    estimated_yaw_rad: float,
+    *,
+    yaw_rate_radps: Optional[float] = None,
+    kp: float = 1.10,
+    kd: float = 0.05,
+    deadband_deg: float = 3.0,
+    max_omega_radps: float = 0.55,
+) -> Tuple[float, float]:
+    heading_error = wrap_to_pi(float(target_yaw_rad) - float(estimated_yaw_rad))
+    if abs(heading_error) <= math.radians(max(0.0, float(deadband_deg))):
+        return heading_error, 0.0
+    yaw_rate_error = 0.0
+    if yaw_rate_radps is not None and math.isfinite(float(yaw_rate_radps)):
+        yaw_rate_error = -float(yaw_rate_radps)
+    omega = float(kp) * heading_error + float(kd) * yaw_rate_error
+    return heading_error, clamp(omega, -abs(float(max_omega_radps)), abs(float(max_omega_radps)))
+
+
+def compute_lane_follow_correction(
+    lane_y_m: float,
+    estimated_y_m: float,
+    row_direction: float,
+    *,
+    kp_heading: float = 1.10,
+    kp_omega: float = 1.00,
+    deadband_m: float = 0.03,
+    max_heading_deg: float = 18.0,
+    max_omega_radps: float = 0.35,
+) -> Tuple[float, float, float]:
+    cross_track_error = float(lane_y_m) - float(estimated_y_m)
+    if abs(cross_track_error) <= max(0.0, float(deadband_m)):
+        return cross_track_error, 0.0, 0.0
+    direction = 1.0 if float(row_direction) >= 0.0 else -1.0
+    max_heading = math.radians(max(0.0, float(max_heading_deg)))
+    desired_heading_offset = direction * clamp(
+        math.atan(float(kp_heading) * cross_track_error),
+        -max_heading,
+        max_heading,
+    )
+    omega = clamp(
+        float(kp_omega) * desired_heading_offset,
+        -abs(float(max_omega_radps)),
+        abs(float(max_omega_radps)),
+    )
+    return cross_track_error, desired_heading_offset, omega
+
+
+def default_closed_loop_debug(nav_cfg: Optional[NavConfig] = None) -> Dict[str, Any]:
+    return {
+        "closed_loop_enabled": bool(nav_cfg.competition_closed_loop_enabled) if nav_cfg is not None else False,
+        "closed_loop_active": False,
+        "heading_hold_enabled": bool(nav_cfg.heading_hold_enabled) if nav_cfg is not None else False,
+        "lane_follow_enabled": bool(nav_cfg.lane_follow_enabled) if nav_cfg is not None else False,
+        "target_yaw_deg": None,
+        "estimated_yaw_deg": None,
+        "heading_error_deg": None,
+        "cross_track_error_m": None,
+        "omega_heading_radps": 0.0,
+        "omega_lane_radps": 0.0,
+        "lane_heading_offset_deg": 0.0,
+        "final_v_mps": 0.0,
+        "final_omega_radps": 0.0,
+        "heading_source": "unavailable",
+        "reason": "inactive",
+    }
 
 
 @dataclass
@@ -2876,6 +2957,7 @@ class UGVNavigator:
         self._odom_warning_counter = 0
         self.last_sent_cmd = ControlCommand("STOP")
         self.physical_stall = PhysicalStallState()
+        self.closed_loop_debug = default_closed_loop_debug(nav_cfg)
         self._last_field_map_version = -1
         self._last_field_map_key = None
         self.last_odom_delta = {
@@ -4631,6 +4713,9 @@ def run_simulation(
     continuous_latency_buffer_s: float = 0.25,
     continuous_allow_costmap_soft_penalty: bool = False,
     emit_velocity_commands: bool = True,
+    competition_closed_loop_enabled: bool = True,
+    heading_hold_enabled: bool = True,
+    lane_follow_enabled: bool = True,
     local_costmap_enabled: bool = True,
     local_costmap_width_m: float = 4.0,
     local_costmap_height_m: float = 4.0,
@@ -4677,6 +4762,9 @@ def run_simulation(
     nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
     nav_cfg.continuous_allow_costmap_soft_penalty = bool(continuous_allow_costmap_soft_penalty)
     nav_cfg.emit_velocity_commands = bool(emit_velocity_commands)
+    nav_cfg.competition_closed_loop_enabled = bool(competition_closed_loop_enabled)
+    nav_cfg.heading_hold_enabled = bool(heading_hold_enabled)
+    nav_cfg.lane_follow_enabled = bool(lane_follow_enabled)
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
     nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
     nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
@@ -4761,6 +4849,12 @@ def run_simulation(
             apply_competition_v2_motion_policy(navigator, competition_v2_status_for_update(mission_update))
         cmd = navigator.step(frame)
         if mission_v2 is not None:
+            cmd = apply_competition_closed_loop_command(
+                navigator,
+                cmd,
+                frame,
+                competition_v2_status_for_update(mission_update),
+            )
             mission_v2.observe_navigation_feedback(navigation_feedback_for_competition_v2(navigator, cmd, frame))
             if mission_update is not None and mission_update.stop_requested:
                 cmd = ControlCommand("STOP", reason=f"{mission_update.phase} stop requested: {mission_update.reason}")
@@ -4853,6 +4947,19 @@ def build_nav_status(navigator: UGVNavigator, frame: SensorFrame, cmd: ControlCo
         **navigator.physical_stall_status(),
         "local_costmap": navigator.local_costmap_debug,
         "velocity_control": navigator.velocity_debug,
+        "closed_loop_enabled": bool(navigator.closed_loop_debug.get("closed_loop_enabled", False)),
+        "heading_hold_enabled": bool(navigator.closed_loop_debug.get("heading_hold_enabled", False)),
+        "lane_follow_enabled": bool(navigator.closed_loop_debug.get("lane_follow_enabled", False)),
+        "target_yaw_deg": navigator.closed_loop_debug.get("target_yaw_deg"),
+        "estimated_yaw_deg": navigator.closed_loop_debug.get("estimated_yaw_deg"),
+        "heading_error_deg": navigator.closed_loop_debug.get("heading_error_deg"),
+        "cross_track_error_m": navigator.closed_loop_debug.get("cross_track_error_m"),
+        "omega_heading_radps": navigator.closed_loop_debug.get("omega_heading_radps"),
+        "omega_lane_radps": navigator.closed_loop_debug.get("omega_lane_radps"),
+        "final_v_mps": navigator.closed_loop_debug.get("final_v_mps"),
+        "final_omega_radps": navigator.closed_loop_debug.get("final_omega_radps"),
+        "heading_source": navigator.closed_loop_debug.get("heading_source"),
+        "competition_closed_loop": navigator.closed_loop_debug,
         "sectors_m": {
             "front": None if math.isinf(navigator.state.sectors.front_m) else round(navigator.state.sectors.front_m, 3),
             "front_left": None if math.isinf(navigator.state.sectors.front_left_m) else round(navigator.state.sectors.front_left_m, 3),
@@ -4911,6 +5018,160 @@ def apply_competition_v2_motion_policy(navigator: UGVNavigator, mission_status: 
         navigator.nav_cfg.sweep_heading_tolerance_deg = max(0.0, float(v2.get("sweep_heading_tolerance_deg", 25.0)))
     except (TypeError, ValueError):
         navigator.nav_cfg.sweep_heading_tolerance_deg = 25.0
+
+
+def _competition_sweep_row_direction(v2: Dict[str, Any]) -> Optional[float]:
+    direction = finite_optional(v2.get("sweep_row_direction"))
+    if direction is not None:
+        return 1.0 if direction >= 0.0 else -1.0
+    row = v2.get("active_cell_row")
+    try:
+        return 1.0 if int(row) % 2 == 0 else -1.0
+    except (TypeError, ValueError):
+        return None
+
+
+def _competition_heading_source_and_rate(navigator: UGVNavigator, frame: SensorFrame) -> Tuple[str, Optional[float]]:
+    if not navigator.nav_cfg.use_imu_yaw or frame.imu is None:
+        return "odom_yaw", None
+    yaw_rate = frame.imu.yaw_rate(navigator.nav_cfg.imu_yaw_axis, navigator.nav_cfg.imu_yaw_sign)
+    if math.isfinite(yaw_rate) and abs(yaw_rate) <= navigator.nav_cfg.imu_yaw_max_rate_rps:
+        return "odom_yaw_imu_rate", yaw_rate
+    return "odom_yaw_imu_unhealthy", None
+
+
+def apply_competition_closed_loop_command(
+    navigator: UGVNavigator,
+    cmd: ControlCommand,
+    frame: SensorFrame,
+    mission_status: dict,
+) -> ControlCommand:
+    nav_cfg = navigator.nav_cfg
+    debug = default_closed_loop_debug(nav_cfg)
+    v2 = mission_status.get("competition_v2") if isinstance(mission_status, dict) else None
+    if not isinstance(v2, dict):
+        debug["reason"] = "competition_v2_status_missing"
+        navigator.closed_loop_debug = debug
+        return cmd
+
+    phase = str(v2.get("phase") or "")
+    debug["closed_loop_enabled"] = bool(nav_cfg.competition_closed_loop_enabled and v2.get("enabled", False))
+    if not debug["closed_loop_enabled"]:
+        debug["reason"] = "disabled"
+        navigator.closed_loop_debug = debug
+        return cmd
+    if phase != "sweep_search":
+        debug["reason"] = f"phase_{phase or 'unknown'}"
+        navigator.closed_loop_debug = debug
+        return cmd
+    if cmd.mode == "STOP":
+        debug["reason"] = "stop_command"
+        navigator.closed_loop_debug = debug
+        return cmd
+    if cmd.controller == "active_scan":
+        debug["reason"] = "active_scan_command"
+        navigator.closed_loop_debug = debug
+        return cmd
+    if navigator.physical_stall.detected:
+        debug["reason"] = "physical_stall_recovery"
+        navigator.closed_loop_debug = debug
+        return cmd
+
+    velocity_debug = navigator.velocity_debug or {}
+    safety_state = str(velocity_debug.get("safety_state") or "")
+    if safety_state in {"stop", "no_safe_trajectory"}:
+        debug["reason"] = f"safety_{safety_state}"
+        navigator.closed_loop_debug = debug
+        return cmd
+
+    lane_y = finite_optional(v2.get("active_lane_y_m"))
+    row_direction = _competition_sweep_row_direction(v2)
+    if lane_y is None or row_direction is None:
+        debug["reason"] = "lane_context_missing"
+        navigator.closed_loop_debug = debug
+        return cmd
+
+    pose = navigator.state.estimated_pose
+    target_yaw = 0.0 if row_direction > 0.0 else math.pi
+    status_target_yaw_deg = finite_optional(v2.get("sweep_target_yaw_deg"))
+    if status_target_yaw_deg is not None:
+        target_yaw = math.radians(status_target_yaw_deg)
+    heading_source, yaw_rate = _competition_heading_source_and_rate(navigator, frame)
+
+    heading_error, omega_heading = compute_heading_hold_correction(
+        target_yaw,
+        pose.yaw,
+        yaw_rate_radps=yaw_rate,
+        kp=nav_cfg.heading_hold_kp,
+        kd=nav_cfg.heading_hold_kd,
+        deadband_deg=nav_cfg.heading_hold_deadband_deg,
+        max_omega_radps=nav_cfg.heading_hold_max_omega_rps,
+    )
+    if not nav_cfg.heading_hold_enabled:
+        omega_heading = 0.0
+
+    cross_track_error, lane_heading_offset, omega_lane = compute_lane_follow_correction(
+        lane_y,
+        pose.y,
+        row_direction,
+        kp_heading=nav_cfg.lane_follow_kp_heading,
+        kp_omega=nav_cfg.lane_follow_kp_omega,
+        deadband_m=nav_cfg.lane_follow_deadband_m,
+        max_heading_deg=nav_cfg.lane_follow_max_heading_deg,
+        max_omega_radps=nav_cfg.lane_follow_max_omega_rps,
+    )
+    if not nav_cfg.lane_follow_enabled:
+        lane_heading_offset = 0.0
+        omega_lane = 0.0
+
+    min_v = max(
+        nav_cfg.continuous_min_speed_mps,
+        float(v2.get("minimum_speed_mps") or 0.0),
+        0.02,
+    )
+    base_v = abs(float(cmd.v_mps))
+    if base_v <= 1e-6 and cmd.mode in {"FORWARD", "BACKWARD"}:
+        base_v = abs(float(cmd.move_m)) / max(0.05, nav_cfg.continuous_dt_s)
+    final_v = clamp(max(base_v, min_v), 0.0, nav_cfg.continuous_max_speed_mps)
+    planner_omega = float(cmd.omega_radps) if math.isfinite(float(cmd.omega_radps)) else 0.0
+    final_omega = clamp(
+        0.20 * planner_omega + omega_heading + omega_lane,
+        -nav_cfg.continuous_max_omega_rps,
+        nav_cfg.continuous_max_omega_rps,
+    )
+    if final_v > 0.005:
+        max_arc_omega = max(0.02, 1.75 * final_v / max(1e-6, navigator.robot_cfg.track_width_m))
+        final_omega = clamp(final_omega, -max_arc_omega, max_arc_omega)
+
+    adjusted = navigator.velocity_planner._velocity_to_command(
+        final_v,
+        final_omega,
+        f"{cmd.reason}; competition closed-loop sweep lane/heading",
+        nav_cfg.continuous_horizon_s,
+    )
+    navigator.velocity_planner.last_v = final_v
+    navigator.velocity_planner.last_omega = final_omega
+    navigator.velocity_planner.last_timestamp = frame.encoder.timestamp
+    navigator.state.latest_cmd = adjusted
+
+    debug.update(
+        {
+            "closed_loop_active": True,
+            "target_yaw_deg": round(math.degrees(target_yaw), 2),
+            "estimated_yaw_deg": round(math.degrees(pose.yaw), 2),
+            "heading_error_deg": round(math.degrees(heading_error), 2),
+            "cross_track_error_m": round(cross_track_error, 4),
+            "omega_heading_radps": round(omega_heading, 4),
+            "omega_lane_radps": round(omega_lane, 4),
+            "lane_heading_offset_deg": round(math.degrees(lane_heading_offset), 2),
+            "final_v_mps": round(final_v, 4),
+            "final_omega_radps": round(final_omega, 4),
+            "heading_source": heading_source,
+            "reason": "sweep_lane_heading_closed_loop",
+        }
+    )
+    navigator.closed_loop_debug = debug
+    return adjusted
 
 
 def navigation_feedback_for_competition_v2(
@@ -5013,6 +5274,9 @@ def run_real_mode(
     continuous_latency_buffer_s: float = 0.25,
     continuous_allow_costmap_soft_penalty: bool = False,
     emit_velocity_commands: bool = True,
+    competition_closed_loop_enabled: bool = True,
+    heading_hold_enabled: bool = True,
+    lane_follow_enabled: bool = True,
     local_costmap_enabled: bool = True,
     local_costmap_width_m: float = 4.0,
     local_costmap_height_m: float = 4.0,
@@ -5073,6 +5337,9 @@ def run_real_mode(
     nav_cfg.continuous_latency_buffer_s = clamp(float(continuous_latency_buffer_s), 0.0, 1.0)
     nav_cfg.continuous_allow_costmap_soft_penalty = bool(continuous_allow_costmap_soft_penalty)
     nav_cfg.emit_velocity_commands = bool(emit_velocity_commands)
+    nav_cfg.competition_closed_loop_enabled = bool(competition_closed_loop_enabled)
+    nav_cfg.heading_hold_enabled = bool(heading_hold_enabled)
+    nav_cfg.lane_follow_enabled = bool(lane_follow_enabled)
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
     nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
     nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
@@ -5208,6 +5475,9 @@ def run_real_mode(
         f"omax={nav_cfg.continuous_max_omega_rps:.2f}rad/s, "
         f"horizon={nav_cfg.continuous_horizon_s:.2f}s, "
         f"emit_velocity_commands={nav_cfg.emit_velocity_commands}, "
+        f"competition_closed_loop={nav_cfg.competition_closed_loop_enabled}, "
+        f"heading_hold={nav_cfg.heading_hold_enabled}, "
+        f"lane_follow={nav_cfg.lane_follow_enabled}, "
         f"local_costmap={nav_cfg.local_costmap_enabled})"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
@@ -5265,6 +5535,7 @@ def run_real_mode(
             apply_competition_v2_motion_policy(navigator, {})
         cmd = navigator.step(frame)
         if competition_v2_active:
+            cmd = apply_competition_closed_loop_command(navigator, cmd, frame, mission_status)
             feedback_changed = mission.observe_navigation_feedback(
                 navigation_feedback_for_competition_v2(navigator, cmd, frame)
             )
@@ -5398,6 +5669,9 @@ def main() -> None:
     parser.add_argument("--continuous-latency-buffer-s", type=float, default=0.25, help="extra obstacle padding equal to speed times this latency allowance")
     parser.add_argument("--continuous-allow-costmap-soft-penalty", type=str_to_bool, default=False, help="allow occupied local-costmap trajectories as a soft penalty; default false hard-rejects them")
     parser.add_argument("--emit-velocity-commands", type=str_to_bool, default=True, help="emit command_type=velocity for continuous local planner commands; false keeps raw fallback JSON preferred")
+    parser.add_argument("--competition-closed-loop-enabled", type=str_to_bool, default=True, help="apply competition V2 sweep heading/lane closed-loop velocity adapter")
+    parser.add_argument("--heading-hold-enabled", type=str_to_bool, default=True, help="hold sweep row yaw with odom/IMU yaw-rate feedback")
+    parser.add_argument("--lane-follow-enabled", type=str_to_bool, default=True, help="apply sweep lane cross-track correction during competition V2 sweep")
     parser.add_argument("--local-costmap-enabled", type=str_to_bool, default=True, help="use rolling local costmap for local safety/collision checks")
     parser.add_argument("--local-costmap-width-m", type=float, default=4.0, help="rolling local costmap width in meters")
     parser.add_argument("--local-costmap-height-m", type=float, default=4.0, help="rolling local costmap height in meters")
@@ -5432,6 +5706,9 @@ def main() -> None:
             continuous_latency_buffer_s=args.continuous_latency_buffer_s,
             continuous_allow_costmap_soft_penalty=args.continuous_allow_costmap_soft_penalty,
             emit_velocity_commands=args.emit_velocity_commands,
+            competition_closed_loop_enabled=args.competition_closed_loop_enabled,
+            heading_hold_enabled=args.heading_hold_enabled,
+            lane_follow_enabled=args.lane_follow_enabled,
             local_costmap_enabled=args.local_costmap_enabled,
             local_costmap_width_m=args.local_costmap_width_m,
             local_costmap_height_m=args.local_costmap_height_m,
@@ -5529,6 +5806,9 @@ def main() -> None:
             continuous_latency_buffer_s=args.continuous_latency_buffer_s,
             continuous_allow_costmap_soft_penalty=args.continuous_allow_costmap_soft_penalty,
             emit_velocity_commands=args.emit_velocity_commands,
+            competition_closed_loop_enabled=args.competition_closed_loop_enabled,
+            heading_hold_enabled=args.heading_hold_enabled,
+            lane_follow_enabled=args.lane_follow_enabled,
             local_costmap_enabled=args.local_costmap_enabled,
             local_costmap_width_m=args.local_costmap_width_m,
             local_costmap_height_m=args.local_costmap_height_m,

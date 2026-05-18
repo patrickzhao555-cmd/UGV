@@ -887,11 +887,22 @@ class CompetitionMissionV2:
 
     def _status(self, active_goal_m: Tuple[float, float], stop_requested: bool) -> Dict[str, Any]:
         active_cell = None
+        active_cell_row = None
+        active_cell_col = None
+        active_cell_xy = None
+        sweep_row_direction = None
+        sweep_target_yaw_deg = None
         visited = blocked = skipped = total = 0
         coverage = 0.0
         if self.grid is not None:
             cell = self.grid.active_cell()
             active_cell = None if cell is None else cell.index
+            if cell is not None:
+                active_cell_row = int(cell.row)
+                active_cell_col = int(cell.col)
+                active_cell_xy = [round(float(cell.x), 3), round(float(cell.y), 3)]
+                sweep_row_direction = self._sweep_row_direction(cell.row)
+                sweep_target_yaw_deg = 0.0 if sweep_row_direction > 0.0 else 180.0
             visited = self.grid.visited_count
             blocked = self.grid.blocked_count
             skipped = self.grid.skipped_count
@@ -909,6 +920,11 @@ class CompetitionMissionV2:
             ] if self.target_goal is not None else None,
             "target_source": self.target_source,
             "active_cell": active_cell,
+            "active_cell_row": active_cell_row,
+            "active_cell_col": active_cell_col,
+            "active_cell_xy_m": active_cell_xy,
+            "sweep_row_direction": sweep_row_direction,
+            "sweep_target_yaw_deg": sweep_target_yaw_deg,
             "visited_count": int(visited),
             "blocked_count": int(blocked),
             "skipped_count": int(skipped),

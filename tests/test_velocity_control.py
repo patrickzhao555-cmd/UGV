@@ -497,6 +497,8 @@ def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
     assert "motor_velocity_raw_fallback_min_wheel_raw" in competition_launch
     assert "motor_velocity_raw_fallback_min_turn_raw" in competition_launch
     assert "motor_velocity_raw_fallback_min_target_raw" in competition_launch
+    assert "DeclareLaunchArgument('motor_velocity_control_enabled', default_value='true')" in competition_launch
+    assert "MOTOR_VELOCITY_CONTROL_ENABLED_WAS_SET" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_FLOOR_ENABLED" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_WHEEL_RAW" in bringup
     assert "MOTOR_VELOCITY_RAW_FALLBACK_MIN_TURN_RAW" in bringup
@@ -507,6 +509,8 @@ def test_velocity_encoder_min_dt_launch_and_bringup_wiring():
     assert "velocity_raw_fallback_turn_floor_applied_right" in bridge_file
     assert "selected_raw_left" in bridge_file
     assert "selected_raw_right" in bridge_file
+    assert "encoder_speed_is_fresh" in bridge_file
+    assert "velocity_pid" in bridge_file
     assert "timeout_stop_count" in bridge_file
     assert "command_refresh_count" in bridge_file
     assert "last_motor_send_time_s" in bridge_file

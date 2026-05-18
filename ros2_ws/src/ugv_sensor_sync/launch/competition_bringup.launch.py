@@ -205,6 +205,9 @@ def generate_launch_description():
     continuous_latency_buffer_s = LaunchConfiguration('continuous_latency_buffer_s')
     continuous_allow_costmap_soft_penalty = LaunchConfiguration('continuous_allow_costmap_soft_penalty')
     emit_velocity_commands = LaunchConfiguration('emit_velocity_commands')
+    competition_closed_loop_enabled = LaunchConfiguration('competition_closed_loop_enabled')
+    heading_hold_enabled = LaunchConfiguration('heading_hold_enabled')
+    lane_follow_enabled = LaunchConfiguration('lane_follow_enabled')
     local_costmap_enabled = LaunchConfiguration('local_costmap_enabled')
     local_costmap_width_m = LaunchConfiguration('local_costmap_width_m')
     local_costmap_height_m = LaunchConfiguration('local_costmap_height_m')
@@ -428,6 +431,12 @@ def generate_launch_description():
             continuous_allow_costmap_soft_penalty,
             '--emit-velocity-commands',
             emit_velocity_commands,
+            '--competition-closed-loop-enabled',
+            competition_closed_loop_enabled,
+            '--heading-hold-enabled',
+            heading_hold_enabled,
+            '--lane-follow-enabled',
+            lane_follow_enabled,
             '--local-costmap-enabled',
             local_costmap_enabled,
             '--local-costmap-width-m',
@@ -675,6 +684,9 @@ def generate_launch_description():
         DeclareLaunchArgument('continuous_latency_buffer_s', default_value='0.25'),
         DeclareLaunchArgument('continuous_allow_costmap_soft_penalty', default_value='false'),
         DeclareLaunchArgument('emit_velocity_commands', default_value='true'),
+        DeclareLaunchArgument('competition_closed_loop_enabled', default_value='true'),
+        DeclareLaunchArgument('heading_hold_enabled', default_value='true'),
+        DeclareLaunchArgument('lane_follow_enabled', default_value='true'),
         DeclareLaunchArgument('local_costmap_enabled', default_value='true'),
         DeclareLaunchArgument('local_costmap_width_m', default_value='4.0'),
         DeclareLaunchArgument('local_costmap_height_m', default_value='4.0'),
@@ -691,7 +703,7 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_command_timeout_s', default_value='3.0'),
         DeclareLaunchArgument('motor_command_refresh_period_s', default_value='0.25'),
         DeclareLaunchArgument('motor_dry_run', default_value='false'),
-        DeclareLaunchArgument('motor_velocity_control_enabled', default_value='false'),
+        DeclareLaunchArgument('motor_velocity_control_enabled', default_value='true'),
         DeclareLaunchArgument('motor_prefer_velocity_fields', default_value='true'),
         DeclareLaunchArgument('motor_wheel_radius_m', default_value='0.06'),
         DeclareLaunchArgument('motor_ticks_per_rev', default_value='1000'),

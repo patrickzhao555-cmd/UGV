@@ -268,6 +268,10 @@ def test_competition_v2_status_contains_coverage_fields():
         "coverage_fraction",
         "coverage_threshold",
         "minimum_speed_mps",
+        "active_cell_row",
+        "active_cell_col",
+        "sweep_row_direction",
+        "sweep_target_yaw_deg",
         "physical_stall_detected",
         "physical_stall_steps",
         "physical_stall_reason",
@@ -296,6 +300,9 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--sweep-stall-action",
         "--min-competition-speed-mps",
         "--recovery-turn-raw",
+        "--competition-closed-loop-enabled",
+        "--heading-hold-enabled",
+        "--lane-follow-enabled",
     ]:
         assert token in nav_script
         assert token in launch_file
@@ -314,5 +321,8 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "SWEEP_STALL_ACTION",
         "MIN_COMPETITION_SPEED_MPS",
         "NAV_RECOVERY_TURN_RAW",
+        "NAV_COMPETITION_CLOSED_LOOP_ENABLED",
+        "NAV_HEADING_HOLD_ENABLED",
+        "NAV_LANE_FOLLOW_ENABLED",
     ]:
         assert token in bringup

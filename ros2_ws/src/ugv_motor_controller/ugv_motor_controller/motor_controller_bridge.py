@@ -744,6 +744,7 @@ class MotorControllerBridge(Node):
             'velocity_error_right_mps': round(self.last_velocity_error_right_mps, 4),
             'pid_left': self.last_velocity_pid_left.as_dict() if self.last_velocity_pid_left is not None else None,
             'pid_right': self.last_velocity_pid_right.as_dict() if self.last_velocity_pid_right is not None else None,
+            'encoder_speed_is_fresh': bool(self._encoder_speed_is_fresh()),
             'encoder_speed_age_s': self._encoder_speed_age_s(),
             'encoder_speed_dt_s': None if self.last_encoder_speed_dt_s is None else round(self.last_encoder_speed_dt_s, 4),
             'encoder_speed_dt_source': self.last_encoder_speed_dt_source,

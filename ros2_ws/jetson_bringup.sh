@@ -18,6 +18,7 @@ source_setup_compat() {
 }
 
 UGV_PROFILE="${UGV_PROFILE:-manual}"
+SWEEP_LANE_SPACING_M_USER_SET="${SWEEP_LANE_SPACING_M+x}"
 
 profile_default() {
   local name="$1"
@@ -38,6 +39,72 @@ case "${UGV_PROFILE}" in
     profile_default START_MARKER_VISION "false"
     profile_default START_DEBUG_DASHBOARD "true"
     profile_default NAV_ACTIVE_SCAN_ENABLED "false"
+    profile_default SWEEP_CELL_SIZE_M "0.75"
+    profile_default SWEEP_LANE_SPACING_M "0.75"
+    profile_default SWEEP_COVERAGE_RADIUS_M "0.55"
+    profile_default SWEEP_COVERAGE_THRESHOLD "0.20"
+    profile_default SWEEP_GOAL_TIMEOUT_S "12.0"
+    profile_default SWEEP_FAIL_LIMIT "3"
+    profile_default ROBOT_TICKS_PER_REV "2151"
+    profile_default ROBOT_WHEEL_RADIUS_M "0.06"
+    profile_default DRIVE_SPEED_LEVEL "2"
+    profile_default MIN_MOTION_RAW "0.22"
+    profile_default MOTOR_VELOCITY_CONTROL_ENABLED "true"
+    profile_default MOTOR_VELOCITY_KP "0.45"
+    profile_default MOTOR_VELOCITY_KI "0.0"
+    profile_default MOTOR_VELOCITY_KD "0.0"
+    profile_default MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS "1.60"
+    profile_default MOTOR_COMMAND_TIMEOUT_S "3.0"
+    profile_default MOTOR_COMMAND_REFRESH_PERIOD_S "0.25"
+    profile_default NAV_COMPETITION_CLOSED_LOOP_ENABLED "true"
+    profile_default NAV_HEADING_HOLD_ENABLED "true"
+    profile_default NAV_LANE_FOLLOW_ENABLED "true"
+    profile_default NAV_FORWARD_ARC_ONLY_ENABLED "true"
+    profile_default NAV_FORWARD_ARC_MARGIN "0.60"
+    profile_default NAV_MIN_SWEEP_V_MPS "0.12"
+    profile_default NAV_HEADING_HOLD_KP "0.95"
+    profile_default NAV_HEADING_HOLD_KD "0.18"
+    profile_default NAV_HEADING_HOLD_DEADBAND_DEG "1.0"
+    profile_default NAV_HEADING_HOLD_MAX_OMEGA_RPS "0.38"
+    profile_default NAV_LANE_FOLLOW_KP_HEADING "0.85"
+    profile_default NAV_LANE_FOLLOW_KP_OMEGA "0.82"
+    profile_default NAV_LANE_FOLLOW_DEADBAND_M "0.018"
+    profile_default NAV_LANE_FOLLOW_MAX_HEADING_DEG "10.0"
+    profile_default NAV_LANE_FOLLOW_MAX_OMEGA_RPS "0.22"
+    profile_default NAV_CLOSED_LOOP_HEALTH_ENABLED "true"
+    profile_default NAV_CLOSED_LOOP_DIVERGENCE_ACTION "warn"
+    profile_default NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED "true"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_MPS "0.09"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_MPS "0.22"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP "0.85"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP "1.00"
+    profile_default NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP "0.95"
+    profile_default NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP "1.10"
+    profile_default NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA "0.35"
+    profile_default NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2 "0.60"
+    profile_default NAV_ROW_FOLLOWER_MIN_CORRECTION_INTERVAL_S "0.0"
+    profile_default NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2 "0.0"
+    profile_default NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3 "0.2"
+    profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"
+    ;;
+  round2_row_transition_test)
+    profile_default ROUND_MODE "round2"
+    profile_default START_ZED "false"
+    profile_default START_YOLO_OBSTACLES "false"
+    profile_default START_MARKER_VISION "false"
+    profile_default START_DEBUG_DASHBOARD "true"
+    profile_default NAV_ACTIVE_SCAN_ENABLED "false"
+    profile_default SWEEP_FIELD_WIDTH_M "5.0"
+    profile_default SWEEP_FIELD_HEIGHT_M "2.6"
+    profile_default SWEEP_ROW_LENGTH_M "4.0"
+    profile_default SWEEP_HEADLAND_MARGIN_M "0.75"
+    profile_default SWEEP_BOUNDARY_MARGIN_M "0.45"
+    profile_default SWEEP_TURN_RADIUS_M "1.00"
+    profile_default SWEEP_ROW_TRANSITION_ENABLED "true"
+    profile_default SWEEP_MAX_ROWS "3"
+    profile_default SWEEP_ROW_END_TOLERANCE_M "0.35"
+    profile_default SWEEP_LANE_CAPTURE_TOLERANCE_M "0.25"
+    profile_default SWEEP_YAW_CAPTURE_TOLERANCE_DEG "12.0"
     profile_default SWEEP_CELL_SIZE_M "0.75"
     profile_default SWEEP_LANE_SPACING_M "0.75"
     profile_default SWEEP_COVERAGE_RADIUS_M "0.55"
@@ -206,7 +273,7 @@ case "${UGV_PROFILE}" in
     profile_default NAV_SWEEP_METRICS_LOG_ENABLED "false"
     ;;
   *)
-    echo "Unsupported UGV_PROFILE=${UGV_PROFILE}. Use manual, round1_straight_tuned, round2_clear_tuned, round2_competition_tuned, or round3_obstacle_tuned."
+    echo "Unsupported UGV_PROFILE=${UGV_PROFILE}. Use manual, round1_straight_tuned, round2_clear_tuned, round2_row_transition_test, round2_competition_tuned, or round3_obstacle_tuned."
     exit 1
     ;;
 esac
@@ -247,8 +314,26 @@ MIN_SPEED_MPS="${MIN_SPEED_MPS:-0.178816}"
 DRIVE_SPEED_LEVEL="${DRIVE_SPEED_LEVEL:-4}"
 ROUND_STRAIGHT_DISTANCE_M="${ROUND_STRAIGHT_DISTANCE_M:-11.8872}"
 COMPETITION_MISSION_V2_ENABLED="${COMPETITION_MISSION_V2_ENABLED:-true}"
+SWEEP_FIELD_WIDTH_M="${SWEEP_FIELD_WIDTH_M:-13.716}"
+SWEEP_FIELD_HEIGHT_M="${SWEEP_FIELD_HEIGHT_M:-13.716}"
+SWEEP_ROW_LENGTH_M="${SWEEP_ROW_LENGTH_M:-0.0}"
+SWEEP_HEADLAND_MARGIN_M="${SWEEP_HEADLAND_MARGIN_M:-0.75}"
+SWEEP_BOUNDARY_MARGIN_M="${SWEEP_BOUNDARY_MARGIN_M:-0.45}"
+SWEEP_TURN_RADIUS_M="${SWEEP_TURN_RADIUS_M:-1.0}"
+SWEEP_ROW_TRANSITION_ENABLED="${SWEEP_ROW_TRANSITION_ENABLED:-false}"
+SWEEP_MAX_ROWS="${SWEEP_MAX_ROWS:-0}"
+SWEEP_ROW_END_TOLERANCE_M="${SWEEP_ROW_END_TOLERANCE_M:-0.35}"
+SWEEP_LANE_CAPTURE_TOLERANCE_M="${SWEEP_LANE_CAPTURE_TOLERANCE_M:-0.25}"
+SWEEP_YAW_CAPTURE_TOLERANCE_DEG="${SWEEP_YAW_CAPTURE_TOLERANCE_DEG:-12.0}"
 SWEEP_CELL_SIZE_M="${SWEEP_CELL_SIZE_M:-0.75}"
 SWEEP_LANE_SPACING_M="${SWEEP_LANE_SPACING_M:-0.75}"
+if [[ -z "${SWEEP_LANE_SPACING_MANUAL_OVERRIDE+x}" ]]; then
+  if [[ -n "${SWEEP_LANE_SPACING_M_USER_SET}" ]]; then
+    SWEEP_LANE_SPACING_MANUAL_OVERRIDE="true"
+  else
+    SWEEP_LANE_SPACING_MANUAL_OVERRIDE="false"
+  fi
+fi
 SWEEP_COVERAGE_RADIUS_M="${SWEEP_COVERAGE_RADIUS_M:-0.55}"
 SWEEP_COVERAGE_THRESHOLD="${SWEEP_COVERAGE_THRESHOLD:-0.85}"
 SWEEP_GOAL_TIMEOUT_S="${SWEEP_GOAL_TIMEOUT_S:-8.0}"
@@ -257,6 +342,10 @@ SWEEP_LANE_TOLERANCE_M="${SWEEP_LANE_TOLERANCE_M:-0.30}"
 SWEEP_HEADING_TOLERANCE_DEG="${SWEEP_HEADING_TOLERANCE_DEG:-25.0}"
 SWEEP_ALLOW_PURE_TURN="${SWEEP_ALLOW_PURE_TURN:-false}"
 SWEEP_STALL_ACTION="${SWEEP_STALL_ACTION:-skip}"
+MARKER_CAMERA_FOV_DEG="${MARKER_CAMERA_FOV_DEG:-120.0}"
+MARKER_RELIABLE_DETECTION_RANGE_M="${MARKER_RELIABLE_DETECTION_RANGE_M:-nan}"
+MARKER_COVERAGE_OVERLAP_RATIO="${MARKER_COVERAGE_OVERLAP_RATIO:-0.5}"
+MARKER_AUTO_LANE_SPACING_ENABLED="${MARKER_AUTO_LANE_SPACING_ENABLED:-false}"
 MIN_COMPETITION_SPEED_MPS="${MIN_COMPETITION_SPEED_MPS:-0.0894}"
 BENCH_GOAL_X_M="${BENCH_GOAL_X_M:-12.2}"
 BENCH_GOAL_Y_M="${BENCH_GOAL_Y_M:-12.0}"
@@ -540,6 +629,7 @@ echo "UGV robot odometry: ROBOT_WHEEL_RADIUS_M=${ROBOT_WHEEL_RADIUS_M}, ROBOT_TI
 echo "UGV motor velocity odometry: MOTOR_WHEEL_RADIUS_M=${MOTOR_WHEEL_RADIUS_M}, MOTOR_TICKS_PER_REV=${MOTOR_TICKS_PER_REV}, MOTOR_VELOCITY_CONTROL_ENABLED=${MOTOR_VELOCITY_CONTROL_ENABLED}"
 echo "UGV motor PID: KP=${MOTOR_VELOCITY_KP}, KI=${MOTOR_VELOCITY_KI}, KD=${MOTOR_VELOCITY_KD}, FF=${MOTOR_VELOCITY_FEEDFORWARD_RAW_PER_MPS}, timeout=${MOTOR_COMMAND_TIMEOUT_S}, refresh=${MOTOR_COMMAND_REFRESH_PERIOD_S}"
 echo "UGV nav closed loop: enabled=${NAV_COMPETITION_CLOSED_LOOP_ENABLED}, heading=${NAV_HEADING_HOLD_ENABLED} kp=${NAV_HEADING_HOLD_KP} kd=${NAV_HEADING_HOLD_KD} deadband=${NAV_HEADING_HOLD_DEADBAND_DEG} omax=${NAV_HEADING_HOLD_MAX_OMEGA_RPS}, lane=${NAV_LANE_FOLLOW_ENABLED} kp_heading=${NAV_LANE_FOLLOW_KP_HEADING} kp_omega=${NAV_LANE_FOLLOW_KP_OMEGA} deadband=${NAV_LANE_FOLLOW_DEADBAND_M} omax=${NAV_LANE_FOLLOW_MAX_OMEGA_RPS}"
+echo "UGV sweep field: width=${SWEEP_FIELD_WIDTH_M} height=${SWEEP_FIELD_HEIGHT_M} row_length=${SWEEP_ROW_LENGTH_M} headland=${SWEEP_HEADLAND_MARGIN_M} boundary=${SWEEP_BOUNDARY_MARGIN_M} turn_radius=${SWEEP_TURN_RADIUS_M} row_transition=${SWEEP_ROW_TRANSITION_ENABLED} max_rows=${SWEEP_MAX_ROWS}"
 echo "UGV row follower: schedule=${NAV_ROW_FOLLOWER_SPEED_SCHEDULE_ENABLED}, speed=${NAV_ROW_FOLLOWER_LOW_SPEED_MPS}->${NAV_ROW_FOLLOWER_HIGH_SPEED_MPS}, lane_kp=${NAV_ROW_FOLLOWER_LOW_SPEED_LANE_KP}->${NAV_ROW_FOLLOWER_HIGH_SPEED_LANE_KP}, heading_kp=${NAV_ROW_FOLLOWER_LOW_SPEED_HEADING_KP}->${NAV_ROW_FOLLOWER_HIGH_SPEED_HEADING_KP}, omega_alpha=${NAV_ROW_FOLLOWER_OMEGA_LOW_PASS_ALPHA}, omega_rate=${NAV_ROW_FOLLOWER_OMEGA_RATE_LIMIT_RPS2}"
 echo "UGV sweep steering: planner_omega_weight_round2=${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND2}, planner_omega_weight_round3=${NAV_SWEEP_PLANNER_OMEGA_WEIGHT_ROUND3}, forward_arc=${NAV_FORWARD_ARC_ONLY_ENABLED}, forward_arc_margin=${NAV_FORWARD_ARC_MARGIN}, min_sweep_v=${NAV_MIN_SWEEP_V_MPS}, metrics=${NAV_SWEEP_METRICS_LOG_ENABLED}"
 
@@ -569,8 +659,20 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   drive_speed_level:="${DRIVE_SPEED_LEVEL}" \
   straight_distance_m:="${ROUND_STRAIGHT_DISTANCE_M}" \
   competition_mission_v2_enabled:="${COMPETITION_MISSION_V2_ENABLED}" \
+  sweep_field_width_m:="${SWEEP_FIELD_WIDTH_M}" \
+  sweep_field_height_m:="${SWEEP_FIELD_HEIGHT_M}" \
+  sweep_row_length_m:="${SWEEP_ROW_LENGTH_M}" \
+  sweep_headland_margin_m:="${SWEEP_HEADLAND_MARGIN_M}" \
+  sweep_boundary_margin_m:="${SWEEP_BOUNDARY_MARGIN_M}" \
+  sweep_turn_radius_m:="${SWEEP_TURN_RADIUS_M}" \
+  sweep_row_transition_enabled:="${SWEEP_ROW_TRANSITION_ENABLED}" \
+  sweep_max_rows:="${SWEEP_MAX_ROWS}" \
+  sweep_row_end_tolerance_m:="${SWEEP_ROW_END_TOLERANCE_M}" \
+  sweep_lane_capture_tolerance_m:="${SWEEP_LANE_CAPTURE_TOLERANCE_M}" \
+  sweep_yaw_capture_tolerance_deg:="${SWEEP_YAW_CAPTURE_TOLERANCE_DEG}" \
   sweep_cell_size_m:="${SWEEP_CELL_SIZE_M}" \
   sweep_lane_spacing_m:="${SWEEP_LANE_SPACING_M}" \
+  sweep_lane_spacing_manual_override:="${SWEEP_LANE_SPACING_MANUAL_OVERRIDE}" \
   sweep_coverage_radius_m:="${SWEEP_COVERAGE_RADIUS_M}" \
   sweep_coverage_threshold:="${SWEEP_COVERAGE_THRESHOLD}" \
   sweep_goal_timeout_s:="${SWEEP_GOAL_TIMEOUT_S}" \
@@ -579,6 +681,10 @@ ros2 launch "${WORKSPACE_DIR}/src/ugv_sensor_sync/launch/competition_bringup.lau
   sweep_heading_tolerance_deg:="${SWEEP_HEADING_TOLERANCE_DEG}" \
   sweep_allow_pure_turn:="${SWEEP_ALLOW_PURE_TURN}" \
   sweep_stall_action:="${SWEEP_STALL_ACTION}" \
+  marker_camera_fov_deg:="${MARKER_CAMERA_FOV_DEG}" \
+  marker_reliable_detection_range_m:="${MARKER_RELIABLE_DETECTION_RANGE_M}" \
+  marker_coverage_overlap_ratio:="${MARKER_COVERAGE_OVERLAP_RATIO}" \
+  marker_auto_lane_spacing_enabled:="${MARKER_AUTO_LANE_SPACING_ENABLED}" \
   min_competition_speed_mps:="${MIN_COMPETITION_SPEED_MPS}" \
   bench_goal_x_m:="${BENCH_GOAL_X_M}" \
   bench_goal_y_m:="${BENCH_GOAL_Y_M}" \

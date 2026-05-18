@@ -71,8 +71,20 @@ def generate_launch_description():
     drive_speed_level = LaunchConfiguration('drive_speed_level')
     straight_distance_m = LaunchConfiguration('straight_distance_m')
     competition_mission_v2_enabled = LaunchConfiguration('competition_mission_v2_enabled')
+    sweep_field_width_m = LaunchConfiguration('sweep_field_width_m')
+    sweep_field_height_m = LaunchConfiguration('sweep_field_height_m')
+    sweep_row_length_m = LaunchConfiguration('sweep_row_length_m')
+    sweep_headland_margin_m = LaunchConfiguration('sweep_headland_margin_m')
+    sweep_boundary_margin_m = LaunchConfiguration('sweep_boundary_margin_m')
+    sweep_turn_radius_m = LaunchConfiguration('sweep_turn_radius_m')
+    sweep_row_transition_enabled = LaunchConfiguration('sweep_row_transition_enabled')
+    sweep_max_rows = LaunchConfiguration('sweep_max_rows')
+    sweep_row_end_tolerance_m = LaunchConfiguration('sweep_row_end_tolerance_m')
+    sweep_lane_capture_tolerance_m = LaunchConfiguration('sweep_lane_capture_tolerance_m')
+    sweep_yaw_capture_tolerance_deg = LaunchConfiguration('sweep_yaw_capture_tolerance_deg')
     sweep_cell_size_m = LaunchConfiguration('sweep_cell_size_m')
     sweep_lane_spacing_m = LaunchConfiguration('sweep_lane_spacing_m')
+    sweep_lane_spacing_manual_override = LaunchConfiguration('sweep_lane_spacing_manual_override')
     sweep_coverage_radius_m = LaunchConfiguration('sweep_coverage_radius_m')
     sweep_coverage_threshold = LaunchConfiguration('sweep_coverage_threshold')
     sweep_goal_timeout_s = LaunchConfiguration('sweep_goal_timeout_s')
@@ -81,6 +93,10 @@ def generate_launch_description():
     sweep_heading_tolerance_deg = LaunchConfiguration('sweep_heading_tolerance_deg')
     sweep_allow_pure_turn = LaunchConfiguration('sweep_allow_pure_turn')
     sweep_stall_action = LaunchConfiguration('sweep_stall_action')
+    marker_camera_fov_deg = LaunchConfiguration('marker_camera_fov_deg')
+    marker_reliable_detection_range_m = LaunchConfiguration('marker_reliable_detection_range_m')
+    marker_coverage_overlap_ratio = LaunchConfiguration('marker_coverage_overlap_ratio')
+    marker_auto_lane_spacing_enabled = LaunchConfiguration('marker_auto_lane_spacing_enabled')
     min_competition_speed_mps = LaunchConfiguration('min_competition_speed_mps')
     bench_goal_x_m = LaunchConfiguration('bench_goal_x_m')
     bench_goal_y_m = LaunchConfiguration('bench_goal_y_m')
@@ -354,10 +370,34 @@ def generate_launch_description():
             straight_distance_m,
             '--competition-mission-v2-enabled',
             competition_mission_v2_enabled,
+            '--sweep-field-width-m',
+            sweep_field_width_m,
+            '--sweep-field-height-m',
+            sweep_field_height_m,
+            '--sweep-row-length-m',
+            sweep_row_length_m,
+            '--sweep-headland-margin-m',
+            sweep_headland_margin_m,
+            '--sweep-boundary-margin-m',
+            sweep_boundary_margin_m,
+            '--sweep-turn-radius-m',
+            sweep_turn_radius_m,
+            '--sweep-row-transition-enabled',
+            sweep_row_transition_enabled,
+            '--sweep-max-rows',
+            sweep_max_rows,
+            '--sweep-row-end-tolerance-m',
+            sweep_row_end_tolerance_m,
+            '--sweep-lane-capture-tolerance-m',
+            sweep_lane_capture_tolerance_m,
+            '--sweep-yaw-capture-tolerance-deg',
+            sweep_yaw_capture_tolerance_deg,
             '--sweep-cell-size-m',
             sweep_cell_size_m,
             '--sweep-lane-spacing-m',
             sweep_lane_spacing_m,
+            '--sweep-lane-spacing-manual-override',
+            sweep_lane_spacing_manual_override,
             '--sweep-coverage-radius-m',
             sweep_coverage_radius_m,
             '--sweep-coverage-threshold',
@@ -374,6 +414,14 @@ def generate_launch_description():
             sweep_allow_pure_turn,
             '--sweep-stall-action',
             sweep_stall_action,
+            '--marker-camera-fov-deg',
+            marker_camera_fov_deg,
+            '--marker-reliable-detection-range-m',
+            marker_reliable_detection_range_m,
+            '--marker-coverage-overlap-ratio',
+            marker_coverage_overlap_ratio,
+            '--marker-auto-lane-spacing-enabled',
+            marker_auto_lane_spacing_enabled,
             '--min-competition-speed-mps',
             min_competition_speed_mps,
             '--target-topic',
@@ -690,8 +738,20 @@ def generate_launch_description():
         DeclareLaunchArgument('drive_speed_level', default_value='4'),
         DeclareLaunchArgument('straight_distance_m', default_value='11.8872'),
         DeclareLaunchArgument('competition_mission_v2_enabled', default_value='true'),
+        DeclareLaunchArgument('sweep_field_width_m', default_value='13.716'),
+        DeclareLaunchArgument('sweep_field_height_m', default_value='13.716'),
+        DeclareLaunchArgument('sweep_row_length_m', default_value='0.0'),
+        DeclareLaunchArgument('sweep_headland_margin_m', default_value='0.75'),
+        DeclareLaunchArgument('sweep_boundary_margin_m', default_value='0.45'),
+        DeclareLaunchArgument('sweep_turn_radius_m', default_value='1.0'),
+        DeclareLaunchArgument('sweep_row_transition_enabled', default_value='false'),
+        DeclareLaunchArgument('sweep_max_rows', default_value='0'),
+        DeclareLaunchArgument('sweep_row_end_tolerance_m', default_value='0.35'),
+        DeclareLaunchArgument('sweep_lane_capture_tolerance_m', default_value='0.25'),
+        DeclareLaunchArgument('sweep_yaw_capture_tolerance_deg', default_value='12.0'),
         DeclareLaunchArgument('sweep_cell_size_m', default_value='0.75'),
         DeclareLaunchArgument('sweep_lane_spacing_m', default_value='0.75'),
+        DeclareLaunchArgument('sweep_lane_spacing_manual_override', default_value='false'),
         DeclareLaunchArgument('sweep_coverage_radius_m', default_value='0.55'),
         DeclareLaunchArgument('sweep_coverage_threshold', default_value='0.85'),
         DeclareLaunchArgument('sweep_goal_timeout_s', default_value='8.0'),
@@ -700,6 +760,10 @@ def generate_launch_description():
         DeclareLaunchArgument('sweep_heading_tolerance_deg', default_value='25.0'),
         DeclareLaunchArgument('sweep_allow_pure_turn', default_value='false'),
         DeclareLaunchArgument('sweep_stall_action', default_value='skip'),
+        DeclareLaunchArgument('marker_camera_fov_deg', default_value='120.0'),
+        DeclareLaunchArgument('marker_reliable_detection_range_m', default_value='nan'),
+        DeclareLaunchArgument('marker_coverage_overlap_ratio', default_value='0.5'),
+        DeclareLaunchArgument('marker_auto_lane_spacing_enabled', default_value='false'),
         DeclareLaunchArgument('min_competition_speed_mps', default_value='0.0894'),
         DeclareLaunchArgument('bench_goal_x_m', default_value='12.2'),
         DeclareLaunchArgument('bench_goal_y_m', default_value='12.0'),

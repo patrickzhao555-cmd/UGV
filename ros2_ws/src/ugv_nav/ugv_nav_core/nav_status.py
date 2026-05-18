@@ -102,6 +102,26 @@ def build_nav_status(navigator: Any, frame: Any, cmd: Any, mission_status: dict)
     }
     if mission_status.get("competition_v2") is not None:
         status["competition_v2"] = mission_status["competition_v2"]
+        v2 = mission_status["competition_v2"]
+        for key in [
+            "sweep_subphase",
+            "row_index",
+            "row_direction",
+            "current_lane_y_m",
+            "next_lane_y_m",
+            "row_end_x_m",
+            "row_transition_active",
+            "row_transition_style",
+            "row_transition_progress",
+            "row_transition_done",
+            "row_transition_reason",
+            "target_row_yaw_deg",
+            "yaw_capture_error_deg",
+            "lane_capture_error_m",
+            "turn_radius_m",
+            "turn_side",
+        ]:
+            status[key] = v2.get(key)
     return status
 
 

@@ -1072,6 +1072,7 @@ def test_jetson_profile_defaults_preserve_manual_env_overrides():
 def test_tuned_profile_run_scripts_exist_and_select_profiles():
     scripts = {
         "run_round2_clear_tuned.sh": "round2_clear_tuned",
+        "run_round2_row_transition_test.sh": "round2_row_transition_test",
         "run_round3_obstacle_tuned.sh": "round3_obstacle_tuned",
         "run_round1_straight_tuned.sh": "round1_straight_tuned",
     }
@@ -1082,6 +1083,26 @@ def test_tuned_profile_run_scripts_exist_and_select_profiles():
         assert "MOTOR_PORT" in script
         assert "LIDAR_PORT" in script
         assert 'exec bash "${WORKSPACE_DIR}/jetson_bringup.sh"' in script
+
+
+def test_round2_row_transition_test_profile_resolves_row_length():
+    bringup = (ROOT / "ros2_ws" / "jetson_bringup.sh").read_text()
+    script = (ROOT / "ros2_ws" / "scripts" / "run_round2_row_transition_test.sh").read_text()
+
+    for token in [
+        "round2_row_transition_test)",
+        'profile_default ROUND_MODE "round2"',
+        'profile_default START_ZED "false"',
+        'profile_default START_MARKER_VISION "false"',
+        'profile_default NAV_ACTIVE_SCAN_ENABLED "false"',
+        'profile_default SWEEP_ROW_TRANSITION_ENABLED "true"',
+        'profile_default SWEEP_ROW_LENGTH_M "4.0"',
+        'profile_default SWEEP_FIELD_WIDTH_M "5.0"',
+        'profile_default SWEEP_FIELD_HEIGHT_M "2.6"',
+        'profile_default NAV_SWEEP_METRICS_LOG_ENABLED "true"',
+    ]:
+        assert token in bringup
+    assert 'export UGV_PROFILE="${UGV_PROFILE:-round2_row_transition_test}"' in script
 
 
 def test_round2_clear_tuned_script_prefers_by_id_ports_and_extra_workspace():

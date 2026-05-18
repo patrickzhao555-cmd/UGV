@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from ugv_nav_core.competition_mission import NavigationFeedback
@@ -52,6 +53,17 @@ def navigation_feedback_for_competition_v2(
         or "stuck" in finish_reason.lower()
     )
     progress_m = float(navigator.last_odom_delta.get("ds_m") or 0.0)
+    sectors = getattr(navigator.state, "sectors", None)
+    front_m = getattr(sectors, "front_m", float("inf"))
+    forward_corridor_safe = True
+    try:
+        stop_clearance = max(
+            float(navigator.nav_cfg.continuous_stop_clearance_m),
+            0.5 * float(navigator.robot_cfg.length_m) + float(navigator.nav_cfg.front_safety_margin_m),
+        )
+        forward_corridor_safe = (not math.isfinite(float(front_m))) or float(front_m) > stop_clearance
+    except (TypeError, ValueError, AttributeError):
+        forward_corridor_safe = True
     return NavigationFeedback(
         now_s=frame.encoder.timestamp,
         no_safe_trajectory=bool(no_safe),
@@ -66,6 +78,10 @@ def navigation_feedback_for_competition_v2(
         closed_loop_reason=str(closed_loop_debug.get("divergence_reason") or closed_loop_debug.get("reason") or ""),
         finish_reason=finish_reason,
         progress_m=progress_m,
+        row_transition_active=bool(closed_loop_debug.get("row_transition_active", False)),
+        row_transition_done=bool(closed_loop_debug.get("row_transition_done", False)),
+        row_transition_reason=str(closed_loop_debug.get("row_transition_reason") or ""),
+        forward_corridor_safe=bool(forward_corridor_safe),
     )
 
 

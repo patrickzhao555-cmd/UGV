@@ -13,6 +13,7 @@ from ugv_nav_core.competition_mission import (  # noqa: E402
     NavigationFeedback,
     SweepGrid,
 )
+from ugv_nav_core.row_transition_controller import RowTransitionController, RowTransitionRequest  # noqa: E402
 from ugv_nav_dual_mode import normalize_mission_mode  # noqa: E402
 
 
@@ -329,6 +330,111 @@ def test_competition_v2_status_contains_coverage_fields():
         assert key in update.status
 
 
+def row_transition_config(**overrides):
+    return small_config(
+        field_width_m=5.0,
+        field_height_m=2.6,
+        sweep_row_length_m=4.0,
+        sweep_boundary_margin_m=0.45,
+        sweep_headland_margin_m=0.75,
+        sweep_turn_radius_m=1.0,
+        sweep_row_transition_enabled=True,
+        sweep_max_rows=3,
+        sweep_row_end_tolerance_m=0.35,
+        sweep_lane_capture_tolerance_m=0.25,
+        sweep_yaw_capture_tolerance_deg=12.0,
+        **overrides,
+    )
+
+
+def test_row_end_prep_triggers_before_row_boundary():
+    mission = CompetitionMissionV2("round2", row_transition_config())
+    update = mission.update((3.75, 0.45, 0.0), 0.0)
+
+    assert update.phase == "sweep_search"
+    assert update.status["sweep_subphase"] == "row_end_prep"
+    assert update.status["row_end_x_m"] == 4.45
+    assert update.reason == "row_end_prep_within_headland_margin"
+
+
+def test_headland_turn_selects_next_lane():
+    mission = CompetitionMissionV2("round2", row_transition_config())
+    mission.update((3.75, 0.45, 0.0), 0.0)
+    update = mission.update((4.42, 0.45, 0.0), 0.1)
+
+    assert update.status["sweep_subphase"] == "headland_turn"
+    assert update.status["row_transition_active"]
+    assert update.status["current_lane_y_m"] == 0.45
+    assert update.status["next_lane_y_m"] == 0.95
+    assert update.status["turn_side"] == "left"
+
+
+def test_transition_does_not_complete_until_lane_and_yaw_are_captured():
+    mission = CompetitionMissionV2("round2", row_transition_config())
+    mission.update((3.75, 0.45, 0.0), 0.0)
+    mission.update((4.42, 0.45, 0.0), 0.1)
+
+    not_done = mission.update((4.0, 0.95, 0.0), 0.2)
+    assert not_done.status["sweep_subphase"] in {"headland_turn", "acquire_next_row"}
+    assert not_done.status["row_transition_active"]
+    assert not not_done.status["row_transition_done"]
+    assert not_done.status["row_index"] == 0
+
+    captured = mission.update((4.0, 0.95, math.pi), 0.3)
+    assert captured.status["sweep_subphase"] == "follow_row"
+    assert captured.status["row_index"] == 1
+    assert captured.status["row_direction"] == -1.0
+
+
+def test_wide_forward_arc_transition_keeps_wheel_targets_nonnegative():
+    controller = RowTransitionController()
+    cmd = controller.compute(
+        RowTransitionRequest(
+            pose_x_m=4.40,
+            pose_y_m=0.45,
+            pose_yaw_rad=0.0,
+            row_direction=1.0,
+            current_lane_y_m=0.45,
+            next_lane_y_m=0.95,
+            row_end_x_m=4.45,
+            turn_radius_m=1.0,
+            track_width_m=0.6096,
+            min_v_mps=0.12,
+            max_v_mps=0.36,
+            forward_arc_only_enabled=True,
+            forward_arc_margin=0.60,
+        )
+    )
+
+    assert cmd.desired_v_mps > 0.0
+    assert cmd.debug["desired_left_target_mps"] >= -1e-9
+    assert cmd.debug["desired_right_target_mps"] >= -1e-9
+    assert not cmd.transition_done
+
+
+def test_marker_auto_lane_spacing_recommends_but_manual_override_wins():
+    auto = CompetitionMissionConfig(
+        marker_auto_lane_spacing_enabled=True,
+        marker_reliable_detection_range_m=2.0,
+        marker_camera_fov_deg=120.0,
+        marker_coverage_overlap_ratio=0.5,
+        sweep_lane_spacing_m=0.75,
+        sweep_lane_spacing_manual_override=False,
+    ).normalized_for_round("round2")
+    manual = CompetitionMissionConfig(
+        marker_auto_lane_spacing_enabled=True,
+        marker_reliable_detection_range_m=2.0,
+        marker_camera_fov_deg=120.0,
+        marker_coverage_overlap_ratio=0.5,
+        sweep_lane_spacing_m=0.75,
+        sweep_lane_spacing_manual_override=True,
+    ).normalized_for_round("round2")
+
+    assert math.isclose(auto.recommended_marker_lane_spacing_m(), 2.0 * 2.0 * math.tan(math.radians(60.0)) * 0.5)
+    assert math.isclose(auto.sweep_lane_spacing_m, auto.recommended_marker_lane_spacing_m())
+    assert math.isclose(manual.sweep_lane_spacing_m, 0.75)
+
+
 def test_competition_v2_cli_launch_and_env_wiring_exists():
     nav_script = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
     launch_file = (
@@ -338,8 +444,20 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
 
     for token in [
         "--competition-mission-v2-enabled",
+        "--sweep-field-width-m",
+        "--sweep-field-height-m",
+        "--sweep-row-length-m",
+        "--sweep-headland-margin-m",
+        "--sweep-boundary-margin-m",
+        "--sweep-turn-radius-m",
+        "--sweep-row-transition-enabled",
+        "--sweep-max-rows",
+        "--sweep-row-end-tolerance-m",
+        "--sweep-lane-capture-tolerance-m",
+        "--sweep-yaw-capture-tolerance-deg",
         "--sweep-cell-size-m",
         "--sweep-lane-spacing-m",
+        "--sweep-lane-spacing-manual-override",
         "--sweep-coverage-radius-m",
         "--sweep-coverage-threshold",
         "--sweep-goal-timeout-s",
@@ -348,6 +466,10 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--sweep-heading-tolerance-deg",
         "--sweep-allow-pure-turn",
         "--sweep-stall-action",
+        "--marker-camera-fov-deg",
+        "--marker-reliable-detection-range-m",
+        "--marker-coverage-overlap-ratio",
+        "--marker-auto-lane-spacing-enabled",
         "--min-competition-speed-mps",
         "--recovery-turn-raw",
         "--competition-closed-loop-enabled",
@@ -394,8 +516,20 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
 
     for token in [
         "COMPETITION_MISSION_V2_ENABLED",
+        "SWEEP_FIELD_WIDTH_M",
+        "SWEEP_FIELD_HEIGHT_M",
+        "SWEEP_ROW_LENGTH_M",
+        "SWEEP_HEADLAND_MARGIN_M",
+        "SWEEP_BOUNDARY_MARGIN_M",
+        "SWEEP_TURN_RADIUS_M",
+        "SWEEP_ROW_TRANSITION_ENABLED",
+        "SWEEP_MAX_ROWS",
+        "SWEEP_ROW_END_TOLERANCE_M",
+        "SWEEP_LANE_CAPTURE_TOLERANCE_M",
+        "SWEEP_YAW_CAPTURE_TOLERANCE_DEG",
         "SWEEP_CELL_SIZE_M",
         "SWEEP_LANE_SPACING_M",
+        "SWEEP_LANE_SPACING_MANUAL_OVERRIDE",
         "SWEEP_COVERAGE_RADIUS_M",
         "SWEEP_COVERAGE_THRESHOLD",
         "SWEEP_GOAL_TIMEOUT_S",
@@ -404,6 +538,10 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "SWEEP_HEADING_TOLERANCE_DEG",
         "SWEEP_ALLOW_PURE_TURN",
         "SWEEP_STALL_ACTION",
+        "MARKER_CAMERA_FOV_DEG",
+        "MARKER_RELIABLE_DETECTION_RANGE_M",
+        "MARKER_COVERAGE_OVERLAP_RATIO",
+        "MARKER_AUTO_LANE_SPACING_ENABLED",
         "MIN_COMPETITION_SPEED_MPS",
         "NAV_RECOVERY_TURN_RAW",
         "NAV_COMPETITION_CLOSED_LOOP_ENABLED",

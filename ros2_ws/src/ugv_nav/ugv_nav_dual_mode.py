@@ -4049,8 +4049,20 @@ def run_simulation(
     mission_mode: str = "manual",
     competition_mission_v2_enabled: bool = True,
     straight_distance_m: float = yd(13.0),
+    sweep_field_width_m: float = yd(15.0),
+    sweep_field_height_m: float = yd(15.0),
+    sweep_row_length_m: float = 0.0,
+    sweep_headland_margin_m: float = 0.75,
+    sweep_boundary_margin_m: float = 0.45,
+    sweep_turn_radius_m: float = 1.00,
+    sweep_row_transition_enabled: bool = False,
+    sweep_max_rows: int = 0,
+    sweep_row_end_tolerance_m: float = 0.35,
+    sweep_lane_capture_tolerance_m: float = 0.25,
+    sweep_yaw_capture_tolerance_deg: float = 12.0,
     sweep_cell_size_m: float = 0.75,
     sweep_lane_spacing_m: float = 0.75,
+    sweep_lane_spacing_manual_override: bool = False,
     sweep_coverage_radius_m: float = 0.55,
     sweep_coverage_threshold: float = 0.85,
     sweep_goal_timeout_s: float = 8.0,
@@ -4059,6 +4071,10 @@ def run_simulation(
     sweep_heading_tolerance_deg: float = 25.0,
     sweep_allow_pure_turn: bool = False,
     sweep_stall_action: str = "skip",
+    marker_camera_fov_deg: float = 120.0,
+    marker_reliable_detection_range_m: float = float("nan"),
+    marker_coverage_overlap_ratio: float = 0.5,
+    marker_auto_lane_spacing_enabled: bool = False,
     min_competition_speed_mps: float = 0.0894,
 ) -> dict:
     mission_mode = normalize_mission_mode(mission_mode)
@@ -4139,7 +4155,12 @@ def run_simulation(
             0.02,
             nav_cfg.continuous_max_speed_mps,
         )
-    sim_cfg = SimConfig(show_gui=show_gui, max_steps=max_steps)
+    sim_cfg = SimConfig(
+        field_w_m=max(0.5, float(sweep_field_width_m)),
+        field_h_m=max(0.5, float(sweep_field_height_m)),
+        show_gui=show_gui,
+        max_steps=max_steps,
+    )
 
     start = Pose2D(yd(0.5), yd(0.5), 0.0)
     goal = Pose2D(yd(13.4), yd(13.0), 0.0)
@@ -4162,6 +4183,7 @@ def run_simulation(
                 straight_distance_m=straight_distance_m,
                 sweep_cell_size_m=sweep_cell_size_m,
                 sweep_lane_spacing_m=sweep_lane_spacing_m,
+                sweep_lane_spacing_manual_override=sweep_lane_spacing_manual_override,
                 sweep_coverage_radius_m=sweep_coverage_radius_m,
                 sweep_coverage_threshold=sweep_coverage_threshold,
                 sweep_fail_limit=sweep_fail_limit,
@@ -4170,6 +4192,19 @@ def run_simulation(
                 sweep_heading_tolerance_deg=sweep_heading_tolerance_deg,
                 sweep_allow_pure_turn=sweep_allow_pure_turn,
                 sweep_stall_action=sweep_stall_action,
+                sweep_row_length_m=None if sweep_row_length_m <= 0.0 else sweep_row_length_m,
+                sweep_headland_margin_m=sweep_headland_margin_m,
+                sweep_boundary_margin_m=sweep_boundary_margin_m,
+                sweep_turn_radius_m=sweep_turn_radius_m,
+                sweep_row_transition_enabled=sweep_row_transition_enabled,
+                sweep_max_rows=sweep_max_rows,
+                sweep_row_end_tolerance_m=sweep_row_end_tolerance_m,
+                sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
+                sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
+                marker_camera_fov_deg=marker_camera_fov_deg,
+                marker_reliable_detection_range_m=finite_optional(marker_reliable_detection_range_m),
+                marker_coverage_overlap_ratio=marker_coverage_overlap_ratio,
+                marker_auto_lane_spacing_enabled=marker_auto_lane_spacing_enabled,
                 target_accept_radius_m=YARD_TO_M,
                 obstacle_aware=mission_mode == "round3",
             ),
@@ -4288,8 +4323,20 @@ def run_real_mode(
     target_accept_radius_m: float = YARD_TO_M,
     straight_distance_m: float = yd(13.0),
     competition_mission_v2_enabled: bool = True,
+    sweep_field_width_m: float = yd(15.0),
+    sweep_field_height_m: float = yd(15.0),
+    sweep_row_length_m: float = 0.0,
+    sweep_headland_margin_m: float = 0.75,
+    sweep_boundary_margin_m: float = 0.45,
+    sweep_turn_radius_m: float = 1.00,
+    sweep_row_transition_enabled: bool = False,
+    sweep_max_rows: int = 0,
+    sweep_row_end_tolerance_m: float = 0.35,
+    sweep_lane_capture_tolerance_m: float = 0.25,
+    sweep_yaw_capture_tolerance_deg: float = 12.0,
     sweep_cell_size_m: float = 0.75,
     sweep_lane_spacing_m: float = 0.75,
+    sweep_lane_spacing_manual_override: bool = False,
     sweep_coverage_radius_m: float = 0.55,
     sweep_coverage_threshold: float = 0.85,
     sweep_goal_timeout_s: float = 8.0,
@@ -4298,6 +4345,10 @@ def run_real_mode(
     sweep_heading_tolerance_deg: float = 25.0,
     sweep_allow_pure_turn: bool = False,
     sweep_stall_action: str = "skip",
+    marker_camera_fov_deg: float = 120.0,
+    marker_reliable_detection_range_m: float = float("nan"),
+    marker_coverage_overlap_ratio: float = 0.5,
+    marker_auto_lane_spacing_enabled: bool = False,
     min_competition_speed_mps: float = 0.0894,
     field_map_topic: str = "/ugv/field_map",
     target_topic: str = "/ugv/target",
@@ -4505,8 +4556,8 @@ def run_real_mode(
             0.02,
             nav_cfg.continuous_max_speed_mps,
         )
-    field_w_m = yd(15.0)
-    field_h_m = yd(15.0)
+    field_w_m = max(0.5, float(sweep_field_width_m))
+    field_h_m = max(0.5, float(sweep_field_height_m))
     custom_start_x = finite_optional(start_x_m)
     custom_start_y = finite_optional(start_y_m)
     custom_start_yaw = finite_optional(start_yaw_deg)
@@ -4552,6 +4603,7 @@ def run_real_mode(
                 straight_distance_m=straight_distance_m,
                 sweep_cell_size_m=sweep_cell_size_m,
                 sweep_lane_spacing_m=sweep_lane_spacing_m,
+                sweep_lane_spacing_manual_override=sweep_lane_spacing_manual_override,
                 sweep_coverage_radius_m=sweep_coverage_radius_m,
                 sweep_coverage_threshold=sweep_coverage_threshold,
                 sweep_fail_limit=sweep_fail_limit,
@@ -4560,6 +4612,19 @@ def run_real_mode(
                 sweep_heading_tolerance_deg=sweep_heading_tolerance_deg,
                 sweep_allow_pure_turn=sweep_allow_pure_turn,
                 sweep_stall_action=sweep_stall_action,
+                sweep_row_length_m=None if sweep_row_length_m <= 0.0 else sweep_row_length_m,
+                sweep_headland_margin_m=sweep_headland_margin_m,
+                sweep_boundary_margin_m=sweep_boundary_margin_m,
+                sweep_turn_radius_m=sweep_turn_radius_m,
+                sweep_row_transition_enabled=sweep_row_transition_enabled,
+                sweep_max_rows=sweep_max_rows,
+                sweep_row_end_tolerance_m=sweep_row_end_tolerance_m,
+                sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
+                sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
+                marker_camera_fov_deg=marker_camera_fov_deg,
+                marker_reliable_detection_range_m=finite_optional(marker_reliable_detection_range_m),
+                marker_coverage_overlap_ratio=marker_coverage_overlap_ratio,
+                marker_auto_lane_spacing_enabled=marker_auto_lane_spacing_enabled,
                 target_accept_radius_m=target_accept_radius_m,
                 obstacle_aware=mission_mode == "round3",
                 use_legacy_center_expand=False,
@@ -4600,8 +4665,12 @@ def run_real_mode(
         f"competition_mission_v2={competition_v2_active}, "
         f"start_corner={normalize_corner_name(start_corner)}, "
         f"start_pose=({init_pose.x:.2f}, {init_pose.y:.2f}, {math.degrees(init_pose.yaw):.1f}deg), "
+        f"field=({field_w_m:.2f}m x {field_h_m:.2f}m), "
         f"straight_distance_m={straight_distance_m:.2f}, "
         f"sweep_cell={sweep_cell_size_m:.2f}m lane={sweep_lane_spacing_m:.2f}m "
+        f"row_length={sweep_row_length_m:.2f}m headland={sweep_headland_margin_m:.2f}m "
+        f"boundary={sweep_boundary_margin_m:.2f}m turn_radius={sweep_turn_radius_m:.2f}m "
+        f"row_transition={sweep_row_transition_enabled} max_rows={sweep_max_rows}, "
         f"coverage_radius={sweep_coverage_radius_m:.2f}m threshold={sweep_coverage_threshold:.2f}, "
         f"lane_tol={sweep_lane_tolerance_m:.2f}m heading_tol={sweep_heading_tolerance_deg:.1f}deg "
         f"pure_turn={sweep_allow_pure_turn}, "
@@ -4802,8 +4871,20 @@ def main() -> None:
     parser.add_argument("--target-accept-radius-m", type=float, default=YARD_TO_M, help="competition-mode radius that counts as reaching the marker")
     parser.add_argument("--straight-distance-m", type=float, default=yd(13.0), help="round1/round2 straight-ahead runout goal distance")
     parser.add_argument("--competition-mission-v2-enabled", type=str_to_bool, default=True, help="use formal competition mission V2 for round1/round2/round3")
+    parser.add_argument("--sweep-field-width-m", type=float, default=yd(15.0))
+    parser.add_argument("--sweep-field-height-m", type=float, default=yd(15.0))
+    parser.add_argument("--sweep-row-length-m", type=float, default=0.0, help="explicit row length for classroom sweep tests; <=0 uses field width minus margins")
+    parser.add_argument("--sweep-headland-margin-m", type=float, default=0.75)
+    parser.add_argument("--sweep-boundary-margin-m", type=float, default=0.45)
+    parser.add_argument("--sweep-turn-radius-m", type=float, default=1.00)
+    parser.add_argument("--sweep-row-transition-enabled", type=str_to_bool, default=False)
+    parser.add_argument("--sweep-max-rows", type=int, default=0, help="0 means all rows that fit in the configured field")
+    parser.add_argument("--sweep-row-end-tolerance-m", type=float, default=0.35)
+    parser.add_argument("--sweep-lane-capture-tolerance-m", type=float, default=0.25)
+    parser.add_argument("--sweep-yaw-capture-tolerance-deg", type=float, default=12.0)
     parser.add_argument("--sweep-cell-size-m", type=float, default=0.75)
     parser.add_argument("--sweep-lane-spacing-m", type=float, default=0.75)
+    parser.add_argument("--sweep-lane-spacing-manual-override", type=str_to_bool, default=False)
     parser.add_argument("--sweep-coverage-radius-m", type=float, default=0.55)
     parser.add_argument("--sweep-coverage-threshold", type=float, default=0.85)
     parser.add_argument("--sweep-goal-timeout-s", type=float, default=8.0)
@@ -4812,6 +4893,10 @@ def main() -> None:
     parser.add_argument("--sweep-heading-tolerance-deg", type=float, default=25.0)
     parser.add_argument("--sweep-allow-pure-turn", type=str_to_bool, default=False)
     parser.add_argument("--sweep-stall-action", choices=["skip", "stop"], default="skip")
+    parser.add_argument("--marker-camera-fov-deg", type=float, default=120.0)
+    parser.add_argument("--marker-reliable-detection-range-m", type=float, default=float("nan"))
+    parser.add_argument("--marker-coverage-overlap-ratio", type=float, default=0.5)
+    parser.add_argument("--marker-auto-lane-spacing-enabled", type=str_to_bool, default=False)
     parser.add_argument("--min-competition-speed-mps", type=float, default=0.0894, help="minimum moving speed required by competition rules, 0.2 mph in m/s")
     parser.add_argument("--field-map-topic", type=str, default="/ugv/field_map")
     parser.add_argument("--target-topic", type=str, default="/ugv/target")
@@ -4984,8 +5069,20 @@ def main() -> None:
             mission_mode=args.mission_mode,
             competition_mission_v2_enabled=args.competition_mission_v2_enabled,
             straight_distance_m=args.straight_distance_m,
+            sweep_field_width_m=args.sweep_field_width_m,
+            sweep_field_height_m=args.sweep_field_height_m,
+            sweep_row_length_m=args.sweep_row_length_m,
+            sweep_headland_margin_m=args.sweep_headland_margin_m,
+            sweep_boundary_margin_m=args.sweep_boundary_margin_m,
+            sweep_turn_radius_m=args.sweep_turn_radius_m,
+            sweep_row_transition_enabled=args.sweep_row_transition_enabled,
+            sweep_max_rows=args.sweep_max_rows,
+            sweep_row_end_tolerance_m=args.sweep_row_end_tolerance_m,
+            sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
+            sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
             sweep_cell_size_m=args.sweep_cell_size_m,
             sweep_lane_spacing_m=args.sweep_lane_spacing_m,
+            sweep_lane_spacing_manual_override=args.sweep_lane_spacing_manual_override,
             sweep_coverage_radius_m=args.sweep_coverage_radius_m,
             sweep_coverage_threshold=args.sweep_coverage_threshold,
             sweep_goal_timeout_s=args.sweep_goal_timeout_s,
@@ -4994,6 +5091,10 @@ def main() -> None:
             sweep_heading_tolerance_deg=args.sweep_heading_tolerance_deg,
             sweep_allow_pure_turn=args.sweep_allow_pure_turn,
             sweep_stall_action=args.sweep_stall_action,
+            marker_camera_fov_deg=args.marker_camera_fov_deg,
+            marker_reliable_detection_range_m=args.marker_reliable_detection_range_m,
+            marker_coverage_overlap_ratio=args.marker_coverage_overlap_ratio,
+            marker_auto_lane_spacing_enabled=args.marker_auto_lane_spacing_enabled,
             min_competition_speed_mps=args.min_competition_speed_mps,
         )
     else:
@@ -5009,8 +5110,20 @@ def main() -> None:
             target_accept_radius_m=args.target_accept_radius_m,
             straight_distance_m=args.straight_distance_m,
             competition_mission_v2_enabled=args.competition_mission_v2_enabled,
+            sweep_field_width_m=args.sweep_field_width_m,
+            sweep_field_height_m=args.sweep_field_height_m,
+            sweep_row_length_m=args.sweep_row_length_m,
+            sweep_headland_margin_m=args.sweep_headland_margin_m,
+            sweep_boundary_margin_m=args.sweep_boundary_margin_m,
+            sweep_turn_radius_m=args.sweep_turn_radius_m,
+            sweep_row_transition_enabled=args.sweep_row_transition_enabled,
+            sweep_max_rows=args.sweep_max_rows,
+            sweep_row_end_tolerance_m=args.sweep_row_end_tolerance_m,
+            sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
+            sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
             sweep_cell_size_m=args.sweep_cell_size_m,
             sweep_lane_spacing_m=args.sweep_lane_spacing_m,
+            sweep_lane_spacing_manual_override=args.sweep_lane_spacing_manual_override,
             sweep_coverage_radius_m=args.sweep_coverage_radius_m,
             sweep_coverage_threshold=args.sweep_coverage_threshold,
             sweep_goal_timeout_s=args.sweep_goal_timeout_s,
@@ -5019,6 +5132,10 @@ def main() -> None:
             sweep_heading_tolerance_deg=args.sweep_heading_tolerance_deg,
             sweep_allow_pure_turn=args.sweep_allow_pure_turn,
             sweep_stall_action=args.sweep_stall_action,
+            marker_camera_fov_deg=args.marker_camera_fov_deg,
+            marker_reliable_detection_range_m=args.marker_reliable_detection_range_m,
+            marker_coverage_overlap_ratio=args.marker_coverage_overlap_ratio,
+            marker_auto_lane_spacing_enabled=args.marker_auto_lane_spacing_enabled,
             min_competition_speed_mps=args.min_competition_speed_mps,
             field_map_topic=args.field_map_topic,
             target_topic=args.target_topic,

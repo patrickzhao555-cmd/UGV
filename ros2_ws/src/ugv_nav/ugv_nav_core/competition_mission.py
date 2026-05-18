@@ -11,6 +11,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from ugv_nav_core.row_transition_controller import RowTransitionController, RowTransitionRequest, wrap_to_pi
+
 
 YARD_TO_M = 0.9144
 DEFAULT_FIELD_M = 15.0 * YARD_TO_M
@@ -143,15 +145,45 @@ class CompetitionMissionConfig:
     sweep_heading_tolerance_deg: float = 25.0
     sweep_allow_pure_turn: bool = False
     sweep_stall_action: str = "skip"
+    sweep_row_length_m: Optional[float] = None
+    sweep_headland_margin_m: float = 0.75
+    sweep_turn_radius_m: float = 1.00
+    sweep_row_transition_enabled: bool = False
+    sweep_max_rows: int = 0
+    sweep_row_end_tolerance_m: float = 0.35
+    sweep_lane_capture_tolerance_m: float = 0.25
+    sweep_yaw_capture_tolerance_deg: float = 12.0
     target_accept_radius_m: float = YARD_TO_M
     stop_on_uav_landed: bool = True
     stop_on_marker_reached: bool = False
     obstacle_aware: Optional[bool] = None
     use_legacy_center_expand: bool = False
     sweep_boundary_margin_m: float = 0.45
+    marker_camera_fov_deg: float = 120.0
+    marker_reliable_detection_range_m: Optional[float] = None
+    marker_coverage_overlap_ratio: float = 0.5
+    marker_auto_lane_spacing_enabled: bool = False
+    sweep_lane_spacing_manual_override: bool = False
+
+    def recommended_marker_lane_spacing_m(self) -> Optional[float]:
+        reliable_range = _finite_float(self.marker_reliable_detection_range_m)
+        if reliable_range is None or reliable_range <= 0.0:
+            return None
+        fov_deg = max(1.0, min(179.0, float(self.marker_camera_fov_deg)))
+        overlap = max(0.0, min(1.0, float(self.marker_coverage_overlap_ratio)))
+        return 2.0 * reliable_range * math.tan(math.radians(0.5 * fov_deg)) * overlap
 
     def normalized_for_round(self, round_name: str) -> "CompetitionMissionConfig":
         round_name = normalize_competition_round(round_name)
+        recommended_lane_spacing = self.recommended_marker_lane_spacing_m()
+        configured_lane_spacing = max(0.05, float(self.sweep_lane_spacing_m))
+        active_lane_spacing = configured_lane_spacing
+        if (
+            bool(self.marker_auto_lane_spacing_enabled)
+            and not bool(self.sweep_lane_spacing_manual_override)
+            and recommended_lane_spacing is not None
+        ):
+            active_lane_spacing = max(0.05, float(recommended_lane_spacing))
         return CompetitionMissionConfig(
             field_width_m=max(0.1, float(self.field_width_m)),
             field_height_m=max(0.1, float(self.field_height_m)),
@@ -161,7 +193,7 @@ class CompetitionMissionConfig:
             min_competition_speed_mps=max(0.0, float(self.min_competition_speed_mps)),
             straight_distance_m=max(0.5, float(self.straight_distance_m)),
             sweep_cell_size_m=max(0.05, float(self.sweep_cell_size_m)),
-            sweep_lane_spacing_m=max(0.05, float(self.sweep_lane_spacing_m)),
+            sweep_lane_spacing_m=active_lane_spacing,
             sweep_coverage_radius_m=max(0.05, float(self.sweep_coverage_radius_m)),
             sweep_coverage_threshold=max(0.0, min(1.0, float(self.sweep_coverage_threshold))),
             sweep_fail_limit=max(1, int(self.sweep_fail_limit)),
@@ -170,12 +202,25 @@ class CompetitionMissionConfig:
             sweep_heading_tolerance_deg=max(0.0, float(self.sweep_heading_tolerance_deg)),
             sweep_allow_pure_turn=bool(self.sweep_allow_pure_turn),
             sweep_stall_action=_norm_text(self.sweep_stall_action) if _norm_text(self.sweep_stall_action) in {"skip", "stop"} else "skip",
+            sweep_row_length_m=_finite_float(self.sweep_row_length_m),
+            sweep_headland_margin_m=max(0.0, float(self.sweep_headland_margin_m)),
+            sweep_turn_radius_m=max(0.20, float(self.sweep_turn_radius_m)),
+            sweep_row_transition_enabled=bool(self.sweep_row_transition_enabled),
+            sweep_max_rows=max(0, int(self.sweep_max_rows)),
+            sweep_row_end_tolerance_m=max(0.02, float(self.sweep_row_end_tolerance_m)),
+            sweep_lane_capture_tolerance_m=max(0.01, float(self.sweep_lane_capture_tolerance_m)),
+            sweep_yaw_capture_tolerance_deg=max(0.0, float(self.sweep_yaw_capture_tolerance_deg)),
             target_accept_radius_m=max(0.05, float(self.target_accept_radius_m)),
             stop_on_uav_landed=bool(self.stop_on_uav_landed),
             stop_on_marker_reached=False if round_name in {"round2", "round3"} else bool(self.stop_on_marker_reached),
             obstacle_aware=(round_name == "round3") if self.obstacle_aware is None else bool(self.obstacle_aware),
             use_legacy_center_expand=bool(self.use_legacy_center_expand),
             sweep_boundary_margin_m=max(0.0, float(self.sweep_boundary_margin_m)),
+            marker_camera_fov_deg=max(1.0, min(179.0, float(self.marker_camera_fov_deg))),
+            marker_reliable_detection_range_m=_finite_float(self.marker_reliable_detection_range_m),
+            marker_coverage_overlap_ratio=max(0.0, min(1.0, float(self.marker_coverage_overlap_ratio))),
+            marker_auto_lane_spacing_enabled=bool(self.marker_auto_lane_spacing_enabled),
+            sweep_lane_spacing_manual_override=bool(self.sweep_lane_spacing_manual_override),
         )
 
 
@@ -413,6 +458,10 @@ class NavigationFeedback:
     closed_loop_reason: str = ""
     finish_reason: str = ""
     progress_m: float = 0.0
+    row_transition_active: bool = False
+    row_transition_done: bool = False
+    row_transition_reason: str = ""
+    forward_corridor_safe: bool = True
 
 
 @dataclass
@@ -462,6 +511,13 @@ class CompetitionMissionV2:
         self._last_sweep_lane_y_m: Optional[float] = None
         self._last_sweep_lateral_error_m: Optional[float] = None
         self._last_sweep_heading_error_deg: Optional[float] = None
+        self.sweep_subphase = "follow_row" if self.round in {"round2", "round3"} else "inactive"
+        self._row_index = 0
+        self._row_end_prep_start_s: Optional[float] = None
+        self._row_transition_controller = RowTransitionController()
+        self._last_row_transition_debug: Dict[str, Any] = {}
+        self._last_forward_corridor_safe = True
+        self._safety_stop_requested = False
         self._physical_stall_detected = False
         self._physical_stall_steps = 0
         self._physical_stall_reason = ""
@@ -587,6 +643,207 @@ class CompetitionMissionV2:
             return self._forward_field_goal(pose, self._sweep_lane_lookahead_m())
         return active.xy
 
+    def _sweep_row_length_m(self) -> float:
+        margin = self.config.sweep_boundary_margin_m
+        available = max(0.10, self.config.field_width_m - 2.0 * margin)
+        configured = _finite_float(self.config.sweep_row_length_m)
+        if configured is None or configured <= 0.0:
+            return available
+        return max(0.10, min(float(configured), available))
+
+    def _sweep_row_min_x_m(self) -> float:
+        return max(0.0, min(self.config.sweep_boundary_margin_m, 0.45 * self.config.field_width_m))
+
+    def _sweep_row_max_x_m(self) -> float:
+        return min(self.config.field_width_m - self.config.sweep_boundary_margin_m, self._sweep_row_min_x_m() + self._sweep_row_length_m())
+
+    def _sweep_row_count(self) -> int:
+        margin = max(0.0, self.config.sweep_boundary_margin_m)
+        usable_height = max(0.0, self.config.field_height_m - 2.0 * margin)
+        spacing = max(0.05, self.config.sweep_lane_spacing_m)
+        count = 1 + int(math.floor((usable_height + 1e-9) / spacing))
+        if self.config.sweep_max_rows > 0:
+            count = min(count, self.config.sweep_max_rows)
+        return max(1, count)
+
+    def _sweep_lane_y_for_row(self, row_index: int) -> float:
+        margin = self.config.sweep_boundary_margin_m
+        y = margin + max(0, int(row_index)) * self.config.sweep_lane_spacing_m
+        return max(margin, min(self.config.field_height_m - margin, y))
+
+    def _sweep_row_context(self, row_index: Optional[int] = None) -> Dict[str, Any]:
+        row = self._row_index if row_index is None else max(0, int(row_index))
+        direction = self._sweep_row_direction(row)
+        row_min_x = self._sweep_row_min_x_m()
+        row_max_x = self._sweep_row_max_x_m()
+        row_end_x = row_max_x if direction > 0.0 else row_min_x
+        row_start_x = row_min_x if direction > 0.0 else row_max_x
+        lane_y = self._sweep_lane_y_for_row(row)
+        return {
+            "row_index": row,
+            "row_direction": direction,
+            "current_lane_y_m": lane_y,
+            "row_start_x_m": row_start_x,
+            "row_end_x_m": row_end_x,
+            "target_yaw_rad": 0.0 if direction > 0.0 else math.pi,
+        }
+
+    def _sweep_next_row_context(self) -> Optional[Dict[str, Any]]:
+        if self._row_index + 1 >= self._sweep_row_count():
+            return None
+        return self._sweep_row_context(self._row_index + 1)
+
+    @staticmethod
+    def _transition_turn_side(row_direction: float, current_lane_y_m: float, next_lane_y_m: float) -> str:
+        return "left" if (float(next_lane_y_m) - float(current_lane_y_m)) * float(row_direction) >= 0.0 else "right"
+
+    def _row_end_distance_m(self, pose_x_m: float, row_context: Dict[str, Any]) -> float:
+        direction = float(row_context["row_direction"])
+        row_end_x = float(row_context["row_end_x_m"])
+        return max(0.0, direction * (row_end_x - float(pose_x_m)))
+
+    def _row_follow_goal(self, pose: Tuple[float, float, float], row_context: Dict[str, Any]) -> Tuple[float, float]:
+        lane_y = float(row_context["current_lane_y_m"])
+        direction = float(row_context["row_direction"])
+        row_end_x = float(row_context["row_end_x_m"])
+        lateral_error = float(pose[1] - lane_y)
+        lane_yaw = float(row_context["target_yaw_rad"])
+        heading_error_deg = self._angle_error_deg(lane_yaw, pose[2])
+        self._last_sweep_lane_y_m = lane_y
+        self._last_sweep_lateral_error_m = lateral_error
+        self._last_sweep_heading_error_deg = heading_error_deg
+        lookahead = self._sweep_lane_lookahead_m()
+        target_x = pose[0] + direction * lookahead
+        if direction > 0.0:
+            target_x = min(row_end_x, max(target_x, pose[0] + 0.25))
+        else:
+            target_x = max(row_end_x, min(target_x, pose[0] - 0.25))
+        return self._clamp_to_field((target_x, lane_y), margin_m=self.config.sweep_boundary_margin_m)
+
+    def _transition_request(
+        self,
+        pose: Tuple[float, float, float],
+        current_row: Dict[str, Any],
+        next_row: Dict[str, Any],
+    ) -> RowTransitionRequest:
+        return RowTransitionRequest(
+            pose_x_m=pose[0],
+            pose_y_m=pose[1],
+            pose_yaw_rad=pose[2],
+            row_direction=float(current_row["row_direction"]),
+            current_lane_y_m=float(current_row["current_lane_y_m"]),
+            next_lane_y_m=float(next_row["current_lane_y_m"]),
+            row_end_x_m=float(current_row["row_end_x_m"]),
+            turn_radius_m=self.config.sweep_turn_radius_m,
+            track_width_m=0.6096,
+            min_v_mps=max(self.config.min_competition_speed_mps, 0.08),
+            max_v_mps=0.36,
+            lookahead_m=max(0.50, min(1.20, self.config.sweep_turn_radius_m)),
+            forward_arc_only_enabled=True,
+            forward_arc_margin=0.75,
+            lane_capture_tolerance_m=self.config.sweep_lane_capture_tolerance_m,
+            yaw_capture_tolerance_rad=math.radians(self.config.sweep_yaw_capture_tolerance_deg),
+            row_end_tolerance_m=self.config.sweep_row_end_tolerance_m,
+            forward_corridor_safe=self._last_forward_corridor_safe,
+            turn_side=self._transition_turn_side(
+                float(current_row["row_direction"]),
+                float(current_row["current_lane_y_m"]),
+                float(next_row["current_lane_y_m"]),
+            ),
+        )
+
+    def _transition_preview_goal(
+        self,
+        pose: Tuple[float, float, float],
+        current_row: Dict[str, Any],
+        next_row: Dict[str, Any],
+    ) -> Tuple[float, float]:
+        command = self._row_transition_controller.compute(self._transition_request(pose, current_row, next_row))
+        self._last_row_transition_debug = dict(command.debug)
+        return command.active_target_m
+
+    def _transition_capture_done(self, pose: Tuple[float, float, float], current_row: Dict[str, Any], next_row: Dict[str, Any]) -> bool:
+        command = self._row_transition_controller.compute(self._transition_request(pose, current_row, next_row))
+        self._last_row_transition_debug = dict(command.debug)
+        return bool(command.transition_done)
+
+    def _transition_ready_for_acquire(self, pose: Tuple[float, float, float], next_row: Dict[str, Any]) -> bool:
+        lane_error = abs(float(pose[1]) - float(next_row["current_lane_y_m"]))
+        next_yaw = float(next_row["target_yaw_rad"])
+        yaw_error = abs(wrap_to_pi(next_yaw - float(pose[2])))
+        return lane_error <= max(0.50, 2.0 * self.config.sweep_lane_capture_tolerance_m) or yaw_error <= math.radians(55.0)
+
+    def _commit_next_row(self) -> None:
+        self._row_index = min(self._row_index + 1, self._sweep_row_count() - 1)
+        self.sweep_subphase = "follow_row"
+        self._row_end_prep_start_s = None
+        self._last_row_transition_debug = {}
+
+    def _update_row_transition_sweep(self, pose: Tuple[float, float, float], now_s: float) -> MissionUpdate:
+        pose_xy = (pose[0], pose[1])
+        if self.grid is not None and not self._closed_loop_unhealthy:
+            self.grid.advance_if_reached(pose_xy, self.config.sweep_coverage_radius_m, now_s)
+            self.grid.ensure_active(now_s)
+
+        row_count = self._sweep_row_count()
+        if self._row_index >= row_count:
+            self.sweep_subphase = "sweep_complete"
+            self.reason = "sweep_rows_complete_forward_patrol"
+            return self._make_update(self._forward_field_goal(pose, self._sweep_patrol_min_distance()), False)
+
+        current_row = self._sweep_row_context()
+        next_row = self._sweep_next_row_context()
+        row_end_distance = self._row_end_distance_m(pose[0], current_row)
+
+        if self.sweep_subphase == "sweep_complete":
+            self.reason = "sweep_rows_complete_forward_patrol"
+            return self._make_update(self._forward_field_goal(pose, self._sweep_patrol_min_distance()), False)
+
+        if self.sweep_subphase == "follow_row":
+            if next_row is not None and row_end_distance <= self.config.sweep_headland_margin_m:
+                self.sweep_subphase = "row_end_prep"
+                self._row_end_prep_start_s = now_s
+                self.reason = "row_end_prep_within_headland_margin"
+                return self._make_update((float(current_row["row_end_x_m"]), float(current_row["current_lane_y_m"])), False)
+            self.reason = "sweep_follow_row"
+            return self._make_update(self._row_follow_goal(pose, current_row), False)
+
+        if self.sweep_subphase == "row_end_prep":
+            if next_row is None:
+                self.sweep_subphase = "sweep_complete"
+                self.reason = "sweep_rows_complete"
+                return self._make_update(self._forward_field_goal(pose, self._sweep_patrol_min_distance()), False)
+            prep_elapsed_s = 0.0 if self._row_end_prep_start_s is None else max(0.0, now_s - self._row_end_prep_start_s)
+            if row_end_distance <= self.config.sweep_row_end_tolerance_m or prep_elapsed_s >= 0.50:
+                self.sweep_subphase = "headland_turn"
+                goal = self._transition_preview_goal(pose, current_row, next_row)
+                self.reason = "headland_turn_started"
+                return self._make_update(goal, False)
+            self.reason = "row_end_prep_approaching_boundary"
+            return self._make_update((float(current_row["row_end_x_m"]), float(current_row["current_lane_y_m"])), False)
+
+        if self.sweep_subphase in {"headland_turn", "acquire_next_row"}:
+            if next_row is None:
+                self.sweep_subphase = "sweep_complete"
+                self.reason = "sweep_rows_complete"
+                return self._make_update(self._forward_field_goal(pose, self._sweep_patrol_min_distance()), False)
+            goal = self._transition_preview_goal(pose, current_row, next_row)
+            if self._transition_capture_done(pose, current_row, next_row):
+                self._commit_next_row()
+                committed_row = self._sweep_row_context()
+                self.reason = "next_row_lane_and_yaw_captured"
+                return self._make_update(self._row_follow_goal(pose, committed_row), False)
+            if self.sweep_subphase == "headland_turn" and self._transition_ready_for_acquire(pose, next_row):
+                self.sweep_subphase = "acquire_next_row"
+                self.reason = "acquire_next_row"
+            else:
+                self.reason = self._last_row_transition_debug.get("row_transition_reason", "headland_turn_tracking")
+            return self._make_update(goal, False)
+
+        self.sweep_subphase = "follow_row"
+        self.reason = "sweep_follow_row"
+        return self._make_update(self._row_follow_goal(pose, current_row), False)
+
     def _target_loiter_points(self, pose: Tuple[float, float, float]) -> List[Tuple[float, float]]:
         if self.target_goal is None:
             return []
@@ -679,6 +936,11 @@ class CompetitionMissionV2:
             self.reason = f"mission_flag_{self.uav_state}"
             return self._store_update(self._make_update(pose_xy, True))
 
+        if self._safety_stop_requested:
+            self.phase = "complete"
+            self.reason = self.reason or "competition_v2_safety_stop"
+            return self._store_update(self._make_update(self._last_update.active_goal_m, True))
+
         if self.round == "round1":
             return self._store_update(self._update_round1(pose_xy))
         return self._store_update(self._update_search_round(pose, now_s))
@@ -712,6 +974,8 @@ class CompetitionMissionV2:
         if self.grid is None:
             self.reason = "no_sweep_grid"
             return self._make_update(pose_xy, False)
+        if self.config.sweep_row_transition_enabled:
+            return self._update_row_transition_sweep(pose, now_s)
 
         reached = False
         if not self._closed_loop_unhealthy:
@@ -791,6 +1055,12 @@ class CompetitionMissionV2:
         self._physical_stall_detected = bool(feedback.physical_stall_detected)
         self._physical_stall_steps = int(feedback.physical_stall_steps)
         self._physical_stall_reason = str(feedback.physical_stall_reason or "")
+        self._last_forward_corridor_safe = bool(
+            feedback.forward_corridor_safe
+            and not feedback.no_safe_trajectory
+            and not feedback.local_planner_failed
+            and not feedback.stuck
+        )
         unhealthy_reason = ""
         if feedback.closed_loop_diverging:
             unhealthy_reason = "diverging"
@@ -813,6 +1083,35 @@ class CompetitionMissionV2:
         elif not feedback.physical_stall_detected:
             self._closed_loop_unhealthy = False
             self._closed_loop_unhealthy_reason = ""
+
+        transition_active = self.sweep_subphase in {"headland_turn", "acquire_next_row"}
+        if self.enabled and self.phase == "sweep_search" and transition_active:
+            if feedback.physical_stall_detected:
+                reason = "row_transition_physical_stall"
+                if feedback.physical_stall_reason:
+                    reason += f"_{_norm_text(feedback.physical_stall_reason)}"
+                self.reason = reason
+                self._closed_loop_unhealthy = True
+                self._closed_loop_unhealthy_reason = reason
+                self._last_update = self._make_update_from_active_or_previous()
+                return False
+            if feedback.no_safe_trajectory or feedback.local_planner_failed:
+                reason_parts = []
+                if feedback.no_safe_trajectory:
+                    reason_parts.append("no_safe_trajectory")
+                if feedback.local_planner_failed:
+                    reason_parts.append("local_planner_failed")
+                reason = "row_transition_safety_" + "_".join(reason_parts or ["unsafe"])
+                self.reason = reason
+                self._closed_loop_unhealthy = True
+                self._closed_loop_unhealthy_reason = reason
+                if self.round == "round2":
+                    self._safety_stop_requested = True
+                    self.phase = "complete"
+                    self._last_update = self._make_update(self._last_update.active_goal_m, True)
+                    return True
+                self._last_update = self._make_update_from_active_or_previous()
+                return False
         if (
             not self.enabled
             or self.phase != "sweep_search"
@@ -935,6 +1234,14 @@ class CompetitionMissionV2:
         active_cell_xy = None
         sweep_row_direction = None
         sweep_target_yaw_deg = None
+        row_index = None
+        current_lane_y_m = None
+        next_lane_y_m = None
+        row_end_x_m = None
+        target_row_yaw_deg = None
+        turn_side = ""
+        transition_active = self.sweep_subphase in {"headland_turn", "acquire_next_row"}
+        transition_debug = dict(self._last_row_transition_debug)
         visited = blocked = skipped = total = 0
         coverage = 0.0
         if self.grid is not None:
@@ -951,10 +1258,39 @@ class CompetitionMissionV2:
             skipped = self.grid.skipped_count
             total = self.grid.total_cells
             coverage = self.grid.coverage_fraction
+        if self.round in {"round2", "round3"}:
+            row_count = self._sweep_row_count()
+            row_index = max(0, min(self._row_index, row_count - 1)) if self.config.sweep_row_transition_enabled else active_cell_row
+            current_row = self._sweep_row_context(row_index)
+            next_row = self._sweep_next_row_context()
+            current_lane_y_m = float(current_row["current_lane_y_m"])
+            next_lane_y_m = None if next_row is None else float(next_row["current_lane_y_m"])
+            row_end_x_m = float(current_row["row_end_x_m"])
+            if self.config.sweep_row_transition_enabled or sweep_row_direction is None:
+                sweep_row_direction = float(current_row["row_direction"])
+            if self.config.sweep_row_transition_enabled or sweep_target_yaw_deg is None:
+                sweep_target_yaw_deg = round(math.degrees(float(current_row["target_yaw_rad"])), 2)
+            target_row_yaw_deg = sweep_target_yaw_deg
+            if next_row is not None:
+                turn_side = self._transition_turn_side(
+                    float(current_row["row_direction"]),
+                    float(current_row["current_lane_y_m"]),
+                    float(next_row["current_lane_y_m"]),
+                )
+                if transition_active:
+                    target_row_yaw_deg = transition_debug.get("target_row_yaw_deg", round(math.degrees(float(next_row["target_yaw_rad"])), 2))
+        recommended_lane_spacing = self.config.recommended_marker_lane_spacing_m()
+        lane_capture_error = transition_debug.get("lane_capture_error_m")
+        if lane_capture_error is None and current_lane_y_m is not None and self._last_sweep_lateral_error_m is not None:
+            lane_capture_error = round(float(self._last_sweep_lateral_error_m), 4)
+        yaw_capture_error = transition_debug.get("yaw_capture_error_deg")
+        if yaw_capture_error is None and self._last_sweep_heading_error_deg is not None:
+            yaw_capture_error = round(float(self._last_sweep_heading_error_deg), 3)
         return {
             "enabled": bool(self.enabled),
             "round": self.round,
             "phase": self.phase,
+            "sweep_subphase": self.sweep_subphase,
             "active_goal_m": [round(active_goal_m[0], 3), round(active_goal_m[1], 3)],
             "target_known": self.target_goal is not None,
             "target_goal_m": [
@@ -968,6 +1304,41 @@ class CompetitionMissionV2:
             "active_cell_xy_m": active_cell_xy,
             "sweep_row_direction": sweep_row_direction,
             "sweep_target_yaw_deg": sweep_target_yaw_deg,
+            "row_index": row_index,
+            "row_direction": sweep_row_direction,
+            "current_lane_y_m": None if current_lane_y_m is None else round(float(current_lane_y_m), 3),
+            "next_lane_y_m": None if next_lane_y_m is None else round(float(next_lane_y_m), 3),
+            "row_end_x_m": None if row_end_x_m is None else round(float(row_end_x_m), 3),
+            "row_transition_active": bool(transition_active),
+            "row_transition_style": transition_debug.get("row_transition_style", "wide_forward_arc_pure_pursuit" if transition_active else ""),
+            "row_transition_progress": transition_debug.get("row_transition_progress", 0.0),
+            "row_transition_done": bool(transition_debug.get("row_transition_done", False)),
+            "row_transition_reason": transition_debug.get("row_transition_reason", ""),
+            "target_row_yaw_deg": target_row_yaw_deg,
+            "yaw_capture_error_deg": yaw_capture_error,
+            "lane_capture_error_m": lane_capture_error,
+            "turn_radius_m": round(float(self.config.sweep_turn_radius_m), 3),
+            "turn_side": transition_debug.get("turn_side", turn_side),
+            "sweep_row_transition_enabled": bool(self.config.sweep_row_transition_enabled),
+            "sweep_row_length_m": round(float(self._sweep_row_length_m()), 3) if self.round in {"round2", "round3"} else None,
+            "sweep_headland_margin_m": round(float(self.config.sweep_headland_margin_m), 3),
+            "sweep_row_end_tolerance_m": round(float(self.config.sweep_row_end_tolerance_m), 3),
+            "sweep_lane_capture_tolerance_m": round(float(self.config.sweep_lane_capture_tolerance_m), 3),
+            "sweep_yaw_capture_tolerance_deg": round(float(self.config.sweep_yaw_capture_tolerance_deg), 2),
+            "sweep_max_rows": int(self.config.sweep_max_rows),
+            "recommended_lane_spacing_m": None if recommended_lane_spacing is None else round(float(recommended_lane_spacing), 3),
+            "active_lane_spacing_m": round(float(self.config.sweep_lane_spacing_m), 3),
+            "marker_camera_fov_deg": round(float(self.config.marker_camera_fov_deg), 2),
+            "marker_reliable_detection_range_m": (
+                None
+                if self.config.marker_reliable_detection_range_m is None
+                else round(float(self.config.marker_reliable_detection_range_m), 3)
+            ),
+            "marker_coverage_overlap_ratio": round(float(self.config.marker_coverage_overlap_ratio), 3),
+            "marker_auto_lane_spacing_enabled": bool(self.config.marker_auto_lane_spacing_enabled),
+            "sweep_field_width_m": round(float(self.config.field_width_m), 3),
+            "sweep_field_height_m": round(float(self.config.field_height_m), 3),
+            "sweep_boundary_margin_m": round(float(self.config.sweep_boundary_margin_m), 3),
             "visited_count": int(visited),
             "blocked_count": int(blocked),
             "skipped_count": int(skipped),

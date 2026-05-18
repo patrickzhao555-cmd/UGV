@@ -408,6 +408,9 @@ class NavigationFeedback:
     physical_stall_detected: bool = False
     physical_stall_steps: int = 0
     physical_stall_reason: str = ""
+    closed_loop_active: bool = True
+    closed_loop_diverging: bool = False
+    closed_loop_reason: str = ""
     finish_reason: str = ""
     progress_m: float = 0.0
 
@@ -462,6 +465,8 @@ class CompetitionMissionV2:
         self._physical_stall_detected = False
         self._physical_stall_steps = 0
         self._physical_stall_reason = ""
+        self._closed_loop_unhealthy = False
+        self._closed_loop_unhealthy_reason = ""
         self._last_update = self._make_update((0.0, 0.0), False)
 
     def _ensure_start_pose(self, pose: Tuple[float, float, float]) -> Tuple[float, float, float]:
@@ -708,8 +713,10 @@ class CompetitionMissionV2:
             self.reason = "no_sweep_grid"
             return self._make_update(pose_xy, False)
 
-        self._maybe_timeout_active_cell(pose_xy, now_s)
-        reached = self.grid.advance_if_reached(pose_xy, self.config.sweep_coverage_radius_m, now_s)
+        reached = False
+        if not self._closed_loop_unhealthy:
+            self._maybe_timeout_active_cell(pose_xy, now_s)
+            reached = self.grid.advance_if_reached(pose_xy, self.config.sweep_coverage_radius_m, now_s)
         active = self.grid.ensure_active(now_s)
         coverage_reached = self.grid.coverage_fraction >= self.config.sweep_coverage_threshold
         if coverage_reached:
@@ -719,7 +726,9 @@ class CompetitionMissionV2:
             self.reason = "sweep_no_reachable_cells_forward_patrol"
             return self._make_update(self._forward_field_goal(pose, self._sweep_patrol_min_distance()), False)
         goal = self._sweep_navigation_goal(pose, active)
-        if reached:
+        if self._closed_loop_unhealthy:
+            self.reason = f"closed_loop_unhealthy_hold_active_cell_{self._closed_loop_unhealthy_reason}"
+        elif reached:
             self.reason = "sweep_cell_visited_advanced"
         elif coverage_reached:
             self.reason = "coverage_threshold_reached_continuing_patrol"
@@ -782,6 +791,28 @@ class CompetitionMissionV2:
         self._physical_stall_detected = bool(feedback.physical_stall_detected)
         self._physical_stall_steps = int(feedback.physical_stall_steps)
         self._physical_stall_reason = str(feedback.physical_stall_reason or "")
+        unhealthy_reason = ""
+        if feedback.closed_loop_diverging:
+            unhealthy_reason = "diverging"
+            if feedback.closed_loop_reason:
+                unhealthy_reason += f"_{_norm_text(feedback.closed_loop_reason)}"
+        elif not feedback.closed_loop_active and self.phase == "sweep_search":
+            inactive_reason = _norm_text(feedback.closed_loop_reason)
+            intentional_inactive = (
+                inactive_reason in {"disabled", "stop_command", "active_scan_command", "physical_stall_recovery"}
+                or inactive_reason.startswith("phase_")
+                or inactive_reason.startswith("safety_")
+            )
+            if not intentional_inactive:
+                unhealthy_reason = "inactive"
+                if feedback.closed_loop_reason:
+                    unhealthy_reason += f"_{inactive_reason}"
+        if unhealthy_reason:
+            self._closed_loop_unhealthy = True
+            self._closed_loop_unhealthy_reason = unhealthy_reason
+        elif not feedback.physical_stall_detected:
+            self._closed_loop_unhealthy = False
+            self._closed_loop_unhealthy_reason = ""
         if (
             not self.enabled
             or self.phase != "sweep_search"
@@ -790,6 +821,14 @@ class CompetitionMissionV2:
             return False
         active = self.grid.active_cell()
         if active is None:
+            return False
+        if self._closed_loop_unhealthy and feedback.physical_stall_detected:
+            self.reason = f"closed_loop_unhealthy_hold_active_cell_{self._closed_loop_unhealthy_reason}"
+            self._last_update = self._make_update_from_active_or_previous()
+            return False
+        if feedback.closed_loop_diverging:
+            self.reason = f"closed_loop_diverging_hold_active_cell_{_norm_text(feedback.closed_loop_reason)}"
+            self._last_update = self._make_update_from_active_or_previous()
             return False
         if feedback.physical_stall_detected:
             reason = "physical_stall"
@@ -802,6 +841,8 @@ class CompetitionMissionV2:
                 self._active_cell_start_distance_m = None
                 self._active_cell_best_distance_m = None
                 self.reason = "active_cell_skipped_physical_stall"
+                self._closed_loop_unhealthy = True
+                self._closed_loop_unhealthy_reason = reason
                 self._last_update = self._make_update_from_active_or_previous()
                 return True
             if self.round == "round2":
@@ -816,6 +857,8 @@ class CompetitionMissionV2:
                 self._active_cell_start_distance_m = None
                 self._active_cell_best_distance_m = None
                 self.reason = "active_cell_skipped_physical_stall"
+                self._closed_loop_unhealthy = True
+                self._closed_loop_unhealthy_reason = reason
                 self._last_update = self._make_update_from_active_or_previous()
                 return True
         failed = bool(feedback.no_safe_trajectory or feedback.local_planner_failed or feedback.stuck)
@@ -941,6 +984,8 @@ class CompetitionMissionV2:
             "physical_stall_detected": bool(self._physical_stall_detected),
             "physical_stall_steps": int(self._physical_stall_steps),
             "physical_stall_reason": self._physical_stall_reason,
+            "closed_loop_unhealthy": bool(self._closed_loop_unhealthy),
+            "closed_loop_unhealthy_reason": self._closed_loop_unhealthy_reason,
             "minimum_speed_mps": round(float(self.config.min_competition_speed_mps), 4),
             "reason": self.reason,
             "stop_requested": bool(stop_requested),

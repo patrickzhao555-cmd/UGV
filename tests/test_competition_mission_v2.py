@@ -239,6 +239,56 @@ def test_round2_skips_active_cell_on_physical_stall_instead_of_repeating_turn():
     assert not status["stop_requested"]
 
 
+def test_round2_does_not_repeatedly_advance_cells_while_odom_stays_zero():
+    mission = CompetitionMissionV2("round2", small_config())
+    update = mission.update((0.0, 0.0, 0.0), 0.0)
+    first_cell = update.status["active_cell"]
+    changed = mission.observe_navigation_feedback(
+        NavigationFeedback(
+            1.6,
+            physical_stall_detected=True,
+            physical_stall_steps=16,
+            physical_stall_reason="active_command_zero_odom",
+        )
+    )
+    after_first = mission.status_dict()["active_cell"]
+    changed_again = mission.observe_navigation_feedback(
+        NavigationFeedback(
+            1.7,
+            physical_stall_detected=True,
+            physical_stall_steps=17,
+            physical_stall_reason="active_command_zero_odom",
+        )
+    )
+    after_second = mission.status_dict()["active_cell"]
+
+    assert changed
+    assert after_first != first_cell
+    assert not changed_again
+    assert after_second == after_first
+
+
+def test_sweep_divergence_holds_active_cell_even_when_pose_reaches_cell():
+    mission = CompetitionMissionV2("round2", small_config())
+    update = mission.update((0.0, 0.0, 0.0), 0.0)
+    active_cell = update.status["active_cell"]
+    active_xy = update.status["active_cell_xy_m"]
+    changed = mission.observe_navigation_feedback(
+        NavigationFeedback(
+            0.1,
+            closed_loop_active=True,
+            closed_loop_diverging=True,
+            closed_loop_reason="cross_track_error_growing",
+        )
+    )
+    update2 = mission.update((active_xy[0], active_xy[1], 0.0), 0.2)
+
+    assert not changed
+    assert update2.status["active_cell"] == active_cell
+    assert update2.status["visited_count"] == 0
+    assert update2.status["closed_loop_unhealthy"]
+
+
 def test_round3_skips_active_cell_on_physical_stall():
     mission = CompetitionMissionV2("round3", small_config())
     update = mission.update((0.0, 0.0, 0.0), 0.0)
@@ -315,6 +365,15 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--forward-arc-only-enabled",
         "--forward-arc-margin",
         "--min-sweep-v-mps",
+        "--omega-command-sign",
+        "--heading-error-sign",
+        "--lane-error-sign",
+        "--lane-correction-sign",
+        "--closed-loop-health-enabled",
+        "--closed-loop-divergence-window",
+        "--closed-loop-divergence-min-error-m",
+        "--closed-loop-divergence-max-growth-m",
+        "--closed-loop-divergence-action",
     ]:
         assert token in nav_script
         assert token in launch_file
@@ -348,5 +407,14 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "NAV_FORWARD_ARC_ONLY_ENABLED",
         "NAV_FORWARD_ARC_MARGIN",
         "NAV_MIN_SWEEP_V_MPS",
+        "NAV_OMEGA_COMMAND_SIGN",
+        "NAV_HEADING_ERROR_SIGN",
+        "NAV_LANE_ERROR_SIGN",
+        "NAV_LANE_CORRECTION_SIGN",
+        "NAV_CLOSED_LOOP_HEALTH_ENABLED",
+        "NAV_CLOSED_LOOP_DIVERGENCE_WINDOW",
+        "NAV_CLOSED_LOOP_DIVERGENCE_MIN_ERROR_M",
+        "NAV_CLOSED_LOOP_DIVERGENCE_MAX_GROWTH_M",
+        "NAV_CLOSED_LOOP_DIVERGENCE_ACTION",
     ]:
         assert token in bringup

@@ -23,6 +23,7 @@ from ugv_nav_core.competition_mission import (
     normalize_mission_flag_state,
 )
 from ugv_nav_core.closed_loop_controller import (
+    ClosedLoopHealthState,
     apply_competition_closed_loop_command,
     compute_heading_hold_correction,
     compute_lane_follow_correction,
@@ -541,6 +542,15 @@ class NavConfig:
     forward_arc_only_enabled: bool = True
     forward_arc_margin: float = 0.75
     min_sweep_v_mps: float = 0.08
+    omega_command_sign: float = 1.0
+    heading_error_sign: float = 1.0
+    lane_error_sign: float = 1.0
+    lane_correction_sign: float = 1.0
+    closed_loop_health_enabled: bool = True
+    closed_loop_divergence_window: int = 5
+    closed_loop_divergence_min_error_m: float = 0.08
+    closed_loop_divergence_max_growth_m: float = 0.05
+    closed_loop_divergence_action: str = "slow_then_stop"
     local_costmap_enabled: bool = True
     local_costmap_width_m: float = 4.0
     local_costmap_height_m: float = 4.0
@@ -2897,6 +2907,7 @@ class UGVNavigator:
         self._odom_warning_counter = 0
         self.last_sent_cmd = ControlCommand("STOP")
         self.physical_stall = PhysicalStallState()
+        self.closed_loop_health = ClosedLoopHealthState()
         self.closed_loop_debug = default_closed_loop_debug(nav_cfg)
         self._last_field_map_version = -1
         self._last_field_map_key = None
@@ -4668,6 +4679,15 @@ def run_simulation(
     forward_arc_only_enabled: bool = True,
     forward_arc_margin: float = 0.75,
     min_sweep_v_mps: float = 0.08,
+    omega_command_sign: float = 1.0,
+    heading_error_sign: float = 1.0,
+    lane_error_sign: float = 1.0,
+    lane_correction_sign: float = 1.0,
+    closed_loop_health_enabled: bool = True,
+    closed_loop_divergence_window: int = 5,
+    closed_loop_divergence_min_error_m: float = 0.08,
+    closed_loop_divergence_max_growth_m: float = 0.05,
+    closed_loop_divergence_action: str = "slow_then_stop",
     local_costmap_enabled: bool = True,
     local_costmap_width_m: float = 4.0,
     local_costmap_height_m: float = 4.0,
@@ -4729,6 +4749,17 @@ def run_simulation(
     nav_cfg.forward_arc_only_enabled = bool(forward_arc_only_enabled)
     nav_cfg.forward_arc_margin = clamp(float(forward_arc_margin), 0.0, 1.0)
     nav_cfg.min_sweep_v_mps = clamp(float(min_sweep_v_mps), 0.0, 1.0)
+    nav_cfg.omega_command_sign = 1.0 if float(omega_command_sign) >= 0.0 else -1.0
+    nav_cfg.heading_error_sign = 1.0 if float(heading_error_sign) >= 0.0 else -1.0
+    nav_cfg.lane_error_sign = 1.0 if float(lane_error_sign) >= 0.0 else -1.0
+    nav_cfg.lane_correction_sign = 1.0 if float(lane_correction_sign) >= 0.0 else -1.0
+    nav_cfg.closed_loop_health_enabled = bool(closed_loop_health_enabled)
+    nav_cfg.closed_loop_divergence_window = max(2, int(closed_loop_divergence_window))
+    nav_cfg.closed_loop_divergence_min_error_m = clamp(float(closed_loop_divergence_min_error_m), 0.0, 2.0)
+    nav_cfg.closed_loop_divergence_max_growth_m = clamp(float(closed_loop_divergence_max_growth_m), 0.0, 2.0)
+    nav_cfg.closed_loop_divergence_action = str(closed_loop_divergence_action).strip().lower()
+    if nav_cfg.closed_loop_divergence_action not in {"warn", "slow", "slow_then_stop", "stop"}:
+        nav_cfg.closed_loop_divergence_action = "slow_then_stop"
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
     nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
     nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
@@ -4990,6 +5021,7 @@ def navigation_feedback_for_competition_v2(
     frame: SensorFrame,
 ) -> NavigationFeedback:
     velocity_debug = navigator.velocity_debug or {}
+    closed_loop_debug = navigator.closed_loop_debug or {}
     finish_reason = str(navigator.state.finish_reason or "")
     planner_failed = navigator.state.planner_name == "failed" and not navigator.state.path
     no_safe = velocity_debug.get("safety_state") == "no_safe_trajectory"
@@ -5009,6 +5041,9 @@ def navigation_feedback_for_competition_v2(
         physical_stall_detected=bool(navigator.physical_stall.detected),
         physical_stall_steps=int(navigator.physical_stall.steps),
         physical_stall_reason=navigator.physical_stall.reason,
+        closed_loop_active=bool(closed_loop_debug.get("closed_loop_active", False)),
+        closed_loop_diverging=bool(closed_loop_debug.get("closed_loop_diverging", False)),
+        closed_loop_reason=str(closed_loop_debug.get("divergence_reason") or closed_loop_debug.get("reason") or ""),
         finish_reason=finish_reason,
         progress_m=progress_m,
     )
@@ -5099,6 +5134,15 @@ def run_real_mode(
     forward_arc_only_enabled: bool = True,
     forward_arc_margin: float = 0.75,
     min_sweep_v_mps: float = 0.08,
+    omega_command_sign: float = 1.0,
+    heading_error_sign: float = 1.0,
+    lane_error_sign: float = 1.0,
+    lane_correction_sign: float = 1.0,
+    closed_loop_health_enabled: bool = True,
+    closed_loop_divergence_window: int = 5,
+    closed_loop_divergence_min_error_m: float = 0.08,
+    closed_loop_divergence_max_growth_m: float = 0.05,
+    closed_loop_divergence_action: str = "slow_then_stop",
     local_costmap_enabled: bool = True,
     local_costmap_width_m: float = 4.0,
     local_costmap_height_m: float = 4.0,
@@ -5174,6 +5218,17 @@ def run_real_mode(
     nav_cfg.forward_arc_only_enabled = bool(forward_arc_only_enabled)
     nav_cfg.forward_arc_margin = clamp(float(forward_arc_margin), 0.0, 1.0)
     nav_cfg.min_sweep_v_mps = clamp(float(min_sweep_v_mps), 0.0, 1.0)
+    nav_cfg.omega_command_sign = 1.0 if float(omega_command_sign) >= 0.0 else -1.0
+    nav_cfg.heading_error_sign = 1.0 if float(heading_error_sign) >= 0.0 else -1.0
+    nav_cfg.lane_error_sign = 1.0 if float(lane_error_sign) >= 0.0 else -1.0
+    nav_cfg.lane_correction_sign = 1.0 if float(lane_correction_sign) >= 0.0 else -1.0
+    nav_cfg.closed_loop_health_enabled = bool(closed_loop_health_enabled)
+    nav_cfg.closed_loop_divergence_window = max(2, int(closed_loop_divergence_window))
+    nav_cfg.closed_loop_divergence_min_error_m = clamp(float(closed_loop_divergence_min_error_m), 0.0, 2.0)
+    nav_cfg.closed_loop_divergence_max_growth_m = clamp(float(closed_loop_divergence_max_growth_m), 0.0, 2.0)
+    nav_cfg.closed_loop_divergence_action = str(closed_loop_divergence_action).strip().lower()
+    if nav_cfg.closed_loop_divergence_action not in {"warn", "slow", "slow_then_stop", "stop"}:
+        nav_cfg.closed_loop_divergence_action = "slow_then_stop"
     nav_cfg.local_costmap_enabled = bool(local_costmap_enabled)
     nav_cfg.local_costmap_width_m = clamp(float(local_costmap_width_m), 1.0, 10.0)
     nav_cfg.local_costmap_height_m = clamp(float(local_costmap_height_m), 1.0, 10.0)
@@ -5323,6 +5378,15 @@ def run_real_mode(
         f"forward_arc_only={nav_cfg.forward_arc_only_enabled}, "
         f"forward_arc_margin={nav_cfg.forward_arc_margin:.2f}, "
         f"min_sweep_v={nav_cfg.min_sweep_v_mps:.2f}m/s, "
+        f"omega_sign={nav_cfg.omega_command_sign:.0f}, "
+        f"heading_sign={nav_cfg.heading_error_sign:.0f}, "
+        f"lane_error_sign={nav_cfg.lane_error_sign:.0f}, "
+        f"lane_correction_sign={nav_cfg.lane_correction_sign:.0f}, "
+        f"health={nav_cfg.closed_loop_health_enabled} "
+        f"(window={nav_cfg.closed_loop_divergence_window}, "
+        f"min_error={nav_cfg.closed_loop_divergence_min_error_m:.2f}m, "
+        f"max_growth={nav_cfg.closed_loop_divergence_max_growth_m:.2f}m, "
+        f"action={nav_cfg.closed_loop_divergence_action}), "
         f"local_costmap={nav_cfg.local_costmap_enabled})"
     )
     print("Expected ROS2 topics if using Ros2Bridge:")
@@ -5529,6 +5593,15 @@ def main() -> None:
     parser.add_argument("--forward-arc-only-enabled", type=str_to_bool, default=True, help="keep normal competition sweep arcs forward-only so neither wheel target reverses")
     parser.add_argument("--forward-arc-margin", type=float, default=0.75, help="fraction of the no-reverse arc omega limit used during normal sweep")
     parser.add_argument("--min-sweep-v-mps", type=float, default=0.08, help="minimum forward velocity used by normal competition sweep closed-loop control")
+    parser.add_argument("--omega-command-sign", type=float, default=1.0, help="sign multiplier applied to final competition closed-loop omega command")
+    parser.add_argument("--heading-error-sign", type=float, default=1.0, help="sign multiplier applied to sweep heading error")
+    parser.add_argument("--lane-error-sign", type=float, default=1.0, help="sign multiplier applied to sweep lane cross-track error")
+    parser.add_argument("--lane-correction-sign", type=float, default=1.0, help="sign multiplier applied to sweep lane correction direction")
+    parser.add_argument("--closed-loop-health-enabled", type=str_to_bool, default=True, help="enable competition sweep closed-loop divergence supervision")
+    parser.add_argument("--closed-loop-divergence-window", type=int, default=5, help="rolling frame window for competition closed-loop divergence detection")
+    parser.add_argument("--closed-loop-divergence-min-error-m", type=float, default=0.08, help="minimum lane error considered by closed-loop divergence detection")
+    parser.add_argument("--closed-loop-divergence-max-growth-m", type=float, default=0.05, help="max allowed lane-error growth over the divergence window")
+    parser.add_argument("--closed-loop-divergence-action", choices=["warn", "slow", "slow_then_stop", "stop"], default="slow_then_stop", help="action when competition closed-loop divergence persists")
     parser.add_argument("--local-costmap-enabled", type=str_to_bool, default=True, help="use rolling local costmap for local safety/collision checks")
     parser.add_argument("--local-costmap-width-m", type=float, default=4.0, help="rolling local costmap width in meters")
     parser.add_argument("--local-costmap-height-m", type=float, default=4.0, help="rolling local costmap height in meters")
@@ -5578,6 +5651,15 @@ def main() -> None:
             forward_arc_only_enabled=args.forward_arc_only_enabled,
             forward_arc_margin=args.forward_arc_margin,
             min_sweep_v_mps=args.min_sweep_v_mps,
+            omega_command_sign=args.omega_command_sign,
+            heading_error_sign=args.heading_error_sign,
+            lane_error_sign=args.lane_error_sign,
+            lane_correction_sign=args.lane_correction_sign,
+            closed_loop_health_enabled=args.closed_loop_health_enabled,
+            closed_loop_divergence_window=args.closed_loop_divergence_window,
+            closed_loop_divergence_min_error_m=args.closed_loop_divergence_min_error_m,
+            closed_loop_divergence_max_growth_m=args.closed_loop_divergence_max_growth_m,
+            closed_loop_divergence_action=args.closed_loop_divergence_action,
             local_costmap_enabled=args.local_costmap_enabled,
             local_costmap_width_m=args.local_costmap_width_m,
             local_costmap_height_m=args.local_costmap_height_m,
@@ -5690,6 +5772,15 @@ def main() -> None:
             forward_arc_only_enabled=args.forward_arc_only_enabled,
             forward_arc_margin=args.forward_arc_margin,
             min_sweep_v_mps=args.min_sweep_v_mps,
+            omega_command_sign=args.omega_command_sign,
+            heading_error_sign=args.heading_error_sign,
+            lane_error_sign=args.lane_error_sign,
+            lane_correction_sign=args.lane_correction_sign,
+            closed_loop_health_enabled=args.closed_loop_health_enabled,
+            closed_loop_divergence_window=args.closed_loop_divergence_window,
+            closed_loop_divergence_min_error_m=args.closed_loop_divergence_min_error_m,
+            closed_loop_divergence_max_growth_m=args.closed_loop_divergence_max_growth_m,
+            closed_loop_divergence_action=args.closed_loop_divergence_action,
             local_costmap_enabled=args.local_costmap_enabled,
             local_costmap_width_m=args.local_costmap_width_m,
             local_costmap_height_m=args.local_costmap_height_m,

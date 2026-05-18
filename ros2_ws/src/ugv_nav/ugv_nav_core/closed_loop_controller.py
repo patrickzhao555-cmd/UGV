@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
 
@@ -41,8 +42,10 @@ def compute_heading_hold_correction(
     kd: float = 0.05,
     deadband_deg: float = 3.0,
     max_omega_radps: float = 0.55,
+    heading_error_sign: float = 1.0,
 ) -> Tuple[float, float]:
-    heading_error = wrap_to_pi(float(target_yaw_rad) - float(estimated_yaw_rad))
+    sign = 1.0 if float(heading_error_sign) >= 0.0 else -1.0
+    heading_error = sign * wrap_to_pi(float(target_yaw_rad) - float(estimated_yaw_rad))
     if abs(heading_error) <= math.radians(max(0.0, float(deadband_deg))):
         return heading_error, 0.0
     yaw_rate_error = 0.0
@@ -62,13 +65,17 @@ def compute_lane_follow_correction(
     deadband_m: float = 0.03,
     max_heading_deg: float = 18.0,
     max_omega_radps: float = 0.35,
+    lane_error_sign: float = 1.0,
+    lane_correction_sign: float = 1.0,
 ) -> Tuple[float, float, float]:
-    cross_track_error = float(lane_y_m) - float(estimated_y_m)
+    error_sign = 1.0 if float(lane_error_sign) >= 0.0 else -1.0
+    correction_sign = 1.0 if float(lane_correction_sign) >= 0.0 else -1.0
+    cross_track_error = error_sign * (float(lane_y_m) - float(estimated_y_m))
     if abs(cross_track_error) <= max(0.0, float(deadband_m)):
         return cross_track_error, 0.0, 0.0
     direction = 1.0 if float(row_direction) >= 0.0 else -1.0
     max_heading = math.radians(max(0.0, float(max_heading_deg)))
-    desired_heading_offset = direction * clamp(
+    desired_heading_offset = correction_sign * direction * clamp(
         math.atan(float(kp_heading) * cross_track_error),
         -max_heading,
         max_heading,
@@ -113,6 +120,184 @@ def apply_forward_arc_only_limit(
     return final_v, clamped_omega, omega_limit, clamped, left, right
 
 
+@dataclass
+class ClosedLoopHealthSample:
+    timestamp_s: float
+    cross_track_error_m: float
+    heading_error_deg: float
+    final_omega_radps: float
+    estimated_yaw_deg: float
+    pose_x_m: float
+    pose_y_m: float
+    odom_ds_m: float
+    odom_dtheta_deg: float
+    command_v_mps: float
+    command_omega_radps: float
+
+
+@dataclass
+class ClosedLoopHealthState:
+    samples: list[ClosedLoopHealthSample] = field(default_factory=list)
+    cross_track_growth_count: int = 0
+    heading_growth_count: int = 0
+    no_motion_count: int = 0
+    divergence_persist_count: int = 0
+    diverging: bool = False
+    divergence_reason: str = ""
+    cross_track_error_trend: float = 0.0
+    heading_error_trend: float = 0.0
+    last_error_abs: Optional[float] = None
+    current_error_abs: Optional[float] = None
+
+    def reset(self) -> None:
+        self.samples.clear()
+        self.cross_track_growth_count = 0
+        self.heading_growth_count = 0
+        self.no_motion_count = 0
+        self.divergence_persist_count = 0
+        self.diverging = False
+        self.divergence_reason = ""
+        self.cross_track_error_trend = 0.0
+        self.heading_error_trend = 0.0
+        self.last_error_abs = None
+        self.current_error_abs = None
+
+
+def _sign_value(value: float) -> int:
+    if value > 1e-9:
+        return 1
+    if value < -1e-9:
+        return -1
+    return 0
+
+
+def closed_loop_correction_sign_ok(
+    *,
+    cross_track_error_m: float,
+    omega_lane_radps: float,
+    heading_error_rad: float,
+    omega_heading_radps: float,
+    row_direction: float,
+    lane_active: bool,
+    heading_active: bool,
+    min_error_m: float,
+    heading_deadband_deg: float,
+) -> bool:
+    checks = []
+    if lane_active and abs(cross_track_error_m) >= max(0.0, float(min_error_m)):
+        expected_lane_sign = _sign_value(float(row_direction) * float(cross_track_error_m))
+        lane_sign = _sign_value(float(omega_lane_radps))
+        if expected_lane_sign and lane_sign:
+            checks.append(expected_lane_sign == lane_sign)
+    if heading_active and abs(math.degrees(float(heading_error_rad))) >= max(0.0, float(heading_deadband_deg)):
+        heading_sign = _sign_value(float(heading_error_rad))
+        omega_sign = _sign_value(float(omega_heading_radps))
+        if heading_sign and omega_sign:
+            checks.append(heading_sign == omega_sign)
+    return all(checks) if checks else True
+
+
+def update_closed_loop_health(
+    state: ClosedLoopHealthState,
+    *,
+    enabled: bool,
+    sample: ClosedLoopHealthSample,
+    lane_active: bool,
+    heading_active: bool,
+    correction_sign_ok: bool,
+    window: int = 5,
+    min_error_m: float = 0.08,
+    max_growth_m: float = 0.05,
+) -> Dict[str, Any]:
+    if not enabled:
+        state.reset()
+        return {
+            "closed_loop_diverging": False,
+            "divergence_reason": "health_disabled",
+            "cross_track_error_trend": 0.0,
+            "heading_error_trend": 0.0,
+            "last_error_abs": None,
+            "current_error_abs": None,
+        }
+
+    window = max(2, int(window))
+    min_error_m = max(0.0, float(min_error_m))
+    max_growth_m = max(0.0, float(max_growth_m))
+    abs_cte = abs(float(sample.cross_track_error_m))
+    abs_heading = abs(float(sample.heading_error_deg))
+    prev = state.samples[-1] if state.samples else None
+    state.last_error_abs = None if prev is None else abs(prev.cross_track_error_m)
+    state.current_error_abs = abs_cte
+
+    if prev is not None:
+        if lane_active and abs_cte > abs(prev.cross_track_error_m) + 1e-4:
+            state.cross_track_growth_count += 1
+        else:
+            state.cross_track_growth_count = 0
+        if heading_active and abs_heading > abs(prev.heading_error_deg) + 0.25:
+            state.heading_growth_count += 1
+        else:
+            state.heading_growth_count = 0
+        pose_delta = math.hypot(sample.pose_x_m - prev.pose_x_m, sample.pose_y_m - prev.pose_y_m)
+        commanded_motion = abs(sample.command_v_mps) >= 0.02 or abs(sample.command_omega_radps) >= 0.08
+        odom_motion = abs(sample.odom_ds_m) >= 0.003 or abs(sample.odom_dtheta_deg) >= 0.5 or pose_delta >= 0.003
+        if commanded_motion and not odom_motion:
+            state.no_motion_count += 1
+        else:
+            state.no_motion_count = 0
+    else:
+        state.cross_track_growth_count = 0
+        state.heading_growth_count = 0
+        state.no_motion_count = 0
+
+    state.samples.append(sample)
+    if len(state.samples) > window:
+        state.samples = state.samples[-window:]
+    oldest = state.samples[0]
+    state.cross_track_error_trend = abs_cte - abs(oldest.cross_track_error_m)
+    state.heading_error_trend = abs_heading - abs(oldest.heading_error_deg)
+
+    heading_growth_limit_deg = max(2.0, max_growth_m * 50.0)
+    cross_track_diverging = (
+        lane_active
+        and abs_cte >= min_error_m
+        and state.cross_track_growth_count >= window - 1
+        and state.cross_track_error_trend >= max_growth_m
+    )
+    heading_diverging = (
+        heading_active
+        and state.heading_growth_count >= window - 1
+        and state.heading_error_trend >= heading_growth_limit_deg
+    )
+    no_motion_diverging = state.no_motion_count >= window - 1
+    sign_diverging = not correction_sign_ok and (abs_cte >= min_error_m or abs_heading >= heading_growth_limit_deg)
+
+    reasons = []
+    if cross_track_diverging:
+        reasons.append("cross_track_error_growing")
+    if heading_diverging:
+        reasons.append("heading_error_growing")
+    if sign_diverging:
+        reasons.append("correction_sign_mismatch")
+    if no_motion_diverging:
+        reasons.append("commanded_motion_zero_odom")
+    state.diverging = bool(reasons)
+    state.divergence_reason = "_".join(reasons)
+    if state.diverging:
+        state.divergence_persist_count += 1
+    else:
+        state.divergence_persist_count = 0
+
+    return {
+        "closed_loop_diverging": state.diverging,
+        "divergence_reason": state.divergence_reason,
+        "cross_track_error_trend": round(state.cross_track_error_trend, 4),
+        "heading_error_trend": round(state.heading_error_trend, 3),
+        "last_error_abs": None if state.last_error_abs is None else round(state.last_error_abs, 4),
+        "current_error_abs": round(state.current_error_abs, 4),
+    }
+
+
 def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
     return {
         "closed_loop_enabled": _cfg_bool(nav_cfg, "competition_closed_loop_enabled") if nav_cfg is not None else False,
@@ -135,6 +320,19 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "forward_arc_clamped": False,
         "final_left_target_mps": 0.0,
         "final_right_target_mps": 0.0,
+        "closed_loop_health_enabled": _cfg_bool(nav_cfg, "closed_loop_health_enabled", True) if nav_cfg is not None else True,
+        "closed_loop_diverging": False,
+        "divergence_reason": "",
+        "cross_track_error_trend": 0.0,
+        "heading_error_trend": 0.0,
+        "correction_sign_ok": True,
+        "omega_command_sign": _cfg_float(nav_cfg, "omega_command_sign", 1.0) if nav_cfg is not None else 1.0,
+        "heading_error_sign": _cfg_float(nav_cfg, "heading_error_sign", 1.0) if nav_cfg is not None else 1.0,
+        "lane_error_sign": _cfg_float(nav_cfg, "lane_error_sign", 1.0) if nav_cfg is not None else 1.0,
+        "lane_correction_sign": _cfg_float(nav_cfg, "lane_correction_sign", 1.0) if nav_cfg is not None else 1.0,
+        "last_error_abs": None,
+        "current_error_abs": None,
+        "divergence_action": str(getattr(nav_cfg, "closed_loop_divergence_action", "slow_then_stop")) if nav_cfg is not None else "slow_then_stop",
         "target_yaw_deg": None,
         "estimated_yaw_deg": None,
         "heading_error_deg": None,
@@ -236,6 +434,7 @@ def apply_competition_closed_loop_command(
         kd=nav_cfg.heading_hold_kd,
         deadband_deg=nav_cfg.heading_hold_deadband_deg,
         max_omega_radps=nav_cfg.heading_hold_max_omega_rps,
+        heading_error_sign=nav_cfg.heading_error_sign,
     )
     if not nav_cfg.heading_hold_enabled:
         omega_heading = 0.0
@@ -249,10 +448,23 @@ def apply_competition_closed_loop_command(
         deadband_m=nav_cfg.lane_follow_deadband_m,
         max_heading_deg=nav_cfg.lane_follow_max_heading_deg,
         max_omega_radps=nav_cfg.lane_follow_max_omega_rps,
+        lane_error_sign=nav_cfg.lane_error_sign,
+        lane_correction_sign=nav_cfg.lane_correction_sign,
     )
     if not nav_cfg.lane_follow_enabled:
         lane_heading_offset = 0.0
         omega_lane = 0.0
+    correction_sign_ok = closed_loop_correction_sign_ok(
+        cross_track_error_m=cross_track_error,
+        omega_lane_radps=omega_lane,
+        heading_error_rad=heading_error,
+        omega_heading_radps=omega_heading,
+        row_direction=row_direction,
+        lane_active=bool(nav_cfg.lane_follow_enabled),
+        heading_active=bool(nav_cfg.heading_hold_enabled),
+        min_error_m=nav_cfg.closed_loop_divergence_min_error_m,
+        heading_deadband_deg=nav_cfg.heading_hold_deadband_deg,
+    )
 
     min_v = max(
         nav_cfg.continuous_min_speed_mps,
@@ -269,6 +481,7 @@ def apply_competition_closed_loop_command(
         -nav_cfg.continuous_max_omega_rps,
         nav_cfg.continuous_max_omega_rps,
     )
+    final_omega *= 1.0 if nav_cfg.omega_command_sign >= 0.0 else -1.0
     final_v, final_omega, forward_arc_limit, forward_arc_clamped, left_target, right_target = apply_forward_arc_only_limit(
         final_v,
         final_omega,
@@ -277,6 +490,76 @@ def apply_competition_closed_loop_command(
         margin=nav_cfg.forward_arc_margin,
         min_v_mps=min(nav_cfg.continuous_max_speed_mps, max(nav_cfg.min_sweep_v_mps, min_v)),
     )
+    health_state = getattr(navigator, "closed_loop_health", None)
+    if health_state is None:
+        health_state = ClosedLoopHealthState()
+        navigator.closed_loop_health = health_state
+    odom_delta = getattr(navigator, "last_odom_delta", {}) or {}
+    health = update_closed_loop_health(
+        health_state,
+        enabled=bool(nav_cfg.closed_loop_health_enabled),
+        sample=ClosedLoopHealthSample(
+            timestamp_s=float(frame.encoder.timestamp),
+            cross_track_error_m=float(cross_track_error),
+            heading_error_deg=math.degrees(float(heading_error)),
+            final_omega_radps=float(final_omega),
+            estimated_yaw_deg=math.degrees(float(pose.yaw)),
+            pose_x_m=float(pose.x),
+            pose_y_m=float(pose.y),
+            odom_ds_m=float(odom_delta.get("ds_used_m", odom_delta.get("ds_m", 0.0)) or 0.0),
+            odom_dtheta_deg=float(odom_delta.get("dtheta_deg") or 0.0),
+            command_v_mps=float(final_v),
+            command_omega_radps=float(final_omega),
+        ),
+        lane_active=bool(nav_cfg.lane_follow_enabled),
+        heading_active=bool(nav_cfg.heading_hold_enabled),
+        correction_sign_ok=bool(correction_sign_ok),
+        window=nav_cfg.closed_loop_divergence_window,
+        min_error_m=nav_cfg.closed_loop_divergence_min_error_m,
+        max_growth_m=nav_cfg.closed_loop_divergence_max_growth_m,
+    )
+    divergence_action = str(nav_cfg.closed_loop_divergence_action or "slow_then_stop").strip().lower()
+    if divergence_action not in {"warn", "slow", "slow_then_stop", "stop"}:
+        divergence_action = "slow_then_stop"
+    if health["closed_loop_diverging"]:
+        if divergence_action in {"slow", "slow_then_stop"}:
+            final_v = max(0.0, min(final_v, max(nav_cfg.min_sweep_v_mps, min_v) * 0.45))
+            final_omega = clamp(final_omega, -0.18, 0.18)
+            left_target, right_target = wheel_targets_from_v_omega(final_v, final_omega, navigator.robot_cfg.track_width_m)
+        if divergence_action == "stop" or (
+            divergence_action == "slow_then_stop"
+            and health_state.divergence_persist_count >= 2
+        ):
+            debug.update(
+                {
+                    "closed_loop_active": True,
+                    "target_yaw_deg": round(math.degrees(target_yaw), 2),
+                    "estimated_yaw_deg": round(math.degrees(pose.yaw), 2),
+                    "heading_error_deg": round(math.degrees(heading_error), 2),
+                    "cross_track_error_m": round(cross_track_error, 4),
+                    "omega_heading_radps": round(omega_heading, 4),
+                    "omega_lane_radps": round(omega_lane, 4),
+                    "lane_heading_offset_deg": round(math.degrees(lane_heading_offset), 2),
+                    "final_v_mps": 0.0,
+                    "final_omega_radps": 0.0,
+                    "forward_arc_omega_limit_radps": None if forward_arc_limit is None else round(forward_arc_limit, 4),
+                    "forward_arc_clamped": bool(forward_arc_clamped),
+                    "final_left_target_mps": 0.0,
+                    "final_right_target_mps": 0.0,
+                    "heading_source": heading_source,
+                    "reason": f"closed_loop_divergence_{divergence_action}",
+                    "correction_sign_ok": bool(correction_sign_ok),
+                    "divergence_action": divergence_action,
+                    **health,
+                }
+            )
+            navigator.closed_loop_debug = debug
+            return cmd.__class__(
+                "STOP",
+                reason=f"closed-loop divergence: {health['divergence_reason']}",
+                controller="velocity",
+                command_type="stop",
+            )
 
     adjusted = navigator.velocity_planner._velocity_to_command(
         final_v,
@@ -306,7 +589,10 @@ def apply_competition_closed_loop_command(
             "final_left_target_mps": round(left_target, 4),
             "final_right_target_mps": round(right_target, 4),
             "heading_source": heading_source,
-            "reason": "sweep_lane_heading_closed_loop",
+            "reason": "closed_loop_divergence_slow" if health["closed_loop_diverging"] else "sweep_lane_heading_closed_loop",
+            "correction_sign_ok": bool(correction_sign_ok),
+            "divergence_action": divergence_action,
+            **health,
         }
     )
     navigator.closed_loop_debug = debug

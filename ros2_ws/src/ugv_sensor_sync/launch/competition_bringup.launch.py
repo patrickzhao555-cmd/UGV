@@ -220,6 +220,15 @@ def generate_launch_description():
     forward_arc_only_enabled = LaunchConfiguration('forward_arc_only_enabled')
     forward_arc_margin = LaunchConfiguration('forward_arc_margin')
     min_sweep_v_mps = LaunchConfiguration('min_sweep_v_mps')
+    omega_command_sign = LaunchConfiguration('omega_command_sign')
+    heading_error_sign = LaunchConfiguration('heading_error_sign')
+    lane_error_sign = LaunchConfiguration('lane_error_sign')
+    lane_correction_sign = LaunchConfiguration('lane_correction_sign')
+    closed_loop_health_enabled = LaunchConfiguration('closed_loop_health_enabled')
+    closed_loop_divergence_window = LaunchConfiguration('closed_loop_divergence_window')
+    closed_loop_divergence_min_error_m = LaunchConfiguration('closed_loop_divergence_min_error_m')
+    closed_loop_divergence_max_growth_m = LaunchConfiguration('closed_loop_divergence_max_growth_m')
+    closed_loop_divergence_action = LaunchConfiguration('closed_loop_divergence_action')
     local_costmap_enabled = LaunchConfiguration('local_costmap_enabled')
     local_costmap_width_m = LaunchConfiguration('local_costmap_width_m')
     local_costmap_height_m = LaunchConfiguration('local_costmap_height_m')
@@ -473,6 +482,24 @@ def generate_launch_description():
             forward_arc_margin,
             '--min-sweep-v-mps',
             min_sweep_v_mps,
+            '--omega-command-sign',
+            omega_command_sign,
+            '--heading-error-sign',
+            heading_error_sign,
+            '--lane-error-sign',
+            lane_error_sign,
+            '--lane-correction-sign',
+            lane_correction_sign,
+            '--closed-loop-health-enabled',
+            closed_loop_health_enabled,
+            '--closed-loop-divergence-window',
+            closed_loop_divergence_window,
+            '--closed-loop-divergence-min-error-m',
+            closed_loop_divergence_min_error_m,
+            '--closed-loop-divergence-max-growth-m',
+            closed_loop_divergence_max_growth_m,
+            '--closed-loop-divergence-action',
+            closed_loop_divergence_action,
             '--local-costmap-enabled',
             local_costmap_enabled,
             '--local-costmap-width-m',
@@ -735,6 +762,15 @@ def generate_launch_description():
         DeclareLaunchArgument('forward_arc_only_enabled', default_value='true'),
         DeclareLaunchArgument('forward_arc_margin', default_value='0.75'),
         DeclareLaunchArgument('min_sweep_v_mps', default_value='0.08'),
+        DeclareLaunchArgument('omega_command_sign', default_value='1.0'),
+        DeclareLaunchArgument('heading_error_sign', default_value='1.0'),
+        DeclareLaunchArgument('lane_error_sign', default_value='1.0'),
+        DeclareLaunchArgument('lane_correction_sign', default_value='1.0'),
+        DeclareLaunchArgument('closed_loop_health_enabled', default_value='true'),
+        DeclareLaunchArgument('closed_loop_divergence_window', default_value='5'),
+        DeclareLaunchArgument('closed_loop_divergence_min_error_m', default_value='0.08'),
+        DeclareLaunchArgument('closed_loop_divergence_max_growth_m', default_value='0.05'),
+        DeclareLaunchArgument('closed_loop_divergence_action', default_value='slow_then_stop'),
         DeclareLaunchArgument('local_costmap_enabled', default_value='true'),
         DeclareLaunchArgument('local_costmap_width_m', default_value='4.0'),
         DeclareLaunchArgument('local_costmap_height_m', default_value='4.0'),

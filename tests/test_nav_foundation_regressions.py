@@ -10,10 +10,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 
 from ugv_nav_core.closed_loop_controller import (  # noqa: E402
+    ClosedLoopHealthSample,
+    ClosedLoopHealthState,
     apply_forward_arc_only_limit,
     apply_competition_closed_loop_command,
     compute_heading_hold_correction,
     compute_lane_follow_correction,
+    update_closed_loop_health,
     wheel_targets_from_v_omega,
 )
 from ugv_nav_dual_mode import (  # noqa: E402
@@ -319,6 +322,110 @@ def test_lane_cross_track_correction_sign_uses_sweep_direction():
     assert omega_odd < 0.0
 
 
+def test_closed_loop_sign_multipliers_affect_correction_direction():
+    _cte, _heading, omega_default = compute_lane_follow_correction(
+        lane_y_m=0.45,
+        estimated_y_m=0.20,
+        row_direction=1.0,
+        kp_heading=1.0,
+        kp_omega=1.0,
+        deadband_m=0.01,
+        max_heading_deg=18.0,
+        max_omega_radps=0.35,
+    )
+    _cte_flip, _heading_flip, omega_flip = compute_lane_follow_correction(
+        lane_y_m=0.45,
+        estimated_y_m=0.20,
+        row_direction=1.0,
+        kp_heading=1.0,
+        kp_omega=1.0,
+        deadband_m=0.01,
+        max_heading_deg=18.0,
+        max_omega_radps=0.35,
+        lane_correction_sign=-1.0,
+    )
+    heading_default, omega_heading_default = compute_heading_hold_correction(
+        math.radians(10.0),
+        0.0,
+        kp=1.0,
+        kd=0.0,
+        deadband_deg=0.0,
+        max_omega_radps=0.6,
+    )
+    heading_flip, omega_heading_flip = compute_heading_hold_correction(
+        math.radians(10.0),
+        0.0,
+        kp=1.0,
+        kd=0.0,
+        deadband_deg=0.0,
+        max_omega_radps=0.6,
+        heading_error_sign=-1.0,
+    )
+
+    assert omega_default > 0.0
+    assert omega_flip < 0.0
+    assert heading_default > 0.0
+    assert omega_heading_default > 0.0
+    assert heading_flip < 0.0
+    assert omega_heading_flip < 0.0
+
+
+def _health_sample(cte: float, heading: float = 1.0, x: float = 0.0) -> ClosedLoopHealthSample:
+    return ClosedLoopHealthSample(
+        timestamp_s=x,
+        cross_track_error_m=cte,
+        heading_error_deg=heading,
+        final_omega_radps=0.1,
+        estimated_yaw_deg=0.0,
+        pose_x_m=x,
+        pose_y_m=0.0,
+        odom_ds_m=0.02,
+        odom_dtheta_deg=1.0,
+        command_v_mps=0.1,
+        command_omega_radps=0.1,
+    )
+
+
+def test_closed_loop_health_allows_decreasing_cross_track_error():
+    state = ClosedLoopHealthState()
+    result = {}
+    for i, error in enumerate([0.20, 0.17, 0.14, 0.11, 0.09]):
+        result = update_closed_loop_health(
+            state,
+            enabled=True,
+            sample=_health_sample(error, x=float(i)),
+            lane_active=True,
+            heading_active=False,
+            correction_sign_ok=True,
+            window=5,
+            min_error_m=0.08,
+            max_growth_m=0.05,
+        )
+
+    assert not result["closed_loop_diverging"]
+    assert result["cross_track_error_trend"] < 0.0
+
+
+def test_closed_loop_health_flags_growing_cross_track_error_under_correction():
+    state = ClosedLoopHealthState()
+    result = {}
+    for i, error in enumerate([0.10, 0.13, 0.16, 0.19, 0.22]):
+        result = update_closed_loop_health(
+            state,
+            enabled=True,
+            sample=_health_sample(error, x=float(i)),
+            lane_active=True,
+            heading_active=False,
+            correction_sign_ok=True,
+            window=5,
+            min_error_m=0.08,
+            max_growth_m=0.05,
+        )
+
+    assert result["closed_loop_diverging"]
+    assert "cross_track_error_growing" in result["divergence_reason"]
+
+
 def test_competition_closed_loop_sweep_keeps_forward_velocity_and_avoids_pure_turn():
     robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.6096)
     sensor_cfg = SensorConfig()
@@ -374,6 +481,86 @@ def test_competition_closed_loop_sweep_keeps_forward_velocity_and_avoids_pure_tu
     assert navigator.closed_loop_debug["final_v_mps"] > 0.0
     assert navigator.closed_loop_debug["final_left_target_mps"] >= 0.0
     assert navigator.closed_loop_debug["final_right_target_mps"] >= 0.0
+
+
+def test_closed_loop_inactive_during_sweep_has_explicit_reason():
+    robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.6096)
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    nav_cfg.competition_closed_loop_enabled = False
+    navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, 5.0, 2.0, Pose2D(0.0, 0.0, 0.0), Pose2D(1.0, 0.0, 0.0))
+    frame = SensorFrame(
+        encoder=EncoderPacket(0, 0, 1.0),
+        lidar=LidarPacket(hit_points_local=[], ranges_m=[], angles_rad=[], timestamp=1.0),
+        zed=ZedPacket(hit_points_local=[], timestamp=1.0),
+        goal=GoalPacket(1.0, 0.0, 1.0),
+    )
+    mission_status = {
+        "competition_v2": {
+            "enabled": True,
+            "phase": "sweep_search",
+            "active_lane_y_m": 0.45,
+            "active_cell_row": 0,
+            "minimum_speed_mps": 0.0894,
+        }
+    }
+
+    adjusted = apply_competition_closed_loop_command(
+        navigator,
+        ControlCommand("FORWARD", v_mps=0.1, controller="velocity", command_type="velocity"),
+        frame,
+        mission_status,
+    )
+
+    assert adjusted.mode == "FORWARD"
+    assert not navigator.closed_loop_debug["closed_loop_active"]
+    assert navigator.closed_loop_debug["reason"] == "disabled"
+
+
+def test_closed_loop_divergence_action_slow_then_stop():
+    robot_cfg = RobotConfig(length_m=0.76, width_m=0.76, track_width_m=0.6096)
+    sensor_cfg = SensorConfig()
+    nav_cfg = NavConfig()
+    nav_cfg.competition_closed_loop_enabled = True
+    nav_cfg.closed_loop_divergence_window = 2
+    nav_cfg.closed_loop_divergence_min_error_m = 0.08
+    nav_cfg.closed_loop_divergence_max_growth_m = 0.01
+    nav_cfg.closed_loop_divergence_action = "slow_then_stop"
+    navigator = UGVNavigator(robot_cfg, sensor_cfg, nav_cfg, 5.0, 2.0, Pose2D(0.0, -0.10, 0.0), Pose2D(1.0, 0.0, 0.0))
+    navigator.velocity_debug = {"safety_state": "clear"}
+    mission_status = {
+        "competition_v2": {
+            "enabled": True,
+            "phase": "sweep_search",
+            "active_lane_y_m": 0.0,
+            "active_cell_row": 0,
+            "minimum_speed_mps": 0.0894,
+            "sweep_target_yaw_deg": 0.0,
+        }
+    }
+    frame = SensorFrame(
+        encoder=EncoderPacket(0, 0, 1.0),
+        lidar=LidarPacket(hit_points_local=[], ranges_m=[], angles_rad=[], timestamp=1.0),
+        zed=ZedPacket(hit_points_local=[], timestamp=1.0),
+        goal=GoalPacket(1.0, 0.0, 1.0),
+    )
+    cmd = ControlCommand("FORWARD", v_mps=0.1, controller="velocity", command_type="velocity")
+
+    first = apply_competition_closed_loop_command(navigator, cmd, frame, mission_status)
+    navigator.state.estimated_pose = Pose2D(0.05, -0.16, 0.0)
+    navigator.last_odom_delta["ds_m"] = 0.02
+    second = apply_competition_closed_loop_command(navigator, cmd, frame, mission_status)
+    second_v = navigator.closed_loop_debug["final_v_mps"]
+    navigator.state.estimated_pose = Pose2D(0.10, -0.24, 0.0)
+    navigator.last_odom_delta["ds_m"] = 0.02
+    third = apply_competition_closed_loop_command(navigator, cmd, frame, mission_status)
+
+    assert first.mode == "FORWARD"
+    assert second.mode != "STOP"
+    assert second_v < 0.1
+    assert navigator.closed_loop_health.divergence_persist_count >= 2
+    assert third.mode == "STOP"
+    assert "closed-loop divergence" in third.reason
 
 
 def test_forward_arc_only_clamps_small_reverse_inner_wheel_targets():
@@ -512,6 +699,19 @@ def test_nav_status_exposes_competition_closed_loop_fields():
             "forward_arc_clamped": True,
             "final_left_target_mps": 0.04,
             "final_right_target_mps": 0.16,
+            "closed_loop_health_enabled": True,
+            "closed_loop_diverging": False,
+            "divergence_reason": "",
+            "cross_track_error_trend": -0.01,
+            "heading_error_trend": 0.0,
+            "correction_sign_ok": True,
+            "omega_command_sign": 1.0,
+            "heading_error_sign": 1.0,
+            "lane_error_sign": 1.0,
+            "lane_correction_sign": 1.0,
+            "last_error_abs": 0.13,
+            "current_error_abs": 0.12,
+            "divergence_action": "slow_then_stop",
             "target_yaw_deg": 0.0,
             "estimated_yaw_deg": 1.0,
             "heading_error_deg": -1.0,
@@ -564,6 +764,19 @@ def test_nav_status_exposes_competition_closed_loop_fields():
         "forward_arc_clamped",
         "final_left_target_mps",
         "final_right_target_mps",
+        "closed_loop_health_enabled",
+        "closed_loop_diverging",
+        "divergence_reason",
+        "cross_track_error_trend",
+        "heading_error_trend",
+        "correction_sign_ok",
+        "omega_command_sign",
+        "heading_error_sign",
+        "lane_error_sign",
+        "lane_correction_sign",
+        "last_error_abs",
+        "current_error_abs",
+        "divergence_action",
     ]:
         assert key in status["competition_closed_loop"]
 

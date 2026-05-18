@@ -1105,6 +1105,7 @@ def test_round2_clear_tuned_script_prefers_by_id_ports_and_extra_workspace():
 def test_stop_ugv_script_publishes_mission_flag_and_stop_command():
     script_path = ROOT / "ros2_ws" / "scripts" / "stop_ugv.sh"
     script = script_path.read_text()
+    pub_lines = [line.strip() for line in script.splitlines() if "ros2 topic pub" in line]
 
     for token in [
         "/ugv/mission_flag",
@@ -1114,11 +1115,24 @@ def test_stop_ugv_script_publishes_mission_flag_and_stop_command():
         '"mode":"STOP"',
         '"command_type":"stop"',
         "std_msgs/msg/String",
+        "sending immediate motor stop",
+        "sending mission stop",
+        "sending final motor stop",
+        "echo \"done\"",
+        "command -v timeout",
         'if [[ -n "${EXTRA_SETUP_BASH:-}" ]]; then',
         '${HOME}/ugv_ws_albert/install/setup.bash',
         '${WORKSPACE_DIR}/install/setup.bash',
     ]:
         assert token in script
+    assert script.index("timeout 1.2s ros2 topic pub -r 10 /ugv_nav_cmd") < script.index(
+        "timeout 2s ros2 topic pub --once /ugv/mission_flag"
+    )
+    assert script.index("timeout 2s ros2 topic pub --once /ugv/mission_flag") < script.rindex(
+        "timeout 1.2s ros2 topic pub -r 10 /ugv_nav_cmd"
+    )
+    assert len(pub_lines) == 3
+    assert all(line.startswith("timeout ") for line in pub_lines)
 
 
 def test_local_costmap_cli_launch_and_env_parameters_are_wired():

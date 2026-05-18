@@ -41,15 +41,21 @@ fi
 MISSION_FLAG_PAYLOAD='{"state":"stop","source":"stop_ugv.sh"}'
 STOP_CMD_PAYLOAD='{"mode":"STOP","command_type":"stop","reason":"manual stop_ugv.sh","v_mps":0.0,"omega_radps":0.0,"raw_left":0.0,"raw_right":0.0}'
 
-echo "Publishing mission stop on /ugv/mission_flag"
-ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String "{data: '${MISSION_FLAG_PAYLOAD}'}"
-
-echo "Publishing STOP command on /ugv_nav_cmd"
-ros2 topic pub --once /ugv_nav_cmd std_msgs/msg/String "{data: '${STOP_CMD_PAYLOAD}'}"
-
-if command -v timeout >/dev/null 2>&1; then
-  echo "Reading one /motor_controller/status sample, if available"
-  timeout 2s ros2 topic echo --once /motor_controller/status std_msgs/msg/String || true
-else
-  echo "GNU timeout not available; skipping /motor_controller/status echo"
+if ! command -v timeout >/dev/null 2>&1; then
+  echo "GNU timeout is required so stop publishes cannot block forever."
+  exit 1
 fi
+
+echo "sending immediate motor stop"
+timeout 1.2s ros2 topic pub -r 10 /ugv_nav_cmd std_msgs/msg/String "{data: '${STOP_CMD_PAYLOAD}'}" || true
+
+echo "sending mission stop"
+timeout 2s ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String "{data: '${MISSION_FLAG_PAYLOAD}'}" || true
+
+echo "sending final motor stop"
+timeout 1.2s ros2 topic pub -r 10 /ugv_nav_cmd std_msgs/msg/String "{data: '${STOP_CMD_PAYLOAD}'}" || true
+
+echo "Reading one /motor_controller/status sample, if available"
+timeout 2s ros2 topic echo --once /motor_controller/status std_msgs/msg/String || true
+
+echo "done"

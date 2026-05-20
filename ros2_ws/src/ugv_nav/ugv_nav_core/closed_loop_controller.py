@@ -4,7 +4,13 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
-from ugv_nav_core.row_transition_controller import TRANSITION_SEGMENTS, RowTransitionController, RowTransitionRequest
+from ugv_nav_core.row_transition_controller import (
+    SEGMENTED_PIVOT_TURN_STYLE,
+    TRANSITION_SEGMENTS,
+    RowTransitionController,
+    RowTransitionRequest,
+    normalize_turn_style,
+)
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
@@ -441,6 +447,17 @@ def default_closed_loop_debug(nav_cfg: Optional[Any] = None) -> Dict[str, Any]:
         "turn_overshoot_deg": None,
         "turn_effective_target_yaw_deg": None,
         "turn_command_phase": None,
+        "pivot_turn_active": False,
+        "pivot_target_yaw_deg": None,
+        "pivot_yaw_error_deg": None,
+        "pivot_emitted_omega_radps": None,
+        "pivot_left_target_mps": None,
+        "pivot_right_target_mps": None,
+        "pivot_settle_count": None,
+        "pivot_command_phase": None,
+        "cross_lane_active": False,
+        "cross_lane_target_y_m": None,
+        "cross_lane_error_m": None,
         "turn_radius_m": None,
         "turn_side": "",
         "target_side_yaw_deg": None,
@@ -546,23 +563,29 @@ def apply_competition_closed_loop_command(
     safety_state = str(velocity_debug.get("safety_state") or "")
     sweep_subphase = str(v2.get("sweep_subphase") or "")
     transition_active = bool(v2.get("row_transition_active", False)) or sweep_subphase in TRANSITION_SEGMENTS
+    transition_style = normalize_turn_style(v2.get("sweep_turn_style") or v2.get("row_transition_style"))
+    pivot_transition_segment = transition_style == SEGMENTED_PIVOT_TURN_STYLE and sweep_subphase in {"turn_out_90", "turn_in_90"}
     debug["sweep_subphase"] = sweep_subphase
     debug["row_transition_active"] = bool(transition_active)
+    debug["row_transition_style"] = transition_style if transition_active else ""
     debug["active_robot_track_width_m"] = round(float(getattr(navigator.robot_cfg, "track_width_m", 0.0)), 4)
     if navigator.physical_stall.detected:
         if transition_active:
+            stall_reason = "row_transition_pivot_stall" if pivot_transition_segment else "row_transition_physical_stall"
+            stall_health = "pivot_stall" if pivot_transition_segment else "physical_stall"
             debug.update(
                 {
                     "closed_loop_active": True,
-                    "row_transition_reason": "row_transition_physical_stall",
-                    "row_transition_health": "physical_stall",
-                    "reason": "row_transition_physical_stall",
+                    "row_transition_reason": stall_reason,
+                    "row_transition_health": stall_health,
+                    "pivot_turn_active": bool(pivot_transition_segment),
+                    "reason": stall_reason,
                 }
             )
             navigator.closed_loop_debug = debug
             return cmd.__class__(
                 "STOP",
-                reason="row transition physical stall",
+                reason=stall_reason,
                 controller="velocity",
                 command_type="stop",
             )
@@ -620,6 +643,7 @@ def apply_competition_closed_loop_command(
             next_lane_y_m=next_lane_y,
             row_end_x_m=row_end_x,
             track_width_m=navigator.robot_cfg.track_width_m,
+            turn_style=transition_style,
             drive_speed_factor=drive_speed_factor,
             yaw_rate_radps=yaw_rate,
             min_emitted_v_mps=finite_optional(v2.get("sweep_transition_min_emitted_v_mps")) or 0.12,
@@ -632,6 +656,16 @@ def apply_competition_closed_loop_command(
             turn_capture_error_rad=math.radians(finite_optional(v2.get("sweep_turn_capture_error_deg")) or 12.0),
             turn_settle_error_rad=math.radians(finite_optional(v2.get("sweep_turn_settle_error_deg")) or 7.0),
             turn_settle_frames=int(finite_optional(v2.get("sweep_turn_settle_frames")) or 3),
+            pivot_min_emitted_omega_radps=finite_optional(v2.get("sweep_pivot_min_emitted_omega_rps")) or 0.25,
+            pivot_max_emitted_omega_radps=finite_optional(v2.get("sweep_pivot_max_emitted_omega_rps")) or 0.45,
+            pivot_wheel_min_mps=finite_optional(v2.get("sweep_pivot_wheel_min_mps")) or 0.08,
+            pivot_settle_frames=int(
+                finite_optional(v2.get("sweep_pivot_settle_frames"))
+                or finite_optional(v2.get("sweep_turn_settle_frames"))
+                or 3
+            ),
+            cross_lane_v_mps=finite_optional(v2.get("sweep_cross_lane_v_mps")) or 0.12,
+            cross_lane_heading_kp=finite_optional(v2.get("sweep_cross_lane_heading_kp")) or _cfg_float(nav_cfg, "heading_hold_kp", 1.10),
             lane_capture_tolerance_m=finite_optional(v2.get("sweep_lane_capture_tolerance_m")) or 0.20,
             yaw_capture_tolerance_rad=math.radians(finite_optional(v2.get("sweep_yaw_capture_tolerance_deg")) or 8.0),
             forward_corridor_safe=forward_corridor_safe,

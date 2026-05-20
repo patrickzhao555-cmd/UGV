@@ -12,10 +12,12 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from ugv_nav_core.row_transition_controller import (
+    SEGMENTED_PIVOT_TURN_STYLE,
     SEGMENTED_TURN_STYLE,
     TRANSITION_SEGMENTS,
     RowTransitionController,
     RowTransitionRequest,
+    normalize_turn_style,
     wrap_to_pi,
 )
 
@@ -163,6 +165,12 @@ class CompetitionMissionConfig:
     sweep_turn_capture_error_deg: float = 12.0
     sweep_turn_settle_error_deg: float = 7.0
     sweep_turn_settle_frames: int = 3
+    sweep_pivot_min_emitted_omega_rps: float = 0.25
+    sweep_pivot_max_emitted_omega_rps: float = 0.45
+    sweep_pivot_wheel_min_mps: float = 0.08
+    sweep_pivot_settle_frames: Optional[int] = None
+    sweep_cross_lane_v_mps: float = 0.12
+    sweep_cross_lane_heading_kp: float = 1.10
     sweep_lane_capture_tolerance_m: float = 0.20
     sweep_yaw_capture_tolerance_deg: float = 8.0
     sweep_transition_min_emitted_v_mps: float = 0.12
@@ -220,7 +228,7 @@ class CompetitionMissionConfig:
             sweep_heading_tolerance_deg=max(0.0, float(self.sweep_heading_tolerance_deg)),
             sweep_allow_pure_turn=bool(self.sweep_allow_pure_turn),
             sweep_stall_action=_norm_text(self.sweep_stall_action) if _norm_text(self.sweep_stall_action) in {"skip", "stop"} else "skip",
-            sweep_turn_style=_norm_text(self.sweep_turn_style) if _norm_text(self.sweep_turn_style) in {SEGMENTED_TURN_STYLE} else SEGMENTED_TURN_STYLE,
+            sweep_turn_style=normalize_turn_style(self.sweep_turn_style),
             sweep_row_length_m=_finite_float(self.sweep_row_length_m),
             sweep_headland_margin_m=max(0.0, float(self.sweep_headland_margin_m)),
             sweep_turn_radius_m=max(0.20, float(self.sweep_turn_radius_m)),
@@ -232,6 +240,19 @@ class CompetitionMissionConfig:
             sweep_turn_capture_error_deg=max(0.5, float(self.sweep_turn_capture_error_deg)),
             sweep_turn_settle_error_deg=max(0.5, float(self.sweep_turn_settle_error_deg)),
             sweep_turn_settle_frames=max(1, int(self.sweep_turn_settle_frames)),
+            sweep_pivot_min_emitted_omega_rps=max(0.0, float(self.sweep_pivot_min_emitted_omega_rps)),
+            sweep_pivot_max_emitted_omega_rps=max(
+                max(0.0, float(self.sweep_pivot_min_emitted_omega_rps)),
+                float(self.sweep_pivot_max_emitted_omega_rps),
+            ),
+            sweep_pivot_wheel_min_mps=max(0.0, float(self.sweep_pivot_wheel_min_mps)),
+            sweep_pivot_settle_frames=(
+                max(1, int(self.sweep_pivot_settle_frames))
+                if self.sweep_pivot_settle_frames is not None
+                else max(1, int(self.sweep_turn_settle_frames))
+            ),
+            sweep_cross_lane_v_mps=max(0.0, float(self.sweep_cross_lane_v_mps)),
+            sweep_cross_lane_heading_kp=max(0.0, float(self.sweep_cross_lane_heading_kp)),
             sweep_lane_capture_tolerance_m=max(0.01, float(self.sweep_lane_capture_tolerance_m)),
             sweep_yaw_capture_tolerance_deg=max(0.0, float(self.sweep_yaw_capture_tolerance_deg)),
             sweep_transition_min_emitted_v_mps=max(0.0, float(self.sweep_transition_min_emitted_v_mps)),
@@ -812,6 +833,7 @@ class CompetitionMissionV2:
             next_lane_y_m=float(next_row["current_lane_y_m"]),
             row_end_x_m=float(current_row["row_end_x_m"]),
             track_width_m=0.6096,
+            turn_style=self.config.sweep_turn_style,
             drive_speed_factor=drive_speed_factor,
             min_emitted_v_mps=self.config.sweep_transition_min_emitted_v_mps,
             min_emitted_omega_radps=self.config.sweep_transition_min_emitted_omega_rps,
@@ -823,6 +845,12 @@ class CompetitionMissionV2:
             turn_capture_error_rad=math.radians(self.config.sweep_turn_capture_error_deg),
             turn_settle_error_rad=math.radians(self.config.sweep_turn_settle_error_deg),
             turn_settle_frames=self.config.sweep_turn_settle_frames,
+            pivot_min_emitted_omega_radps=self.config.sweep_pivot_min_emitted_omega_rps,
+            pivot_max_emitted_omega_radps=self.config.sweep_pivot_max_emitted_omega_rps,
+            pivot_wheel_min_mps=self.config.sweep_pivot_wheel_min_mps,
+            pivot_settle_frames=self.config.sweep_pivot_settle_frames or self.config.sweep_turn_settle_frames,
+            cross_lane_v_mps=self.config.sweep_cross_lane_v_mps,
+            cross_lane_heading_kp=self.config.sweep_cross_lane_heading_kp,
             lane_capture_tolerance_m=self.config.sweep_lane_capture_tolerance_m,
             yaw_capture_tolerance_rad=math.radians(self.config.sweep_yaw_capture_tolerance_deg),
             forward_corridor_safe=self._last_forward_corridor_safe,
@@ -1237,11 +1265,15 @@ class CompetitionMissionV2:
         transition_active = self.sweep_subphase in TRANSITION_SEGMENTS
         if self.enabled and self.phase == "sweep_search" and transition_active:
             if feedback.physical_stall_detected:
-                reason = "row_transition_physical_stall"
+                pivot_segment = (
+                    self.config.sweep_turn_style == SEGMENTED_PIVOT_TURN_STYLE
+                    and self.sweep_subphase in {"turn_out_90", "turn_in_90"}
+                )
+                reason = "row_transition_pivot_stall" if pivot_segment else "row_transition_physical_stall"
                 if feedback.physical_stall_reason:
                     reason += f"_{_norm_text(feedback.physical_stall_reason)}"
                 self.reason = reason
-                self._transition_health = "physical_stall"
+                self._transition_health = "pivot_stall" if pivot_segment else "physical_stall"
                 self._safety_stop_requested = True
                 self._closed_loop_unhealthy = True
                 self._closed_loop_unhealthy_reason = reason
@@ -1476,6 +1508,17 @@ class CompetitionMissionV2:
             "turn_overshoot_deg": transition_debug.get("turn_overshoot_deg"),
             "turn_effective_target_yaw_deg": transition_debug.get("turn_effective_target_yaw_deg"),
             "turn_command_phase": transition_debug.get("turn_command_phase"),
+            "pivot_turn_active": bool(transition_debug.get("pivot_turn_active", False)),
+            "pivot_target_yaw_deg": transition_debug.get("pivot_target_yaw_deg"),
+            "pivot_yaw_error_deg": transition_debug.get("pivot_yaw_error_deg"),
+            "pivot_emitted_omega_radps": transition_debug.get("pivot_emitted_omega_radps"),
+            "pivot_left_target_mps": transition_debug.get("pivot_left_target_mps"),
+            "pivot_right_target_mps": transition_debug.get("pivot_right_target_mps"),
+            "pivot_settle_count": transition_debug.get("pivot_settle_count"),
+            "pivot_command_phase": transition_debug.get("pivot_command_phase"),
+            "cross_lane_active": bool(transition_debug.get("cross_lane_active", False)),
+            "cross_lane_target_y_m": transition_debug.get("cross_lane_target_y_m"),
+            "cross_lane_error_m": transition_debug.get("cross_lane_error_m"),
             "target_row_yaw_deg": target_row_yaw_deg,
             "target_side_yaw_deg": transition_debug.get("target_side_yaw_deg"),
             "target_next_row_yaw_deg": transition_debug.get("target_next_row_yaw_deg"),
@@ -1499,6 +1542,12 @@ class CompetitionMissionV2:
             "sweep_turn_capture_error_deg": round(float(self.config.sweep_turn_capture_error_deg), 2),
             "sweep_turn_settle_error_deg": round(float(self.config.sweep_turn_settle_error_deg), 2),
             "sweep_turn_settle_frames": int(self.config.sweep_turn_settle_frames),
+            "sweep_pivot_min_emitted_omega_rps": round(float(self.config.sweep_pivot_min_emitted_omega_rps), 4),
+            "sweep_pivot_max_emitted_omega_rps": round(float(self.config.sweep_pivot_max_emitted_omega_rps), 4),
+            "sweep_pivot_wheel_min_mps": round(float(self.config.sweep_pivot_wheel_min_mps), 4),
+            "sweep_pivot_settle_frames": int(self.config.sweep_pivot_settle_frames or self.config.sweep_turn_settle_frames),
+            "sweep_cross_lane_v_mps": round(float(self.config.sweep_cross_lane_v_mps), 4),
+            "sweep_cross_lane_heading_kp": round(float(self.config.sweep_cross_lane_heading_kp), 4),
             "sweep_lane_capture_tolerance_m": round(float(self.config.sweep_lane_capture_tolerance_m), 3),
             "sweep_yaw_capture_tolerance_deg": round(float(self.config.sweep_yaw_capture_tolerance_deg), 2),
             "sweep_transition_min_emitted_v_mps": round(float(self.config.sweep_transition_min_emitted_v_mps), 4),

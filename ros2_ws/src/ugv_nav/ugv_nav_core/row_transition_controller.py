@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional, Tuple
 
 
 SEGMENTED_TURN_STYLE = "segmented_90"
+SEGMENTED_PIVOT_TURN_STYLE = "segmented_pivot_90"
+SUPPORTED_TURN_STYLES = {SEGMENTED_TURN_STYLE, SEGMENTED_PIVOT_TURN_STYLE}
 TRANSITION_SEGMENTS = {"turn_out_90", "cross_lane", "turn_in_90", "acquire_next_row"}
 
 
@@ -41,6 +43,11 @@ def sign_nonzero(value: float) -> int:
     return 0
 
 
+def normalize_turn_style(value: Any) -> str:
+    style = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return style if style in SUPPORTED_TURN_STYLES else SEGMENTED_TURN_STYLE
+
+
 @dataclass
 class RowTransitionRequest:
     segment: str
@@ -52,6 +59,7 @@ class RowTransitionRequest:
     next_lane_y_m: float
     row_end_x_m: float
     track_width_m: float
+    turn_style: str = SEGMENTED_TURN_STYLE
     drive_speed_factor: float = 1.0
     yaw_rate_radps: Optional[float] = None
     min_emitted_v_mps: float = 0.12
@@ -64,6 +72,12 @@ class RowTransitionRequest:
     turn_capture_error_rad: float = math.radians(12.0)
     turn_settle_error_rad: float = math.radians(7.0)
     turn_settle_frames: int = 3
+    pivot_min_emitted_omega_radps: float = 0.25
+    pivot_max_emitted_omega_radps: float = 0.45
+    pivot_wheel_min_mps: float = 0.08
+    pivot_settle_frames: int = 3
+    cross_lane_v_mps: float = 0.12
+    cross_lane_heading_kp: float = 1.10
     lane_capture_tolerance_m: float = 0.20
     yaw_capture_tolerance_rad: float = math.radians(8.0)
     forward_corridor_safe: bool = True
@@ -161,6 +175,7 @@ class RowTransitionController:
     @staticmethod
     def _turn_state_key(request: RowTransitionRequest, target_yaw: float) -> Tuple[Any, ...]:
         return (
+            normalize_turn_style(request.turn_style),
             str(request.segment or "").strip().lower(),
             round(float(target_yaw), 4),
             round(float(request.current_lane_y_m), 3),
@@ -203,7 +218,11 @@ class RowTransitionController:
         strong_error_rad = max(0.0, float(request.turn_strong_error_rad))
         capture_error_rad = max(0.0, float(request.turn_capture_error_rad))
         settle_error_rad = max(0.0, float(request.turn_settle_error_rad))
-        settle_frames = max(1, int(request.turn_settle_frames))
+        settle_frames = (
+            max(1, int(request.pivot_settle_frames))
+            if normalize_turn_style(request.turn_style) == SEGMENTED_PIVOT_TURN_STYLE
+            else max(1, int(request.turn_settle_frames))
+        )
         overshot = bool(
             self._turn_sign_changed
             and self._turn_initial_error_sign
@@ -243,14 +262,29 @@ class RowTransitionController:
             "turn_settled": bool(self._turn_settle_count >= settle_frames),
         }
 
-    def _yaw_command(self, yaw_error: float, request: RowTransitionRequest, command_phase: str = "approach", capture_zone: str = "strong") -> float:
+    def _yaw_command(
+        self,
+        yaw_error: float,
+        request: RowTransitionRequest,
+        command_phase: str = "approach",
+        capture_zone: str = "strong",
+        *,
+        min_emitted_omega_radps: Optional[float] = None,
+        max_emitted_omega_radps: Optional[float] = None,
+    ) -> float:
         yaw_rate = 0.0
         if request.yaw_rate_radps is not None and math.isfinite(float(request.yaw_rate_radps)):
             yaw_rate = float(request.yaw_rate_radps)
         omega = float(request.kp_yaw) * float(yaw_error) - float(request.kd_yaw) * yaw_rate
         drive_scale = max(1e-6, float(request.drive_speed_factor))
-        min_emitted = max(0.0, float(request.min_emitted_omega_radps))
-        max_emitted = max(min_emitted, float(request.max_emitted_omega_radps))
+        min_emitted = max(
+            0.0,
+            float(request.min_emitted_omega_radps if min_emitted_omega_radps is None else min_emitted_omega_radps),
+        )
+        max_emitted = max(
+            min_emitted,
+            float(request.max_emitted_omega_radps if max_emitted_omega_radps is None else max_emitted_omega_radps),
+        )
         if command_phase == "correct_overshoot":
             cap_emitted = min(max_emitted, max(0.10, 0.50 * max_emitted))
             floor_emitted = min(cap_emitted, max(0.06, 0.40 * min_emitted))
@@ -274,8 +308,35 @@ class RowTransitionController:
             omega = math.copysign(max(floor_omega, abs(omega)), yaw_error)
         return omega
 
+    @staticmethod
+    def _apply_pivot_wheel_floor(
+        omega_radps: float,
+        *,
+        track_width_m: float,
+        drive_speed_factor: float,
+        pivot_wheel_min_mps: float,
+        pivot_max_emitted_omega_radps: float,
+        allow_floor: bool,
+    ) -> Tuple[float, float, float, bool]:
+        track = max(1e-6, float(track_width_m))
+        drive_scale = max(1e-6, float(drive_speed_factor))
+        omega = float(omega_radps)
+        raised_wheel = False
+        if allow_floor and abs(omega) > 1e-6:
+            min_internal_wheel_mps = max(0.0, float(pivot_wheel_min_mps)) / drive_scale
+            min_internal_omega = 2.0 * min_internal_wheel_mps / track
+            max_internal_omega = max(0.0, float(pivot_max_emitted_omega_radps)) / drive_scale
+            required_omega = min(max_internal_omega, max(min_internal_omega, abs(omega)))
+            if required_omega > abs(omega) + 1e-9:
+                raised_wheel = True
+            omega = math.copysign(required_omega, omega)
+        left, right = wheel_targets_from_v_omega(0.0, omega, track)
+        return omega, left, right, raised_wheel
+
     def compute(self, request: RowTransitionRequest) -> RowTransitionCommand:
         segment = str(request.segment or "").strip().lower()
+        style = normalize_turn_style(request.turn_style)
+        pivot_turn = style == SEGMENTED_PIVOT_TURN_STYLE and segment in {"turn_out_90", "turn_in_90"}
         direction = self.row_direction(request.row_direction)
         next_direction = -direction
         side_yaw = self.side_yaw(request.current_lane_y_m, request.next_lane_y_m)
@@ -291,7 +352,10 @@ class RowTransitionController:
         turn_debug: Dict[str, Any] = {
             "turn_capture_zone": "",
             "turn_settle_count": 0,
-            "turn_settle_frames_required": max(1, int(request.turn_settle_frames)),
+            "turn_settle_frames_required": max(
+                1,
+                int(request.pivot_settle_frames if style == SEGMENTED_PIVOT_TURN_STYLE else request.turn_settle_frames),
+            ),
             "turn_yaw_error_sign_changed": False,
             "turn_overshoot_deg": 0.0,
             "turn_effective_target_yaw_deg": round(yaw_deg(target_yaw), 2),
@@ -329,10 +393,44 @@ class RowTransitionController:
         min_v = max(0.0, float(request.min_emitted_v_mps)) / drive_scale
         inner_min = max(0.0, float(request.inner_wheel_min_mps)) / drive_scale
         max_v = max(min_v, float(request.max_v_mps))
+        raised_v = False
+        reduced_omega = False
+        pivot_wheel_floor_raised = False
 
-        if segment == "cross_lane":
-            omega = self._yaw_command(yaw_error, request)
-            v = min(max_v, max(min_v, inner_min + 0.5 * request.track_width_m * abs(omega)))
+        if pivot_turn:
+            omega = self._yaw_command(
+                yaw_error,
+                request,
+                str(turn_debug.get("turn_command_phase") or "approach"),
+                str(turn_debug.get("turn_capture_zone") or "strong"),
+                min_emitted_omega_radps=request.pivot_min_emitted_omega_radps,
+                max_emitted_omega_radps=request.pivot_max_emitted_omega_radps,
+            )
+            if segment_done or str(turn_debug.get("turn_command_phase")) == "settle":
+                omega = 0.0
+            omega, left, right, pivot_wheel_floor_raised = self._apply_pivot_wheel_floor(
+                omega,
+                track_width_m=request.track_width_m,
+                drive_speed_factor=drive_scale,
+                pivot_wheel_min_mps=request.pivot_wheel_min_mps,
+                pivot_max_emitted_omega_radps=request.pivot_max_emitted_omega_radps,
+                allow_floor=not segment_done and str(turn_debug.get("turn_command_phase")) != "settle",
+            )
+            v = 0.0
+        elif segment == "cross_lane":
+            yaw_rate = 0.0
+            if request.yaw_rate_radps is not None and math.isfinite(float(request.yaw_rate_radps)):
+                yaw_rate = float(request.yaw_rate_radps)
+            max_omega = max(0.0, float(request.max_emitted_omega_radps)) / drive_scale
+            omega = clamp(
+                float(request.cross_lane_heading_kp) * yaw_error - float(request.kd_yaw) * yaw_rate,
+                -max_omega,
+                max_omega,
+            )
+            cross_v = max(0.0, float(request.cross_lane_v_mps)) / drive_scale
+            if abs(yaw_error) > max(0.0, float(request.turn_capture_error_rad)):
+                cross_v *= 0.50
+            v = min(max_v, max(min_v, cross_v))
         elif segment in {"turn_out_90", "turn_in_90", "acquire_next_row"}:
             omega = self._yaw_command(
                 yaw_error,
@@ -347,15 +445,16 @@ class RowTransitionController:
 
         if segment_done:
             omega = 0.0 if segment == "acquire_next_row" else omega
-            v = min_v
+            v = 0.0 if pivot_turn else min_v
 
-        v, omega, left, right, raised_v, reduced_omega = self._apply_transition_wheel_floor(
-            v,
-            omega,
-            track_width_m=request.track_width_m,
-            max_v_mps=max_v,
-            inner_wheel_min_mps=inner_min,
-        )
+        if not pivot_turn:
+            v, omega, left, right, raised_v, reduced_omega = self._apply_transition_wheel_floor(
+                v,
+                omega,
+                track_width_m=request.track_width_m,
+                max_v_mps=max_v,
+                inner_wheel_min_mps=inner_min,
+            )
         target = self._target_for_segment(request, target_yaw)
         emitted_v = v * drive_scale
         emitted_omega = omega * drive_scale
@@ -377,7 +476,7 @@ class RowTransitionController:
             reasons.append("forward_corridor_unsafe")
         reason = "segment_complete" if segment_done else "_".join(reasons or ["segment_tracking"])
         debug = {
-            "row_transition_style": self.style,
+            "row_transition_style": style,
             "row_transition_segment": segment,
             "row_transition_progress": round(clamp(progress, 0.0, 1.0), 3),
             "row_transition_done": bool(transition_done),
@@ -405,6 +504,23 @@ class RowTransitionController:
             "transition_max_emitted_omega_radps": round(float(request.max_emitted_omega_radps), 4),
             "transition_velocity_raised_for_inner_wheel": bool(raised_v),
             "transition_omega_reduced_for_inner_wheel": bool(reduced_omega),
+            "pivot_turn_active": bool(pivot_turn),
+            "pivot_target_yaw_deg": round(yaw_deg(target_yaw), 2) if pivot_turn else None,
+            "pivot_yaw_error_deg": round(math.degrees(yaw_error), 3) if pivot_turn else None,
+            "pivot_emitted_omega_radps": round(emitted_omega, 4) if pivot_turn else None,
+            "pivot_left_target_mps": round(emitted_left, 4) if pivot_turn else None,
+            "pivot_right_target_mps": round(emitted_right, 4) if pivot_turn else None,
+            "pivot_settle_count": int(turn_debug.get("turn_settle_count", 0)) if pivot_turn else None,
+            "pivot_command_phase": turn_debug.get("turn_command_phase") if pivot_turn else None,
+            "pivot_wheel_min_mps": round(float(request.pivot_wheel_min_mps), 4),
+            "pivot_min_emitted_omega_radps": round(float(request.pivot_min_emitted_omega_radps), 4),
+            "pivot_max_emitted_omega_radps": round(float(request.pivot_max_emitted_omega_radps), 4),
+            "pivot_wheel_floor_raised": bool(pivot_wheel_floor_raised),
+            "cross_lane_active": bool(segment == "cross_lane"),
+            "cross_lane_target_y_m": round(float(request.next_lane_y_m), 4) if segment == "cross_lane" else None,
+            "cross_lane_error_m": round(lane_error, 4) if segment == "cross_lane" else None,
+            "cross_lane_v_mps": round(float(request.cross_lane_v_mps), 4),
+            "cross_lane_heading_kp": round(float(request.cross_lane_heading_kp), 4),
             "forward_corridor_safe": bool(request.forward_corridor_safe),
             "drive_speed_factor": round(drive_scale, 4),
             "active_robot_track_width_m": round(float(request.track_width_m), 4),
@@ -424,12 +540,15 @@ class RowTransitionController:
 
 
 __all__ = [
+    "SEGMENTED_PIVOT_TURN_STYLE",
     "SEGMENTED_TURN_STYLE",
+    "SUPPORTED_TURN_STYLES",
     "TRANSITION_SEGMENTS",
     "RowTransitionCommand",
     "RowTransitionController",
     "RowTransitionRequest",
     "clamp",
+    "normalize_turn_style",
     "sign_nonzero",
     "wheel_targets_from_v_omega",
     "wrap_to_pi",

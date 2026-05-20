@@ -86,6 +86,12 @@ def generate_launch_description():
     sweep_turn_capture_error_deg = LaunchConfiguration('sweep_turn_capture_error_deg')
     sweep_turn_settle_error_deg = LaunchConfiguration('sweep_turn_settle_error_deg')
     sweep_turn_settle_frames = LaunchConfiguration('sweep_turn_settle_frames')
+    sweep_pivot_min_emitted_omega_rps = LaunchConfiguration('sweep_pivot_min_emitted_omega_rps')
+    sweep_pivot_max_emitted_omega_rps = LaunchConfiguration('sweep_pivot_max_emitted_omega_rps')
+    sweep_pivot_wheel_min_mps = LaunchConfiguration('sweep_pivot_wheel_min_mps')
+    sweep_pivot_settle_frames = LaunchConfiguration('sweep_pivot_settle_frames')
+    sweep_cross_lane_v_mps = LaunchConfiguration('sweep_cross_lane_v_mps')
+    sweep_cross_lane_heading_kp = LaunchConfiguration('sweep_cross_lane_heading_kp')
     sweep_lane_capture_tolerance_m = LaunchConfiguration('sweep_lane_capture_tolerance_m')
     sweep_yaw_capture_tolerance_deg = LaunchConfiguration('sweep_yaw_capture_tolerance_deg')
     sweep_transition_min_emitted_v_mps = LaunchConfiguration('sweep_transition_min_emitted_v_mps')
@@ -412,6 +418,18 @@ def generate_launch_description():
             sweep_turn_settle_error_deg,
             '--sweep-turn-settle-frames',
             sweep_turn_settle_frames,
+            '--sweep-pivot-min-emitted-omega-rps',
+            sweep_pivot_min_emitted_omega_rps,
+            '--sweep-pivot-max-emitted-omega-rps',
+            sweep_pivot_max_emitted_omega_rps,
+            '--sweep-pivot-wheel-min-mps',
+            sweep_pivot_wheel_min_mps,
+            '--sweep-pivot-settle-frames',
+            sweep_pivot_settle_frames,
+            '--sweep-cross-lane-v-mps',
+            sweep_cross_lane_v_mps,
+            '--sweep-cross-lane-heading-kp',
+            sweep_cross_lane_heading_kp,
             '--sweep-lane-capture-tolerance-m',
             sweep_lane_capture_tolerance_m,
             '--sweep-yaw-capture-tolerance-deg',
@@ -789,6 +807,12 @@ def generate_launch_description():
         DeclareLaunchArgument('sweep_turn_capture_error_deg', default_value='12.0'),
         DeclareLaunchArgument('sweep_turn_settle_error_deg', default_value='7.0'),
         DeclareLaunchArgument('sweep_turn_settle_frames', default_value='3'),
+        DeclareLaunchArgument('sweep_pivot_min_emitted_omega_rps', default_value='0.25'),
+        DeclareLaunchArgument('sweep_pivot_max_emitted_omega_rps', default_value='0.45'),
+        DeclareLaunchArgument('sweep_pivot_wheel_min_mps', default_value='0.08'),
+        DeclareLaunchArgument('sweep_pivot_settle_frames', default_value='3'),
+        DeclareLaunchArgument('sweep_cross_lane_v_mps', default_value='0.12'),
+        DeclareLaunchArgument('sweep_cross_lane_heading_kp', default_value='1.10'),
         DeclareLaunchArgument('sweep_lane_capture_tolerance_m', default_value='0.20'),
         DeclareLaunchArgument('sweep_yaw_capture_tolerance_deg', default_value='8.0'),
         DeclareLaunchArgument('sweep_transition_min_emitted_v_mps', default_value='0.12'),

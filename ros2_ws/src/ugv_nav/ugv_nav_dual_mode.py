@@ -4064,6 +4064,12 @@ def run_simulation(
     sweep_turn_capture_error_deg: float = 12.0,
     sweep_turn_settle_error_deg: float = 7.0,
     sweep_turn_settle_frames: int = 3,
+    sweep_pivot_min_emitted_omega_rps: float = 0.25,
+    sweep_pivot_max_emitted_omega_rps: float = 0.45,
+    sweep_pivot_wheel_min_mps: float = 0.08,
+    sweep_pivot_settle_frames: int = 3,
+    sweep_cross_lane_v_mps: float = 0.12,
+    sweep_cross_lane_heading_kp: float = 1.10,
     sweep_lane_capture_tolerance_m: float = 0.20,
     sweep_yaw_capture_tolerance_deg: float = 8.0,
     sweep_transition_min_emitted_v_mps: float = 0.12,
@@ -4217,6 +4223,12 @@ def run_simulation(
                 sweep_turn_capture_error_deg=sweep_turn_capture_error_deg,
                 sweep_turn_settle_error_deg=sweep_turn_settle_error_deg,
                 sweep_turn_settle_frames=sweep_turn_settle_frames,
+                sweep_pivot_min_emitted_omega_rps=sweep_pivot_min_emitted_omega_rps,
+                sweep_pivot_max_emitted_omega_rps=sweep_pivot_max_emitted_omega_rps,
+                sweep_pivot_wheel_min_mps=sweep_pivot_wheel_min_mps,
+                sweep_pivot_settle_frames=sweep_pivot_settle_frames,
+                sweep_cross_lane_v_mps=sweep_cross_lane_v_mps,
+                sweep_cross_lane_heading_kp=sweep_cross_lane_heading_kp,
                 sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
                 sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
                 sweep_transition_min_emitted_v_mps=sweep_transition_min_emitted_v_mps,
@@ -4362,6 +4374,12 @@ def run_real_mode(
     sweep_turn_capture_error_deg: float = 12.0,
     sweep_turn_settle_error_deg: float = 7.0,
     sweep_turn_settle_frames: int = 3,
+    sweep_pivot_min_emitted_omega_rps: float = 0.25,
+    sweep_pivot_max_emitted_omega_rps: float = 0.45,
+    sweep_pivot_wheel_min_mps: float = 0.08,
+    sweep_pivot_settle_frames: int = 3,
+    sweep_cross_lane_v_mps: float = 0.12,
+    sweep_cross_lane_heading_kp: float = 1.10,
     sweep_lane_capture_tolerance_m: float = 0.20,
     sweep_yaw_capture_tolerance_deg: float = 8.0,
     sweep_transition_min_emitted_v_mps: float = 0.12,
@@ -4661,6 +4679,12 @@ def run_real_mode(
                 sweep_turn_capture_error_deg=sweep_turn_capture_error_deg,
                 sweep_turn_settle_error_deg=sweep_turn_settle_error_deg,
                 sweep_turn_settle_frames=sweep_turn_settle_frames,
+                sweep_pivot_min_emitted_omega_rps=sweep_pivot_min_emitted_omega_rps,
+                sweep_pivot_max_emitted_omega_rps=sweep_pivot_max_emitted_omega_rps,
+                sweep_pivot_wheel_min_mps=sweep_pivot_wheel_min_mps,
+                sweep_pivot_settle_frames=sweep_pivot_settle_frames,
+                sweep_cross_lane_v_mps=sweep_cross_lane_v_mps,
+                sweep_cross_lane_heading_kp=sweep_cross_lane_heading_kp,
                 sweep_lane_capture_tolerance_m=sweep_lane_capture_tolerance_m,
                 sweep_yaw_capture_tolerance_deg=sweep_yaw_capture_tolerance_deg,
                 sweep_transition_min_emitted_v_mps=sweep_transition_min_emitted_v_mps,
@@ -4936,7 +4960,7 @@ def main() -> None:
     parser.add_argument("--sweep-headland-margin-m", type=float, default=0.75)
     parser.add_argument("--sweep-boundary-margin-m", type=float, default=0.45)
     parser.add_argument("--sweep-turn-radius-m", type=float, default=1.00)
-    parser.add_argument("--sweep-turn-style", choices=["segmented_90"], default="segmented_90")
+    parser.add_argument("--sweep-turn-style", choices=["segmented_90", "segmented_pivot_90"], default="segmented_90")
     parser.add_argument("--sweep-row-transition-enabled", type=str_to_bool, default=False)
     parser.add_argument("--sweep-max-rows", type=int, default=0, help="0 means all rows that fit in the configured field")
     parser.add_argument("--sweep-row-end-tolerance-m", type=float, default=0.35)
@@ -4945,6 +4969,12 @@ def main() -> None:
     parser.add_argument("--sweep-turn-capture-error-deg", type=float, default=12.0)
     parser.add_argument("--sweep-turn-settle-error-deg", type=float, default=7.0)
     parser.add_argument("--sweep-turn-settle-frames", type=int, default=3)
+    parser.add_argument("--sweep-pivot-min-emitted-omega-rps", type=float, default=0.25)
+    parser.add_argument("--sweep-pivot-max-emitted-omega-rps", type=float, default=0.45)
+    parser.add_argument("--sweep-pivot-wheel-min-mps", type=float, default=0.08)
+    parser.add_argument("--sweep-pivot-settle-frames", type=int, default=3)
+    parser.add_argument("--sweep-cross-lane-v-mps", type=float, default=0.12)
+    parser.add_argument("--sweep-cross-lane-heading-kp", type=float, default=1.10)
     parser.add_argument("--sweep-lane-capture-tolerance-m", type=float, default=0.20)
     parser.add_argument("--sweep-yaw-capture-tolerance-deg", type=float, default=8.0)
     parser.add_argument("--sweep-transition-min-emitted-v-mps", type=float, default=0.12)
@@ -5155,6 +5185,12 @@ def main() -> None:
             sweep_turn_capture_error_deg=args.sweep_turn_capture_error_deg,
             sweep_turn_settle_error_deg=args.sweep_turn_settle_error_deg,
             sweep_turn_settle_frames=args.sweep_turn_settle_frames,
+            sweep_pivot_min_emitted_omega_rps=args.sweep_pivot_min_emitted_omega_rps,
+            sweep_pivot_max_emitted_omega_rps=args.sweep_pivot_max_emitted_omega_rps,
+            sweep_pivot_wheel_min_mps=args.sweep_pivot_wheel_min_mps,
+            sweep_pivot_settle_frames=args.sweep_pivot_settle_frames,
+            sweep_cross_lane_v_mps=args.sweep_cross_lane_v_mps,
+            sweep_cross_lane_heading_kp=args.sweep_cross_lane_heading_kp,
             sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
             sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
             sweep_transition_min_emitted_v_mps=args.sweep_transition_min_emitted_v_mps,
@@ -5208,6 +5244,12 @@ def main() -> None:
             sweep_turn_capture_error_deg=args.sweep_turn_capture_error_deg,
             sweep_turn_settle_error_deg=args.sweep_turn_settle_error_deg,
             sweep_turn_settle_frames=args.sweep_turn_settle_frames,
+            sweep_pivot_min_emitted_omega_rps=args.sweep_pivot_min_emitted_omega_rps,
+            sweep_pivot_max_emitted_omega_rps=args.sweep_pivot_max_emitted_omega_rps,
+            sweep_pivot_wheel_min_mps=args.sweep_pivot_wheel_min_mps,
+            sweep_pivot_settle_frames=args.sweep_pivot_settle_frames,
+            sweep_cross_lane_v_mps=args.sweep_cross_lane_v_mps,
+            sweep_cross_lane_heading_kp=args.sweep_cross_lane_heading_kp,
             sweep_lane_capture_tolerance_m=args.sweep_lane_capture_tolerance_m,
             sweep_yaw_capture_tolerance_deg=args.sweep_yaw_capture_tolerance_deg,
             sweep_transition_min_emitted_v_mps=args.sweep_transition_min_emitted_v_mps,

@@ -338,7 +338,7 @@ def row_transition_config(**overrides):
         "sweep_boundary_margin_m": 0.45,
         "sweep_headland_margin_m": 0.75,
         "sweep_turn_radius_m": 1.0,
-        "sweep_turn_style": "segmented_90",
+        "sweep_turn_style": "segmented_pivot_90",
         "sweep_row_transition_enabled": True,
         "sweep_max_rows": 3,
         "sweep_row_end_tolerance_m": 0.35,
@@ -347,6 +347,12 @@ def row_transition_config(**overrides):
         "sweep_turn_capture_error_deg": 12.0,
         "sweep_turn_settle_error_deg": 7.0,
         "sweep_turn_settle_frames": 3,
+        "sweep_pivot_min_emitted_omega_rps": 0.25,
+        "sweep_pivot_max_emitted_omega_rps": 0.45,
+        "sweep_pivot_wheel_min_mps": 0.08,
+        "sweep_pivot_settle_frames": 3,
+        "sweep_cross_lane_v_mps": 0.12,
+        "sweep_cross_lane_heading_kp": 1.10,
         "sweep_lane_capture_tolerance_m": 0.20,
         "sweep_yaw_capture_tolerance_deg": 8.0,
         "sweep_transition_min_emitted_v_mps": 0.12,
@@ -384,7 +390,14 @@ def test_turn_out_90_selects_next_lane():
     assert update.status["target_next_row_yaw_deg"] == 180.0
 
 
-def transition_request(segment: str, *, pose_y: float = 0.45, yaw: float = 0.0, drive_speed_factor: float = 1.0):
+def transition_request(
+    segment: str,
+    *,
+    pose_y: float = 0.45,
+    yaw: float = 0.0,
+    drive_speed_factor: float = 1.0,
+    turn_style: str = "segmented_pivot_90",
+):
     return RowTransitionRequest(
         segment=segment,
         pose_x_m=4.40,
@@ -395,6 +408,7 @@ def transition_request(segment: str, *, pose_y: float = 0.45, yaw: float = 0.0, 
         next_lane_y_m=0.95,
         row_end_x_m=4.45,
         track_width_m=0.6096,
+        turn_style=turn_style,
         drive_speed_factor=drive_speed_factor,
         min_emitted_v_mps=0.12,
         min_emitted_omega_radps=0.20,
@@ -406,6 +420,12 @@ def transition_request(segment: str, *, pose_y: float = 0.45, yaw: float = 0.0, 
         turn_capture_error_rad=math.radians(12.0),
         turn_settle_error_rad=math.radians(7.0),
         turn_settle_frames=3,
+        pivot_min_emitted_omega_radps=0.25,
+        pivot_max_emitted_omega_radps=0.45,
+        pivot_wheel_min_mps=0.08,
+        pivot_settle_frames=3,
+        cross_lane_v_mps=0.12,
+        cross_lane_heading_kp=1.10,
         lane_capture_tolerance_m=0.20,
         yaw_capture_tolerance_rad=math.radians(8.0),
     )
@@ -500,7 +520,45 @@ def test_turn_out_90_uses_strong_omega_when_yaw_error_is_large():
 
     assert cmd.debug["turn_capture_zone"] == "strong"
     assert cmd.debug["turn_command_phase"] == "approach"
-    assert abs(cmd.debug["transition_emitted_omega_radps"]) == 0.4
+    assert abs(cmd.debug["transition_emitted_omega_radps"]) == 0.45
+
+
+def test_segmented_pivot_90_turn_out_90_emits_zero_v_and_opposite_wheel_targets():
+    controller = RowTransitionController()
+    cmd = controller.compute(transition_request("turn_out_90", yaw=math.radians(0.0)))
+
+    assert cmd.desired_v_mps == 0.0
+    assert cmd.debug["row_transition_style"] == "segmented_pivot_90"
+    assert cmd.debug["pivot_turn_active"]
+    assert cmd.debug["transition_emitted_v_mps"] == 0.0
+    assert cmd.debug["transition_left_target_mps"] < -0.08 + 1e-9
+    assert cmd.debug["transition_right_target_mps"] > 0.08 - 1e-9
+    assert cmd.debug["transition_left_target_mps"] * cmd.debug["transition_right_target_mps"] < 0.0
+
+
+def test_segmented_pivot_90_turn_in_90_emits_zero_v_and_opposite_wheel_targets():
+    controller = RowTransitionController()
+    cmd = controller.compute(transition_request("turn_in_90", pose_y=0.95, yaw=math.radians(90.0)))
+
+    assert cmd.desired_v_mps == 0.0
+    assert cmd.debug["pivot_turn_active"]
+    assert cmd.debug["pivot_target_yaw_deg"] == 180.0
+    assert cmd.debug["transition_emitted_v_mps"] == 0.0
+    assert cmd.debug["transition_left_target_mps"] < -0.08 + 1e-9
+    assert cmd.debug["transition_right_target_mps"] > 0.08 - 1e-9
+
+
+def test_cross_lane_emits_forward_v_and_holds_side_yaw():
+    controller = RowTransitionController()
+    cmd = controller.compute(transition_request("cross_lane", pose_y=0.55, yaw=math.radians(80.0)))
+
+    assert cmd.debug["cross_lane_active"]
+    assert cmd.debug["cross_lane_target_y_m"] == 0.95
+    assert cmd.debug["target_side_yaw_deg"] == 90.0
+    assert cmd.debug["transition_emitted_v_mps"] > 0.0
+    assert cmd.debug["transition_emitted_omega_radps"] > 0.0
+    assert cmd.debug["transition_left_target_mps"] >= 0.0
+    assert cmd.debug["transition_right_target_mps"] >= 0.0
 
 
 def test_turn_out_90_reduces_omega_in_capture_zone():
@@ -542,7 +600,7 @@ def test_turn_overshoot_correction_is_capped():
 
     assert overshoot.debug["turn_command_phase"] == "correct_overshoot"
     assert overshoot.debug["turn_overshoot_deg"] > 30.0
-    assert abs(overshoot.debug["transition_emitted_omega_radps"]) <= 0.2
+    assert abs(overshoot.debug["transition_emitted_omega_radps"]) <= 0.27
     assert abs(overshoot.debug["transition_emitted_omega_radps"]) < abs(approach.debug["transition_emitted_omega_radps"])
 
 
@@ -554,9 +612,9 @@ def test_emitted_omega_minimum_is_enforced_during_turn_phase():
     assert abs(cmd.debug["transition_emitted_omega_radps"]) >= 0.20
 
 
-def test_segmented_transition_keeps_inner_wheel_above_minimum():
+def test_segmented_90_transition_keeps_forward_arc_inner_wheel_above_minimum():
     controller = RowTransitionController()
-    cmd = controller.compute(transition_request("turn_out_90", yaw=0.0, drive_speed_factor=0.5))
+    cmd = controller.compute(transition_request("turn_out_90", yaw=0.0, drive_speed_factor=0.5, turn_style="segmented_90"))
 
     assert cmd.desired_v_mps > 0.0
     assert cmd.debug["transition_left_target_mps"] >= 0.04 - 1e-9
@@ -582,8 +640,8 @@ def test_physical_stall_during_transition_requests_stop():
     assert changed
     assert update.stop_requested
     assert update.status["sweep_subphase"] == "turn_out_90"
-    assert update.status["row_transition_health"] == "physical_stall"
-    assert update.reason.startswith("row_transition_physical_stall")
+    assert update.status["row_transition_health"] == "pivot_stall"
+    assert update.reason.startswith("row_transition_pivot_stall")
 
 
 def test_marker_auto_lane_spacing_recommends_but_manual_override_wins():
@@ -633,6 +691,12 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "--sweep-turn-capture-error-deg",
         "--sweep-turn-settle-error-deg",
         "--sweep-turn-settle-frames",
+        "--sweep-pivot-min-emitted-omega-rps",
+        "--sweep-pivot-max-emitted-omega-rps",
+        "--sweep-pivot-wheel-min-mps",
+        "--sweep-pivot-settle-frames",
+        "--sweep-cross-lane-v-mps",
+        "--sweep-cross-lane-heading-kp",
         "--sweep-lane-capture-tolerance-m",
         "--sweep-yaw-capture-tolerance-deg",
         "--sweep-transition-min-emitted-v-mps",
@@ -717,6 +781,12 @@ def test_competition_v2_cli_launch_and_env_wiring_exists():
         "SWEEP_TURN_CAPTURE_ERROR_DEG",
         "SWEEP_TURN_SETTLE_ERROR_DEG",
         "SWEEP_TURN_SETTLE_FRAMES",
+        "SWEEP_PIVOT_MIN_EMITTED_OMEGA_RPS",
+        "SWEEP_PIVOT_MAX_EMITTED_OMEGA_RPS",
+        "SWEEP_PIVOT_WHEEL_MIN_MPS",
+        "SWEEP_PIVOT_SETTLE_FRAMES",
+        "SWEEP_CROSS_LANE_V_MPS",
+        "SWEEP_CROSS_LANE_HEADING_KP",
         "SWEEP_LANE_CAPTURE_TOLERANCE_M",
         "SWEEP_YAW_CAPTURE_TOLERANCE_DEG",
         "SWEEP_TRANSITION_MIN_EMITTED_V_MPS",

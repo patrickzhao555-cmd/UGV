@@ -6,12 +6,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_motor_controller"))
 
 from ugv_motor_controller.teensy_side_pid import (  # noqa: E402
+    TeensyParamSyncTracker,
     build_teensy_param_command,
     build_teensy_param_init_commands,
     build_teensy_raw2_command,
     build_teensy_stop_command,
     build_teensy_velocity_command,
     mps_to_ticks_per_sec,
+    parse_teensy_param_ack_line,
     parse_teensy_side_pid_status_line,
     python_velocity_pid_enabled,
     teensy_timeout_stop_command_due,
@@ -115,6 +117,57 @@ def test_teensy_startup_param_sequence_uses_bridge_ticks_and_physical_defaults()
     assert "CMD PARAM ticks_per_rev 2151\n" not in commands
 
 
+def test_teensy_param_ack_parser_accepts_ok_and_unknown():
+    ok = parse_teensy_param_ack_line("PARAM,ticks_per_rev,ok")
+    unknown = parse_teensy_param_ack_line("PARAM,bad_param,unknown")
+
+    assert ok.name == "ticks_per_rev"
+    assert ok.ok
+    assert unknown.name == "bad_param"
+    assert not unknown.ok
+
+
+def test_teensy_param_sync_tracker_waits_for_all_acks():
+    tracker = TeensyParamSyncTracker()
+    tracker.start(["track_width_m", "wheel_radius_m", "ticks_per_rev"], now_s=10.0)
+
+    assert not tracker.synced
+    assert tracker.pending_names == ("track_width_m", "wheel_radius_m", "ticks_per_rev")
+    assert tracker.reason == "waiting_for_ack"
+
+    tracker.handle_ack(parse_teensy_param_ack_line("PARAM,track_width_m,ok"), now_s=10.1)
+    assert not tracker.synced
+    assert tracker.pending_names == ("wheel_radius_m", "ticks_per_rev")
+
+    tracker.handle_ack(parse_teensy_param_ack_line("PARAM,wheel_radius_m,ok"), now_s=10.2)
+    tracker.handle_ack(parse_teensy_param_ack_line("PARAM,ticks_per_rev,ok"), now_s=10.3)
+
+    assert tracker.synced
+    assert tracker.pending_names == ()
+    assert tracker.failed is False
+    assert tracker.reason == "ok"
+    assert tracker.acked_count == 3
+    assert tracker.completed_s == 10.3
+
+
+def test_teensy_param_sync_unknown_or_timeout_leaves_sync_false():
+    unknown_tracker = TeensyParamSyncTracker()
+    unknown_tracker.start(["kp"], now_s=20.0)
+    unknown_tracker.handle_ack(parse_teensy_param_ack_line("PARAM,kp,unknown"), now_s=20.1)
+
+    assert not unknown_tracker.synced
+    assert unknown_tracker.failed
+    assert unknown_tracker.reason == "param_unknown:kp"
+
+    timeout_tracker = TeensyParamSyncTracker()
+    timeout_tracker.start(["kp", "ki"], now_s=30.0)
+    assert timeout_tracker.check_timeout(now_s=30.5, timeout_s=1.0) is False
+    assert timeout_tracker.check_timeout(now_s=31.1, timeout_s=1.0) is True
+    assert not timeout_tracker.synced
+    assert timeout_tracker.failed
+    assert timeout_tracker.reason == "ack_timeout:kp,ki"
+
+
 def test_teensy_timeout_maps_to_stop_command():
     assert teensy_timeout_stop_command_due(10.0, now_s=10.20, timeout_s=0.75) is None
     assert teensy_timeout_stop_command_due(10.0, now_s=10.80, timeout_s=0.75) == "CMD STOP\n"
@@ -154,10 +207,18 @@ def test_bridge_and_launch_wire_teensy_pid_mode_without_replacing_legacy_pid():
     assert "left_pwm = self._raw_to_pwm(left_raw, invert=False)" in bridge_file
     assert "right_pwm = self._raw_to_pwm(right_raw, invert=False)" in bridge_file
     assert "teensy_pid_params_synced" in bridge_file
+    assert "parse_teensy_param_ack_line" in bridge_file
+    assert "teensy_pid_param_sync_pending" in bridge_file
+    assert "teensy_pid_param_sync_failed" in bridge_file
+    assert "teensy_pid_param_sync_reason" in bridge_file
+    assert "teensy_pid_params_not_synced" in bridge_file
+    assert "handle_ack(ack" in bridge_file
+    assert "self.teensy_pid_params_synced = True" not in bridge_file
     assert "teensy_pid_wheel_radius_m" in bridge_file
     assert "teensy_right_motor_sign" in bridge_file
     assert "parse_teensy_side_pid_status_line" in bridge_file
     assert "teensy_4_1_side_pid_controller" in setup_file
+    assert "teensy_pid_param_ack_timeout_s" in launch_file
     assert "EnvironmentVariable('MOTOR_WHEEL_RADIUS_M', default_value='0.0889')" in launch_file
     assert "EnvironmentVariable('MOTOR_TICKS_PER_REV', default_value='3200')" in launch_file
     assert "teensy_right_motor_sign" in launch_file
@@ -169,7 +230,11 @@ def test_bridge_and_launch_wire_teensy_pid_mode_without_replacing_legacy_pid():
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
     assert 'strcmp(name, "right_motor_sign")' in firmware
     assert "value < 0 ? -1 : 1" in firmware
+    assert "PARAM,<name>,ok" in firmware
+    assert "sendParamAck(name, ok)" in firmware
+    assert 'stream.print("PARAMS,track_width_m=")' in firmware
     assert "critical = true" in firmware
     assert "resetPidState();" in firmware
     assert "neutralizeForCriticalParam();" in firmware
+    assert (ROOT / "scripts" / "run_teensy_side_pid_bench.sh").read_text().count("WHEELS OFF GROUND") >= 1
     assert (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "ugv_motor_controller" / "velocity_control.py").exists()

@@ -47,6 +47,7 @@ def generate_launch_description():
     velocity_raw_fallback_min_wheel_raw = LaunchConfiguration('velocity_raw_fallback_min_wheel_raw')
     velocity_raw_fallback_min_turn_raw = LaunchConfiguration('velocity_raw_fallback_min_turn_raw')
     velocity_raw_fallback_min_target_raw = LaunchConfiguration('velocity_raw_fallback_min_target_raw')
+    teensy_pid_param_ack_timeout_s = LaunchConfiguration('teensy_pid_param_ack_timeout_s')
 
     return LaunchDescription([
         DeclareLaunchArgument('port', default_value='/dev/ttyACM0'),
@@ -117,6 +118,7 @@ def generate_launch_description():
         DeclareLaunchArgument('velocity_raw_fallback_min_wheel_raw', default_value='0.0'),
         DeclareLaunchArgument('velocity_raw_fallback_min_turn_raw', default_value='0.28'),
         DeclareLaunchArgument('velocity_raw_fallback_min_target_raw', default_value='0.001'),
+        DeclareLaunchArgument('teensy_pid_param_ack_timeout_s', default_value='1.0'),
         Node(
             package='ugv_motor_controller',
             executable='motor_controller_bridge',
@@ -164,6 +166,7 @@ def generate_launch_description():
                 'velocity_raw_fallback_min_wheel_raw': ParameterValue(velocity_raw_fallback_min_wheel_raw, value_type=float),
                 'velocity_raw_fallback_min_turn_raw': ParameterValue(velocity_raw_fallback_min_turn_raw, value_type=float),
                 'velocity_raw_fallback_min_target_raw': ParameterValue(velocity_raw_fallback_min_target_raw, value_type=float),
+                'teensy_pid_param_ack_timeout_s': ParameterValue(teensy_pid_param_ack_timeout_s, value_type=float),
             }],
         ),
     ])

@@ -16,6 +16,9 @@
 //   CMD STATUS
 //
 // Teensy -> Jetson:
+//   PARAM,<name>,ok
+//   PARAM,<name>,unknown
+//   PARAMS,<name>=<value>,...
 //   S,<millis>,<fl_ticks>,<fr_ticks>,<rl_ticks>,<rr_ticks>,
 //     <fl_tps>,<fr_tps>,<rl_tps>,<rr_tps>,
 //     <left_target_tps>,<right_target_tps>,
@@ -639,6 +642,62 @@ void sendStatus() {
   printStatus(Serial1);
 }
 
+void printParamAck(Stream& stream, const char* name, bool ok) {
+  stream.print("PARAM,");
+  stream.print(name);
+  stream.print(",");
+  stream.println(ok ? "ok" : "unknown");
+}
+
+void sendParamAck(const char* name, bool ok) {
+  if (Serial) {
+    printParamAck(Serial, name, ok);
+  }
+  printParamAck(Serial1, name, ok);
+}
+
+void printParamDump(Stream& stream) {
+  stream.print("PARAMS,track_width_m=");
+  stream.print(track_width_m, 6);
+  stream.print(",wheel_radius_m=");
+  stream.print(wheel_radius_m, 6);
+  stream.print(",ticks_per_rev=");
+  stream.print(ticks_per_rev, 2);
+  stream.print(",kp=");
+  stream.print(kp, 6);
+  stream.print(",ki=");
+  stream.print(ki, 6);
+  stream.print(",kd=");
+  stream.print(kd, 6);
+  stream.print(",left_motor_sign=");
+  stream.print(left_motor_sign);
+  stream.print(",right_motor_sign=");
+  stream.print(right_motor_sign);
+  stream.print(",fl_encoder_sign=");
+  stream.print(fl_encoder_sign);
+  stream.print(",fr_encoder_sign=");
+  stream.print(fr_encoder_sign);
+  stream.print(",rl_encoder_sign=");
+  stream.print(rl_encoder_sign);
+  stream.print(",rr_encoder_sign=");
+  stream.print(rr_encoder_sign);
+  stream.print(",pwm_min_us=");
+  stream.print(pwm_min_us);
+  stream.print(",pwm_neutral_us=");
+  stream.print(pwm_neutral_us);
+  stream.print(",pwm_max_us=");
+  stream.print(pwm_max_us);
+  stream.print(",command_timeout_ms=");
+  stream.println(command_timeout_ms, 0);
+}
+
+void sendParamDump() {
+  if (Serial) {
+    printParamDump(Serial);
+  }
+  printParamDump(Serial1);
+}
+
 bool setParam(const char* name, float value) {
   bool critical = false;
   bool neutralize_outputs = false;
@@ -709,6 +768,12 @@ void parseCommand(char* s, const char* transport_name) {
 
   if (strcmp(verb, "STATUS") == 0) {
     sendStatus();
+    sendParamDump();
+    return;
+  }
+
+  if (strcmp(verb, "PARAMDUMP") == 0) {
+    sendParamDump();
     return;
   }
 
@@ -748,6 +813,7 @@ void parseCommand(char* s, const char* transport_name) {
       return;
     }
     bool ok = setParam(name, atof(value_text));
+    sendParamAck(name, ok);
     if (Serial) {
       Serial.print("DBG PARAM ");
       Serial.print(transport_name);

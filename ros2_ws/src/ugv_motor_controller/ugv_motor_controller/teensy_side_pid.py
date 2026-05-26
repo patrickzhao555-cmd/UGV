@@ -2,7 +2,7 @@
 
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ugv_motor_controller.velocity_control import (
     command_is_timed_out,
@@ -99,6 +99,107 @@ def build_teensy_param_command(name: str, value: Any) -> str:
 
 def build_teensy_param_init_commands(params: Dict[str, Any]) -> Tuple[str, ...]:
     return tuple(build_teensy_param_command(name, value) for name, value in params.items())
+
+
+@dataclass(frozen=True)
+class TeensyParamAck:
+    name: str
+    status: str
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "ok"
+
+
+def parse_teensy_param_ack_line(line: str) -> TeensyParamAck:
+    text = str(line).strip()
+    parts = text.split(",")
+    if len(parts) != 3 or parts[0] != "PARAM":
+        raise ValueError(f"not a Teensy PARAM ack line: {line!r}")
+
+    name = parts[1].strip()
+    status = parts[2].strip().lower()
+    if not name:
+        raise ValueError(f"Teensy PARAM ack missing parameter name: {line!r}")
+    if status not in {"ok", "unknown"}:
+        raise ValueError(f"Teensy PARAM ack has unsupported status: {line!r}")
+    return TeensyParamAck(name=name, status=status)
+
+
+@dataclass
+class TeensyParamSyncTracker:
+    expected_names: Tuple[str, ...] = ()
+    pending_names: Tuple[str, ...] = ()
+    failed: bool = False
+    reason: str = "not_started"
+    started_s: Optional[float] = None
+    completed_s: Optional[float] = None
+    acked_count: int = 0
+
+    @property
+    def synced(self) -> bool:
+        return self.started_s is not None and not self.failed and not self.pending_names
+
+    def start(self, names: Iterable[str], now_s: float) -> None:
+        unique_names: List[str] = []
+        seen = set()
+        for raw_name in names:
+            name = str(raw_name).strip()
+            if name and name not in seen:
+                unique_names.append(name)
+                seen.add(name)
+
+        self.expected_names = tuple(unique_names)
+        self.pending_names = tuple(unique_names)
+        self.failed = False
+        self.reason = "waiting_for_ack" if unique_names else "ok"
+        self.started_s = float(now_s)
+        self.completed_s = float(now_s) if not unique_names else None
+        self.acked_count = 0
+
+    def handle_ack(self, ack: TeensyParamAck, now_s: float) -> bool:
+        if self.started_s is None:
+            self.failed = True
+            self.reason = f"ack_without_sync:{ack.name}"
+            return False
+        if self.failed:
+            return False
+        if ack.name not in self.expected_names:
+            self.failed = True
+            self.reason = f"unexpected_param_ack:{ack.name}"
+            return False
+        if not ack.ok:
+            self.failed = True
+            self.reason = f"param_unknown:{ack.name}"
+            return False
+        if ack.name in self.pending_names:
+            self.pending_names = tuple(name for name in self.pending_names if name != ack.name)
+            self.acked_count += 1
+        if not self.pending_names:
+            self.reason = "ok"
+            self.completed_s = float(now_s)
+            return True
+        self.reason = "waiting_for_ack"
+        return False
+
+    def mark_write_failed(self, name: str) -> None:
+        self.failed = True
+        self.reason = f"write_failed:{str(name).strip() or 'unknown'}"
+
+    def mark_disconnected(self) -> None:
+        self.failed = True
+        self.reason = "serial_disconnected"
+        self.pending_names = ()
+
+    def check_timeout(self, now_s: float, timeout_s: float) -> bool:
+        if self.started_s is None or self.failed or not self.pending_names:
+            return False
+        if float(now_s) - self.started_s < float(timeout_s):
+            return False
+        self.failed = True
+        pending = ",".join(self.pending_names)
+        self.reason = f"ack_timeout:{pending}"
+        return True
 
 
 def teensy_timeout_stop_command_due(

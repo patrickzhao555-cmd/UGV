@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -14,6 +14,7 @@ def generate_launch_description():
     command_refresh_period_s = LaunchConfiguration('command_refresh_period_s')
     status_period_s = LaunchConfiguration('status_period_s')
     dry_run = LaunchConfiguration('dry_run')
+    motor_control_location = LaunchConfiguration('motor_control_location')
     invert_left_command = LaunchConfiguration('invert_left_command')
     invert_right_command = LaunchConfiguration('invert_right_command')
     invert_left_encoder = LaunchConfiguration('invert_left_encoder')
@@ -50,6 +51,10 @@ def generate_launch_description():
         DeclareLaunchArgument('command_refresh_period_s', default_value='0.1'),
         DeclareLaunchArgument('status_period_s', default_value='0.5'),
         DeclareLaunchArgument('dry_run', default_value='false'),
+        DeclareLaunchArgument(
+            'motor_control_location',
+            default_value=EnvironmentVariable('MOTOR_CONTROL_LOCATION', default_value='ros'),
+        ),
         DeclareLaunchArgument('invert_left_command', default_value='false'),
         DeclareLaunchArgument('invert_right_command', default_value='true'),
         DeclareLaunchArgument('invert_left_encoder', default_value='false'),
@@ -90,6 +95,7 @@ def generate_launch_description():
                 'command_refresh_period_s': ParameterValue(command_refresh_period_s, value_type=float),
                 'status_period_s': ParameterValue(status_period_s, value_type=float),
                 'dry_run': ParameterValue(dry_run, value_type=bool),
+                'motor_control_location': ParameterValue(motor_control_location, value_type=str),
                 'invert_left_command': ParameterValue(invert_left_command, value_type=bool),
                 'invert_right_command': ParameterValue(invert_right_command, value_type=bool),
                 'invert_left_encoder': ParameterValue(invert_left_encoder, value_type=bool),

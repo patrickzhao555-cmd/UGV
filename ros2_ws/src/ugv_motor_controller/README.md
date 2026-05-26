@@ -16,6 +16,7 @@ It provides:
 - `motor_controller_bridge`: subscribes to `/ugv_nav_cmd`, writes PWM commands to the Teensy, and publishes encoder feedback
 - `motor_direct_test`: bounded direct movement tester for forward, backward, turn, one-side, raw, and sequence tests
 - Teensy 4.1 firmware under `firmware/teensy_4_1_motor_bridge/`
+- Teensy two-side PID firmware under `firmware/teensy_4_1_side_pid_controller/`
 
 ## Topics
 
@@ -44,8 +45,8 @@ ros2 launch ugv_motor_controller motor_controller.launch.py \
   command_timeout_s:=3.0 command_refresh_period_s:=0.25
 ```
 
-Closed-loop wheel-speed PID is available but defaults off. Raw mode remains the
-safe fallback and continues to consume `raw_left`/`raw_right`.
+ROS-side closed-loop wheel-speed PID is legacy/bench fallback. Raw mode remains
+available and continues to consume `raw_left`/`raw_right`.
 
 During full navigation, `jetson_bringup.sh` defaults to a longer command timeout
 than the standalone bridge so brief nav scheduling gaps do not create stop/start
@@ -53,7 +54,7 @@ motion. The bridge refreshes the last active PWM command at
 `command_refresh_period_s` until `command_timeout_s` expires. If `/ugv_nav_cmd`
 really stops for longer than the timeout, the bridge still sends neutral PWM.
 
-Lift the UGV before enabling velocity PID:
+Lift the UGV before enabling legacy ROS-side velocity PID:
 
 ```bash
 ros2 launch ugv_motor_controller motor_controller.launch.py \
@@ -65,10 +66,26 @@ ros2 launch ugv_motor_controller motor_controller.launch.py \
   velocity_feedforward_raw_per_mps:=1.35 velocity_max_target_mps:=0.35
 ```
 
-Velocity mode consumes `/ugv_nav_cmd` JSON fields `command_type=velocity`,
+Legacy ROS-side velocity mode consumes `/ugv_nav_cmd` JSON fields `command_type=velocity`,
 `v_mps`, and `omega_radps`, computes left/right wheel-speed targets, estimates
 measured wheel speed from encoder deltas, then outputs PWM using feedforward
 plus PID correction.
+
+The new Teensy-side PID mode is selected with:
+
+```bash
+MOTOR_CONTROL_LOCATION=teensy_pid ros2 launch ugv_motor_controller motor_controller.launch.py \
+  port:=/dev/ttyACM0 baud:=115200 dry_run:=false \
+  motor_control_location:=teensy_pid \
+  track_width_m:=0.6096 wheel_radius_m:=0.06 ticks_per_rev:=1000
+```
+
+In this mode the bridge does not run `WheelVelocityPid`. It forwards velocity
+commands as `CMD V <v_mps> <omega_radps>`, sends `CMD STOP` for stop/timeout,
+parses Teensy `S,...` status, and publishes the same encoder/status ROS topics.
+The current hardware has only two independent motor outputs, so the new firmware
+runs left-side and right-side PID loops while using all four encoders for
+feedback and fault diagnostics.
 
 When the Teensy encoder packet includes controller milliseconds, the bridge uses
 that timestamp for wheel-speed `dt`; otherwise it falls back to host monotonic
@@ -133,13 +150,16 @@ measure how much the robot actually moved/turned for a given raw command.
 
 ## Firmware Protocol
 
-- Jetson to Teensy: `M<left_us>,<right_us>\n`
-- Teensy to Jetson: `E<fl>,<fr>,<rl>,<rr>,<millis>\n`
+- Legacy Jetson to Teensy: `M<left_us>,<right_us>\n`
+- Legacy Teensy to Jetson: `E<fl>,<fr>,<rl>,<rr>,<millis>\n`
+- Teensy side PID Jetson to Teensy: `CMD V <v_mps> <omega_radps>\n`, `CMD STOP\n`, `CMD RAW2 <left_us> <right_us>\n`
+- Teensy side PID to Jetson: `S,<millis>,...,\n`, with legacy `E...` compatibility frames enabled by default
 
 The bridge has ROS-side safety:
 
 - command timeout returns PWM to neutral
 - STOP returns PWM to neutral immediately and resets velocity PID integrators
+- in `teensy_pid` mode, command timeout and STOP send `CMD STOP` to reset the Teensy controller
 - serial reconnect publishes connection state
 - normal commands are slew-limited; startup, timeout, and shutdown stops go directly to neutral
 

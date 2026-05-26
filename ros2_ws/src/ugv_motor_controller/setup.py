@@ -12,7 +12,7 @@ setup(
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml', 'README.md']),
+        ('share/' + package_name, ['package.xml', 'README.md', 'TEENSY_SIDE_PID_ARCHITECTURE.md']),
         (
             os.path.join('share', package_name, 'launch'),
             [os.path.join('launch', name) for name in os.listdir('launch') if name.endswith('.py')],
@@ -20,6 +20,16 @@ setup(
         (
             os.path.join('share', package_name, 'firmware', 'teensy_4_1_motor_bridge'),
             [os.path.join('firmware', 'teensy_4_1_motor_bridge', 'teensy_4_1_motor_bridge.ino')],
+        ),
+        (
+            os.path.join('share', package_name, 'firmware', 'teensy_4_1_side_pid_controller'),
+            [
+                os.path.join(
+                    'firmware',
+                    'teensy_4_1_side_pid_controller',
+                    'teensy_4_1_side_pid_controller.ino',
+                )
+            ],
         ),
     ],
     install_requires=['setuptools'],

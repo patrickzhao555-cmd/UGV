@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import time
 from typing import Optional, Tuple
 
@@ -9,6 +10,18 @@ from rclpy.node import Node
 from std_msgs.msg import Bool, Int32MultiArray, String
 
 from ugv_sensor_sync.msg import EncoderTicksStamped
+from ugv_motor_controller.teensy_side_pid import (
+    TeensySidePidStatus,
+    build_teensy_raw2_command,
+    build_teensy_stop_command,
+    build_teensy_velocity_command,
+    normalize_motor_control_location,
+    parse_teensy_side_pid_status_line,
+    python_velocity_pid_enabled,
+    select_teensy_side_pid_command,
+    ticks_per_sec_to_mps,
+    uses_teensy_side_pid,
+)
 from ugv_motor_controller.velocity_control import (
     VelocityPidConfig,
     WheelVelocityPid,
@@ -53,6 +66,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter('poll_period_s', 0.02)
         self.declare_parameter('status_period_s', 0.5)
         self.declare_parameter('dry_run', False)
+        self.declare_parameter('motor_control_location', os.environ.get('MOTOR_CONTROL_LOCATION', 'ros'))
         self.declare_parameter('invert_left_command', False)
         self.declare_parameter('invert_right_command', False)
         self.declare_parameter('invert_left_encoder', False)
@@ -101,11 +115,19 @@ class MotorControllerBridge(Node):
         self.poll_period_s = float(self.get_parameter('poll_period_s').value)
         self.status_period_s = float(self.get_parameter('status_period_s').value)
         self.dry_run = bool(self.get_parameter('dry_run').value)
+        self.motor_control_location = normalize_motor_control_location(
+            self.get_parameter('motor_control_location').value
+        )
+        self.teensy_pid_enabled = uses_teensy_side_pid(self.motor_control_location)
         self.invert_left_command = bool(self.get_parameter('invert_left_command').value)
         self.invert_right_command = bool(self.get_parameter('invert_right_command').value)
         self.invert_left_encoder = bool(self.get_parameter('invert_left_encoder').value)
         self.invert_right_encoder = bool(self.get_parameter('invert_right_encoder').value)
         self.velocity_control_enabled = bool(self.get_parameter('velocity_control_enabled').value)
+        self.python_velocity_pid_enabled = python_velocity_pid_enabled(
+            self.motor_control_location,
+            self.velocity_control_enabled,
+        )
         self.prefer_velocity_fields = bool(self.get_parameter('prefer_velocity_fields').value)
         self.track_width_m = max(0.05, float(self.get_parameter('track_width_m').value))
         self.wheel_radius_m = max(0.005, float(self.get_parameter('wheel_radius_m').value))
@@ -145,18 +167,21 @@ class MotorControllerBridge(Node):
             0.0,
             float(self.get_parameter('velocity_raw_fallback_min_target_raw').value),
         )
-        pid_cfg = VelocityPidConfig(
-            kp=float(self.get_parameter('velocity_kp').value),
-            ki=float(self.get_parameter('velocity_ki').value),
-            kd=float(self.get_parameter('velocity_kd').value),
-            integral_limit=max(0.0, float(self.get_parameter('velocity_integral_limit').value)),
-            feedforward_raw_per_mps=float(self.get_parameter('velocity_feedforward_raw_per_mps').value),
-            min_target_mps=max(0.0, float(self.get_parameter('velocity_min_target_mps').value)),
-            max_target_mps=max(0.01, float(self.get_parameter('velocity_max_target_mps').value)),
-            max_raw=1.0,
-        )
-        self.left_velocity_pid = WheelVelocityPid(pid_cfg)
-        self.right_velocity_pid = WheelVelocityPid(pid_cfg)
+        self.left_velocity_pid: Optional[WheelVelocityPid] = None
+        self.right_velocity_pid: Optional[WheelVelocityPid] = None
+        if self.python_velocity_pid_enabled:
+            pid_cfg = VelocityPidConfig(
+                kp=float(self.get_parameter('velocity_kp').value),
+                ki=float(self.get_parameter('velocity_ki').value),
+                kd=float(self.get_parameter('velocity_kd').value),
+                integral_limit=max(0.0, float(self.get_parameter('velocity_integral_limit').value)),
+                feedforward_raw_per_mps=float(self.get_parameter('velocity_feedforward_raw_per_mps').value),
+                min_target_mps=max(0.0, float(self.get_parameter('velocity_min_target_mps').value)),
+                max_target_mps=max(0.01, float(self.get_parameter('velocity_max_target_mps').value)),
+                max_raw=1.0,
+            )
+            self.left_velocity_pid = WheelVelocityPid(pid_cfg)
+            self.right_velocity_pid = WheelVelocityPid(pid_cfg)
 
         self.serial_device: Optional[serial.Serial] = None
         self.last_serial_attempt = 0.0
@@ -167,6 +192,7 @@ class MotorControllerBridge(Node):
         self.last_encoder_pair: Optional[Tuple[int, int]] = None
         self.last_raw_encoder_quad: Optional[Tuple[int, int, int, int]] = None
         self.last_teensy_ms: Optional[int] = None
+        self.last_teensy_side_pid_status: Optional[TeensySidePidStatus] = None
         self.last_status_log = 0.0
         self.last_status_publish = 0.0
         self.last_parse_error_log = 0.0
@@ -223,7 +249,9 @@ class MotorControllerBridge(Node):
             f'invert_right_command={self.invert_right_command}, '
             f'invert_left_encoder={self.invert_left_encoder}, '
             f'invert_right_encoder={self.invert_right_encoder}, '
+            f'motor_control_location={self.motor_control_location}, '
             f'velocity_control_enabled={self.velocity_control_enabled}, '
+            f'python_velocity_pid_enabled={self.python_velocity_pid_enabled}, '
             f'prefer_velocity_fields={self.prefer_velocity_fields})'
         )
 
@@ -252,16 +280,44 @@ class MotorControllerBridge(Node):
             return
 
         try:
-            command_path, velocity_cmd, raw_cmd = select_drive_command(
-                obj,
-                velocity_control_enabled=self.velocity_control_enabled,
-                prefer_velocity_fields=self.prefer_velocity_fields,
-            )
+            if self.teensy_pid_enabled:
+                command_path, velocity_cmd, raw_cmd = select_teensy_side_pid_command(
+                    obj,
+                    prefer_velocity_fields=self.prefer_velocity_fields,
+                )
+            else:
+                command_path, velocity_cmd, raw_cmd = select_drive_command(
+                    obj,
+                    velocity_control_enabled=self.python_velocity_pid_enabled,
+                    prefer_velocity_fields=self.prefer_velocity_fields,
+                )
         except (TypeError, ValueError) as exc:
             self._log_parse_issue(f'Invalid /ugv_nav_cmd drive values: {exc}')
             return
 
-        if command_path == 'velocity' and velocity_cmd is not None:
+        if self.teensy_pid_enabled and command_path == 'velocity' and velocity_cmd is not None:
+            v_mps, omega_radps = velocity_cmd
+            self.last_command_received = time.monotonic()
+            self.last_stop_sent = False
+            self.active_velocity_command = velocity_cmd
+            self.control_mode = 'teensy_side_pid'
+            self.selected_raw_left = 0.0
+            self.selected_raw_right = 0.0
+            self.velocity_raw_fallback_floor_applied_left = False
+            self.velocity_raw_fallback_floor_applied_right = False
+            self.velocity_raw_fallback_turn_floor_applied_left = False
+            self.velocity_raw_fallback_turn_floor_applied_right = False
+            self.last_velocity_pid_left = None
+            self.last_velocity_pid_right = None
+            self.last_velocity_safe_reason = None
+            self.target_left_mps, self.target_right_mps = velocity_to_wheel_speeds(
+                v_mps,
+                omega_radps,
+                self.track_width_m,
+            )
+            if self.serial_device is not None:
+                self._send_teensy_velocity_command(v_mps, omega_radps, reason='nav velocity command')
+        elif command_path == 'velocity' and velocity_cmd is not None:
             self.last_command_received = time.monotonic()
             self.last_stop_sent = False
             self.active_velocity_command = velocity_cmd
@@ -284,7 +340,7 @@ class MotorControllerBridge(Node):
             self.last_velocity_pid_left = None
             self.last_velocity_pid_right = None
             self.last_velocity_pid_time = 0.0
-            reset_velocity_pid_pair(self.left_velocity_pid, self.right_velocity_pid)
+            self._reset_python_velocity_pid()
             if raw_cmd is None:
                 self._log_parse_issue('Invalid /ugv_nav_cmd raw drive values: missing raw command')
                 return
@@ -308,14 +364,21 @@ class MotorControllerBridge(Node):
             self.velocity_raw_fallback_floor_applied_right = floor_result.applied_right
             self.velocity_raw_fallback_turn_floor_applied_left = floor_result.turn_floor_applied_left
             self.velocity_raw_fallback_turn_floor_applied_right = floor_result.turn_floor_applied_right
-            self.control_mode = 'raw_velocity_fallback' if velocity_raw_fallback else 'raw'
+            self.control_mode = (
+                'teensy_raw2'
+                if self.teensy_pid_enabled
+                else ('raw_velocity_fallback' if velocity_raw_fallback else 'raw')
+            )
             self.last_command_received = time.monotonic()
             self.last_stop_sent = False
             left_pwm = self._raw_to_pwm(left_raw, invert=self.invert_left_command)
             right_pwm = self._raw_to_pwm(right_raw, invert=self.invert_right_command)
             self.target_pwm_command = (left_pwm, right_pwm)
             if self.serial_device is not None:
-                self._send_pwm_command(left_pwm, right_pwm, reason='nav raw command')
+                if self.teensy_pid_enabled:
+                    self._send_teensy_raw2_command(left_pwm, right_pwm, reason='nav raw command')
+                else:
+                    self._send_pwm_command(left_pwm, right_pwm, reason='nav raw command')
 
         if self.serial_device is None:
             self._publish_status(
@@ -362,7 +425,10 @@ class MotorControllerBridge(Node):
                 write_timeout=0.1,
             )
             self.get_logger().info(f'Motor controller serial connected: {self.port} @ {self.baud}')
-            self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason='startup stop')
+            if self.teensy_pid_enabled:
+                self._send_teensy_stop_command(reason='startup stop')
+            else:
+                self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason='startup stop')
         except serial.SerialException as exc:
             self.serial_device = None
             self._throttled_info(f'Waiting for motor controller serial: {exc}')
@@ -387,6 +453,24 @@ class MotorControllerBridge(Node):
             return
         now = time.monotonic()
         if command_is_timed_out(self.last_command_received, now, self.command_timeout_s):
+            return
+        if self.teensy_pid_enabled:
+            if self.serial_device is None:
+                return
+            if not active_command_refresh_due(
+                self.last_command_received,
+                self.last_pwm_send_time,
+                now,
+                timeout_s=self.command_timeout_s,
+                refresh_period_s=self.command_refresh_period_s,
+            ):
+                return
+            self.command_refresh_count += 1
+            if self.active_velocity_command is not None:
+                v_mps, omega_radps = self.active_velocity_command
+                self._send_teensy_velocity_command(v_mps, omega_radps, reason='velocity refresh')
+            else:
+                self._send_teensy_raw2_command(*self.target_pwm_command, reason='command refresh')
             return
         if self.active_velocity_command is not None:
             if now - self.last_velocity_pid_time >= self.velocity_control_period_s:
@@ -435,6 +519,11 @@ class MotorControllerBridge(Node):
         if line.startswith('ENC ') or line.startswith('DBG ENC '):
             self._handle_debug_encoder_line(line)
             return
+        if line.startswith('S,'):
+            self._handle_teensy_side_pid_status_line(line)
+            return
+        if line.startswith('E') and self.teensy_pid_enabled and self.last_teensy_side_pid_status is not None:
+            return
         if not line.startswith('E'):
             self._throttled_info(f'Motor controller debug: {line}')
             return
@@ -463,6 +552,59 @@ class MotorControllerBridge(Node):
             teensy_ms=teensy_ms,
         )
 
+    def _handle_teensy_side_pid_status_line(self, line: str) -> None:
+        try:
+            status = parse_teensy_side_pid_status_line(line)
+        except ValueError as exc:
+            self._log_parse_issue(str(exc))
+            return
+
+        self.last_teensy_side_pid_status = status
+        self.last_pwm_command = (status.left_pwm, status.right_pwm)
+        self.target_pwm_command = (status.left_pwm, status.right_pwm)
+        self.target_left_mps = ticks_per_sec_to_mps(
+            status.left_target_tps,
+            wheel_radius_m=self.wheel_radius_m,
+            ticks_per_rev=self.ticks_per_rev,
+        )
+        self.target_right_mps = ticks_per_sec_to_mps(
+            status.right_target_tps,
+            wheel_radius_m=self.wheel_radius_m,
+            ticks_per_rev=self.ticks_per_rev,
+        )
+        self.measured_left_mps = ticks_per_sec_to_mps(
+            status.left_measured_tps,
+            wheel_radius_m=self.wheel_radius_m,
+            ticks_per_rev=self.ticks_per_rev,
+        )
+        self.measured_right_mps = ticks_per_sec_to_mps(
+            status.right_measured_tps,
+            wheel_radius_m=self.wheel_radius_m,
+            ticks_per_rev=self.ticks_per_rev,
+        )
+        self.last_velocity_error_left_mps = ticks_per_sec_to_mps(
+            status.left_error_tps,
+            wheel_radius_m=self.wheel_radius_m,
+            ticks_per_rev=self.ticks_per_rev,
+        )
+        self.last_velocity_error_right_mps = ticks_per_sec_to_mps(
+            status.right_error_tps,
+            wheel_radius_m=self.wheel_radius_m,
+            ticks_per_rev=self.ticks_per_rev,
+        )
+        extra = status.as_bridge_status_dict()
+        if self.teensy_pid_enabled and self.control_mode != 'stopped':
+            extra['control_mode'] = 'teensy_side_pid'
+        self._publish_encoder_values(
+            fl=status.fl_ticks,
+            fr=status.fr_ticks,
+            rl=status.rl_ticks,
+            rr=status.rr_ticks,
+            teensy_ms=status.controller_millis,
+            extra=extra,
+            prefer_teensy_speed=True,
+        )
+
     def _handle_debug_encoder_line(self, line: str) -> None:
         body = line[4:] if line.startswith('DBG ') else line
         try:
@@ -486,6 +628,8 @@ class MotorControllerBridge(Node):
         rl: int,
         rr: int,
         teensy_ms: Optional[int],
+        extra: Optional[dict] = None,
+        prefer_teensy_speed: bool = False,
     ) -> None:
         left = int(round((fl + rl) / 2.0))
         right = int(round((fr + rr) / 2.0))
@@ -520,16 +664,18 @@ class MotorControllerBridge(Node):
             self.last_encoder_speed_anomaly = speed_update.anomaly
         elif speed_update.estimate is not None:
             speed_estimate = speed_update.estimate
-            self.measured_left_mps = speed_estimate.left_mps
-            self.measured_right_mps = speed_estimate.right_mps
+            if not prefer_teensy_speed:
+                self.measured_left_mps = speed_estimate.left_mps
+                self.measured_right_mps = speed_estimate.right_mps
             self.last_encoder_speed_dt_s = speed_estimate.dt_s
             self.last_encoder_speed_dt_source = speed_estimate.dt_source
             self.last_encoder_speed_anomaly = speed_estimate.anomaly
             self.last_encoder_speed_time = now
             self.encoder_speed_delta_available = True
         else:
-            self.measured_left_mps = 0.0
-            self.measured_right_mps = 0.0
+            if not prefer_teensy_speed:
+                self.measured_left_mps = 0.0
+                self.measured_right_mps = 0.0
             self.last_encoder_speed_dt_s = None
             self.last_encoder_speed_dt_source = None
             self.last_encoder_speed_anomaly = None
@@ -560,17 +706,17 @@ class MotorControllerBridge(Node):
         raw_msg.data = [fl, fr, rl, rr]
         self.raw_encoder_pub.publish(raw_msg)
 
-        self._publish_status(
-            connected=True,
-            extra={
-                'left_ticks': left,
-                'right_ticks': right,
-                'raw_ticks': [fl, fr, rl, rr],
-                'teensy_ms': teensy_ms,
-                'last_pwm': list(self.last_pwm_command),
-                'target_pwm': list(self.target_pwm_command),
-            },
-        )
+        status_extra = {
+            'left_ticks': left,
+            'right_ticks': right,
+            'raw_ticks': [fl, fr, rl, rr],
+            'teensy_ms': teensy_ms,
+            'last_pwm': list(self.last_pwm_command),
+            'target_pwm': list(self.target_pwm_command),
+        }
+        if extra:
+            status_extra.update(extra)
+        self._publish_status(connected=True, extra=status_extra)
 
     def _encoder_speed_is_fresh(self) -> bool:
         if not self.encoder_speed_delta_available:
@@ -580,6 +726,11 @@ class MotorControllerBridge(Node):
             now=time.monotonic(),
             timeout_s=self.velocity_stale_encoder_timeout_s,
         )
+
+    def _reset_python_velocity_pid(self) -> None:
+        if self.left_velocity_pid is not None and self.right_velocity_pid is not None:
+            reset_velocity_pid_pair(self.left_velocity_pid, self.right_velocity_pid)
+
     def _stop_immediately(self, reason: str) -> None:
         self.active_velocity_command = None
         self.control_mode = 'stopped'
@@ -597,11 +748,18 @@ class MotorControllerBridge(Node):
         self.last_velocity_pid_right = None
         self.last_velocity_pid_time = 0.0
         self.last_velocity_safe_reason = reason
-        reset_velocity_pid_pair(self.left_velocity_pid, self.right_velocity_pid)
+        self._reset_python_velocity_pid()
         self.target_pwm_command = (self.pwm_neutral_us, self.pwm_neutral_us)
-        self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason=reason)
+        if self.teensy_pid_enabled:
+            self._send_teensy_stop_command(reason=reason)
+        else:
+            self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason=reason)
 
     def _update_velocity_control(self, reason: str) -> None:
+        if not self.python_velocity_pid_enabled:
+            return
+        if self.left_velocity_pid is None or self.right_velocity_pid is None:
+            return
         if self.active_velocity_command is None:
             return
 
@@ -638,7 +796,7 @@ class MotorControllerBridge(Node):
                     fallback_to_raw_without_encoder=self.velocity_fallback_to_raw_without_encoder
                 )
                 self.last_velocity_safe_reason = 'encoder missing or stale'
-                reset_velocity_pid_pair(self.left_velocity_pid, self.right_velocity_pid)
+                self._reset_python_velocity_pid()
                 self.target_pwm_command = (self.pwm_neutral_us, self.pwm_neutral_us)
                 self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason='velocity encoder stale stop')
             self.last_velocity_pid_time = time.monotonic()
@@ -700,6 +858,57 @@ class MotorControllerBridge(Node):
             self.get_logger().warn(f'Failed to send motor command: {exc}')
             self._close_serial()
 
+    def _write_serial_command(self, line: str, reason: str, log_payload: str) -> None:
+        if self.serial_device is None:
+            return
+        if self.dry_run:
+            self.last_pwm_send_time = time.monotonic()
+            self._throttled_info(f'DRY RUN motor command ({reason}): {log_payload}')
+            return
+
+        try:
+            self.serial_device.write(line.encode('utf-8'))
+            self.serial_device.flush()
+            self.last_pwm_send_time = time.monotonic()
+            self._throttled_info(f'Sent motor command ({reason}): {log_payload}')
+        except serial.SerialException as exc:
+            self.get_logger().warn(f'Failed to send motor command: {exc}')
+            self._close_serial()
+
+    def _send_teensy_velocity_command(self, v_mps: float, omega_radps: float, reason: str) -> None:
+        self.target_left_mps, self.target_right_mps = velocity_to_wheel_speeds(
+            v_mps,
+            omega_radps,
+            self.track_width_m,
+        )
+        self._write_serial_command(
+            build_teensy_velocity_command(v_mps, omega_radps),
+            reason=reason,
+            log_payload=f'CMD V {v_mps:.4f} {omega_radps:.4f}',
+        )
+
+    def _send_teensy_stop_command(self, reason: str) -> None:
+        self.target_pwm_command = (self.pwm_neutral_us, self.pwm_neutral_us)
+        self.last_pwm_command = (self.pwm_neutral_us, self.pwm_neutral_us)
+        self._write_serial_command(
+            build_teensy_stop_command(),
+            reason=reason,
+            log_payload='CMD STOP',
+        )
+
+    def _send_teensy_raw2_command(self, left_pwm: int, right_pwm: int, reason: str) -> None:
+        if self.serial_device is None:
+            return
+
+        self.target_pwm_command = (left_pwm, right_pwm)
+        left_pwm, right_pwm = self._apply_pwm_slew(left_pwm, right_pwm, reason)
+        self.last_pwm_command = (left_pwm, right_pwm)
+        self._write_serial_command(
+            build_teensy_raw2_command(left_pwm, right_pwm),
+            reason=reason,
+            log_payload=f'CMD RAW2 {left_pwm} {right_pwm}',
+        )
+
     def _publish_connected(self) -> None:
         connected = self.serial_device is not None
         self.connected_pub.publish(Bool(data=connected))
@@ -717,7 +926,9 @@ class MotorControllerBridge(Node):
             'baud': self.baud,
             'dry_run': self.dry_run,
             'control_mode': self.control_mode,
+            'motor_control_location': self.motor_control_location,
             'velocity_control_enabled': self.velocity_control_enabled,
+            'python_velocity_pid_enabled': self.python_velocity_pid_enabled,
             'prefer_velocity_fields': self.prefer_velocity_fields,
             'velocity_raw_fallback_floor_enabled': self.velocity_raw_fallback_floor_enabled,
             'velocity_raw_fallback_min_wheel_raw': round(self.velocity_raw_fallback_min_wheel_raw, 4),
@@ -766,6 +977,8 @@ class MotorControllerBridge(Node):
             status['encoder_ticks'] = list(self.last_encoder_pair)
         if self.last_teensy_ms is not None:
             status['teensy_ms'] = self.last_teensy_ms
+        if self.last_teensy_side_pid_status is not None:
+            status.update(self.last_teensy_side_pid_status.as_bridge_status_dict())
         if self.last_command_mode is not None:
             status['last_command_mode'] = self.last_command_mode
         if self.last_command_type is not None:
@@ -836,7 +1049,10 @@ class MotorControllerBridge(Node):
 
     def destroy_node(self) -> None:
         try:
-            self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason='shutdown stop')
+            if self.teensy_pid_enabled:
+                self._send_teensy_stop_command(reason='shutdown stop')
+            else:
+                self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason='shutdown stop')
         except Exception:
             pass
         self._close_serial()

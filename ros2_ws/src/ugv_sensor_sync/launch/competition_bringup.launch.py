@@ -172,6 +172,7 @@ def generate_launch_description():
     motor_command_timeout_s = LaunchConfiguration('motor_command_timeout_s')
     motor_command_refresh_period_s = LaunchConfiguration('motor_command_refresh_period_s')
     motor_dry_run = LaunchConfiguration('motor_dry_run')
+    motor_control_location = LaunchConfiguration('motor_control_location')
     motor_velocity_control_enabled = LaunchConfiguration('motor_velocity_control_enabled')
     motor_prefer_velocity_fields = LaunchConfiguration('motor_prefer_velocity_fields')
     motor_wheel_radius_m = LaunchConfiguration('motor_wheel_radius_m')
@@ -333,6 +334,7 @@ def generate_launch_description():
             'command_timeout_s': motor_command_timeout_s,
             'command_refresh_period_s': motor_command_refresh_period_s,
             'dry_run': motor_dry_run,
+            'motor_control_location': motor_control_location,
             'velocity_control_enabled': motor_velocity_control_enabled,
             'prefer_velocity_fields': motor_prefer_velocity_fields,
             'track_width_m': robot_track_width_m,
@@ -979,6 +981,7 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_command_timeout_s', default_value='3.0'),
         DeclareLaunchArgument('motor_command_refresh_period_s', default_value='0.25'),
         DeclareLaunchArgument('motor_dry_run', default_value='false'),
+        DeclareLaunchArgument('motor_control_location', default_value='ros'),
         DeclareLaunchArgument('motor_velocity_control_enabled', default_value='true'),
         DeclareLaunchArgument('motor_prefer_velocity_fields', default_value='true'),
         DeclareLaunchArgument('motor_wheel_radius_m', default_value='0.06'),

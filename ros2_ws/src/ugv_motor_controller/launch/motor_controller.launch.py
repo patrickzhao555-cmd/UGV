@@ -24,6 +24,12 @@ def generate_launch_description():
     track_width_m = LaunchConfiguration('track_width_m')
     wheel_radius_m = LaunchConfiguration('wheel_radius_m')
     ticks_per_rev = LaunchConfiguration('ticks_per_rev')
+    teensy_left_motor_sign = LaunchConfiguration('teensy_left_motor_sign')
+    teensy_right_motor_sign = LaunchConfiguration('teensy_right_motor_sign')
+    teensy_fl_encoder_sign = LaunchConfiguration('teensy_fl_encoder_sign')
+    teensy_fr_encoder_sign = LaunchConfiguration('teensy_fr_encoder_sign')
+    teensy_rl_encoder_sign = LaunchConfiguration('teensy_rl_encoder_sign')
+    teensy_rr_encoder_sign = LaunchConfiguration('teensy_rr_encoder_sign')
     velocity_kp = LaunchConfiguration('velocity_kp')
     velocity_ki = LaunchConfiguration('velocity_ki')
     velocity_kd = LaunchConfiguration('velocity_kd')
@@ -62,8 +68,38 @@ def generate_launch_description():
         DeclareLaunchArgument('velocity_control_enabled', default_value='false'),
         DeclareLaunchArgument('prefer_velocity_fields', default_value='true'),
         DeclareLaunchArgument('track_width_m', default_value='0.6096'),
-        DeclareLaunchArgument('wheel_radius_m', default_value='0.06'),
-        DeclareLaunchArgument('ticks_per_rev', default_value='1000'),
+        DeclareLaunchArgument(
+            'wheel_radius_m',
+            default_value=EnvironmentVariable('MOTOR_WHEEL_RADIUS_M', default_value='0.0889'),
+        ),
+        DeclareLaunchArgument(
+            'ticks_per_rev',
+            default_value=EnvironmentVariable('MOTOR_TICKS_PER_REV', default_value='3200'),
+        ),
+        DeclareLaunchArgument(
+            'teensy_left_motor_sign',
+            default_value=EnvironmentVariable('MOTOR_TEENSY_LEFT_MOTOR_SIGN', default_value='1'),
+        ),
+        DeclareLaunchArgument(
+            'teensy_right_motor_sign',
+            default_value=EnvironmentVariable('MOTOR_TEENSY_RIGHT_MOTOR_SIGN', default_value='-1'),
+        ),
+        DeclareLaunchArgument(
+            'teensy_fl_encoder_sign',
+            default_value=EnvironmentVariable('MOTOR_TEENSY_FL_ENCODER_SIGN', default_value='1'),
+        ),
+        DeclareLaunchArgument(
+            'teensy_fr_encoder_sign',
+            default_value=EnvironmentVariable('MOTOR_TEENSY_FR_ENCODER_SIGN', default_value='1'),
+        ),
+        DeclareLaunchArgument(
+            'teensy_rl_encoder_sign',
+            default_value=EnvironmentVariable('MOTOR_TEENSY_RL_ENCODER_SIGN', default_value='1'),
+        ),
+        DeclareLaunchArgument(
+            'teensy_rr_encoder_sign',
+            default_value=EnvironmentVariable('MOTOR_TEENSY_RR_ENCODER_SIGN', default_value='1'),
+        ),
         DeclareLaunchArgument('velocity_kp', default_value='0.80'),
         DeclareLaunchArgument('velocity_ki', default_value='0.0'),
         DeclareLaunchArgument('velocity_kd', default_value='0.02'),
@@ -105,6 +141,12 @@ def generate_launch_description():
                 'track_width_m': ParameterValue(track_width_m, value_type=float),
                 'wheel_radius_m': ParameterValue(wheel_radius_m, value_type=float),
                 'ticks_per_rev': ParameterValue(ticks_per_rev, value_type=int),
+                'teensy_left_motor_sign': ParameterValue(teensy_left_motor_sign, value_type=int),
+                'teensy_right_motor_sign': ParameterValue(teensy_right_motor_sign, value_type=int),
+                'teensy_fl_encoder_sign': ParameterValue(teensy_fl_encoder_sign, value_type=int),
+                'teensy_fr_encoder_sign': ParameterValue(teensy_fr_encoder_sign, value_type=int),
+                'teensy_rl_encoder_sign': ParameterValue(teensy_rl_encoder_sign, value_type=int),
+                'teensy_rr_encoder_sign': ParameterValue(teensy_rr_encoder_sign, value_type=int),
                 'velocity_kp': ParameterValue(velocity_kp, value_type=float),
                 'velocity_ki': ParameterValue(velocity_ki, value_type=float),
                 'velocity_kd': ParameterValue(velocity_kd, value_type=float),

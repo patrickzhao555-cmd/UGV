@@ -44,6 +44,18 @@ It then converts m/s to ticks/s and runs two closed-loop controllers:
 The legacy firmware in `firmware/teensy_4_1_motor_bridge/` and ROS-side
 `velocity_control.py` stay available as bench fallback.
 
+The Teensy PID path uses physical wheel geometry by default. The UGV has
+7 inch diameter wheels, so the initial motor-control calibration is:
+
+```text
+wheel_radius_m = 0.0889
+ticks_per_rev = 3200
+```
+
+The earlier navigation odometry pair `ROBOT_WHEEL_RADIUS_M=0.06` and
+`ROBOT_TICKS_PER_REV=2151` was an effective calibration. Its physical-radius
+equivalent is about `0.0889 / 3187`. Do not mix `0.0889` with `2151`.
+
 ## Firmware Protocol
 
 New firmware:
@@ -78,6 +90,33 @@ S,<millis>,<fl_ticks>,<fr_ticks>,<rl_ticks>,<rr_ticks>,
 
 The firmware also emits legacy `E<fl>,<fr>,<rl>,<rr>,<millis>` frames by
 default so old encoder consumers still work during transition.
+
+On serial connect, the ROS bridge sends `CMD STOP` and then syncs all critical
+Teensy parameters:
+
+```text
+CMD PARAM track_width_m <track_width_m>
+CMD PARAM wheel_radius_m <wheel_radius_m>
+CMD PARAM ticks_per_rev <ticks_per_rev>
+CMD PARAM kp <velocity_kp>
+CMD PARAM ki <velocity_ki>
+CMD PARAM kd <velocity_kd>
+CMD PARAM command_timeout_ms <command_timeout_s * 1000>
+CMD PARAM pwm_min_us <pwm_min_us>
+CMD PARAM pwm_neutral_us <pwm_neutral_us>
+CMD PARAM pwm_max_us <pwm_max_us>
+CMD PARAM pwm_slew_us_per_s <pwm_slew_rate_us_per_s>
+CMD PARAM left_motor_sign <teensy_left_motor_sign>
+CMD PARAM right_motor_sign <teensy_right_motor_sign>
+CMD PARAM fl_encoder_sign <teensy_fl_encoder_sign>
+CMD PARAM fr_encoder_sign <teensy_fr_encoder_sign>
+CMD PARAM rl_encoder_sign <teensy_rl_encoder_sign>
+CMD PARAM rr_encoder_sign <teensy_rr_encoder_sign>
+```
+
+The `teensy_*_sign` parameters are independent from legacy bridge inversion.
+In Teensy PID mode, the bridge sends logical RAW2 PWM values and the Teensy
+applies motor signs.
 
 ## Diagnostics
 

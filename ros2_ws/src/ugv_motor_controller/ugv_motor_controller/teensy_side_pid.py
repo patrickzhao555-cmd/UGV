@@ -81,6 +81,26 @@ def build_teensy_raw2_command(left_us: int, right_us: int) -> str:
     return f"CMD RAW2 {int(left_us)} {int(right_us)}\n"
 
 
+def build_teensy_param_command(name: str, value: Any) -> str:
+    param_name = str(name).strip()
+    if not param_name:
+        raise ValueError("Teensy parameter name must not be empty")
+    if isinstance(value, bool):
+        param_value = "1" if value else "0"
+    elif isinstance(value, int):
+        param_value = str(value)
+    else:
+        numeric = finite_float(value, name=param_name)
+        param_value = f"{numeric:.6f}".rstrip("0").rstrip(".")
+        if param_value == "-0":
+            param_value = "0"
+    return f"CMD PARAM {param_name} {param_value}\n"
+
+
+def build_teensy_param_init_commands(params: Dict[str, Any]) -> Tuple[str, ...]:
+    return tuple(build_teensy_param_command(name, value) for name, value in params.items())
+
+
 def teensy_timeout_stop_command_due(
     last_command_time_s: float,
     now_s: float,

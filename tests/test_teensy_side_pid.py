@@ -6,6 +6,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_motor_controller"))
 
 from ugv_motor_controller.teensy_side_pid import (  # noqa: E402
+    build_teensy_param_command,
+    build_teensy_param_init_commands,
     build_teensy_raw2_command,
     build_teensy_stop_command,
     build_teensy_velocity_command,
@@ -88,7 +90,29 @@ def test_parse_teensy_side_pid_status_line():
 def test_teensy_serial_command_builders():
     assert build_teensy_velocity_command(0.18, 0.35) == "CMD V 0.180000 0.350000\n"
     assert build_teensy_raw2_command(1500, 1510) == "CMD RAW2 1500 1510\n"
+    assert build_teensy_param_command("right_motor_sign", -1) == "CMD PARAM right_motor_sign -1\n"
+    assert build_teensy_param_command("wheel_radius_m", 0.0889) == "CMD PARAM wheel_radius_m 0.0889\n"
     assert build_teensy_stop_command() == "CMD STOP\n"
+
+
+def test_teensy_startup_param_sequence_uses_bridge_ticks_and_physical_defaults():
+    commands = build_teensy_param_init_commands(
+        {
+            "track_width_m": 0.6096,
+            "wheel_radius_m": 0.0889,
+            "ticks_per_rev": 3200,
+            "kp": 0.45,
+            "ki": 0.0,
+            "kd": 0.0,
+            "right_motor_sign": -1,
+        }
+    )
+
+    assert "CMD PARAM wheel_radius_m 0.0889\n" in commands
+    assert "CMD PARAM ticks_per_rev 3200\n" in commands
+    assert "CMD PARAM kp 0.45\n" in commands
+    assert "CMD PARAM right_motor_sign -1\n" in commands
+    assert "CMD PARAM ticks_per_rev 2151\n" not in commands
 
 
 def test_teensy_timeout_maps_to_stop_command():
@@ -106,13 +130,46 @@ def test_bridge_and_launch_wire_teensy_pid_mode_without_replacing_legacy_pid():
         / "motor_controller_bridge.py"
     ).read_text()
     launch_file = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "launch" / "motor_controller.launch.py").read_text()
+    bringup = (ROOT / "ros2_ws" / "jetson_bringup.sh").read_text()
+    firmware = (
+        ROOT
+        / "ros2_ws"
+        / "src"
+        / "ugv_motor_controller"
+        / "firmware"
+        / "teensy_4_1_side_pid_controller"
+        / "teensy_4_1_side_pid_controller.ino"
+    ).read_text()
     setup_file = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "setup.py").read_text()
 
     assert "motor_control_location" in bridge_file
     assert "python_velocity_pid_enabled" in bridge_file
     assert "build_teensy_velocity_command" in bridge_file
     assert "build_teensy_stop_command" in bridge_file
+    assert "_sync_teensy_pid_params(reason='startup parameter sync')" in bridge_file
+    assert bridge_file.index("_send_teensy_stop_command(reason='startup stop')") < bridge_file.index(
+        "_sync_teensy_pid_params(reason='startup parameter sync')"
+    )
+    assert "'ticks_per_rev', self.ticks_per_rev" in bridge_file
+    assert "left_pwm = self._raw_to_pwm(left_raw, invert=False)" in bridge_file
+    assert "right_pwm = self._raw_to_pwm(right_raw, invert=False)" in bridge_file
+    assert "teensy_pid_params_synced" in bridge_file
+    assert "teensy_pid_wheel_radius_m" in bridge_file
+    assert "teensy_right_motor_sign" in bridge_file
     assert "parse_teensy_side_pid_status_line" in bridge_file
     assert "teensy_4_1_side_pid_controller" in setup_file
+    assert "EnvironmentVariable('MOTOR_WHEEL_RADIUS_M', default_value='0.0889')" in launch_file
+    assert "EnvironmentVariable('MOTOR_TICKS_PER_REV', default_value='3200')" in launch_file
+    assert "teensy_right_motor_sign" in launch_file
     assert "MOTOR_CONTROL_LOCATION" in launch_file
+    assert 'MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-0.0889}"' in bringup
+    assert 'MOTOR_TICKS_PER_REV="${MOTOR_TICKS_PER_REV:-3200}"' in bringup
+    assert "MOTOR_TEENSY_RIGHT_MOTOR_SIGN" in bringup
+    assert "DEFAULT_WHEEL_RADIUS_M = 0.0889f" in firmware
+    assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
+    assert 'strcmp(name, "right_motor_sign")' in firmware
+    assert "value < 0 ? -1 : 1" in firmware
+    assert "critical = true" in firmware
+    assert "resetPidState();" in firmware
+    assert "neutralizeForCriticalParam();" in firmware
     assert (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "ugv_motor_controller" / "velocity_control.py").exists()

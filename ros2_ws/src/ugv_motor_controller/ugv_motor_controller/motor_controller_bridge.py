@@ -2,6 +2,7 @@
 import json
 import os
 import time
+from collections import OrderedDict
 from typing import Optional, Tuple
 
 import rclpy
@@ -13,6 +14,7 @@ from ugv_sensor_sync.msg import EncoderTicksStamped
 from ugv_motor_controller.teensy_side_pid import (
     TeensySidePidStatus,
     build_teensy_raw2_command,
+    build_teensy_param_command,
     build_teensy_stop_command,
     build_teensy_velocity_command,
     normalize_motor_control_location,
@@ -39,6 +41,10 @@ from ugv_motor_controller.velocity_control import (
     update_encoder_wheel_speed_estimate,
     velocity_to_wheel_speeds,
 )
+
+
+def _sign_param(value) -> int:
+    return -1 if int(value) < 0 else 1
 
 
 class MotorControllerBridge(Node):
@@ -74,8 +80,8 @@ class MotorControllerBridge(Node):
         self.declare_parameter('velocity_control_enabled', False)
         self.declare_parameter('prefer_velocity_fields', True)
         self.declare_parameter('track_width_m', 0.6096)
-        self.declare_parameter('wheel_radius_m', 0.06)
-        self.declare_parameter('ticks_per_rev', 1000)
+        self.declare_parameter('wheel_radius_m', 0.0889)
+        self.declare_parameter('ticks_per_rev', 3200)
         self.declare_parameter('velocity_kp', 0.80)
         self.declare_parameter('velocity_ki', 0.0)
         self.declare_parameter('velocity_kd', 0.02)
@@ -93,6 +99,22 @@ class MotorControllerBridge(Node):
         self.declare_parameter('velocity_raw_fallback_min_wheel_raw', 0.0)
         self.declare_parameter('velocity_raw_fallback_min_turn_raw', 0.28)
         self.declare_parameter('velocity_raw_fallback_min_target_raw', 0.001)
+        self.declare_parameter('teensy_left_motor_sign', 1)
+        self.declare_parameter('teensy_right_motor_sign', -1)
+        self.declare_parameter('teensy_fl_encoder_sign', 1)
+        self.declare_parameter('teensy_fr_encoder_sign', 1)
+        self.declare_parameter('teensy_rl_encoder_sign', 1)
+        self.declare_parameter('teensy_rr_encoder_sign', 1)
+        self.declare_parameter('teensy_pid_feedforward_us_per_tps', 0.0)
+        self.declare_parameter('teensy_pid_output_limit_us', 350.0)
+        self.declare_parameter('teensy_pid_min_target_tps', 2.0)
+        self.declare_parameter('teensy_stall_fault_enabled', True)
+        self.declare_parameter('teensy_stall_target_tps', 15.0)
+        self.declare_parameter('teensy_stall_near_zero_tps', 2.0)
+        self.declare_parameter('teensy_stall_moving_peer_tps', 12.0)
+        self.declare_parameter('teensy_stall_pwm_delta_us', 120.0)
+        self.declare_parameter('teensy_stall_timeout_ms', 300)
+        self.declare_parameter('teensy_sign_mismatch_tps', 10.0)
 
         self.port = self.get_parameter('port').value
         self.baud = int(self.get_parameter('baud').value)
@@ -167,13 +189,43 @@ class MotorControllerBridge(Node):
             0.0,
             float(self.get_parameter('velocity_raw_fallback_min_target_raw').value),
         )
+        self.teensy_pid_kp = float(self.get_parameter('velocity_kp').value)
+        self.teensy_pid_ki = float(self.get_parameter('velocity_ki').value)
+        self.teensy_pid_kd = float(self.get_parameter('velocity_kd').value)
+        self.teensy_left_motor_sign = _sign_param(self.get_parameter('teensy_left_motor_sign').value)
+        self.teensy_right_motor_sign = _sign_param(self.get_parameter('teensy_right_motor_sign').value)
+        self.teensy_fl_encoder_sign = _sign_param(self.get_parameter('teensy_fl_encoder_sign').value)
+        self.teensy_fr_encoder_sign = _sign_param(self.get_parameter('teensy_fr_encoder_sign').value)
+        self.teensy_rl_encoder_sign = _sign_param(self.get_parameter('teensy_rl_encoder_sign').value)
+        self.teensy_rr_encoder_sign = _sign_param(self.get_parameter('teensy_rr_encoder_sign').value)
+        self.teensy_pid_feedforward_us_per_tps = float(
+            self.get_parameter('teensy_pid_feedforward_us_per_tps').value
+        )
+        self.teensy_pid_output_limit_us = max(
+            1.0,
+            float(self.get_parameter('teensy_pid_output_limit_us').value),
+        )
+        self.teensy_pid_min_target_tps = max(
+            0.0,
+            float(self.get_parameter('teensy_pid_min_target_tps').value),
+        )
+        self.teensy_stall_fault_enabled = bool(self.get_parameter('teensy_stall_fault_enabled').value)
+        self.teensy_stall_target_tps = max(0.0, float(self.get_parameter('teensy_stall_target_tps').value))
+        self.teensy_stall_near_zero_tps = max(0.0, float(self.get_parameter('teensy_stall_near_zero_tps').value))
+        self.teensy_stall_moving_peer_tps = max(
+            0.0,
+            float(self.get_parameter('teensy_stall_moving_peer_tps').value),
+        )
+        self.teensy_stall_pwm_delta_us = max(0.0, float(self.get_parameter('teensy_stall_pwm_delta_us').value))
+        self.teensy_stall_timeout_ms = max(0, int(self.get_parameter('teensy_stall_timeout_ms').value))
+        self.teensy_sign_mismatch_tps = max(0.0, float(self.get_parameter('teensy_sign_mismatch_tps').value))
         self.left_velocity_pid: Optional[WheelVelocityPid] = None
         self.right_velocity_pid: Optional[WheelVelocityPid] = None
         if self.python_velocity_pid_enabled:
             pid_cfg = VelocityPidConfig(
-                kp=float(self.get_parameter('velocity_kp').value),
-                ki=float(self.get_parameter('velocity_ki').value),
-                kd=float(self.get_parameter('velocity_kd').value),
+                kp=self.teensy_pid_kp,
+                ki=self.teensy_pid_ki,
+                kd=self.teensy_pid_kd,
                 integral_limit=max(0.0, float(self.get_parameter('velocity_integral_limit').value)),
                 feedforward_raw_per_mps=float(self.get_parameter('velocity_feedforward_raw_per_mps').value),
                 min_target_mps=max(0.0, float(self.get_parameter('velocity_min_target_mps').value)),
@@ -229,6 +281,9 @@ class MotorControllerBridge(Node):
         self.last_pwm_send_time = 0.0
         self.timeout_stop_count = 0
         self.command_refresh_count = 0
+        self.teensy_pid_params_synced = False
+        self.teensy_pid_param_sync_count = 0
+        self.teensy_pid_param_sync_last_s: Optional[float] = None
 
         self.encoder_pub = self.create_publisher(Int32MultiArray, self.encoder_topic, 10)
         self.encoder_stamped_pub = self.create_publisher(EncoderTicksStamped, self.encoder_stamped_topic, 10)
@@ -252,6 +307,10 @@ class MotorControllerBridge(Node):
             f'motor_control_location={self.motor_control_location}, '
             f'velocity_control_enabled={self.velocity_control_enabled}, '
             f'python_velocity_pid_enabled={self.python_velocity_pid_enabled}, '
+            f'teensy_pid_radius_ticks={self.wheel_radius_m}/{self.ticks_per_rev}, '
+            f'teensy_motor_signs={self.teensy_left_motor_sign}/{self.teensy_right_motor_sign}, '
+            f'teensy_encoder_signs={self.teensy_fl_encoder_sign}/{self.teensy_fr_encoder_sign}/'
+            f'{self.teensy_rl_encoder_sign}/{self.teensy_rr_encoder_sign}, '
             f'prefer_velocity_fields={self.prefer_velocity_fields})'
         )
 
@@ -371,8 +430,12 @@ class MotorControllerBridge(Node):
             )
             self.last_command_received = time.monotonic()
             self.last_stop_sent = False
-            left_pwm = self._raw_to_pwm(left_raw, invert=self.invert_left_command)
-            right_pwm = self._raw_to_pwm(right_raw, invert=self.invert_right_command)
+            if self.teensy_pid_enabled:
+                left_pwm = self._raw_to_pwm(left_raw, invert=False)
+                right_pwm = self._raw_to_pwm(right_raw, invert=False)
+            else:
+                left_pwm = self._raw_to_pwm(left_raw, invert=self.invert_left_command)
+                right_pwm = self._raw_to_pwm(right_raw, invert=self.invert_right_command)
             self.target_pwm_command = (left_pwm, right_pwm)
             if self.serial_device is not None:
                 if self.teensy_pid_enabled:
@@ -427,6 +490,7 @@ class MotorControllerBridge(Node):
             self.get_logger().info(f'Motor controller serial connected: {self.port} @ {self.baud}')
             if self.teensy_pid_enabled:
                 self._send_teensy_stop_command(reason='startup stop')
+                self._sync_teensy_pid_params(reason='startup parameter sync')
             else:
                 self._send_pwm_command(self.pwm_neutral_us, self.pwm_neutral_us, reason='startup stop')
         except serial.SerialException as exc:
@@ -858,22 +922,75 @@ class MotorControllerBridge(Node):
             self.get_logger().warn(f'Failed to send motor command: {exc}')
             self._close_serial()
 
-    def _write_serial_command(self, line: str, reason: str, log_payload: str) -> None:
+    def _write_serial_command(self, line: str, reason: str, log_payload: str) -> bool:
         if self.serial_device is None:
-            return
+            return False
         if self.dry_run:
             self.last_pwm_send_time = time.monotonic()
             self._throttled_info(f'DRY RUN motor command ({reason}): {log_payload}')
-            return
+            return True
 
         try:
             self.serial_device.write(line.encode('utf-8'))
             self.serial_device.flush()
             self.last_pwm_send_time = time.monotonic()
             self._throttled_info(f'Sent motor command ({reason}): {log_payload}')
+            return True
         except serial.SerialException as exc:
             self.get_logger().warn(f'Failed to send motor command: {exc}')
             self._close_serial()
+            return False
+
+    def _teensy_pid_param_values(self) -> OrderedDict:
+        return OrderedDict([
+            ('track_width_m', self.track_width_m),
+            ('wheel_radius_m', self.wheel_radius_m),
+            ('ticks_per_rev', self.ticks_per_rev),
+            ('kp', self.teensy_pid_kp),
+            ('ki', self.teensy_pid_ki),
+            ('kd', self.teensy_pid_kd),
+            ('command_timeout_ms', int(round(self.command_timeout_s * 1000.0))),
+            ('pwm_min_us', self.pwm_min_us),
+            ('pwm_neutral_us', self.pwm_neutral_us),
+            ('pwm_max_us', self.pwm_max_us),
+            ('pwm_slew_us_per_s', self.pwm_slew_rate_us_per_s),
+            ('left_motor_sign', self.teensy_left_motor_sign),
+            ('right_motor_sign', self.teensy_right_motor_sign),
+            ('fl_encoder_sign', self.teensy_fl_encoder_sign),
+            ('fr_encoder_sign', self.teensy_fr_encoder_sign),
+            ('rl_encoder_sign', self.teensy_rl_encoder_sign),
+            ('rr_encoder_sign', self.teensy_rr_encoder_sign),
+            ('ff_us_per_tps', self.teensy_pid_feedforward_us_per_tps),
+            ('pid_output_limit_us', self.teensy_pid_output_limit_us),
+            ('min_target_tps', self.teensy_pid_min_target_tps),
+            ('stall_fault_enabled', 1 if self.teensy_stall_fault_enabled else 0),
+            ('stall_target_tps', self.teensy_stall_target_tps),
+            ('stall_near_zero_tps', self.teensy_stall_near_zero_tps),
+            ('stall_moving_peer_tps', self.teensy_stall_moving_peer_tps),
+            ('stall_pwm_delta_us', self.teensy_stall_pwm_delta_us),
+            ('stall_timeout_ms', self.teensy_stall_timeout_ms),
+            ('sign_mismatch_tps', self.teensy_sign_mismatch_tps),
+        ])
+
+    def _sync_teensy_pid_params(self, reason: str) -> None:
+        if self.serial_device is None:
+            return
+
+        sent = 0
+        for name, value in self._teensy_pid_param_values().items():
+            ok = self._write_serial_command(
+                build_teensy_param_command(name, value),
+                reason=reason,
+                log_payload=f'CMD PARAM {name} {value}',
+            )
+            if not ok:
+                self.teensy_pid_params_synced = False
+                return
+            sent += 1
+
+        self.teensy_pid_params_synced = True
+        self.teensy_pid_param_sync_count += sent
+        self.teensy_pid_param_sync_last_s = time.monotonic()
 
     def _send_teensy_velocity_command(self, v_mps: float, omega_radps: float, reason: str) -> None:
         self.target_left_mps, self.target_right_mps = velocity_to_wheel_speeds(
@@ -930,6 +1047,25 @@ class MotorControllerBridge(Node):
             'velocity_control_enabled': self.velocity_control_enabled,
             'python_velocity_pid_enabled': self.python_velocity_pid_enabled,
             'prefer_velocity_fields': self.prefer_velocity_fields,
+            'teensy_pid_params_synced': bool(self.teensy_pid_params_synced),
+            'teensy_pid_param_sync_count': int(self.teensy_pid_param_sync_count),
+            'teensy_pid_param_sync_last_s': (
+                None
+                if self.teensy_pid_param_sync_last_s is None
+                else round(self.teensy_pid_param_sync_last_s, 3)
+            ),
+            'teensy_pid_track_width_m': round(self.track_width_m, 4),
+            'teensy_pid_wheel_radius_m': round(self.wheel_radius_m, 4),
+            'teensy_pid_ticks_per_rev': int(self.ticks_per_rev),
+            'teensy_pid_kp': round(self.teensy_pid_kp, 4),
+            'teensy_pid_ki': round(self.teensy_pid_ki, 4),
+            'teensy_pid_kd': round(self.teensy_pid_kd, 4),
+            'teensy_left_motor_sign': int(self.teensy_left_motor_sign),
+            'teensy_right_motor_sign': int(self.teensy_right_motor_sign),
+            'teensy_fl_encoder_sign': int(self.teensy_fl_encoder_sign),
+            'teensy_fr_encoder_sign': int(self.teensy_fr_encoder_sign),
+            'teensy_rl_encoder_sign': int(self.teensy_rl_encoder_sign),
+            'teensy_rr_encoder_sign': int(self.teensy_rr_encoder_sign),
             'velocity_raw_fallback_floor_enabled': self.velocity_raw_fallback_floor_enabled,
             'velocity_raw_fallback_min_wheel_raw': round(self.velocity_raw_fallback_min_wheel_raw, 4),
             'velocity_raw_fallback_min_turn_raw': round(self.velocity_raw_fallback_min_turn_raw, 4),
@@ -996,6 +1132,7 @@ class MotorControllerBridge(Node):
                 pass
         self.serial_device = None
         self.serial_rx_buffer = ''
+        self.teensy_pid_params_synced = False
 
     def _throttled_info(self, msg: str, period_s: float = 2.0) -> None:
         now = time.monotonic()

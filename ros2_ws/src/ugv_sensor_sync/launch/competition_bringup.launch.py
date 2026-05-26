@@ -177,6 +177,12 @@ def generate_launch_description():
     motor_prefer_velocity_fields = LaunchConfiguration('motor_prefer_velocity_fields')
     motor_wheel_radius_m = LaunchConfiguration('motor_wheel_radius_m')
     motor_ticks_per_rev = LaunchConfiguration('motor_ticks_per_rev')
+    motor_teensy_left_motor_sign = LaunchConfiguration('motor_teensy_left_motor_sign')
+    motor_teensy_right_motor_sign = LaunchConfiguration('motor_teensy_right_motor_sign')
+    motor_teensy_fl_encoder_sign = LaunchConfiguration('motor_teensy_fl_encoder_sign')
+    motor_teensy_fr_encoder_sign = LaunchConfiguration('motor_teensy_fr_encoder_sign')
+    motor_teensy_rl_encoder_sign = LaunchConfiguration('motor_teensy_rl_encoder_sign')
+    motor_teensy_rr_encoder_sign = LaunchConfiguration('motor_teensy_rr_encoder_sign')
     motor_velocity_kp = LaunchConfiguration('motor_velocity_kp')
     motor_velocity_ki = LaunchConfiguration('motor_velocity_ki')
     motor_velocity_kd = LaunchConfiguration('motor_velocity_kd')
@@ -340,6 +346,12 @@ def generate_launch_description():
             'track_width_m': robot_track_width_m,
             'wheel_radius_m': motor_wheel_radius_m,
             'ticks_per_rev': motor_ticks_per_rev,
+            'teensy_left_motor_sign': motor_teensy_left_motor_sign,
+            'teensy_right_motor_sign': motor_teensy_right_motor_sign,
+            'teensy_fl_encoder_sign': motor_teensy_fl_encoder_sign,
+            'teensy_fr_encoder_sign': motor_teensy_fr_encoder_sign,
+            'teensy_rl_encoder_sign': motor_teensy_rl_encoder_sign,
+            'teensy_rr_encoder_sign': motor_teensy_rr_encoder_sign,
             'velocity_kp': motor_velocity_kp,
             'velocity_ki': motor_velocity_ki,
             'velocity_kd': motor_velocity_kd,
@@ -984,8 +996,14 @@ def generate_launch_description():
         DeclareLaunchArgument('motor_control_location', default_value='ros'),
         DeclareLaunchArgument('motor_velocity_control_enabled', default_value='true'),
         DeclareLaunchArgument('motor_prefer_velocity_fields', default_value='true'),
-        DeclareLaunchArgument('motor_wheel_radius_m', default_value='0.06'),
-        DeclareLaunchArgument('motor_ticks_per_rev', default_value='1000'),
+        DeclareLaunchArgument('motor_wheel_radius_m', default_value='0.0889'),
+        DeclareLaunchArgument('motor_ticks_per_rev', default_value='3200'),
+        DeclareLaunchArgument('motor_teensy_left_motor_sign', default_value='1'),
+        DeclareLaunchArgument('motor_teensy_right_motor_sign', default_value='-1'),
+        DeclareLaunchArgument('motor_teensy_fl_encoder_sign', default_value='1'),
+        DeclareLaunchArgument('motor_teensy_fr_encoder_sign', default_value='1'),
+        DeclareLaunchArgument('motor_teensy_rl_encoder_sign', default_value='1'),
+        DeclareLaunchArgument('motor_teensy_rr_encoder_sign', default_value='1'),
         DeclareLaunchArgument('motor_velocity_kp', default_value='0.80'),
         DeclareLaunchArgument('motor_velocity_ki', default_value='0.0'),
         DeclareLaunchArgument('motor_velocity_kd', default_value='0.02'),

@@ -1260,6 +1260,8 @@ def test_real_nav_odometry_calibration_parameters_are_wired():
     for token in [
         'ROBOT_WHEEL_RADIUS_M="${ROBOT_WHEEL_RADIUS_M:-0.06}"',
         'ROBOT_TICKS_PER_REV="${ROBOT_TICKS_PER_REV:-1000}"',
+        'MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-0.0889}"',
+        'MOTOR_TICKS_PER_REV="${MOTOR_TICKS_PER_REV:-3200}"',
         'MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-${ROBOT_WHEEL_RADIUS_M}}"',
         'MOTOR_TICKS_PER_REV="${MOTOR_TICKS_PER_REV:-${ROBOT_TICKS_PER_REV}}"',
         'UGV robot odometry: ROBOT_WHEEL_RADIUS_M=',

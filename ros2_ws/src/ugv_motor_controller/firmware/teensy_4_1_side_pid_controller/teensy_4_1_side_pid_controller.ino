@@ -57,8 +57,8 @@ const int DEFAULT_PWM_NEUTRAL_US = 1500;
 const int DEFAULT_PWM_MAX_US = 1900;
 
 const float DEFAULT_TRACK_WIDTH_M = 0.6096f;
-const float DEFAULT_WHEEL_RADIUS_M = 0.06f;
-const float DEFAULT_TICKS_PER_REV = 1000.0f;
+const float DEFAULT_WHEEL_RADIUS_M = 0.0889f;
+const float DEFAULT_TICKS_PER_REV = 3200.0f;
 const float DEFAULT_KP = 0.55f;
 const float DEFAULT_KI = 0.0f;
 const float DEFAULT_KD = 0.0f;
@@ -294,6 +294,37 @@ void resetPidState() {
   right_p_term = 0.0f;
   right_i_term = 0.0f;
   right_d_term = 0.0f;
+}
+
+void resetEncoderBaselines() {
+  fl_ticks = readEncoderSigned(enc_fl, fl_encoder_sign);
+  fr_ticks = readEncoderSigned(enc_fr, fr_encoder_sign);
+  rl_ticks = readEncoderSigned(enc_rl, rl_encoder_sign);
+  rr_ticks = readEncoderSigned(enc_rr, rr_encoder_sign);
+  last_fl_ticks = fl_ticks;
+  last_fr_ticks = fr_ticks;
+  last_rl_ticks = rl_ticks;
+  last_rr_ticks = rr_ticks;
+  fl_tps = 0.0f;
+  fr_tps = 0.0f;
+  rl_tps = 0.0f;
+  rr_tps = 0.0f;
+  left_measured_tps = 0.0f;
+  right_measured_tps = 0.0f;
+}
+
+void neutralizeForCriticalParam() {
+  target_v_mps = 0.0f;
+  target_omega_radps = 0.0f;
+  left_target_tps = 0.0f;
+  right_target_tps = 0.0f;
+  left_error_tps = 0.0f;
+  right_error_tps = 0.0f;
+  resetPidState();
+  applyNeutralNow();
+  if (controller_mode != MODE_FAULT) {
+    controller_mode = MODE_STOPPED;
+  }
 }
 
 void configurePid() {
@@ -609,27 +640,31 @@ void sendStatus() {
 }
 
 bool setParam(const char* name, float value) {
-  if (strcmp(name, "kp") == 0) kp = value;
-  else if (strcmp(name, "ki") == 0) ki = value;
-  else if (strcmp(name, "kd") == 0) kd = value;
-  else if (strcmp(name, "ff_us_per_tps") == 0) feedforward_us_per_tps = value;
-  else if (strcmp(name, "pid_output_limit_us") == 0) pid_output_limit_us = max(1.0f, value);
-  else if (strcmp(name, "pwm_slew_us_per_s") == 0) pwm_slew_us_per_s = max(0.0f, value);
-  else if (strcmp(name, "track_width_m") == 0) track_width_m = max(0.01f, value);
-  else if (strcmp(name, "wheel_radius_m") == 0) wheel_radius_m = max(0.001f, value);
-  else if (strcmp(name, "ticks_per_rev") == 0) ticks_per_rev = max(1.0f, value);
+  bool critical = false;
+  bool neutralize_outputs = false;
+  bool reset_encoder_baselines = false;
+
+  if (strcmp(name, "kp") == 0) { kp = value; critical = true; }
+  else if (strcmp(name, "ki") == 0) { ki = value; critical = true; }
+  else if (strcmp(name, "kd") == 0) { kd = value; critical = true; }
+  else if (strcmp(name, "ff_us_per_tps") == 0) { feedforward_us_per_tps = value; critical = true; }
+  else if (strcmp(name, "pid_output_limit_us") == 0) { pid_output_limit_us = max(1.0f, value); critical = true; }
+  else if (strcmp(name, "pwm_slew_us_per_s") == 0) { pwm_slew_us_per_s = max(0.0f, value); critical = true; }
+  else if (strcmp(name, "track_width_m") == 0) { track_width_m = max(0.01f, value); critical = true; }
+  else if (strcmp(name, "wheel_radius_m") == 0) { wheel_radius_m = max(0.001f, value); critical = true; }
+  else if (strcmp(name, "ticks_per_rev") == 0) { ticks_per_rev = max(1.0f, value); critical = true; }
   else if (strcmp(name, "command_timeout_ms") == 0) command_timeout_ms = max(50.0f, value);
-  else if (strcmp(name, "min_target_tps") == 0) min_target_tps = max(0.0f, value);
-  else if (strcmp(name, "deadband_tps") == 0) deadband_tps = max(0.0f, value);
-  else if (strcmp(name, "pwm_min_us") == 0) pwm_min_us = (int)value;
-  else if (strcmp(name, "pwm_neutral_us") == 0) pwm_neutral_us = (int)value;
-  else if (strcmp(name, "pwm_max_us") == 0) pwm_max_us = (int)value;
-  else if (strcmp(name, "fl_encoder_sign") == 0) fl_encoder_sign = value < 0 ? -1 : 1;
-  else if (strcmp(name, "fr_encoder_sign") == 0) fr_encoder_sign = value < 0 ? -1 : 1;
-  else if (strcmp(name, "rl_encoder_sign") == 0) rl_encoder_sign = value < 0 ? -1 : 1;
-  else if (strcmp(name, "rr_encoder_sign") == 0) rr_encoder_sign = value < 0 ? -1 : 1;
-  else if (strcmp(name, "left_motor_sign") == 0) left_motor_sign = value < 0 ? -1 : 1;
-  else if (strcmp(name, "right_motor_sign") == 0) right_motor_sign = value < 0 ? -1 : 1;
+  else if (strcmp(name, "min_target_tps") == 0) { min_target_tps = max(0.0f, value); critical = true; }
+  else if (strcmp(name, "deadband_tps") == 0) { deadband_tps = max(0.0f, value); critical = true; }
+  else if (strcmp(name, "pwm_min_us") == 0) { pwm_min_us = (int)value; critical = true; neutralize_outputs = true; }
+  else if (strcmp(name, "pwm_neutral_us") == 0) { pwm_neutral_us = (int)value; critical = true; neutralize_outputs = true; }
+  else if (strcmp(name, "pwm_max_us") == 0) { pwm_max_us = (int)value; critical = true; neutralize_outputs = true; }
+  else if (strcmp(name, "fl_encoder_sign") == 0) { fl_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
+  else if (strcmp(name, "fr_encoder_sign") == 0) { fr_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
+  else if (strcmp(name, "rl_encoder_sign") == 0) { rl_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
+  else if (strcmp(name, "rr_encoder_sign") == 0) { rr_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
+  else if (strcmp(name, "left_motor_sign") == 0) { left_motor_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; }
+  else if (strcmp(name, "right_motor_sign") == 0) { right_motor_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; }
   else if (strcmp(name, "emit_legacy_e") == 0) emit_legacy_e = value != 0.0f;
   else if (strcmp(name, "stall_fault_enabled") == 0) stall_fault_enabled = value != 0.0f;
   else if (strcmp(name, "stall_target_tps") == 0) stall_target_tps = max(0.0f, value);
@@ -639,7 +674,16 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "stall_timeout_ms") == 0) stall_timeout_ms = (unsigned long)max(0.0f, value);
   else if (strcmp(name, "sign_mismatch_tps") == 0) sign_mismatch_tps = max(0.0f, value);
   else return false;
+
   configurePid();
+  if (reset_encoder_baselines) {
+    resetEncoderBaselines();
+  }
+  if (neutralize_outputs) {
+    neutralizeForCriticalParam();
+  } else if (critical) {
+    resetPidState();
+  }
   return true;
 }
 

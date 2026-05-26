@@ -61,7 +61,7 @@ ros2 launch ugv_motor_controller motor_controller.launch.py \
   port:=/dev/ttyACM0 baud:=115200 dry_run:=false \
   invert_left_command:=false invert_right_command:=true \
   velocity_control_enabled:=true prefer_velocity_fields:=true \
-  track_width_m:=0.6096 wheel_radius_m:=0.06 ticks_per_rev:=1000 \
+  track_width_m:=0.6096 wheel_radius_m:=0.06 ticks_per_rev:=2151 \
   velocity_kp:=0.80 velocity_ki:=0.0 velocity_kd:=0.02 \
   velocity_feedforward_raw_per_mps:=1.35 velocity_max_target_mps:=0.35
 ```
@@ -77,7 +77,7 @@ The new Teensy-side PID mode is selected with:
 MOTOR_CONTROL_LOCATION=teensy_pid ros2 launch ugv_motor_controller motor_controller.launch.py \
   port:=/dev/ttyACM0 baud:=115200 dry_run:=false \
   motor_control_location:=teensy_pid \
-  track_width_m:=0.6096 wheel_radius_m:=0.06 ticks_per_rev:=1000
+  track_width_m:=0.6096 wheel_radius_m:=0.0889 ticks_per_rev:=3200
 ```
 
 In this mode the bridge does not run `WheelVelocityPid`. It forwards velocity
@@ -86,6 +86,19 @@ parses Teensy `S,...` status, and publishes the same encoder/status ROS topics.
 The current hardware has only two independent motor outputs, so the new firmware
 runs left-side and right-side PID loops while using all four encoders for
 feedback and fault diagnostics.
+
+On serial connect, Teensy PID mode sends `CMD STOP` and then syncs controller
+parameters with `CMD PARAM`, including track width, physical wheel radius,
+ticks-per-rev, PID gains, PWM limits, motor signs, encoder signs, and stall
+diagnostic thresholds. The initial Teensy PID wheel model is the physical
+7 inch wheel radius `0.0889 m` with `ticks_per_rev=3200`. Do not pair
+`wheel_radius_m=0.0889` with the old effective `ticks_per_rev=2151`; that
+overestimates speed by about 48%.
+
+Direction in Teensy PID mode is owned by `teensy_left_motor_sign` and
+`teensy_right_motor_sign`. The bridge sends logical `CMD RAW2` PWM values and
+does not apply the legacy `invert_left_command` / `invert_right_command` flags
+before RAW2.
 
 When the Teensy encoder packet includes controller milliseconds, the bridge uses
 that timestamp for wheel-speed `dt`; otherwise it falls back to host monotonic
@@ -96,10 +109,11 @@ velocity_encoder_speed_filter_alpha=0.65
 velocity_encoder_speed_max_mps=2.0
 ```
 
-Ground odometry calibration for the current chassis recommends an effective
-`ROBOT_TICKS_PER_REV=2151` for navigation. If velocity PID is used for true
-ground speed later, calibrate this bridge's `ticks_per_rev` /
-`MOTOR_TICKS_PER_REV` consistently with the nav odometry value.
+Ground odometry calibration for the current chassis previously used an
+effective pair of `ROBOT_WHEEL_RADIUS_M=0.06` and `ROBOT_TICKS_PER_REV=2151`
+for navigation. The equivalent physical-radius pair for motor speed control is
+approximately `MOTOR_WHEEL_RADIUS_M=0.0889` and
+`MOTOR_TICKS_PER_REV=3187`; the Teensy PID default starts at `3200`.
 
 `/motor_controller/status` publishes `encoder_speed_dt_source`,
 `encoder_speed_dt_s`, and `encoder_speed_anomaly` so bad timestamp deltas or

@@ -5,7 +5,14 @@ import argparse
 import sys
 import time
 
-import serial
+from teensy_serial_test_utils import (
+    add_common_serial_args,
+    open_teensy_serial,
+    run_with_serial_errors,
+    settle_serial,
+    sync_standard_params,
+    write_line,
+)
 
 
 WARNING = "WARNING: first run must be with wheels off the ground."
@@ -28,42 +35,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fr-encoder-sign", type=int, choices=(-1, 1), default=1)
     parser.add_argument("--rl-encoder-sign", type=int, choices=(-1, 1), default=1)
     parser.add_argument("--rr-encoder-sign", type=int, choices=(-1, 1), default=1)
+    add_common_serial_args(parser)
     parser.add_argument("--yes", action="store_true", help="confirm wheels are off ground and run")
     return parser.parse_args()
-
-
-def write_line(dev: serial.Serial, line: str) -> None:
-    dev.write(line.encode("ascii"))
-    dev.flush()
-
-
-def send_param(dev: serial.Serial, name: str, value: float, timeout_s: float = 0.8) -> None:
-    write_line(dev, f"CMD PARAM {name} {value}\n")
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        line = dev.readline().decode("utf-8", errors="replace").strip()
-        if line == f"PARAM,{name},ok":
-            return
-        if line == f"PARAM,{name},unknown":
-            raise RuntimeError(f"Teensy rejected parameter {name}")
-    raise TimeoutError(f"Timed out waiting for PARAM ACK: {name}")
-
-
-def sync_params(dev: serial.Serial, args: argparse.Namespace) -> None:
-    params = [
-        ("track_width_m", args.track_width_m),
-        ("wheel_radius_m", args.wheel_radius_m),
-        ("ticks_per_rev", args.ticks_per_rev),
-        ("control_hz", args.control_hz),
-        ("left_motor_sign", args.left_motor_sign),
-        ("right_motor_sign", args.right_motor_sign),
-        ("fl_encoder_sign", args.fl_encoder_sign),
-        ("fr_encoder_sign", args.fr_encoder_sign),
-        ("rl_encoder_sign", args.rl_encoder_sign),
-        ("rr_encoder_sign", args.rr_encoder_sign),
-    ]
-    for name, value in params:
-        send_param(dev, name, value)
 
 
 def main() -> int:
@@ -74,10 +48,11 @@ def main() -> int:
         print("Refusing to run without --yes.", file=sys.stderr)
         return 2
 
-    with serial.Serial(args.port, args.baud, timeout=0.1, write_timeout=0.2) as dev:
+    with open_teensy_serial(args.port, args.baud) as dev:
+        settle_serial(dev, args.settle_s)
         write_line(dev, "CMD STOP\n")
-        time.sleep(0.2)
-        sync_params(dev, args)
+        time.sleep(0.3)
+        sync_standard_params(dev, args)
         write_line(dev, f"CMD RAW2 {int(args.left_us)} {int(args.right_us)}\n")
         deadline = time.monotonic() + duration_s
         while time.monotonic() < deadline:
@@ -89,4 +64,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_with_serial_errors(main))

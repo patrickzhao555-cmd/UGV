@@ -34,14 +34,8 @@
 
 #include <Arduino.h>
 #include <Encoder.h>
-#include <Servo.h>
-
-#if __has_include(<QuickPID.h>)
 #include <QuickPID.h>
-#define UGV_HAS_QUICKPID 1
-#else
-#define UGV_HAS_QUICKPID 0
-#endif
+#include <Servo.h>
 
 #define ENC_REAR_LEFT_A    24
 #define ENC_REAR_LEFT_B    25
@@ -178,7 +172,6 @@ float encoder_jump_tps = 12000.0f;
 
 char fault_reason[32] = "none";
 
-#if UGV_HAS_QUICKPID
 float left_pid_input = 0.0f;
 float right_pid_input = 0.0f;
 float left_pid_setpoint = 0.0f;
@@ -208,16 +201,6 @@ QuickPID right_pid(
   QuickPID::iAwMode::iAwClamp,
   QuickPID::Action::direct
 );
-#else
-struct FallbackPid {
-  float integral;
-  float prev_error;
-  bool has_prev_error;
-};
-
-FallbackPid left_pid = {0.0f, 0.0f, false};
-FallbackPid right_pid = {0.0f, 0.0f, false};
-#endif
 
 float clampFloat(float value, float lo, float hi) {
   if (value < lo) return lo;
@@ -300,17 +283,8 @@ void applyNeutralNow() {
 }
 
 void resetPidState() {
-#if UGV_HAS_QUICKPID
   left_pid.Reset();
   right_pid.Reset();
-#else
-  left_pid.integral = 0.0f;
-  left_pid.prev_error = 0.0f;
-  left_pid.has_prev_error = false;
-  right_pid.integral = 0.0f;
-  right_pid.prev_error = 0.0f;
-  right_pid.has_prev_error = false;
-#endif
   left_pid_output_us = 0.0f;
   right_pid_output_us = 0.0f;
   left_p_term = 0.0f;
@@ -353,7 +327,6 @@ void neutralizeForCriticalParam() {
 }
 
 void configurePid() {
-#if UGV_HAS_QUICKPID
   left_pid.SetTunings(kp, ki, kd);
   right_pid.SetTunings(kp, ki, kd);
   left_pid.SetOutputLimits(-pid_output_limit_us, pid_output_limit_us);
@@ -364,35 +337,7 @@ void configurePid() {
   right_pid.SetAntiWindupMode(QuickPID::iAwMode::iAwClamp);
   left_pid.SetMode(QuickPID::Control::automatic);
   right_pid.SetMode(QuickPID::Control::automatic);
-#endif
 }
-
-#if !UGV_HAS_QUICKPID
-float computeFallbackPid(
-  FallbackPid& pid,
-  float target_tps,
-  float measured_tps,
-  float dt_s,
-  float& p_term,
-  float& i_term,
-  float& d_term
-) {
-  float error = target_tps - measured_tps;
-  float integral_limit = pid_output_limit_us / max(0.0001f, abs(ki));
-  if (ki == 0.0f) {
-    integral_limit = 0.0f;
-  }
-  pid.integral += error * dt_s;
-  pid.integral = clampFloat(pid.integral, -integral_limit, integral_limit);
-  float derivative = pid.has_prev_error ? (error - pid.prev_error) / max(0.001f, dt_s) : 0.0f;
-  pid.prev_error = error;
-  pid.has_prev_error = true;
-  p_term = kp * error;
-  i_term = ki * pid.integral;
-  d_term = kd * derivative;
-  return clampFloat(p_term + i_term + d_term, -pid_output_limit_us, pid_output_limit_us);
-}
-#endif
 
 void stopController(const char* reason, bool fault) {
   target_v_mps = 0.0f;
@@ -671,7 +616,6 @@ void updatePidAndOutputs(unsigned long dt_ms) {
     return;
   }
 
-#if UGV_HAS_QUICKPID
   left_pid_input = left_measured_tps;
   right_pid_input = right_measured_tps;
   left_pid_setpoint = left_target_tps;
@@ -684,11 +628,6 @@ void updatePidAndOutputs(unsigned long dt_ms) {
   right_p_term = right_pid.GetPterm();
   right_i_term = right_pid.GetIterm();
   right_d_term = right_pid.GetDterm();
-#else
-  float dt_s = max(0.001f, (float)dt_ms / 1000.0f);
-  left_pid_output_us = computeFallbackPid(left_pid, left_target_tps, left_measured_tps, dt_s, left_p_term, left_i_term, left_d_term);
-  right_pid_output_us = computeFallbackPid(right_pid, right_target_tps, right_measured_tps, dt_s, right_p_term, right_i_term, right_d_term);
-#endif
 
   float left_delta_us = feedforward_us_per_tps * left_target_tps + left_pid_output_us;
   float right_delta_us = feedforward_us_per_tps * right_target_tps + right_pid_output_us;
@@ -780,6 +719,7 @@ void printParamDump(Stream& stream) {
   stream.print(ki, 6);
   stream.print(",kd=");
   stream.print(kd, 6);
+  stream.print(",pid_backend=QuickPID");
   stream.print(",left_motor_sign=");
   stream.print(left_motor_sign);
   stream.print(",right_motor_sign=");
@@ -992,11 +932,7 @@ void setup() {
 
   if (Serial) {
     Serial.println("Teensy 4.1 side PID controller ready");
-#if UGV_HAS_QUICKPID
     Serial.println("DBG PID backend QuickPID");
-#else
-    Serial.println("DBG PID backend fallback; install QuickPID for preferred backend");
-#endif
   }
 }
 

@@ -72,6 +72,10 @@ PARAM,<name>,unknown
 S,<millis>,<fl_ticks>,<fr_ticks>,<rl_ticks>,<rr_ticks>,...
 ```
 
+The firmware requires the Arduino `QuickPID` library. If QuickPID is missing,
+compilation should fail instead of silently using a hand-written fallback. The
+`PARAMS` line reports `pid_backend=QuickPID`.
+
 Startup parameter sync is ACK-gated. The bridge sends `CMD PARAM` for wheel
 model, PID gains, PWM limits, motor signs, encoder signs, loop rate, and fault
 thresholds. It does not allow velocity commands until every parameter returns

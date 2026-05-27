@@ -202,6 +202,10 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "left_mismatch" in firmware
     assert "right_mismatch" in firmware
     assert "controller_mode == MODE_FAULT || strcmp(fault_reason, \"none\") != 0" in firmware
+    assert "#include <QuickPID.h>" in firmware
+    assert "pid_backend=QuickPID" in firmware
+    assert "FallbackPid" not in firmware
+    assert "__has_include" not in firmware
     assert not (
         ROOT
         / "ros2_ws"

@@ -14,8 +14,6 @@ For full pull/build/launch instructions, use the consolidated runbooks:
 - `marker_model_trainer`: trains the lightweight ORB model from marker photos
 - `yolo_semantic_obstacle_node`: optional YOLO semantic obstacle inflation points
 - `ugv_debug_dashboard`: OpenCV/VNC dashboard for ZED image, YOLO boxes, marker debug, depth, LiDAR/fused points, session map, and nav status
-- `obstacle_warning`: legacy depth warning helper
-- `zed_obj_distance`: optional ZED object debug helper
 
 ## Marker Training
 

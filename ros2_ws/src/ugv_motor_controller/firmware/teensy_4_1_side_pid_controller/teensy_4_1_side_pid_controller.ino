@@ -152,7 +152,6 @@ int rr_encoder_sign = 1;
 int left_motor_sign = 1;
 int right_motor_sign = 1;
 
-bool emit_legacy_e = true;
 bool stall_fault_enabled = true;
 float stall_target_tps = 15.0f;
 float stall_near_zero_tps = 2.0f;
@@ -625,14 +624,6 @@ void printStatus(Stream& stream) {
   stream.print(right_d_term, 4); stream.print(",");
   stream.println(fault_reason);
 
-  if (emit_legacy_e) {
-    stream.print("E");
-    stream.print(fl_ticks); stream.print(",");
-    stream.print(fr_ticks); stream.print(",");
-    stream.print(rl_ticks); stream.print(",");
-    stream.print(rr_ticks); stream.print(",");
-    stream.println(millis());
-  }
 }
 
 void sendStatus() {
@@ -724,7 +715,6 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "rr_encoder_sign") == 0) { rr_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
   else if (strcmp(name, "left_motor_sign") == 0) { left_motor_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; }
   else if (strcmp(name, "right_motor_sign") == 0) { right_motor_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; }
-  else if (strcmp(name, "emit_legacy_e") == 0) emit_legacy_e = value != 0.0f;
   else if (strcmp(name, "stall_fault_enabled") == 0) stall_fault_enabled = value != 0.0f;
   else if (strcmp(name, "stall_target_tps") == 0) stall_target_tps = max(0.0f, value);
   else if (strcmp(name, "stall_near_zero_tps") == 0) stall_near_zero_tps = max(0.0f, value);

@@ -38,7 +38,7 @@ topics.
 
 Removed from active runtime:
 
-- ROS-side `WheelVelocityPid`
+- ROS-side velocity PID
 - legacy `M<left>,<right>` Teensy bridge firmware
 - direct raw motor test node/launch
 

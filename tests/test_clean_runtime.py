@@ -52,3 +52,55 @@ def test_clean_bringup_is_not_legacy_round_profile_launcher():
     assert "motor_velocity_control_enabled" not in launch
     assert "start_motor_controller" in launch
     assert "ugv_nav_dual_mode.py" in launch
+
+
+def test_obsolete_runtime_packages_are_removed_from_source_tree():
+    removed_paths = [
+        "ros2_ws/start_nav_test.sh",
+        "ros2_ws/src/ugv_lidar/package.xml",
+        "ros2_ws/src/ugv_serial_odom/package.xml",
+        "ros2_ws/src/ugv_sim/package.xml",
+        "ros2_ws/src/ugv_sensor_sync/ugv_sensor_sync_nodes/bench_goal_node.py",
+        "ros2_ws/src/ugv_sensor_sync/ugv_sensor_sync_nodes/mock_field_map_node.py",
+        "ros2_ws/src/ugv_perception/ugv_perception/obstacle_warning.py",
+        "ros2_ws/src/ugv_perception/ugv_perception/zed_obj_distance.py",
+    ]
+
+    for rel_path in removed_paths:
+        assert not (ROOT / rel_path).exists(), rel_path
+
+
+def test_active_sources_do_not_reference_removed_entrypoints():
+    forbidden = [
+        "motor_direct_test",
+        "velocity_control_enabled",
+        "MOTOR_VELOCITY_CONTROL",
+        "closed_loop_controller",
+        "ugv_serial_odom",
+        "ugv_lidar",
+        "bench_goal",
+        "mock_field_map",
+        "/ugv_goal",
+        "obstacle_warning",
+        "zed_obj_distance",
+    ]
+    active_paths = [
+        ROOT / "README.md",
+        ROOT / "ros2_ws" / "STACK_ARCHITECTURE.md",
+        ROOT / "ros2_ws" / "JETSON_BRINGUP_CHECKLIST.md",
+        ROOT / "ros2_ws" / "JETSON_BRINGUP_CHECKLIST_ZH.md",
+        ROOT / "ros2_ws" / "jetson_bringup.sh",
+        ROOT / "ros2_ws" / "src" / "ugv_sensor_sync",
+        ROOT / "ros2_ws" / "src" / "ugv_perception",
+        ROOT / "ros2_ws" / "src" / "ugv_motor_controller",
+        ROOT / "ros2_ws" / "src" / "ugv_nav",
+    ]
+
+    for path in active_paths:
+        files = [path] if path.is_file() else [p for p in path.rglob("*") if p.is_file()]
+        for file_path in files:
+            if "__pycache__" in file_path.parts:
+                continue
+            text = file_path.read_text(errors="ignore")
+            for token in forbidden:
+                assert token not in text, f"{token!r} found in {file_path}"

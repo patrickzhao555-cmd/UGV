@@ -40,6 +40,7 @@ class UgvDebugDashboard(Node):
         self.declare_parameter("semantic_points_topic", "/sensors/yolo_semantic_obstacle_points")
         self.declare_parameter("fusion_summary_topic", "/sensors/synced_summary")
         self.declare_parameter("nav_status_topic", "/ugv_nav_status")
+        self.declare_parameter("motor_status_topic", "/motor_controller/status")
         self.declare_parameter("marker_debug_topic", "/ugv/marker_vision_debug")
         self.declare_parameter("yolo_debug_topic", "/sensors/yolo_semantic_debug")
         self.declare_parameter("window_name", "UGV Perception Dashboard")
@@ -86,6 +87,7 @@ class UgvDebugDashboard(Node):
         self.latest_yolo_debug: Dict = {}
         self.latest_marker_debug: Dict = {}
         self.latest_nav_status: Dict = {}
+        self.latest_motor_status: Dict = {}
         self.latest_fusion_summary: Dict = {}
         self.latest_json_recv_s: Dict[str, float] = {}
 
@@ -124,6 +126,7 @@ class UgvDebugDashboard(Node):
         )
         self._subscribe_json("fusion", str(self.get_parameter("fusion_summary_topic").value))
         self._subscribe_json("nav", str(self.get_parameter("nav_status_topic").value))
+        self._subscribe_json("motor", str(self.get_parameter("motor_status_topic").value))
         self._subscribe_json("marker", str(self.get_parameter("marker_debug_topic").value))
         self._subscribe_json("yolo", str(self.get_parameter("yolo_debug_topic").value))
         self.create_timer(1.0 / update_hz, self.draw)
@@ -177,6 +180,8 @@ class UgvDebugDashboard(Node):
                 self.latest_fusion_summary = data
             elif key == "nav":
                 self.latest_nav_status = data
+            elif key == "motor":
+                self.latest_motor_status = data
             elif key == "marker":
                 self.latest_marker_debug = data
             elif key == "yolo":
@@ -386,32 +391,37 @@ class UgvDebugDashboard(Node):
     def _render_status_panel(self, w: int, h: int) -> np.ndarray:
         panel = self._panel_base(w, h, "Decision / sensor health")
         nav = self.latest_nav_status or {}
+        motor = self.latest_motor_status or {}
         fusion = self.latest_fusion_summary or {}
         yolo = self.latest_yolo_debug or {}
         marker = self.latest_marker_debug or {}
-        cmd = nav.get("cmd", {}) if isinstance(nav.get("cmd"), dict) else {}
+        cmd = nav.get("last_command", {}) if isinstance(nav.get("last_command"), dict) else {}
+        if not cmd:
+            cmd = nav.get("cmd", {}) if isinstance(nav.get("cmd"), dict) else {}
         odom = nav.get("odom_delta", {}) if isinstance(nav.get("odom_delta"), dict) else {}
-        mission = nav.get("mission", {}) if isinstance(nav.get("mission"), dict) else {}
         sectors = nav.get("sectors_m", {}) if isinstance(nav.get("sectors_m"), dict) else {}
-        active_scan = nav.get("active_scan", {}) if isinstance(nav.get("active_scan"), dict) else {}
-        velocity = nav.get("velocity_control", {}) if isinstance(nav.get("velocity_control"), dict) else {}
+        pid_left = motor.get("pid_left", {}) if isinstance(motor.get("pid_left"), dict) else {}
+        pid_right = motor.get("pid_right", {}) if isinstance(motor.get("pid_right"), dict) else {}
         ages = {
             "img": self._tuple_age(self.latest_image),
             "depth": self._tuple_age(self.latest_depth),
             "nav_frame": self._tuple_age(self.latest_nav_frame),
             "fusion": self._json_age("fusion"),
             "nav": self._json_age("nav"),
+            "motor": self._json_age("motor"),
             "yolo": self._json_age("yolo"),
             "marker": self._json_age("marker"),
         }
         warn = odom.get("warning") or fusion.get("depth_blind_hazard") or ""
         lines = [
-            f"phase={mission.get('phase')} cmd={cmd.get('mode')} reason={cmd.get('reason')} raw=({cmd.get('raw_left')},{cmd.get('raw_right')})",
-            f"pose={nav.get('pose_m')} goal={mission.get('active_goal_m')} plan={nav.get('planner')} {nav.get('plan_time_ms')}ms",
+            f"nav={nav.get('nav_runtime')} active={nav.get('active')} cmd={cmd.get('command_type')} reason={cmd.get('reason')}",
+            f"motor connected={motor.get('connected')} mode={motor.get('control_mode')} hw={motor.get('motor_hardware')} params={motor.get('teensy_pid_params_synced')} {motor.get('teensy_pid_param_sync_reason')}",
+            f"targets tps L/R={motor.get('left_target_tps')}/{motor.get('right_target_tps')} measured={motor.get('left_measured_tps')}/{motor.get('right_measured_tps')} pwm={motor.get('left_pwm')}/{motor.get('right_pwm')}",
+            f"pid L={pid_left.get('p')}/{pid_left.get('i')}/{pid_left.get('d')} R={pid_right.get('p')}/{pid_right.get('i')}/{pid_right.get('d')} fault={motor.get('fault_reason') or motor.get('fault')}",
+            f"ticks={motor.get('raw_ticks')} enc_tps={motor.get('fl_tps')}/{motor.get('fr_tps')}/{motor.get('rl_tps')}/{motor.get('rr_tps')}",
+            f"pose={nav.get('pose_m')} plan={nav.get('planner')} {nav.get('plan_time_ms')}ms",
             f"clearance front={_fmt_m(fusion.get('front_clearance_m'))} src={fusion.get('front_clearance_source')} sectors f/fl/fr={sectors.get('front')}/{sectors.get('front_left')}/{sectors.get('front_right')}",
-            f"velocity ctrl enabled={velocity.get('enabled')} safe={velocity.get('safe_samples')}/{velocity.get('samples')} v={velocity.get('selected_v_mps')} omega={velocity.get('selected_omega_radps')} gap={velocity.get('best_gap_heading_deg')}deg/{velocity.get('best_gap_depth_m')}m clear={velocity.get('min_clearance_m')} path_clear={velocity.get('path_clearance_m')}:{velocity.get('path_clearance_source')} state={velocity.get('safety_state')}",
             f"ZED depth obstacles pts={fusion.get('depth_obstacle_points')} filtered={fusion.get('depth_obstacle_points_filtered')} comps={fusion.get('depth_obstacle_components')} cells={fusion.get('depth_obstacle_candidate_cells')}",
-            f"active scan rem={active_scan.get('remaining')} dir={active_scan.get('direction')} cd={active_scan.get('cooldown_steps')} probe={active_scan.get('probe_steps')} alt={active_scan.get('needs_opposite_side')} evidence={active_scan.get('front_blocked_evidence')}/{active_scan.get('front_uncertain_evidence')}/{active_scan.get('plan_failed_evidence')} corridor_pass={active_scan.get('front_corridor_passable')} front_depth={active_scan.get('front_corridor_front_depth_m')} corridor_gap={active_scan.get('front_corridor_gap_heading_deg')}deg/{active_scan.get('front_corridor_gap_depth_m')}m dirs={active_scan.get('front_corridor_straight_headings')}/{active_scan.get('front_corridor_frontish_headings')}/{active_scan.get('front_corridor_safe_headings')} depth_corridor={active_scan.get('front_depth_corridor_points')} min={active_scan.get('front_depth_corridor_min_m')} reason={active_scan.get('reason')}",
             f"YOLO loaded={yolo.get('model_loaded')} accepted={yolo.get('accepted')} boxes={len(yolo.get('boxes', []))} classes={yolo.get('classes')}",
             f"marker detected={marker.get('detected')} method={marker.get('method')} reason={marker.get('reason')} bbox={marker.get('candidate_bbox')}",
             f"ages {', '.join(f'{k}={v:.2f}s' if v is not None else f'{k}=None' for k, v in ages.items())}",

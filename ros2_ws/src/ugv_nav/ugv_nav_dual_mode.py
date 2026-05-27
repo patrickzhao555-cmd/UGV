@@ -57,7 +57,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--once", action="store_true", help="publish one STOP and exit in real mode")
     args, unknown = parser.parse_known_args()
     if unknown:
-        print(f"Ignoring legacy navigation arguments: {' '.join(unknown)}")
+        print(f"Ignoring unsupported navigation arguments: {' '.join(unknown)}")
     return args
 
 

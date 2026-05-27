@@ -26,11 +26,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 ament_python_install_package(ugv_sensor_sync_nodes)
 
 install(PROGRAMS
-  scripts/bench_goal_node
   scripts/debug_status_node
   scripts/fusion_node
   scripts/lidar_sync_node
-  scripts/mock_field_map_node
   scripts/uwb_node
   scripts/zed_sync_node
   DESTINATION lib/${PROJECT_NAME}

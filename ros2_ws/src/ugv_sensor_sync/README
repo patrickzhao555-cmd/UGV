@@ -18,7 +18,6 @@ It provides:
 - `lidar_sync_node`: timestamp-corrected LiDAR scan republisher
 - `fusion_node`: LiDAR/ZED/encoder/optional-YOLO fusion into `/sensors/nav_frame`
 - `debug_status_node`: compact one-line system status
-- `bench_goal_node` and `mock_field_map_node`: test helpers
 
 ## Main Outputs
 
@@ -35,7 +34,7 @@ It provides:
 
 - Raw sensor handling stays in adapter nodes.
 - Cross-sensor timing and obstacle projection stay in `fusion_node`.
-- Navigation should read `/sensors/nav_frame`, not raw ZED/LiDAR/encoder topics.
+- Future navigation should read `/sensors/nav_frame`, not raw ZED/LiDAR/encoder topics.
 - Optional sensors should first be merged inside fusion before changing the navigation contract.
 
 ## ZED Depth Obstacle Filter

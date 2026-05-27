@@ -58,12 +58,11 @@ class DebugStatusNode(Node):
         fusion = self._data(status, 'fusion')
         motor = self._data(status, 'motor')
         nav = self._data(status, 'nav')
-        mission = nav.get('mission', {}) if isinstance(nav, dict) else {}
-        cmd = nav.get('cmd', {}) if isinstance(nav, dict) else {}
+        cmd = nav.get('last_command', {}) if isinstance(nav.get('last_command'), dict) else {}
+        if not cmd:
+            cmd = nav.get('cmd', {}) if isinstance(nav.get('cmd'), dict) else {}
         sectors = nav.get('sectors_m', {}) if isinstance(nav, dict) else {}
         odom_delta = nav.get('odom_delta', {}) if isinstance(nav, dict) else {}
-        active_scan = nav.get('active_scan', {}) if isinstance(nav, dict) else {}
-        velocity = nav.get('velocity_control', {}) if isinstance(nav, dict) else {}
 
         self.get_logger().info(
             'debug '
@@ -79,20 +78,13 @@ class DebugStatusNode(Node):
             f"semantic_pts={fusion.get('semantic_obstacle_points')} "
             f"encoder={fusion.get('encoder_available')} "
             f"motor_connected={motor.get('connected')} "
-            f"phase={mission.get('phase')} "
-            f"cmd={cmd.get('mode')} "
-            f"vel=({velocity.get('selected_v_mps')},{velocity.get('selected_omega_radps')}) "
-            f"vel_safe={velocity.get('safe_samples')}/{velocity.get('samples')} "
-            f"vel_state={velocity.get('safety_state')} "
-            f"path_clear={velocity.get('path_clearance_m')}:{velocity.get('path_clearance_source')} "
-            f"gap={velocity.get('best_gap_heading_deg')}deg/{velocity.get('best_gap_depth_m')}m "
-            f"scan_rem={active_scan.get('remaining')} "
-            f"scan_dir={active_scan.get('direction')} "
-            f"scan_cd={active_scan.get('cooldown_steps')} "
-            f"scan_probe={active_scan.get('probe_steps')} "
-            f"scan_alt={active_scan.get('needs_opposite_side')} "
-            f"corridor={active_scan.get('front_corridor_passable')} "
-            f"corr_gap={active_scan.get('front_corridor_gap_heading_deg')}deg/{active_scan.get('front_corridor_gap_depth_m')}m "
+            f"motor_mode={motor.get('control_mode')} "
+            f"params_synced={motor.get('teensy_pid_params_synced')} "
+            f"fault={motor.get('fault_reason') or motor.get('fault')} "
+            f"cmd={cmd.get('command_type') or cmd.get('mode')} "
+            f"target_tps=({motor.get('left_target_tps')},{motor.get('right_target_tps')}) "
+            f"measured_tps=({motor.get('left_measured_tps')},{motor.get('right_measured_tps')}) "
+            f"pwm=({motor.get('left_pwm')},{motor.get('right_pwm')}) "
             f"odom_warn={odom_delta.get('warning')} "
             f"pose={nav.get('pose_m')} "
             f"sectors={self._sector_text(sectors)}"

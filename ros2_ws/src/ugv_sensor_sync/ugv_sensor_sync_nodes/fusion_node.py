@@ -38,7 +38,7 @@ class FusionNode(Node):
         self.declare_parameter('near_obstacle_topic', '/sensors/near_obstacle')
         self.declare_parameter('summary_topic', '/sensors/synced_summary')
         self.declare_parameter('subscribe_image_topic', False)
-        self.declare_parameter('use_legacy_encoder_fallback', True)
+        self.declare_parameter('use_encoder_pair_fallback', True)
         self.declare_parameter('encoder_stale_timeout_s', 0.25)
         self.declare_parameter('encoder_buffer_duration_s', 5.0)
         self.declare_parameter('max_frame_age_s', 0.40)
@@ -85,7 +85,7 @@ class FusionNode(Node):
         near_obstacle_topic = self.get_parameter('near_obstacle_topic').value
         summary_topic = self.get_parameter('summary_topic').value
         self.subscribe_image_topic = bool(self.get_parameter('subscribe_image_topic').value)
-        self.use_legacy_encoder_fallback = bool(self.get_parameter('use_legacy_encoder_fallback').value)
+        self.use_encoder_pair_fallback = bool(self.get_parameter('use_encoder_pair_fallback').value)
         self.encoder_stale_timeout_s = float(self.get_parameter('encoder_stale_timeout_s').value)
         self.encoder_buffer_duration_s = float(self.get_parameter('encoder_buffer_duration_s').value)
         self.max_frame_age_s = float(self.get_parameter('max_frame_age_s').value)
@@ -123,7 +123,7 @@ class FusionNode(Node):
 
         self.latest_encoder_stamped: Optional[dict] = None
         self.encoder_stamped_history = deque()
-        self.latest_encoder_legacy: Optional[dict] = None
+        self.latest_encoder_pair: Optional[dict] = None
         self.zed_frame_history = deque()
         self.zed_frame_map = {}
         self.latest_semantic_obstacles: Optional[dict] = None
@@ -141,7 +141,7 @@ class FusionNode(Node):
             'depth_obstacle_points_filtered': 0,
         }
         self.create_subscription(EncoderTicksStamped, encoder_stamped_topic, self.encoder_stamped_callback, qos_profile_sensor_data)
-        if self.use_legacy_encoder_fallback:
+        if self.use_encoder_pair_fallback:
             self.create_subscription(Int32MultiArray, encoder_topic, self.encoder_callback, qos_profile_sensor_data)
         self.create_subscription(LaserScan, scan_topic, self.scan_callback, qos_profile_sensor_data)
         if semantic_obstacle_points_topic:
@@ -167,7 +167,7 @@ class FusionNode(Node):
             'Fusion node started '
             f'(scan={scan_topic}, image={"disabled" if not self.subscribe_image_topic else image_topic}, '
             f'depth={depth_topic}, imu={imu_topic}, '
-            f'encoder_stamped={encoder_stamped_topic}, encoder_legacy={encoder_topic}, '
+            f'encoder_stamped={encoder_stamped_topic}, encoder_pair={encoder_topic}, '
             f'out={output_topic}, nav_frame={nav_frame_topic}, obstacle_points={obstacle_points_topic}, '
             f'semantic_obstacles={semantic_obstacle_points_topic or "disabled"})'
         )
@@ -186,11 +186,11 @@ class FusionNode(Node):
     def encoder_callback(self, msg: Int32MultiArray) -> None:
         if len(msg.data) >= 2:
             now_s = self._clock_now_seconds()
-            self.latest_encoder_legacy = {
+            self.latest_encoder_pair = {
                 'left': int(msg.data[0]),
                 'right': int(msg.data[1]),
                 'stamp_s': now_s,
-                'source': 'legacy',
+                'source': 'encoder_pair',
             }
 
     def image_callback(self, msg: Image) -> None:
@@ -447,8 +447,8 @@ class FusionNode(Node):
         candidates.extend(self.encoder_stamped_history)
         if not candidates and self.latest_encoder_stamped is not None:
             candidates.append(self.latest_encoder_stamped)
-        if self.use_legacy_encoder_fallback and self.latest_encoder_legacy is not None:
-            candidates.append(self.latest_encoder_legacy)
+        if self.use_encoder_pair_fallback and self.latest_encoder_pair is not None:
+            candidates.append(self.latest_encoder_pair)
 
         best = None
         best_age_s = float('inf')

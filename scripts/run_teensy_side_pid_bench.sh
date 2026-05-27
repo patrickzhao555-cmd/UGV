@@ -20,9 +20,22 @@ echo "WHEELS OFF GROUND REQUIRED: starting Teensy side PID bench bridge only."
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}/ros2_ws"
 
+source_setup_compat() {
+  local setup_path="$1"
+  local restore_nounset=0
+  if [[ $- == *u* ]]; then
+    restore_nounset=1
+    set +u
+  fi
+  # shellcheck disable=SC1090
+  source "${setup_path}"
+  if [[ "${restore_nounset}" -eq 1 ]]; then
+    set -u
+  fi
+}
+
 if [[ -f "install/setup.bash" ]]; then
-  # shellcheck disable=SC1091
-  source "install/setup.bash"
+  source_setup_compat "install/setup.bash"
 fi
 
 export MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-0.0825}"

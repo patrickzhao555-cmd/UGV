@@ -72,7 +72,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_pid_ki", 0.0)
         self.declare_parameter("teensy_pid_kd", 0.0)
         self.declare_parameter("teensy_pid_feedforward_us_per_tps", 0.04)
-        self.declare_parameter("teensy_pid_static_ff_us", 100.0)
+        self.declare_parameter("teensy_pid_static_ff_us", 170.0)
         self.declare_parameter("teensy_pid_output_limit_us", 350.0)
         self.declare_parameter("teensy_pid_min_target_tps", 2.0)
         self.declare_parameter("teensy_left_motor_sign", 1)

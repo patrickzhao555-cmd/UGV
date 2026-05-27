@@ -105,7 +105,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_static_ff_us",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="100.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="170.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_output_limit_us",

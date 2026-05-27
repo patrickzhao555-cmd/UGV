@@ -107,7 +107,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_kd", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.04"),
-            DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="100.0"),
+            DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="170.0"),
             DeclareLaunchArgument("motor_teensy_left_motor_sign", default_value="1"),
             DeclareLaunchArgument("motor_teensy_right_motor_sign", default_value="-1"),
             DeclareLaunchArgument("motor_teensy_fl_encoder_sign", default_value="-1"),

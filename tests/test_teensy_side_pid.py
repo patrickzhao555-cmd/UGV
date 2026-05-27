@@ -115,7 +115,7 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "ki": 0.0,
             "kd": 0.0,
             "ff_us_per_tps": 0.04,
-            "static_ff_us": 100.0,
+            "static_ff_us": 170.0,
             "control_hz": 100.0,
             "side_mismatch_fault_tps": 180.0,
             "sign_mismatch_target_tps": 100.0,
@@ -131,7 +131,7 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
     assert "CMD PARAM ticks_per_rev 3200\n" in commands
     assert "CMD PARAM kp 0.45\n" in commands
     assert "CMD PARAM ff_us_per_tps 0.04\n" in commands
-    assert "CMD PARAM static_ff_us 100\n" in commands
+    assert "CMD PARAM static_ff_us 170\n" in commands
     assert "CMD PARAM control_hz 100\n" in commands
     assert "CMD PARAM side_mismatch_fault_tps 180\n" in commands
     assert "CMD PARAM sign_mismatch_target_tps 100\n" in commands
@@ -208,7 +208,7 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
     assert "DEFAULT_KP = 0.10f" in firmware
     assert "DEFAULT_FF_US_PER_TPS = 0.04f" in firmware
-    assert "DEFAULT_STATIC_FF_US = 100.0f" in firmware
+    assert "DEFAULT_STATIC_FF_US = 170.0f" in firmware
     assert "DEFAULT_CONTROL_INTERVAL_MS = 10" in firmware
     assert "int fl_encoder_sign = -1" in firmware
     assert "int rl_encoder_sign = -1" in firmware

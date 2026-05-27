@@ -63,7 +63,7 @@ const float DEFAULT_KP = 0.10f;
 const float DEFAULT_KI = 0.0f;
 const float DEFAULT_KD = 0.0f;
 const float DEFAULT_FF_US_PER_TPS = 0.04f;
-const float DEFAULT_STATIC_FF_US = 100.0f;
+const float DEFAULT_STATIC_FF_US = 170.0f;
 
 enum ControllerMode {
   MODE_STOPPED,

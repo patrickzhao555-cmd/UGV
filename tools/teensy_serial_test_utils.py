@@ -17,7 +17,7 @@ def add_common_serial_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--param-retries", type=int, default=3)
     parser.add_argument("--command-timeout-ms", type=int, default=1200)
     parser.add_argument("--refresh-period-s", type=float, default=0.10)
-    parser.add_argument("--static-ff-us", type=float, default=100.0)
+    parser.add_argument("--static-ff-us", type=float, default=170.0)
     parser.add_argument("--sign-mismatch-tps", type=float, default=10.0)
     parser.add_argument("--sign-mismatch-target-tps", type=float, default=100.0)
     parser.add_argument("--sign-mismatch-timeout-ms", type=int, default=250)

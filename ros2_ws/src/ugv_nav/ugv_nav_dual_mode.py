@@ -150,6 +150,8 @@ def run_real(args: argparse.Namespace) -> None:
             self.target_heading_rad: Optional[float] = None
             self.pivot_stable_since_s: Optional[float] = None
             self.last_status_publish_s = 0.0
+            self.last_safety_log_s = 0.0
+            self.last_safety_reason: Optional[str] = None
             self.last_command_payload: Dict[str, Any] = json.loads(build_stop_command().to_json())
 
             self.cmd_pub = self.create_publisher(String, args.command_topic, 10)
@@ -234,6 +236,7 @@ def run_real(args: argparse.Namespace) -> None:
                 safety_state = safety.reason
                 if not safety.safe:
                     self._reset_test_state()
+                    self._log_safety_stop(safety.reason, now_s)
                     cmd = build_stop_command(safety.reason)
                 else:
                     self._start_mode_if_needed(now_s)
@@ -286,6 +289,13 @@ def run_real(args: argparse.Namespace) -> None:
             self.last_command_payload = json.loads(payload)
             self.cmd_pub.publish(String(data=payload))
 
+        def _log_safety_stop(self, reason: str, now_s: float) -> None:
+            if reason == self.last_safety_reason and now_s - self.last_safety_log_s < 1.0:
+                return
+            self.get_logger().warn(f"Chassis test holding STOP: {reason}")
+            self.last_safety_reason = reason
+            self.last_safety_log_s = now_s
+
         def _publish_status_if_needed(
             self,
             now_s: float,
@@ -329,7 +339,8 @@ def run_real(args: argparse.Namespace) -> None:
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 def main() -> None:

@@ -18,10 +18,17 @@ def _workspace_root() -> Path:
 def generate_launch_description():
     workspace_root = _workspace_root()
     motor_launch = workspace_root / "src" / "ugv_motor_controller" / "launch" / "motor_controller.launch.py"
+    sensor_launch = workspace_root / "src" / "ugv_sensor_sync" / "launch" / "sensor_sync_launch.py"
     nav_script = workspace_root / "src" / "ugv_nav" / "ugv_nav_dual_mode.py"
 
     start_motor_controller = LaunchConfiguration("start_motor_controller")
+    start_sensor_sync = LaunchConfiguration("start_sensor_sync")
     start_nav = LaunchConfiguration("start_nav")
+    start_zed = LaunchConfiguration("start_zed")
+    start_lidar = LaunchConfiguration("start_lidar")
+    start_fusion = LaunchConfiguration("start_fusion")
+    lidar_port = LaunchConfiguration("lidar_port")
+    lidar_baud = LaunchConfiguration("lidar_baud")
     motor_port = LaunchConfiguration("motor_port")
     motor_baud = LaunchConfiguration("motor_baud")
     motor_dry_run = LaunchConfiguration("motor_dry_run")
@@ -91,6 +98,19 @@ def generate_launch_description():
         condition=IfCondition(start_motor_controller),
     )
 
+    sensor_sync_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(str(sensor_launch)),
+        launch_arguments={
+            "start_zed": start_zed,
+            "start_lidar": start_lidar,
+            "start_fusion": start_fusion,
+            "start_uwb": "false",
+            "lidar_port": lidar_port,
+            "lidar_baud": lidar_baud,
+        }.items(),
+        condition=IfCondition(start_sensor_sync),
+    )
+
     nav_placeholder = ExecuteProcess(
         cmd=[
             FindExecutable(name="python3"),
@@ -141,7 +161,13 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("start_motor_controller", default_value="true"),
+            DeclareLaunchArgument("start_sensor_sync", default_value="true"),
             DeclareLaunchArgument("start_nav", default_value="true"),
+            DeclareLaunchArgument("start_zed", default_value="true"),
+            DeclareLaunchArgument("start_lidar", default_value="true"),
+            DeclareLaunchArgument("start_fusion", default_value="true"),
+            DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB0"),
+            DeclareLaunchArgument("lidar_baud", default_value="115200"),
             DeclareLaunchArgument("motor_port", default_value="/dev/ttyACM0"),
             DeclareLaunchArgument("motor_baud", default_value="115200"),
             DeclareLaunchArgument("motor_dry_run", default_value="false"),
@@ -181,6 +207,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_sensor_timeout_s", default_value="0.30"),
             DeclareLaunchArgument("nav_motor_status_timeout_s", default_value="0.50"),
             motor_controller_launch,
+            sensor_sync_launch,
             nav_placeholder,
         ]
     )

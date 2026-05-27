@@ -39,7 +39,7 @@ if [[ -f "${WORKSPACE_DIR}/install/setup.bash" ]]; then
 fi
 
 MISSION_FLAG_PAYLOAD='{"state":"stop","source":"stop_ugv.sh"}'
-STOP_CMD_PAYLOAD='{"mode":"STOP","command_type":"stop","reason":"manual stop_ugv.sh","v_mps":0.0,"omega_radps":0.0,"raw_left":0.0,"raw_right":0.0}'
+STOP_CMD_PAYLOAD='{"mode":"STOP","command_type":"stop","reason":"manual stop_ugv.sh","v_mps":0.0,"omega_radps":0.0}'
 
 if ! command -v timeout >/dev/null 2>&1; then
   echo "GNU timeout is required so stop publishes cannot block forever."

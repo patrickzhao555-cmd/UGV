@@ -1,41 +1,56 @@
-"""ROS-free helpers for the Teensy two-side PID motor controller."""
+"""Protocol helpers for the active Teensy two-side PID motor controller.
+
+Hardware truth for this robot:
+
+* Four Pololu motors.
+* Four encoder channels.
+* Two goBILDA speed controllers: one left side and one right side.
+
+That means the active controller is left/right side velocity PID, not four
+independent motor PID. Four encoder streams are still useful for averaged side
+feedback and diagnostics.
+"""
+
+from __future__ import annotations
 
 import math
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from ugv_motor_controller.velocity_control import (
-    command_is_timed_out,
-    extract_raw_drive,
-    extract_velocity_command,
-    finite_float,
-    velocity_to_wheel_speeds,
-)
+
+def finite_float(value: Any, *, name: str) -> float:
+    out = float(value)
+    if not math.isfinite(out):
+        raise ValueError(f"{name} must be finite")
+    return out
 
 
-TEENSY_PID_LOCATION = "teensy_pid"
-DEFAULT_MOTOR_CONTROL_LOCATION = "ros"
+def is_stop_command(obj: Dict[str, Any]) -> bool:
+    mode = str(obj.get("mode", "")).upper()
+    command_type = str(obj.get("command_type", "")).lower()
+    return mode == "STOP" or command_type == "stop"
 
 
-def normalize_motor_control_location(value: Any) -> str:
-    location = str(value or DEFAULT_MOTOR_CONTROL_LOCATION).strip().lower()
-    aliases = {
-        "python": "ros",
-        "python_pid": "ros",
-        "ros_pid": "ros",
-        "jetson_pid": "ros",
-        "teensy": TEENSY_PID_LOCATION,
-        "teensy_side_pid": TEENSY_PID_LOCATION,
-    }
-    return aliases.get(location, location or DEFAULT_MOTOR_CONTROL_LOCATION)
+def extract_velocity_command(obj: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    command_type = str(obj.get("command_type", "")).lower()
+    controller = str(obj.get("controller", "")).lower()
+    mode = str(obj.get("mode", "")).upper()
+    has_velocity_fields = "v_mps" in obj and "omega_radps" in obj
+    explicit_velocity = command_type == "velocity" or controller == "velocity" or mode == "VELOCITY"
+    if not has_velocity_fields or not explicit_velocity:
+        return None
+    return (
+        finite_float(obj["v_mps"], name="v_mps"),
+        finite_float(obj["omega_radps"], name="omega_radps"),
+    )
 
 
-def uses_teensy_side_pid(value: Any) -> bool:
-    return normalize_motor_control_location(value) == TEENSY_PID_LOCATION
-
-
-def python_velocity_pid_enabled(motor_control_location: Any, velocity_control_enabled: bool) -> bool:
-    return bool(velocity_control_enabled) and not uses_teensy_side_pid(motor_control_location)
+def velocity_to_side_speeds(v_mps: float, omega_radps: float, track_width_m: float) -> Tuple[float, float]:
+    half_track = 0.5 * max(1e-6, float(track_width_m))
+    return (
+        float(v_mps) - float(omega_radps) * half_track,
+        float(v_mps) + float(omega_radps) * half_track,
+    )
 
 
 def mps_to_ticks_per_sec(mps: float, *, wheel_radius_m: float, ticks_per_rev: int) -> float:
@@ -58,7 +73,7 @@ def velocity_to_side_pid_targets(
     wheel_radius_m: float,
     ticks_per_rev: int,
 ) -> Tuple[float, float, float, float]:
-    left_mps, right_mps = velocity_to_wheel_speeds(v_mps, omega_radps, track_width_m)
+    left_mps, right_mps = velocity_to_side_speeds(v_mps, omega_radps, track_width_m)
     return (
         left_mps,
         right_mps,
@@ -75,10 +90,6 @@ def build_teensy_velocity_command(v_mps: float, omega_radps: float) -> str:
 
 def build_teensy_stop_command() -> str:
     return "CMD STOP\n"
-
-
-def build_teensy_raw2_command(left_us: int, right_us: int) -> str:
-    return f"CMD RAW2 {int(left_us)} {int(right_us)}\n"
 
 
 def build_teensy_param_command(name: str, value: Any) -> str:
@@ -116,7 +127,6 @@ def parse_teensy_param_ack_line(line: str) -> TeensyParamAck:
     parts = text.split(",")
     if len(parts) != 3 or parts[0] != "PARAM":
         raise ValueError(f"not a Teensy PARAM ack line: {line!r}")
-
     name = parts[1].strip()
     status = parts[2].strip().lower()
     if not name:
@@ -148,7 +158,6 @@ class TeensyParamSyncTracker:
             if name and name not in seen:
                 unique_names.append(name)
                 seen.add(name)
-
         self.expected_names = tuple(unique_names)
         self.pending_names = tuple(unique_names)
         self.failed = False
@@ -197,33 +206,8 @@ class TeensyParamSyncTracker:
         if float(now_s) - self.started_s < float(timeout_s):
             return False
         self.failed = True
-        pending = ",".join(self.pending_names)
-        self.reason = f"ack_timeout:{pending}"
+        self.reason = f"ack_timeout:{','.join(self.pending_names)}"
         return True
-
-
-def teensy_timeout_stop_command_due(
-    last_command_time_s: float,
-    now_s: float,
-    timeout_s: float,
-) -> Optional[str]:
-    if command_is_timed_out(last_command_time_s, now_s, timeout_s):
-        return build_teensy_stop_command()
-    return None
-
-
-def select_teensy_side_pid_command(
-    obj: Dict[str, Any],
-    *,
-    prefer_velocity_fields: bool = True,
-) -> Tuple[str, Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-    velocity_cmd = extract_velocity_command(
-        obj,
-        prefer_velocity_fields=prefer_velocity_fields,
-    )
-    if velocity_cmd is not None:
-        return "velocity", velocity_cmd, None
-    return "raw", None, extract_raw_drive(obj)
 
 
 @dataclass(frozen=True)
@@ -254,25 +238,23 @@ class TeensySidePidStatus:
     fault: str
 
     @property
+    def wheel_ticks(self) -> Tuple[int, int, int, int]:
+        return (self.fl_ticks, self.fr_ticks, self.rl_ticks, self.rr_ticks)
+
+    @property
     def side_ticks(self) -> Tuple[int, int]:
         return (
             int(round((self.fl_ticks + self.rl_ticks) / 2.0)),
             int(round((self.fr_ticks + self.rr_ticks) / 2.0)),
         )
 
-    @property
-    def wheel_ticks(self) -> Tuple[int, int, int, int]:
-        return (self.fl_ticks, self.fr_ticks, self.rl_ticks, self.rr_ticks)
-
-    @property
-    def wheel_tps(self) -> Tuple[float, float, float, float]:
-        return (self.fl_tps, self.fr_tps, self.rl_tps, self.rr_tps)
-
-    def as_bridge_status_dict(self) -> Dict[str, Any]:
+    def as_status_dict(self) -> Dict[str, Any]:
         return {
             "teensy_side_pid": True,
             "teensy_ms": self.controller_millis,
             "raw_ticks": list(self.wheel_ticks),
+            "left_ticks": self.side_ticks[0],
+            "right_ticks": self.side_ticks[1],
             "fl_tps": round(self.fl_tps, 3),
             "fr_tps": round(self.fr_tps, 3),
             "rl_tps": round(self.rl_tps, 3),
@@ -287,20 +269,10 @@ class TeensySidePidStatus:
             "right_error_tps": round(self.right_error_tps, 3),
             "left_front_vs_rear_mismatch": round(abs(self.fl_tps - self.rl_tps), 3),
             "right_front_vs_rear_mismatch": round(abs(self.fr_tps - self.rr_tps), 3),
-            "pid_left": {
-                "p": round(self.left_p, 4),
-                "i": round(self.left_i, 4),
-                "d": round(self.left_d, 4),
-            },
-            "pid_right": {
-                "p": round(self.right_p, 4),
-                "i": round(self.right_i, 4),
-                "d": round(self.right_d, 4),
-            },
+            "pid_left": {"p": round(self.left_p, 4), "i": round(self.left_i, 4), "d": round(self.left_d, 4)},
+            "pid_right": {"p": round(self.right_p, 4), "i": round(self.right_i, 4), "d": round(self.right_d, 4)},
             "fault": self.fault,
             "fault_reason": None if self.fault in {"", "none", "0"} else self.fault,
-            "last_pwm": [self.left_pwm, self.right_pwm],
-            "target_pwm": [self.left_pwm, self.right_pwm],
         }
 
 
@@ -308,11 +280,9 @@ def parse_teensy_side_pid_status_line(line: str) -> TeensySidePidStatus:
     text = str(line).strip()
     if not text.startswith("S,"):
         raise ValueError(f"not a Teensy side PID status line: {line!r}")
-
     parts = text.split(",")
     if len(parts) < 25:
         raise ValueError(f"Teensy side PID status line has {len(parts)} fields; expected at least 25")
-
     try:
         return TeensySidePidStatus(
             controller_millis=int(parts[1]),

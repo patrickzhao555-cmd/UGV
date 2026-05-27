@@ -18,10 +18,6 @@ setup(
             [os.path.join('launch', name) for name in os.listdir('launch') if name.endswith('.py')],
         ),
         (
-            os.path.join('share', package_name, 'firmware', 'teensy_4_1_motor_bridge'),
-            [os.path.join('firmware', 'teensy_4_1_motor_bridge', 'teensy_4_1_motor_bridge.ino')],
-        ),
-        (
             os.path.join('share', package_name, 'firmware', 'teensy_4_1_side_pid_controller'),
             [
                 os.path.join(
@@ -46,7 +42,6 @@ setup(
     entry_points={
         'console_scripts': [
             'motor_controller_bridge = ugv_motor_controller.motor_controller_bridge:main',
-            'motor_direct_test = ugv_motor_controller.motor_direct_test:main',
         ],
     },
 )

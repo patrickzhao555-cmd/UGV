@@ -48,7 +48,7 @@
 #define PWM_L              34
 #define PWM_R              35
 
-const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 10;  // 100 Hz
+const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 20;  // 50 Hz
 const unsigned long STATUS_INTERVAL_MS = 50;   // 20 Hz
 const unsigned long DEFAULT_COMMAND_TIMEOUT_MS = 500;
 
@@ -59,7 +59,7 @@ const int DEFAULT_PWM_MAX_US = 1900;
 const float DEFAULT_TRACK_WIDTH_M = 0.425f;
 const float DEFAULT_WHEEL_RADIUS_M = 0.0825f;
 const float DEFAULT_TICKS_PER_REV = 3200.0f;
-const float DEFAULT_KP = 0.10f;
+const float DEFAULT_KP = 0.05f;
 const float DEFAULT_KI = 0.0f;
 const float DEFAULT_KD = 0.0f;
 const float DEFAULT_FF_US_PER_TPS = 0.04f;

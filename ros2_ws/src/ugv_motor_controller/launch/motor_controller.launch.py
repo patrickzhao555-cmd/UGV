@@ -85,11 +85,11 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_control_hz",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_CONTROL_HZ", default_value="100.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_CONTROL_HZ", default_value="50.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kp",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.10"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.05"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_ki",

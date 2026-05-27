@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--track-width-m", type=float, default=0.425)
     parser.add_argument("--wheel-radius-m", type=float, default=0.0825)
     parser.add_argument("--ticks-per-rev", type=int, default=3200)
-    parser.add_argument("--control-hz", type=float, default=100.0)
+    parser.add_argument("--control-hz", type=float, default=50.0)
     parser.add_argument("--left-motor-sign", type=int, choices=(-1, 1), default=1)
     parser.add_argument("--right-motor-sign", type=int, choices=(-1, 1), default=-1)
     parser.add_argument("--fl-encoder-sign", type=int, choices=(-1, 1), default=-1)

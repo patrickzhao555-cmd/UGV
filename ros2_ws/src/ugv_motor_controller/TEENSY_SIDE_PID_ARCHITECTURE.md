@@ -28,7 +28,7 @@ Teensy:
   receives CMD V v omega
   computes left/right target speed
   reads four encoders
-  runs left/right side PID at 100 Hz by default
+  runs left/right side PID at 50 Hz by default
   writes PWM to two goBILDA controllers
 ```
 
@@ -107,8 +107,8 @@ track_width_m = 0.425
 pwm_neutral_us = 1500
 pwm_min_us = 1100
 pwm_max_us = 1900
-control_hz = 100
-kp = 0.10
+control_hz = 50
+kp = 0.05
 ki = 0.0
 kd = 0.0
 ff_us_per_tps = 0.04

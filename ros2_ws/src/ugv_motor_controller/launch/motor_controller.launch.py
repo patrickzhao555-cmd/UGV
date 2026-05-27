@@ -54,11 +54,11 @@ def generate_launch_description():
             DeclareLaunchArgument("command_refresh_period_s", default_value="0.10"),
             DeclareLaunchArgument(
                 "track_width_m",
-                default_value=EnvironmentVariable("MOTOR_TRACK_WIDTH_M", default_value="0.6096"),
+                default_value=EnvironmentVariable("MOTOR_TRACK_WIDTH_M", default_value="0.425"),
             ),
             DeclareLaunchArgument(
                 "wheel_radius_m",
-                default_value=EnvironmentVariable("MOTOR_WHEEL_RADIUS_M", default_value="0.0889"),
+                default_value=EnvironmentVariable("MOTOR_WHEEL_RADIUS_M", default_value="0.0825"),
             ),
             DeclareLaunchArgument(
                 "ticks_per_rev",

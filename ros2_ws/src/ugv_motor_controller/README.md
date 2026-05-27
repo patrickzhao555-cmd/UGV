@@ -91,7 +91,7 @@ scripts/run_teensy_side_pid_bench.sh --yes
 Default motor model:
 
 ```text
-wheel_radius_m=0.0889
+wheel_radius_m=0.0825
 ticks_per_rev=3200
-track_width_m=0.6096
+track_width_m=0.425
 ```

@@ -79,20 +79,33 @@ thresholds. It does not allow velocity commands until every parameter returns
 
 ## Initial Calibration
 
-Use physical wheel radius with the equivalent calibrated ticks:
+Measured robot geometry:
 
 ```text
-wheel_radius_m = 0.0889
+wheel_diameter_m = 0.165
+wheel_radius_m = 0.0825
+wheel_width_m = 0.096
+robot_length_m = 0.74
+robot_total_width_m = 0.54
+track_width_m = 0.425
+front_sensor_offset_m ~= 0.37
+```
+
+Use the physical wheel radius with the Pololu gearbox-output encoder count:
+
+```text
+wheel_diameter_m = 0.165
+wheel_radius_m = 0.0825
 ticks_per_rev = 3200
-track_width_m = 0.6096
+track_width_m = 0.425
 pwm_neutral_us = 1500
 pwm_min_us = 1100
 pwm_max_us = 1900
 control_hz = 100
 ```
 
-Do not mix `wheel_radius_m=0.0889` with the old effective
-`ticks_per_rev=2151`.
+Do not mix the current physical wheel radius with the old effective
+`ticks_per_rev=2151` calibration pair.
 
 ## Bench Sequence
 

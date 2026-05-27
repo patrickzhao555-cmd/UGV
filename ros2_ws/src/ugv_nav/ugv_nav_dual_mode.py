@@ -89,6 +89,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sensor-timeout-s", type=float, default=0.30)
     parser.add_argument("--motor-status-timeout-s", type=float, default=0.50)
     parser.add_argument("--max-test-duration-s", type=float, default=3.0)
+    parser.add_argument("--gyro-bias-calibration-s", type=float, default=0.75)
     parser.add_argument("--track-width-m", type=float, default=0.425)
     parser.add_argument("--wheel-radius-m", type=float, default=0.0825)
     parser.add_argument("--ticks-per-rev", type=float, default=3200.0)
@@ -113,6 +114,7 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         sensor_timeout_s=float(args.sensor_timeout_s),
         motor_status_timeout_s=float(args.motor_status_timeout_s),
         max_test_duration_s=float(args.max_test_duration_s),
+        gyro_bias_calibration_s=float(args.gyro_bias_calibration_s),
         track_width_m=float(args.track_width_m),
         wheel_radius_m=float(args.wheel_radius_m),
         ticks_per_rev=float(args.ticks_per_rev),
@@ -145,7 +147,13 @@ def run_real(args: argparse.Namespace) -> None:
             self.motor_status: Optional[Dict[str, Any]] = None
             self.near_obstacle = False
             self.front_clearance_m: Optional[float] = None
+            self.raw_yaw_rate_radps = 0.0
             self.yaw_rate_radps = 0.0
+            self.gyro_bias_radps = 0.0
+            self.gyro_bias_ready = self.config.gyro_bias_calibration_s <= 0.0
+            self.gyro_bias_start_s: Optional[float] = None
+            self.gyro_bias_sum = 0.0
+            self.gyro_bias_count = 0
             self.mode_start_s: Optional[float] = None
             self.target_heading_rad: Optional[float] = None
             self.pivot_stable_since_s: Optional[float] = None
@@ -169,7 +177,9 @@ def run_real(args: argparse.Namespace) -> None:
             self.last_sensor_s = now_s
             self.near_obstacle = bool(msg.near_obstacle)
             self.front_clearance_m = float(msg.front_clearance_m)
-            self.yaw_rate_radps = float(msg.imu.angular_velocity.z)
+            self.raw_yaw_rate_radps = float(msg.imu.angular_velocity.z)
+            bias = self.gyro_bias_radps if self.gyro_bias_ready else 0.0
+            self.yaw_rate_radps = self.raw_yaw_rate_radps - bias
             self.estimator = update_estimator(
                 self.estimator,
                 stamp_s=stamp_s,
@@ -214,6 +224,36 @@ def run_real(args: argparse.Namespace) -> None:
             self.target_heading_rad = None
             self.pivot_stable_since_s = None
 
+        def _reset_gyro_bias_calibration(self) -> None:
+            self.gyro_bias_radps = 0.0
+            self.gyro_bias_start_s = None
+            self.gyro_bias_sum = 0.0
+            self.gyro_bias_count = 0
+            self.gyro_bias_ready = self.config.gyro_bias_calibration_s <= 0.0
+
+        def _calibrate_gyro_bias_if_needed(self, now_s: float) -> bool:
+            duration_s = max(0.0, float(self.config.gyro_bias_calibration_s))
+            if duration_s <= 0.0 or self.gyro_bias_ready:
+                return True
+            if self.gyro_bias_start_s is None:
+                self.gyro_bias_start_s = now_s
+                self.gyro_bias_sum = 0.0
+                self.gyro_bias_count = 0
+                self.get_logger().info(f"Calibrating gyro bias for {duration_s:.2f}s; holding STOP.")
+
+            self.gyro_bias_sum += self.raw_yaw_rate_radps
+            self.gyro_bias_count += 1
+            if now_s - self.gyro_bias_start_s < duration_s or self.gyro_bias_count <= 0:
+                return False
+
+            self.gyro_bias_radps = self.gyro_bias_sum / float(self.gyro_bias_count)
+            self.gyro_bias_ready = True
+            self.yaw_rate_radps = self.raw_yaw_rate_radps - self.gyro_bias_radps
+            self.estimator.gyro_heading_rad = 0.0
+            self.estimator.gyro_available = True
+            self.get_logger().info(f"Gyro bias calibrated: {self.gyro_bias_radps:.5f} rad/s")
+            return True
+
         def tick(self) -> None:
             now_s = time.monotonic()
             heading = self.estimator.heading_rad
@@ -236,48 +276,58 @@ def run_real(args: argparse.Namespace) -> None:
                 safety_state = safety.reason
                 if not safety.safe:
                     self._reset_test_state()
+                    self._reset_gyro_bias_calibration()
                     self._log_safety_stop(safety.reason, now_s)
                     cmd = build_stop_command(safety.reason)
                 else:
-                    self._start_mode_if_needed(now_s)
-                    elapsed_s = now_s - float(self.mode_start_s or now_s)
-                    max_duration_s = bounded_duration(self.config.max_test_duration_s, self.config)
-                    if elapsed_s >= max_duration_s:
-                        cmd = build_stop_command("test_duration_elapsed")
-                    elif self.mode == "straight_test":
-                        duration_s = bounded_duration(self.config.straight_duration_s, self.config)
-                        if elapsed_s >= duration_s:
-                            cmd = build_stop_command("straight_test_complete")
-                        else:
-                            omega, heading_error = compute_straight_omega(
+                    if not self._calibrate_gyro_bias_if_needed(now_s):
+                        safety_state = "gyro_bias_calibration"
+                        self._reset_test_state()
+                        cmd = build_stop_command("gyro_bias_calibration")
+                    else:
+                        heading = self.estimator.heading_rad
+                        self._start_mode_if_needed(now_s)
+                        elapsed_s = now_s - float(self.mode_start_s or now_s)
+                        max_duration_s = bounded_duration(self.config.max_test_duration_s, self.config)
+                        if elapsed_s >= max_duration_s:
+                            cmd = build_stop_command("test_duration_elapsed")
+                        elif self.mode == "straight_test":
+                            duration_s = bounded_duration(self.config.straight_duration_s, self.config)
+                            if elapsed_s >= duration_s:
+                                cmd = build_stop_command("straight_test_complete")
+                            else:
+                                omega, heading_error = compute_straight_omega(
+                                    target_heading_rad=float(self.target_heading_rad),
+                                    heading_rad=heading,
+                                    yaw_rate_radps=self.yaw_rate_radps,
+                                    config=self.config,
+                                )
+                                cmd = build_velocity_command(
+                                    self.config.straight_speed_mps,
+                                    omega,
+                                    "straight_heading_hold",
+                                )
+                        elif self.mode == "pivot_test":
+                            omega, heading_error = compute_pivot_omega(
                                 target_heading_rad=float(self.target_heading_rad),
                                 heading_rad=heading,
-                                yaw_rate_radps=self.yaw_rate_radps,
                                 config=self.config,
                             )
-                            cmd = build_velocity_command(
-                                self.config.straight_speed_mps,
-                                omega,
-                                "straight_heading_hold",
-                            )
-                    elif self.mode == "pivot_test":
-                        omega, heading_error = compute_pivot_omega(
-                            target_heading_rad=float(self.target_heading_rad),
-                            heading_rad=heading,
-                            config=self.config,
-                        )
-                        if abs(heading_error) <= self.config.heading_deadband_rad and abs(self.yaw_rate_radps) <= 0.08:
-                            if self.pivot_stable_since_s is None:
-                                self.pivot_stable_since_s = now_s
-                            reason = (
-                                "pivot_test_complete"
-                                if now_s - self.pivot_stable_since_s >= 0.25
-                                else "pivot_settling"
-                            )
-                            cmd = build_stop_command(reason)
-                        else:
-                            self.pivot_stable_since_s = None
-                            cmd = build_velocity_command(0.0, omega, "pivot_heading_hold")
+                            if (
+                                abs(heading_error) <= self.config.heading_deadband_rad
+                                and abs(self.yaw_rate_radps) <= 0.08
+                            ):
+                                if self.pivot_stable_since_s is None:
+                                    self.pivot_stable_since_s = now_s
+                                reason = (
+                                    "pivot_test_complete"
+                                    if now_s - self.pivot_stable_since_s >= 0.25
+                                    else "pivot_settling"
+                                )
+                                cmd = build_stop_command(reason)
+                            else:
+                                self.pivot_stable_since_s = None
+                                cmd = build_velocity_command(0.0, omega, "pivot_heading_hold")
 
             self._publish_command(cmd)
             self._publish_status_if_needed(now_s, heading, heading_error, safety_state)
@@ -315,7 +365,10 @@ def run_real(args: argparse.Namespace) -> None:
                 "gyro_heading_rad": self.estimator.gyro_heading_rad,
                 "encoder_heading_rad": self.estimator.encoder_heading_rad,
                 "heading_error_rad": heading_error,
+                "raw_yaw_rate_radps": self.raw_yaw_rate_radps,
                 "yaw_rate_radps": self.yaw_rate_radps,
+                "gyro_bias_radps": self.gyro_bias_radps,
+                "gyro_bias_ready": self.gyro_bias_ready,
                 "v_mps": self.last_command_payload.get("v_mps", 0.0),
                 "omega_radps": self.last_command_payload.get("omega_radps", 0.0),
                 "safety_state": safety_state,

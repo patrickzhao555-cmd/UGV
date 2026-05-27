@@ -632,6 +632,8 @@ def main() -> None:
     node = MotorControllerBridge()
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
         node.destroy_node()
         if rclpy.ok():

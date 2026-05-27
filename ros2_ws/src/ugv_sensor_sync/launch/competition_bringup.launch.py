@@ -67,6 +67,8 @@ def generate_launch_description():
     nav_stop_clearance_m = LaunchConfiguration("nav_stop_clearance_m")
     nav_sensor_timeout_s = LaunchConfiguration("nav_sensor_timeout_s")
     nav_motor_status_timeout_s = LaunchConfiguration("nav_motor_status_timeout_s")
+    nav_max_test_duration_s = LaunchConfiguration("nav_max_test_duration_s")
+    nav_gyro_bias_calibration_s = LaunchConfiguration("nav_gyro_bias_calibration_s")
 
     motor_controller_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(motor_launch)),
@@ -147,6 +149,10 @@ def generate_launch_description():
             nav_sensor_timeout_s,
             "--motor-status-timeout-s",
             nav_motor_status_timeout_s,
+            "--max-test-duration-s",
+            nav_max_test_duration_s,
+            "--gyro-bias-calibration-s",
+            nav_gyro_bias_calibration_s,
             "--track-width-m",
             motor_track_width_m,
             "--wheel-radius-m",
@@ -206,6 +212,8 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_stop_clearance_m", default_value="0.45"),
             DeclareLaunchArgument("nav_sensor_timeout_s", default_value="0.30"),
             DeclareLaunchArgument("nav_motor_status_timeout_s", default_value="0.50"),
+            DeclareLaunchArgument("nav_max_test_duration_s", default_value="3.0"),
+            DeclareLaunchArgument("nav_gyro_bias_calibration_s", default_value="0.75"),
             motor_controller_launch,
             sensor_sync_launch,
             nav_placeholder,

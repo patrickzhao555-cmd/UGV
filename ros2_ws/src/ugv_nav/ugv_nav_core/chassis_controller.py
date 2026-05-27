@@ -21,6 +21,7 @@ class ChassisControllerConfig:
     sensor_timeout_s: float = 0.30
     motor_status_timeout_s: float = 0.50
     max_test_duration_s: float = 3.0
+    gyro_bias_calibration_s: float = 0.75
     track_width_m: float = 0.425
     wheel_radius_m: float = 0.0825
     ticks_per_rev: float = 3200.0

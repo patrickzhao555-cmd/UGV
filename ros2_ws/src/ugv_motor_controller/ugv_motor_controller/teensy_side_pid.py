@@ -1,10 +1,10 @@
-"""Protocol helpers for the active Teensy two-side PID motor controller.
+"""Protocol helpers for the active Teensy two-controller/four-encoder motor controller.
 
 Hardware truth for this robot:
 
-* Four Pololu motors.
-* Four encoder channels.
-* Two goBILDA speed controllers: one left side and one right side.
+* Four Pololu 50:1 37D motors with quadrature encoders.
+* Four encoder channels, one per motor.
+* Two goBILDA 1x15A R/C PWM speed controllers: one left side and one right side.
 
 That means the active controller is left/right side velocity PID, not four
 independent motor PID. Four encoder streams are still useful for averaged side
@@ -63,6 +63,31 @@ def ticks_per_sec_to_mps(ticks_per_sec: float, *, wheel_radius_m: float, ticks_p
     radius = max(1e-6, float(wheel_radius_m))
     ticks = max(1, int(ticks_per_rev))
     return float(ticks_per_sec) * (2.0 * math.pi * radius) / float(ticks)
+
+
+def side_average(front_value: float, rear_value: float) -> float:
+    return 0.5 * (float(front_value) + float(rear_value))
+
+
+def side_ticks_from_wheels(front_ticks: int, rear_ticks: int) -> int:
+    return int(round(side_average(int(front_ticks), int(rear_ticks))))
+
+
+def side_encoder_mismatch(front_tps: float, rear_tps: float) -> float:
+    return abs(float(front_tps) - float(rear_tps))
+
+
+def side_mismatch_flags(
+    front_tps: float,
+    rear_tps: float,
+    *,
+    warn_tps: float,
+    fault_tps: float,
+) -> Tuple[bool, bool]:
+    mismatch = side_encoder_mismatch(front_tps, rear_tps)
+    warn = mismatch >= max(0.0, float(warn_tps))
+    fault = mismatch >= max(0.0, float(fault_tps))
+    return warn, fault
 
 
 def velocity_to_side_pid_targets(
@@ -244,8 +269,8 @@ class TeensySidePidStatus:
     @property
     def side_ticks(self) -> Tuple[int, int]:
         return (
-            int(round((self.fl_ticks + self.rl_ticks) / 2.0)),
-            int(round((self.fr_ticks + self.rr_ticks) / 2.0)),
+            side_ticks_from_wheels(self.fl_ticks, self.rl_ticks),
+            side_ticks_from_wheels(self.fr_ticks, self.rr_ticks),
         )
 
     def as_status_dict(self) -> Dict[str, Any]:
@@ -267,8 +292,8 @@ class TeensySidePidStatus:
             "right_pwm": self.right_pwm,
             "left_error_tps": round(self.left_error_tps, 3),
             "right_error_tps": round(self.right_error_tps, 3),
-            "left_front_vs_rear_mismatch": round(abs(self.fl_tps - self.rl_tps), 3),
-            "right_front_vs_rear_mismatch": round(abs(self.fr_tps - self.rr_tps), 3),
+            "left_front_vs_rear_mismatch": round(side_encoder_mismatch(self.fl_tps, self.rl_tps), 3),
+            "right_front_vs_rear_mismatch": round(side_encoder_mismatch(self.fr_tps, self.rr_tps), 3),
             "pid_left": {"p": round(self.left_p, 4), "i": round(self.left_i, 4), "d": round(self.left_d, 4)},
             "pid_right": {"p": round(self.right_p, 4), "i": round(self.right_i, 4), "d": round(self.right_d, 4)},
             "fault": self.fault,

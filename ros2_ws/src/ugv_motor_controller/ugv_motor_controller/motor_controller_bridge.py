@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Thin ROS-to-Teensy bridge for the active two-side PID motor controller.
+"""Thin ROS-to-Teensy bridge for the active Teensy motor controller.
 
 This node intentionally does not implement motor PID. The robot has two
-goBILDA speed controllers, so Teensy owns left/right side velocity PID and the
-Jetson only forwards chassis intent as ``CMD V <v_mps> <omega_radps>``.
+goBILDA speed controllers and four Pololu encoder feedback channels, so Teensy
+owns left/right side velocity PID and the Jetson only forwards chassis intent
+as ``CMD V <v_mps> <omega_radps>``.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from ugv_motor_controller.teensy_side_pid import (
     is_stop_command,
     parse_teensy_param_ack_line,
     parse_teensy_side_pid_status_line,
+    side_mismatch_flags,
     ticks_per_sec_to_mps,
     velocity_to_side_speeds,
 )
@@ -65,6 +67,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter("pwm_neutral_us", 1500)
         self.declare_parameter("pwm_max_us", 1900)
         self.declare_parameter("pwm_slew_rate_us_per_s", 2400.0)
+        self.declare_parameter("teensy_control_hz", 100.0)
         self.declare_parameter("teensy_pid_kp", 0.80)
         self.declare_parameter("teensy_pid_ki", 0.0)
         self.declare_parameter("teensy_pid_kd", 0.02)
@@ -84,6 +87,11 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_stall_pwm_delta_us", 120.0)
         self.declare_parameter("teensy_stall_timeout_ms", 300)
         self.declare_parameter("teensy_sign_mismatch_tps", 10.0)
+        self.declare_parameter("teensy_side_mismatch_fault_enabled", True)
+        self.declare_parameter("teensy_side_mismatch_warn_tps", 80.0)
+        self.declare_parameter("teensy_side_mismatch_fault_tps", 180.0)
+        self.declare_parameter("teensy_encoder_jump_fault_enabled", True)
+        self.declare_parameter("teensy_encoder_jump_tps", 12000.0)
         self.declare_parameter("teensy_pid_param_ack_timeout_s", 1.0)
 
         self.port = str(self.get_parameter("port").value)
@@ -108,6 +116,7 @@ class MotorControllerBridge(Node):
         self.pwm_neutral_us = int(self.get_parameter("pwm_neutral_us").value)
         self.pwm_max_us = int(self.get_parameter("pwm_max_us").value)
         self.pwm_slew_rate_us_per_s = max(0.0, float(self.get_parameter("pwm_slew_rate_us_per_s").value))
+        self.teensy_control_hz = max(20.0, min(200.0, float(self.get_parameter("teensy_control_hz").value)))
         self.teensy_pid_kp = float(self.get_parameter("teensy_pid_kp").value)
         self.teensy_pid_ki = float(self.get_parameter("teensy_pid_ki").value)
         self.teensy_pid_kd = float(self.get_parameter("teensy_pid_kd").value)
@@ -129,6 +138,21 @@ class MotorControllerBridge(Node):
         self.teensy_stall_pwm_delta_us = max(0.0, float(self.get_parameter("teensy_stall_pwm_delta_us").value))
         self.teensy_stall_timeout_ms = max(0, int(self.get_parameter("teensy_stall_timeout_ms").value))
         self.teensy_sign_mismatch_tps = max(0.0, float(self.get_parameter("teensy_sign_mismatch_tps").value))
+        self.teensy_side_mismatch_fault_enabled = bool(
+            self.get_parameter("teensy_side_mismatch_fault_enabled").value
+        )
+        self.teensy_side_mismatch_warn_tps = max(
+            0.0,
+            float(self.get_parameter("teensy_side_mismatch_warn_tps").value),
+        )
+        self.teensy_side_mismatch_fault_tps = max(
+            0.0,
+            float(self.get_parameter("teensy_side_mismatch_fault_tps").value),
+        )
+        self.teensy_encoder_jump_fault_enabled = bool(
+            self.get_parameter("teensy_encoder_jump_fault_enabled").value
+        )
+        self.teensy_encoder_jump_tps = max(0.0, float(self.get_parameter("teensy_encoder_jump_tps").value))
         self.teensy_pid_param_ack_timeout_s = max(
             0.05,
             float(self.get_parameter("teensy_pid_param_ack_timeout_s").value),
@@ -170,7 +194,7 @@ class MotorControllerBridge(Node):
         self.create_timer(self.poll_period_s, self.poll)
 
         self.get_logger().info(
-            "Motor bridge active path: Jetson velocity command -> Teensy two-side PID "
+            "Motor bridge active path: Jetson velocity command -> Teensy two-controller four-encoder side PID "
             f"(port={self.port}, dry_run={self.dry_run}, radius={self.wheel_radius_m}, "
             f"ticks_per_rev={self.ticks_per_rev}, motor_signs="
             f"{self.teensy_left_motor_sign}/{self.teensy_right_motor_sign})"
@@ -370,7 +394,24 @@ class MotorControllerBridge(Node):
         raw = Int32MultiArray()
         raw.data = list(status.wheel_ticks)
         self.raw_encoder_pub.publish(raw)
-        self._publish_status(**status.as_status_dict())
+        status_dict = status.as_status_dict()
+        left_warn, left_fault = side_mismatch_flags(
+            status.fl_tps,
+            status.rl_tps,
+            warn_tps=self.teensy_side_mismatch_warn_tps,
+            fault_tps=self.teensy_side_mismatch_fault_tps,
+        )
+        right_warn, right_fault = side_mismatch_flags(
+            status.fr_tps,
+            status.rr_tps,
+            warn_tps=self.teensy_side_mismatch_warn_tps,
+            fault_tps=self.teensy_side_mismatch_fault_tps,
+        )
+        status_dict["left_front_rear_mismatch_warn"] = left_warn
+        status_dict["right_front_rear_mismatch_warn"] = right_warn
+        status_dict["left_front_rear_mismatch_fault_threshold"] = left_fault
+        status_dict["right_front_rear_mismatch_fault_threshold"] = right_fault
+        self._publish_status(**status_dict)
 
     def _teensy_pid_param_values(self) -> OrderedDict[str, Any]:
         return OrderedDict(
@@ -386,6 +427,7 @@ class MotorControllerBridge(Node):
                 ("pwm_neutral_us", self.pwm_neutral_us),
                 ("pwm_max_us", self.pwm_max_us),
                 ("pwm_slew_us_per_s", self.pwm_slew_rate_us_per_s),
+                ("control_hz", self.teensy_control_hz),
                 ("left_motor_sign", self.teensy_left_motor_sign),
                 ("right_motor_sign", self.teensy_right_motor_sign),
                 ("fl_encoder_sign", self.teensy_fl_encoder_sign),
@@ -402,6 +444,11 @@ class MotorControllerBridge(Node):
                 ("stall_pwm_delta_us", self.teensy_stall_pwm_delta_us),
                 ("stall_timeout_ms", self.teensy_stall_timeout_ms),
                 ("sign_mismatch_tps", self.teensy_sign_mismatch_tps),
+                ("side_mismatch_fault_enabled", 1 if self.teensy_side_mismatch_fault_enabled else 0),
+                ("side_mismatch_warn_tps", self.teensy_side_mismatch_warn_tps),
+                ("side_mismatch_fault_tps", self.teensy_side_mismatch_fault_tps),
+                ("encoder_jump_fault_enabled", 1 if self.teensy_encoder_jump_fault_enabled else 0),
+                ("encoder_jump_tps", self.teensy_encoder_jump_tps),
             ]
         )
 
@@ -481,8 +528,12 @@ class MotorControllerBridge(Node):
             "port": self.port,
             "baud": self.baud,
             "dry_run": self.dry_run,
-            "control_mode": "teensy_side_pid",
-            "motor_hardware": "two_gobilda_speed_controllers",
+            "control_mode": "two_controller_four_encoder_side_pid",
+            "motor_hardware": "four_pololu_37d_50_1_motors_two_gobilda_1x15a_pwm_controllers",
+            "actuator_outputs": 2,
+            "encoder_channels": 4,
+            "encoder_feedback": "pololu_motor_quadrature",
+            "same_side_sync": "diagnostic_only",
             "accepted_command_contract": "velocity_only",
             "teensy_pid_params_synced": bool(self.teensy_pid_params_synced),
             "teensy_pid_param_sync_pending": list(self.teensy_pid_param_sync_pending),
@@ -493,6 +544,10 @@ class MotorControllerBridge(Node):
             "track_width_m": round(self.track_width_m, 4),
             "wheel_radius_m": round(self.wheel_radius_m, 4),
             "ticks_per_rev": int(self.ticks_per_rev),
+            "teensy_control_hz": round(self.teensy_control_hz, 3),
+            "teensy_side_mismatch_warn_tps": round(self.teensy_side_mismatch_warn_tps, 3),
+            "teensy_side_mismatch_fault_tps": round(self.teensy_side_mismatch_fault_tps, 3),
+            "teensy_encoder_jump_tps": round(self.teensy_encoder_jump_tps, 3),
             "target_left_mps": round(self.target_left_mps, 4),
             "target_right_mps": round(self.target_right_mps, 4),
             "measured_left_mps": round(self.measured_left_mps, 4),

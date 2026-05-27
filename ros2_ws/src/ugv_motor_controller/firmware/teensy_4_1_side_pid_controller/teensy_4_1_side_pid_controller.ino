@@ -1,12 +1,15 @@
-// Teensy 4.1 two-side closed-loop motor controller.
+// Teensy 4.1 two-controller, four-encoder closed-loop motor controller.
 //
-// Current PCB/firmware evidence exposes two motor command outputs only:
-//   PWM_L drives both left-side motors.
-//   PWM_R drives both right-side motors.
+// Hardware truth:
+//   Four Pololu 50:1 37D motors with 64 CPR motor-shaft quadrature encoders.
+//   Two goBILDA 1x15A R/C PWM brushed DC speed controllers.
+//   PWM_L drives both left-side motors through one controller.
+//   PWM_R drives both right-side motors through one controller.
 //
-// Four encoders are still read independently. FL/RL are averaged for the left
-// side PID, FR/RR are averaged for the right side PID, and per-wheel mismatch
-// is used for diagnostics and fault detection.
+// Four encoders are read independently. FL/RL are averaged for the left side
+// PID, FR/RR are averaged for the right side PID, and same-side mismatch is
+// diagnostics/fault detection only. The hardware has two actuator outputs, so
+// it cannot independently correct front-vs-rear speed on the same side.
 //
 // Jetson -> Teensy:
 //   CMD V <v_mps> <omega_radps>
@@ -51,7 +54,7 @@
 #define PWM_L              34
 #define PWM_R              35
 
-const unsigned long CONTROL_INTERVAL_MS = 20;  // 50 Hz
+const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 10;  // 100 Hz
 const unsigned long STATUS_INTERVAL_MS = 50;   // 20 Hz
 const unsigned long DEFAULT_COMMAND_TIMEOUT_MS = 500;
 
@@ -86,7 +89,15 @@ ControllerMode controller_mode = MODE_STOPPED;
 unsigned long last_control_ms = 0;
 unsigned long last_status_ms = 0;
 unsigned long last_command_ms = 0;
-unsigned long fault_start_ms = 0;
+unsigned long control_interval_ms = DEFAULT_CONTROL_INTERVAL_MS;
+unsigned long fl_stall_start_ms = 0;
+unsigned long rl_stall_start_ms = 0;
+unsigned long fr_stall_start_ms = 0;
+unsigned long rr_stall_start_ms = 0;
+unsigned long left_side_stall_start_ms = 0;
+unsigned long right_side_stall_start_ms = 0;
+unsigned long left_mismatch_start_ms = 0;
+unsigned long right_mismatch_start_ms = 0;
 
 char usb_buf[96];
 char uart_buf[96];
@@ -159,6 +170,11 @@ float stall_moving_peer_tps = 12.0f;
 float stall_pwm_delta_us = 120.0f;
 unsigned long stall_timeout_ms = 300;
 float sign_mismatch_tps = 10.0f;
+bool side_mismatch_fault_enabled = true;
+float side_mismatch_warn_tps = 80.0f;
+float side_mismatch_fault_tps = 180.0f;
+bool encoder_jump_fault_enabled = true;
+float encoder_jump_tps = 12000.0f;
 
 char fault_reason[32] = "none";
 
@@ -231,7 +247,14 @@ long readEncoderSigned(Encoder& encoder, int sign) {
 void clearFault() {
   strncpy(fault_reason, "none", sizeof(fault_reason));
   fault_reason[sizeof(fault_reason) - 1] = '\0';
-  fault_start_ms = 0;
+  fl_stall_start_ms = 0;
+  rl_stall_start_ms = 0;
+  fr_stall_start_ms = 0;
+  rr_stall_start_ms = 0;
+  left_side_stall_start_ms = 0;
+  right_side_stall_start_ms = 0;
+  left_mismatch_start_ms = 0;
+  right_mismatch_start_ms = 0;
 }
 
 void setFault(const char* reason) {
@@ -335,8 +358,8 @@ void configurePid() {
   right_pid.SetTunings(kp, ki, kd);
   left_pid.SetOutputLimits(-pid_output_limit_us, pid_output_limit_us);
   right_pid.SetOutputLimits(-pid_output_limit_us, pid_output_limit_us);
-  left_pid.SetSampleTimeUs(CONTROL_INTERVAL_MS * 1000UL);
-  right_pid.SetSampleTimeUs(CONTROL_INTERVAL_MS * 1000UL);
+  left_pid.SetSampleTimeUs(control_interval_ms * 1000UL);
+  right_pid.SetSampleTimeUs(control_interval_ms * 1000UL);
   left_pid.SetAntiWindupMode(QuickPID::iAwMode::iAwClamp);
   right_pid.SetAntiWindupMode(QuickPID::iAwMode::iAwClamp);
   left_pid.SetMode(QuickPID::Control::automatic);
@@ -393,28 +416,104 @@ bool shouldFaultForWheel(
   float side_target_tps,
   float wheel_tps,
   float peer_tps,
-  int side_pwm
+  int side_pwm,
+  unsigned long& start_ms
 ) {
   if (!stall_fault_enabled) {
+    start_ms = 0;
     return false;
   }
   if (abs(side_target_tps) < stall_target_tps) {
+    start_ms = 0;
     return false;
   }
   if (abs(side_pwm - pwm_neutral_us) < stall_pwm_delta_us) {
+    start_ms = 0;
     return false;
   }
   if (abs(wheel_tps) > stall_near_zero_tps) {
+    start_ms = 0;
     return false;
   }
   if (abs(peer_tps) < stall_moving_peer_tps) {
+    start_ms = 0;
     return false;
   }
-  if (fault_start_ms == 0) {
-    fault_start_ms = millis();
+  if (start_ms == 0) {
+    start_ms = millis();
     return false;
   }
-  if (millis() - fault_start_ms >= stall_timeout_ms) {
+  if (millis() - start_ms >= stall_timeout_ms) {
+    setFault(reason);
+    return true;
+  }
+  return false;
+}
+
+bool shouldFaultForSideStall(
+  const char* reason,
+  float side_target_tps,
+  float first_tps,
+  float second_tps,
+  int side_pwm,
+  unsigned long& start_ms
+) {
+  if (!stall_fault_enabled) {
+    start_ms = 0;
+    return false;
+  }
+  if (abs(side_target_tps) < stall_target_tps) {
+    start_ms = 0;
+    return false;
+  }
+  if (abs(side_pwm - pwm_neutral_us) < stall_pwm_delta_us) {
+    start_ms = 0;
+    return false;
+  }
+  if (abs(first_tps) > stall_near_zero_tps || abs(second_tps) > stall_near_zero_tps) {
+    start_ms = 0;
+    return false;
+  }
+  if (start_ms == 0) {
+    start_ms = millis();
+    return false;
+  }
+  if (millis() - start_ms >= stall_timeout_ms) {
+    setFault(reason);
+    return true;
+  }
+  return false;
+}
+
+bool shouldFaultForSideMismatch(
+  const char* reason,
+  float side_target_tps,
+  float first_tps,
+  float second_tps,
+  int side_pwm,
+  unsigned long& start_ms
+) {
+  if (!side_mismatch_fault_enabled) {
+    start_ms = 0;
+    return false;
+  }
+  if (abs(side_target_tps) < stall_target_tps) {
+    start_ms = 0;
+    return false;
+  }
+  if (abs(side_pwm - pwm_neutral_us) < stall_pwm_delta_us) {
+    start_ms = 0;
+    return false;
+  }
+  if (abs(first_tps - second_tps) < side_mismatch_fault_tps) {
+    start_ms = 0;
+    return false;
+  }
+  if (start_ms == 0) {
+    start_ms = millis();
+    return false;
+  }
+  if (millis() - start_ms >= stall_timeout_ms) {
     setFault(reason);
     return true;
   }
@@ -423,14 +522,25 @@ bool shouldFaultForWheel(
 
 bool checkEncoderDiagnostics() {
   if (controller_mode != MODE_VELOCITY) {
-    fault_start_ms = 0;
+    fl_stall_start_ms = 0;
+    rl_stall_start_ms = 0;
+    fr_stall_start_ms = 0;
+    rr_stall_start_ms = 0;
+    left_side_stall_start_ms = 0;
+    right_side_stall_start_ms = 0;
+    left_mismatch_start_ms = 0;
+    right_mismatch_start_ms = 0;
     return false;
   }
 
-  if (shouldFaultForWheel("fl_stall", left_target_tps, fl_tps, rl_tps, current_left_pwm)) return true;
-  if (shouldFaultForWheel("rl_stall", left_target_tps, rl_tps, fl_tps, current_left_pwm)) return true;
-  if (shouldFaultForWheel("fr_stall", right_target_tps, fr_tps, rr_tps, current_right_pwm)) return true;
-  if (shouldFaultForWheel("rr_stall", right_target_tps, rr_tps, fr_tps, current_right_pwm)) return true;
+  if (shouldFaultForWheel("fl_stall", left_target_tps, fl_tps, rl_tps, current_left_pwm, fl_stall_start_ms)) return true;
+  if (shouldFaultForWheel("rl_stall", left_target_tps, rl_tps, fl_tps, current_left_pwm, rl_stall_start_ms)) return true;
+  if (shouldFaultForWheel("fr_stall", right_target_tps, fr_tps, rr_tps, current_right_pwm, fr_stall_start_ms)) return true;
+  if (shouldFaultForWheel("rr_stall", right_target_tps, rr_tps, fr_tps, current_right_pwm, rr_stall_start_ms)) return true;
+  if (shouldFaultForSideStall("left_side_stall", left_target_tps, fl_tps, rl_tps, current_left_pwm, left_side_stall_start_ms)) return true;
+  if (shouldFaultForSideStall("right_side_stall", right_target_tps, fr_tps, rr_tps, current_right_pwm, right_side_stall_start_ms)) return true;
+  if (shouldFaultForSideMismatch("left_mismatch", left_target_tps, fl_tps, rl_tps, current_left_pwm, left_mismatch_start_ms)) return true;
+  if (shouldFaultForSideMismatch("right_mismatch", right_target_tps, fr_tps, rr_tps, current_right_pwm, right_mismatch_start_ms)) return true;
 
   int left_target_sign = signOf(left_target_tps, sign_mismatch_tps);
   int right_target_sign = signOf(right_target_tps, sign_mismatch_tps);
@@ -467,7 +577,6 @@ bool checkEncoderDiagnostics() {
     return true;
   }
 
-  fault_start_ms = 0;
   return false;
 }
 
@@ -482,6 +591,17 @@ void updateEncoderSpeeds(unsigned long dt_ms) {
   fr_tps = (float)(fr_ticks - last_fr_ticks) / dt_s;
   rl_tps = (float)(rl_ticks - last_rl_ticks) / dt_s;
   rr_tps = (float)(rr_ticks - last_rr_ticks) / dt_s;
+
+  if (
+    encoder_jump_fault_enabled &&
+    (controller_mode == MODE_VELOCITY || controller_mode == MODE_RAW2)
+  ) {
+    if (abs(fl_tps) > encoder_jump_tps) setFault("fl_jump");
+    else if (abs(fr_tps) > encoder_jump_tps) setFault("fr_jump");
+    else if (abs(rl_tps) > encoder_jump_tps) setFault("rl_jump");
+    else if (abs(rr_tps) > encoder_jump_tps) setFault("rr_jump");
+  }
+
   left_measured_tps = 0.5f * (fl_tps + rl_tps);
   right_measured_tps = 0.5f * (fr_tps + rr_tps);
 
@@ -678,6 +798,14 @@ void printParamDump(Stream& stream) {
   stream.print(pwm_neutral_us);
   stream.print(",pwm_max_us=");
   stream.print(pwm_max_us);
+  stream.print(",control_hz=");
+  stream.print(1000.0f / max(1.0f, (float)control_interval_ms), 2);
+  stream.print(",side_mismatch_warn_tps=");
+  stream.print(side_mismatch_warn_tps, 2);
+  stream.print(",side_mismatch_fault_tps=");
+  stream.print(side_mismatch_fault_tps, 2);
+  stream.print(",encoder_jump_tps=");
+  stream.print(encoder_jump_tps, 2);
   stream.print(",command_timeout_ms=");
   stream.println(command_timeout_ms, 0);
 }
@@ -700,6 +828,8 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "ff_us_per_tps") == 0) { feedforward_us_per_tps = value; critical = true; }
   else if (strcmp(name, "pid_output_limit_us") == 0) { pid_output_limit_us = max(1.0f, value); critical = true; }
   else if (strcmp(name, "pwm_slew_us_per_s") == 0) { pwm_slew_us_per_s = max(0.0f, value); critical = true; }
+  else if (strcmp(name, "control_hz") == 0) { control_interval_ms = (unsigned long)clampFloat(roundf(1000.0f / max(1.0f, value)), 5.0f, 50.0f); critical = true; }
+  else if (strcmp(name, "control_interval_ms") == 0) { control_interval_ms = (unsigned long)clampFloat(roundf(value), 5.0f, 50.0f); critical = true; }
   else if (strcmp(name, "track_width_m") == 0) { track_width_m = max(0.01f, value); critical = true; }
   else if (strcmp(name, "wheel_radius_m") == 0) { wheel_radius_m = max(0.001f, value); critical = true; }
   else if (strcmp(name, "ticks_per_rev") == 0) { ticks_per_rev = max(1.0f, value); critical = true; }
@@ -722,6 +852,11 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "stall_pwm_delta_us") == 0) stall_pwm_delta_us = max(0.0f, value);
   else if (strcmp(name, "stall_timeout_ms") == 0) stall_timeout_ms = (unsigned long)max(0.0f, value);
   else if (strcmp(name, "sign_mismatch_tps") == 0) sign_mismatch_tps = max(0.0f, value);
+  else if (strcmp(name, "side_mismatch_fault_enabled") == 0) side_mismatch_fault_enabled = value != 0.0f;
+  else if (strcmp(name, "side_mismatch_warn_tps") == 0) side_mismatch_warn_tps = max(0.0f, value);
+  else if (strcmp(name, "side_mismatch_fault_tps") == 0) side_mismatch_fault_tps = max(0.0f, value);
+  else if (strcmp(name, "encoder_jump_fault_enabled") == 0) encoder_jump_fault_enabled = value != 0.0f;
+  else if (strcmp(name, "encoder_jump_tps") == 0) encoder_jump_tps = max(0.0f, value);
   else return false;
 
   configurePid();
@@ -773,9 +908,12 @@ void parseCommand(char* s, const char* transport_name) {
     if (v_text == NULL || omega_text == NULL) {
       return;
     }
+    last_command_ms = millis();
+    if (controller_mode == MODE_FAULT || strcmp(fault_reason, "none") != 0) {
+      return;
+    }
     target_v_mps = atof(v_text);
     target_omega_radps = atof(omega_text);
-    last_command_ms = millis();
     clearFault();
     controller_mode = MODE_VELOCITY;
     return;
@@ -787,9 +925,12 @@ void parseCommand(char* s, const char* transport_name) {
     if (left_text == NULL || right_text == NULL) {
       return;
     }
+    last_command_ms = millis();
+    if (controller_mode == MODE_FAULT || strcmp(fault_reason, "none") != 0) {
+      return;
+    }
     target_left_pwm = clampPwm(atoi(left_text));
     target_right_pwm = clampPwm(atoi(right_text));
-    last_command_ms = millis();
     clearFault();
     resetPidState();
     controller_mode = MODE_RAW2;
@@ -874,7 +1015,7 @@ void loop() {
     stopController("none", false);
   }
 
-  if (now_ms - last_control_ms >= CONTROL_INTERVAL_MS) {
+  if (now_ms - last_control_ms >= control_interval_ms) {
     controlStep(now_ms);
   }
 

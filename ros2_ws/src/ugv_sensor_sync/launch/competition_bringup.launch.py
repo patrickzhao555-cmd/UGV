@@ -30,6 +30,7 @@ def generate_launch_description():
     motor_track_width_m = LaunchConfiguration("motor_track_width_m")
     motor_wheel_radius_m = LaunchConfiguration("motor_wheel_radius_m")
     motor_ticks_per_rev = LaunchConfiguration("motor_ticks_per_rev")
+    motor_teensy_control_hz = LaunchConfiguration("motor_teensy_control_hz")
     motor_teensy_pid_kp = LaunchConfiguration("motor_teensy_pid_kp")
     motor_teensy_pid_ki = LaunchConfiguration("motor_teensy_pid_ki")
     motor_teensy_pid_kd = LaunchConfiguration("motor_teensy_pid_kd")
@@ -39,6 +40,9 @@ def generate_launch_description():
     motor_teensy_fr_encoder_sign = LaunchConfiguration("motor_teensy_fr_encoder_sign")
     motor_teensy_rl_encoder_sign = LaunchConfiguration("motor_teensy_rl_encoder_sign")
     motor_teensy_rr_encoder_sign = LaunchConfiguration("motor_teensy_rr_encoder_sign")
+    motor_teensy_side_mismatch_warn_tps = LaunchConfiguration("motor_teensy_side_mismatch_warn_tps")
+    motor_teensy_side_mismatch_fault_tps = LaunchConfiguration("motor_teensy_side_mismatch_fault_tps")
+    motor_teensy_encoder_jump_tps = LaunchConfiguration("motor_teensy_encoder_jump_tps")
     nav_status_period_s = LaunchConfiguration("nav_status_period_s")
 
     motor_controller_launch = IncludeLaunchDescription(
@@ -52,6 +56,7 @@ def generate_launch_description():
             "track_width_m": motor_track_width_m,
             "wheel_radius_m": motor_wheel_radius_m,
             "ticks_per_rev": motor_ticks_per_rev,
+            "teensy_control_hz": motor_teensy_control_hz,
             "teensy_pid_kp": motor_teensy_pid_kp,
             "teensy_pid_ki": motor_teensy_pid_ki,
             "teensy_pid_kd": motor_teensy_pid_kd,
@@ -61,6 +66,9 @@ def generate_launch_description():
             "teensy_fr_encoder_sign": motor_teensy_fr_encoder_sign,
             "teensy_rl_encoder_sign": motor_teensy_rl_encoder_sign,
             "teensy_rr_encoder_sign": motor_teensy_rr_encoder_sign,
+            "teensy_side_mismatch_warn_tps": motor_teensy_side_mismatch_warn_tps,
+            "teensy_side_mismatch_fault_tps": motor_teensy_side_mismatch_fault_tps,
+            "teensy_encoder_jump_tps": motor_teensy_encoder_jump_tps,
         }.items(),
         condition=IfCondition(start_motor_controller),
     )
@@ -90,6 +98,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_track_width_m", default_value="0.6096"),
             DeclareLaunchArgument("motor_wheel_radius_m", default_value="0.0889"),
             DeclareLaunchArgument("motor_ticks_per_rev", default_value="3200"),
+            DeclareLaunchArgument("motor_teensy_control_hz", default_value="100.0"),
             DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.80"),
             DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_kd", default_value="0.02"),
@@ -99,6 +108,9 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_fr_encoder_sign", default_value="1"),
             DeclareLaunchArgument("motor_teensy_rl_encoder_sign", default_value="1"),
             DeclareLaunchArgument("motor_teensy_rr_encoder_sign", default_value="1"),
+            DeclareLaunchArgument("motor_teensy_side_mismatch_warn_tps", default_value="80.0"),
+            DeclareLaunchArgument("motor_teensy_side_mismatch_fault_tps", default_value="180.0"),
+            DeclareLaunchArgument("motor_teensy_encoder_jump_tps", default_value="12000.0"),
             DeclareLaunchArgument("nav_status_period_s", default_value="1.0"),
             motor_controller_launch,
             nav_placeholder,

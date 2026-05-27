@@ -4,15 +4,16 @@ Clean active motor path for the current drivetrain hardware.
 
 ## Hardware Truth
 
-- Four Pololu motors.
-- Four encoder channels.
-- Two goBILDA speed controllers.
+- Four Pololu 50:1 37D motors.
+- Four Pololu motor encoder channels.
+- Two goBILDA 1x15A R/C PWM speed controllers.
 - The left speed controller drives both left motors.
 - The right speed controller drives both right motors.
+- The goBILDA speed controllers do not provide encoder feedback.
 
 Because there are only two physical controller inputs, the active architecture is
-two-side velocity PID. Four-motor independent PID is not supported by this
-hardware revision.
+two-controller/four-encoder side velocity PID. Four-motor independent PID is not
+supported by this hardware revision.
 
 ## Active Runtime
 
@@ -20,7 +21,7 @@ hardware revision.
 /ugv_nav_cmd velocity JSON
   -> motor_controller_bridge
   -> CMD V <v_mps> <omega_radps>
-  -> Teensy 4.1 side PID firmware
+  -> Teensy 4.1 two-controller/four-encoder side PID firmware
   -> left/right goBILDA speed controllers
 ```
 
@@ -28,6 +29,11 @@ The bridge is intentionally thin. It does not run motor PID and it does not
 generate PWM from Python. It forwards velocity intent, sends STOP on timeout,
 syncs Teensy parameters with ACK verification, and publishes encoder/status
 topics.
+
+The Teensy averages FL/RL encoder speed for the left PID and FR/RR encoder
+speed for the right PID. Front-vs-rear mismatch on the same side is a
+diagnostic warning/fault only, because the same-side motors share one actuator
+output.
 
 ## Active Files
 

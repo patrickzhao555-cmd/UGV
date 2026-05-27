@@ -37,8 +37,8 @@ def test_clean_runtime_docs_name_active_hardware_truth():
     motor_readme = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "README.md").read_text()
     nav_arch = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_core" / "ARCHITECTURE.md").read_text()
 
-    assert "Two goBILDA speed controllers" in readme
-    assert "two-side PID" in readme
+    assert "Two goBILDA 1x15A R/C PWM speed controllers" in readme
+    assert "two-controller/four-encoder side" in readme
     assert "The bridge is intentionally thin" in motor_readme
     assert "No raw PWM from navigation" in nav_arch
     assert "No motor PID on Jetson" in nav_arch

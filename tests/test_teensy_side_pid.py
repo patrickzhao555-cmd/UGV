@@ -16,6 +16,9 @@ from ugv_motor_controller.teensy_side_pid import (  # noqa: E402
     mps_to_ticks_per_sec,
     parse_teensy_param_ack_line,
     parse_teensy_side_pid_status_line,
+    side_encoder_mismatch,
+    side_mismatch_flags,
+    side_ticks_from_wheels,
     velocity_to_side_pid_targets,
 )
 
@@ -57,6 +60,13 @@ def test_velocity_to_side_target_signs_for_forward_and_pivots():
 def test_mps_to_ticks_per_sec_conversion():
     tps = mps_to_ticks_per_sec(0.314159265, wheel_radius_m=0.10, ticks_per_rev=1000)
     assert round(tps, 1) == 500.0
+
+
+def test_four_encoder_side_average_and_mismatch_helpers():
+    assert side_ticks_from_wheels(100, 104) == 102
+    assert side_encoder_mismatch(10.5, 11.5) == 1.0
+    assert side_mismatch_flags(100.0, 185.0, warn_tps=80.0, fault_tps=180.0) == (True, False)
+    assert side_mismatch_flags(100.0, 290.0, warn_tps=80.0, fault_tps=180.0) == (True, True)
 
 
 def test_velocity_command_contract_is_velocity_only():
@@ -104,12 +114,18 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "kp": 0.45,
             "ki": 0.0,
             "kd": 0.0,
+            "control_hz": 100.0,
+            "side_mismatch_fault_tps": 180.0,
+            "encoder_jump_tps": 12000.0,
             "right_motor_sign": -1,
         }
     )
     assert "CMD PARAM wheel_radius_m 0.0889\n" in commands
     assert "CMD PARAM ticks_per_rev 3200\n" in commands
     assert "CMD PARAM kp 0.45\n" in commands
+    assert "CMD PARAM control_hz 100\n" in commands
+    assert "CMD PARAM side_mismatch_fault_tps 180\n" in commands
+    assert "CMD PARAM encoder_jump_tps 12000\n" in commands
     assert "CMD PARAM right_motor_sign -1\n" in commands
     assert "CMD PARAM ticks_per_rev 2151\n" not in commands
 
@@ -169,12 +185,21 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "velocity_control" not in bridge_file
     assert "motor_direct_test" not in setup_file
     assert "teensy_4_1_motor_bridge" not in setup_file
-    assert "two_gobilda_speed_controllers" in bridge_file
+    assert "two_controller_four_encoder_side_pid" in bridge_file
+    assert "four_pololu_37d_50_1_motors_two_gobilda_1x15a_pwm_controllers" in bridge_file
     assert "CMD V" in bridge_file
     assert "CMD RAW2" not in bridge_file
     assert "PARAM,<name>,ok" in firmware
     assert "DEFAULT_WHEEL_RADIUS_M = 0.0889f" in firmware
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
+    assert "DEFAULT_CONTROL_INTERVAL_MS = 10" in firmware
+    assert "side_mismatch_fault_tps" in firmware
+    assert "encoder_jump_tps" in firmware
+    assert "left_side_stall" in firmware
+    assert "right_side_stall" in firmware
+    assert "left_mismatch" in firmware
+    assert "right_mismatch" in firmware
+    assert "controller_mode == MODE_FAULT || strcmp(fault_reason, \"none\") != 0" in firmware
     assert not (
         ROOT
         / "ros2_ws"

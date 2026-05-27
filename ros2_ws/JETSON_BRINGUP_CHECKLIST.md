@@ -7,10 +7,11 @@ This runbook matches the clean two-side PID runtime branch.
 Hardware truth:
 
 - Four Pololu motors
-- Two goBILDA speed controllers
+- Four Pololu motor encoder channels
+- Two goBILDA R/C PWM speed controllers
 - One speed controller drives the left side
 - One speed controller drives the right side
-- Four encoder channels are available
+- Encoder feedback comes from the motors, not from the goBILDA controllers
 - Only two independent motor command outputs exist
 
 ## 1. Pull And Build
@@ -55,6 +56,7 @@ MOTOR_TICKS_PER_REV=3200 \
 MOTOR_TEENSY_PID_KP=0.80 \
 MOTOR_TEENSY_PID_KI=0.0 \
 MOTOR_TEENSY_PID_KD=0.02 \
+MOTOR_TEENSY_CONTROL_HZ=100.0 \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash \
 bash jetson_bringup.sh
 ```
@@ -79,8 +81,8 @@ bash scripts/run_teensy_side_pid_bench.sh --yes
 
 The bridge should report:
 
-- `control_mode=teensy_side_pid`
-- `motor_hardware=two_gobilda_speed_controllers`
+- `control_mode=two_controller_four_encoder_side_pid`
+- `motor_hardware=four_pololu_37d_50_1_motors_two_gobilda_1x15a_pwm_controllers`
 - `accepted_command_contract=velocity_only`
 - `teensy_pid_params_synced=true`
 - `track_width_m=0.6096`

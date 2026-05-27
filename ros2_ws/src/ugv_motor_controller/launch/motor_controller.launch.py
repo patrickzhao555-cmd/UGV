@@ -18,6 +18,7 @@ def generate_launch_description():
     pwm_neutral_us = LaunchConfiguration("pwm_neutral_us")
     pwm_max_us = LaunchConfiguration("pwm_max_us")
     pwm_slew_rate_us_per_s = LaunchConfiguration("pwm_slew_rate_us_per_s")
+    teensy_control_hz = LaunchConfiguration("teensy_control_hz")
     teensy_pid_kp = LaunchConfiguration("teensy_pid_kp")
     teensy_pid_ki = LaunchConfiguration("teensy_pid_ki")
     teensy_pid_kd = LaunchConfiguration("teensy_pid_kd")
@@ -37,6 +38,11 @@ def generate_launch_description():
     teensy_stall_pwm_delta_us = LaunchConfiguration("teensy_stall_pwm_delta_us")
     teensy_stall_timeout_ms = LaunchConfiguration("teensy_stall_timeout_ms")
     teensy_sign_mismatch_tps = LaunchConfiguration("teensy_sign_mismatch_tps")
+    teensy_side_mismatch_fault_enabled = LaunchConfiguration("teensy_side_mismatch_fault_enabled")
+    teensy_side_mismatch_warn_tps = LaunchConfiguration("teensy_side_mismatch_warn_tps")
+    teensy_side_mismatch_fault_tps = LaunchConfiguration("teensy_side_mismatch_fault_tps")
+    teensy_encoder_jump_fault_enabled = LaunchConfiguration("teensy_encoder_jump_fault_enabled")
+    teensy_encoder_jump_tps = LaunchConfiguration("teensy_encoder_jump_tps")
     teensy_pid_param_ack_timeout_s = LaunchConfiguration("teensy_pid_param_ack_timeout_s")
 
     return LaunchDescription(
@@ -73,6 +79,10 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "pwm_slew_rate_us_per_s",
                 default_value=EnvironmentVariable("MOTOR_PWM_SLEW_RATE_US_PER_S", default_value="2400.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_control_hz",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_CONTROL_HZ", default_value="100.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kp",
@@ -151,6 +161,26 @@ def generate_launch_description():
                 default_value=EnvironmentVariable("MOTOR_TEENSY_SIGN_MISMATCH_TPS", default_value="10.0"),
             ),
             DeclareLaunchArgument(
+                "teensy_side_mismatch_fault_enabled",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_SIDE_MISMATCH_FAULT_ENABLED", default_value="true"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_side_mismatch_warn_tps",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS", default_value="80.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_side_mismatch_fault_tps",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS", default_value="180.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_encoder_jump_fault_enabled",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_ENCODER_JUMP_FAULT_ENABLED", default_value="true"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_encoder_jump_tps",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_ENCODER_JUMP_TPS", default_value="12000.0"),
+            ),
+            DeclareLaunchArgument(
                 "teensy_pid_param_ack_timeout_s",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_ACK_TIMEOUT_S", default_value="1.0"),
             ),
@@ -173,6 +203,7 @@ def generate_launch_description():
                         "pwm_neutral_us": ParameterValue(pwm_neutral_us, value_type=int),
                         "pwm_max_us": ParameterValue(pwm_max_us, value_type=int),
                         "pwm_slew_rate_us_per_s": ParameterValue(pwm_slew_rate_us_per_s, value_type=float),
+                        "teensy_control_hz": ParameterValue(teensy_control_hz, value_type=float),
                         "teensy_pid_kp": ParameterValue(teensy_pid_kp, value_type=float),
                         "teensy_pid_ki": ParameterValue(teensy_pid_ki, value_type=float),
                         "teensy_pid_kd": ParameterValue(teensy_pid_kd, value_type=float),
@@ -195,6 +226,23 @@ def generate_launch_description():
                         "teensy_stall_pwm_delta_us": ParameterValue(teensy_stall_pwm_delta_us, value_type=float),
                         "teensy_stall_timeout_ms": ParameterValue(teensy_stall_timeout_ms, value_type=int),
                         "teensy_sign_mismatch_tps": ParameterValue(teensy_sign_mismatch_tps, value_type=float),
+                        "teensy_side_mismatch_fault_enabled": ParameterValue(
+                            teensy_side_mismatch_fault_enabled,
+                            value_type=bool,
+                        ),
+                        "teensy_side_mismatch_warn_tps": ParameterValue(
+                            teensy_side_mismatch_warn_tps,
+                            value_type=float,
+                        ),
+                        "teensy_side_mismatch_fault_tps": ParameterValue(
+                            teensy_side_mismatch_fault_tps,
+                            value_type=float,
+                        ),
+                        "teensy_encoder_jump_fault_enabled": ParameterValue(
+                            teensy_encoder_jump_fault_enabled,
+                            value_type=bool,
+                        ),
+                        "teensy_encoder_jump_tps": ParameterValue(teensy_encoder_jump_tps, value_type=float),
                         "teensy_pid_param_ack_timeout_s": ParameterValue(
                             teensy_pid_param_ack_timeout_s,
                             value_type=float,

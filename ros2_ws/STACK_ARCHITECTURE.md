@@ -1,8 +1,8 @@
 # UGV Stack Architecture
 
 This branch is a clean runtime base for the confirmed drivetrain hardware:
-four Pololu motors, two goBILDA speed controllers, four encoder channels, and
-only two independent motor command outputs.
+four Pololu encoder motors, two goBILDA R/C PWM speed controllers, four
+encoder channels, and only two independent motor command outputs.
 
 ## 1. Sensor Adapters
 
@@ -72,8 +72,10 @@ The Teensy firmware is the real motor controller. It owns:
 - encoder mismatch and stall diagnostics
 - timeout and startup neutral safety
 
-Four independent motor PID is not possible on the current PCB/controller setup,
-because there are only two physical command outputs.
+The goBILDA controllers do not provide encoder feedback. Encoder feedback comes
+from the four Pololu motors. Four independent motor PID is not possible on the
+current controller setup, because there are only two physical command outputs.
+Same-side synchronization is diagnostic only.
 
 ## 5. Debug Topics
 
@@ -89,4 +91,3 @@ Day-to-day clean-runtime commands live in:
 
 - `ros2_ws/JETSON_BRINGUP_CHECKLIST.md`
 - `ros2_ws/JETSON_BRINGUP_CHECKLIST_ZH.md`
-

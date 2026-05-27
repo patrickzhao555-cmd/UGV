@@ -11,7 +11,7 @@ The new navigation stack should be rebuilt around one active contract:
 Jetson navigation
   -> /ugv_nav_cmd velocity JSON
   -> motor_controller_bridge
-  -> Teensy two-side PID
+  -> Teensy two-controller/four-encoder side PID
 ```
 
 ## Required Active Modules
@@ -29,7 +29,8 @@ The new implementation should be split by responsibility:
 
 - No raw PWM from navigation.
 - No motor PID on Jetson.
-- No four-motor PID while the robot has only two goBILDA speed controllers.
+- No four-motor independent PID while the robot has only two goBILDA speed
+  controller actuator outputs.
 - No legacy mission fallback inside the active runtime.
 
 ## Safe Placeholder

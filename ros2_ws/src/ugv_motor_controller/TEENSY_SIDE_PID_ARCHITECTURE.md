@@ -1,17 +1,21 @@
-# Teensy Two-Side PID Architecture
+# Teensy Two-Controller/Four-Encoder Side PID Architecture
 
 ## Confirmed Hardware
 
 ```text
-4 Pololu motors
-2 goBILDA speed controllers
-4 encoders
+4 Pololu 50:1 37D motors
+4 Pololu motor quadrature encoders
+2 goBILDA 1x15A R/C PWM speed controllers
 1 Teensy 4.1
 ```
 
 The left goBILDA controller drives both left motors. The right goBILDA
 controller drives both right motors. This gives exactly two independent motor
 command outputs.
+
+The goBILDA controller is a brushed DC speed controller with an R/C PWM input.
+It is not an encoder and it does not provide closed-loop feedback. Encoder
+feedback comes from the four Pololu motors.
 
 ## Control Ownership
 
@@ -24,7 +28,7 @@ Teensy:
   receives CMD V v omega
   computes left/right target speed
   reads four encoders
-  runs left/right side PID
+  runs left/right side PID at 100 Hz by default
   writes PWM to two goBILDA controllers
 ```
 
@@ -37,6 +41,17 @@ right_measured_tps = average(FR_tps, RR_tps)
 
 FL/RL and FR/RR mismatch are diagnostics only. The current hardware cannot
 independently correct front-vs-rear speed on the same side.
+
+Fault diagnostics include:
+
+- per-wheel near-zero encoder speed while the other wheel on that side moves
+- whole-side stall when both same-side encoders stay near zero with high PWM
+- same-side encoder mismatch above the configured fault threshold
+- impossible encoder jump while in velocity or raw test mode
+- encoder sign mismatch during commanded motion
+
+Motor faults latch on the Teensy. A later `CMD V` or `CMD RAW2` does not clear
+the fault; send `CMD STOP` first, inspect wiring/status, then restart the test.
 
 ## Firmware Protocol
 
@@ -57,6 +72,11 @@ PARAM,<name>,unknown
 S,<millis>,<fl_ticks>,<fr_ticks>,<rl_ticks>,<rr_ticks>,...
 ```
 
+Startup parameter sync is ACK-gated. The bridge sends `CMD PARAM` for wheel
+model, PID gains, PWM limits, motor signs, encoder signs, loop rate, and fault
+thresholds. It does not allow velocity commands until every parameter returns
+`PARAM,<name>,ok`.
+
 ## Initial Calibration
 
 Use physical wheel radius with the equivalent calibrated ticks:
@@ -65,7 +85,23 @@ Use physical wheel radius with the equivalent calibrated ticks:
 wheel_radius_m = 0.0889
 ticks_per_rev = 3200
 track_width_m = 0.6096
+pwm_neutral_us = 1500
+pwm_min_us = 1100
+pwm_max_us = 1900
+control_hz = 100
 ```
 
 Do not mix `wheel_radius_m=0.0889` with the old effective
 `ticks_per_rev=2151`.
+
+## Bench Sequence
+
+First run must be wheels off ground.
+
+1. Flash `firmware/teensy_4_1_side_pid_controller/teensy_4_1_side_pid_controller.ino`.
+2. Start `scripts/run_teensy_side_pid_bench.sh --yes`.
+3. Confirm `/motor_controller/status` reports `teensy_pid_params_synced=true`.
+4. Hand-check encoder signs by watching FL/FR/RL/RR ticks.
+5. Run `tools/teensy_side_pid_direction_test.py --yes` at low PWM.
+6. Run `tools/teensy_side_pid_step_test.py --yes`.
+7. Run `tools/teensy_side_pid_pivot_test.py --yes`.

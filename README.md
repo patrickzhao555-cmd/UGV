@@ -11,12 +11,16 @@ backup/pre-cleanup-20260527
 ## Hardware Truth
 
 - Four Pololu motors.
-- Two goBILDA speed controllers.
+- Each Pololu motor has its own quadrature encoder, so four encoder channels
+  are available.
+- Two goBILDA 1x15A R/C PWM speed controllers.
 - Left controller drives both left motors.
 - Right controller drives both right motors.
-- Four encoder channels are available for feedback and diagnostics.
+- The goBILDA controllers are actuator inputs only; they do not provide encoder
+  feedback.
 
-Therefore the active motor architecture is **two-side PID**, not four-motor PID.
+Therefore the active motor architecture is **two-controller/four-encoder side
+PID**, not four-motor independent PID.
 
 ## Active Direction
 
@@ -24,7 +28,7 @@ Therefore the active motor architecture is **two-side PID**, not four-motor PID.
 Jetson high-level navigation
   -> /ugv_nav_cmd velocity JSON
   -> motor_controller_bridge
-  -> Teensy side PID firmware
+  -> Teensy two-controller/four-encoder side PID firmware
   -> left/right goBILDA speed controllers
 ```
 
@@ -42,6 +46,10 @@ The Teensy should own:
 - PWM output to the two goBILDA controllers
 - command timeout
 - stall/mismatch/fault diagnostics
+
+The same-side encoder streams, FL/RL and FR/RR, are averaged for PID feedback.
+Large same-side mismatch is a diagnostic warning/fault; it cannot be actively
+corrected because each side shares one physical speed controller.
 
 ## What Was Removed
 

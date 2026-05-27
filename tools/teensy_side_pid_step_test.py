@@ -3,7 +3,6 @@
 
 import argparse
 import sys
-import time
 from typing import Optional
 
 from teensy_serial_test_utils import (
@@ -14,8 +13,8 @@ from teensy_serial_test_utils import (
     run_with_serial_errors,
     safe_stop_and_restore_stream,
     send_param,
+    stream_status_while_refreshing_command,
     sync_standard_params,
-    write_line,
 )
 
 
@@ -70,12 +69,12 @@ def main() -> int:
             maybe_param(dev, args, "kd", args.kd)
             maybe_param(dev, args, "ff_us_per_tps", args.ff_us_per_tps)
             quiet_status_stream(dev, True)
-            write_line(dev, f"CMD V {float(args.v_mps):.6f} {float(args.omega_radps):.6f}\n")
-            deadline = time.monotonic() + duration_s
-            while time.monotonic() < deadline:
-                line = dev.readline().decode("utf-8", errors="replace").strip()
-                if line.startswith("S,"):
-                    print(line)
+            stream_status_while_refreshing_command(
+                dev,
+                f"CMD V {float(args.v_mps):.6f} {float(args.omega_radps):.6f}\n",
+                duration_s,
+                args.refresh_period_s,
+            )
         finally:
             safe_stop_and_restore_stream(dev)
     return 0

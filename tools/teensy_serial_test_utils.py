@@ -15,6 +15,8 @@ def add_common_serial_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--param-timeout-s", type=float, default=4.0)
     parser.add_argument("--settle-s", type=float, default=1.0)
     parser.add_argument("--param-retries", type=int, default=3)
+    parser.add_argument("--command-timeout-ms", type=int, default=1200)
+    parser.add_argument("--refresh-period-s", type=float, default=0.10)
     parser.add_argument("--sign-mismatch-tps", type=float, default=10.0)
     parser.add_argument("--sign-mismatch-target-tps", type=float, default=100.0)
     parser.add_argument("--sign-mismatch-timeout-ms", type=int, default=250)
@@ -116,12 +118,32 @@ def sync_standard_params(dev: serial.Serial, args: argparse.Namespace) -> None:
         ("fr_encoder_sign", args.fr_encoder_sign),
         ("rl_encoder_sign", args.rl_encoder_sign),
         ("rr_encoder_sign", args.rr_encoder_sign),
+        ("command_timeout_ms", max(100, int(args.command_timeout_ms))),
         ("sign_mismatch_tps", args.sign_mismatch_tps),
         ("sign_mismatch_target_tps", args.sign_mismatch_target_tps),
         ("sign_mismatch_timeout_ms", args.sign_mismatch_timeout_ms),
     ]
     for name, value in params:
         send_param(dev, name, value, args.param_timeout_s, args.param_retries)
+
+
+def stream_status_while_refreshing_command(
+    dev: serial.Serial,
+    command: str,
+    duration_s: float,
+    refresh_period_s: float,
+) -> None:
+    write_line(dev, command)
+    deadline = time.monotonic() + max(0.0, float(duration_s))
+    next_refresh = time.monotonic() + max(0.02, float(refresh_period_s))
+    while time.monotonic() < deadline:
+        now = time.monotonic()
+        if now >= next_refresh:
+            write_line(dev, command)
+            next_refresh = now + max(0.02, float(refresh_period_s))
+        line = _readline_text(dev)
+        if line.startswith("S,"):
+            print(line)
 
 
 def run_with_serial_errors(fn: Callable[[], int]) -> int:

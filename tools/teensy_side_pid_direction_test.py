@@ -3,7 +3,6 @@
 
 import argparse
 import sys
-import time
 
 from teensy_serial_test_utils import (
     add_common_serial_args,
@@ -12,8 +11,8 @@ from teensy_serial_test_utils import (
     quiet_status_stream,
     run_with_serial_errors,
     safe_stop_and_restore_stream,
+    stream_status_while_refreshing_command,
     sync_standard_params,
-    write_line,
 )
 
 
@@ -55,12 +54,12 @@ def main() -> int:
         try:
             sync_standard_params(dev, args)
             quiet_status_stream(dev, True)
-            write_line(dev, f"CMD RAW2 {int(args.left_us)} {int(args.right_us)}\n")
-            deadline = time.monotonic() + duration_s
-            while time.monotonic() < deadline:
-                line = dev.readline().decode("utf-8", errors="replace").strip()
-                if line.startswith("S,"):
-                    print(line)
+            stream_status_while_refreshing_command(
+                dev,
+                f"CMD RAW2 {int(args.left_us)} {int(args.right_us)}\n",
+                duration_s,
+                args.refresh_period_s,
+            )
         finally:
             safe_stop_and_restore_stream(dev)
     return 0

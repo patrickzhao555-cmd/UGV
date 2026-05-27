@@ -46,6 +46,20 @@ def generate_launch_description():
     motor_teensy_side_mismatch_fault_tps = LaunchConfiguration("motor_teensy_side_mismatch_fault_tps")
     motor_teensy_encoder_jump_tps = LaunchConfiguration("motor_teensy_encoder_jump_tps")
     nav_status_period_s = LaunchConfiguration("nav_status_period_s")
+    nav_controller_mode = LaunchConfiguration("nav_controller_mode")
+    nav_frame_topic = LaunchConfiguration("nav_frame_topic")
+    nav_motor_status_topic = LaunchConfiguration("nav_motor_status_topic")
+    nav_straight_speed_mps = LaunchConfiguration("nav_straight_speed_mps")
+    nav_straight_duration_s = LaunchConfiguration("nav_straight_duration_s")
+    nav_pivot_angle_deg = LaunchConfiguration("nav_pivot_angle_deg")
+    nav_max_omega_radps = LaunchConfiguration("nav_max_omega_radps")
+    nav_heading_kp = LaunchConfiguration("nav_heading_kp")
+    nav_heading_kd = LaunchConfiguration("nav_heading_kd")
+    nav_pivot_kp = LaunchConfiguration("nav_pivot_kp")
+    nav_heading_deadband_rad = LaunchConfiguration("nav_heading_deadband_rad")
+    nav_stop_clearance_m = LaunchConfiguration("nav_stop_clearance_m")
+    nav_sensor_timeout_s = LaunchConfiguration("nav_sensor_timeout_s")
+    nav_motor_status_timeout_s = LaunchConfiguration("nav_motor_status_timeout_s")
 
     motor_controller_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(motor_launch)),
@@ -85,6 +99,40 @@ def generate_launch_description():
             "real",
             "--nav-status-period-s",
             nav_status_period_s,
+            "--controller-mode",
+            nav_controller_mode,
+            "--nav-frame-topic",
+            nav_frame_topic,
+            "--motor-status-topic",
+            nav_motor_status_topic,
+            "--straight-speed-mps",
+            nav_straight_speed_mps,
+            "--straight-duration-s",
+            nav_straight_duration_s,
+            "--pivot-angle-deg",
+            nav_pivot_angle_deg,
+            "--max-omega-radps",
+            nav_max_omega_radps,
+            "--heading-kp",
+            nav_heading_kp,
+            "--heading-kd",
+            nav_heading_kd,
+            "--pivot-kp",
+            nav_pivot_kp,
+            "--heading-deadband-rad",
+            nav_heading_deadband_rad,
+            "--stop-clearance-m",
+            nav_stop_clearance_m,
+            "--sensor-timeout-s",
+            nav_sensor_timeout_s,
+            "--motor-status-timeout-s",
+            nav_motor_status_timeout_s,
+            "--track-width-m",
+            motor_track_width_m,
+            "--wheel-radius-m",
+            motor_wheel_radius_m,
+            "--ticks-per-rev",
+            motor_ticks_per_rev,
         ],
         output="screen",
         condition=IfCondition(start_nav),
@@ -117,7 +165,21 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_side_mismatch_warn_tps", default_value="80.0"),
             DeclareLaunchArgument("motor_teensy_side_mismatch_fault_tps", default_value="180.0"),
             DeclareLaunchArgument("motor_teensy_encoder_jump_tps", default_value="12000.0"),
-            DeclareLaunchArgument("nav_status_period_s", default_value="1.0"),
+            DeclareLaunchArgument("nav_status_period_s", default_value="0.25"),
+            DeclareLaunchArgument("nav_controller_mode", default_value="idle"),
+            DeclareLaunchArgument("nav_frame_topic", default_value="/sensors/nav_frame"),
+            DeclareLaunchArgument("nav_motor_status_topic", default_value="/motor_controller/status"),
+            DeclareLaunchArgument("nav_straight_speed_mps", default_value="0.20"),
+            DeclareLaunchArgument("nav_straight_duration_s", default_value="2.0"),
+            DeclareLaunchArgument("nav_pivot_angle_deg", default_value="90.0"),
+            DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
+            DeclareLaunchArgument("nav_heading_kp", default_value="1.2"),
+            DeclareLaunchArgument("nav_heading_kd", default_value="0.15"),
+            DeclareLaunchArgument("nav_pivot_kp", default_value="1.0"),
+            DeclareLaunchArgument("nav_heading_deadband_rad", default_value="0.025"),
+            DeclareLaunchArgument("nav_stop_clearance_m", default_value="0.45"),
+            DeclareLaunchArgument("nav_sensor_timeout_s", default_value="0.30"),
+            DeclareLaunchArgument("nav_motor_status_timeout_s", default_value="0.50"),
             motor_controller_launch,
             nav_placeholder,
         ]

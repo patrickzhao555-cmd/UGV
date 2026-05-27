@@ -8,8 +8,10 @@ import time
 from teensy_serial_test_utils import (
     add_common_serial_args,
     open_teensy_serial,
+    prepare_direct_bench_session,
+    quiet_status_stream,
     run_with_serial_errors,
-    settle_serial,
+    safe_stop_and_restore_stream,
     sync_standard_params,
     write_line,
 )
@@ -53,17 +55,18 @@ def main() -> int:
         return 2
 
     with open_teensy_serial(args.port, args.baud) as dev:
-        settle_serial(dev, args.settle_s)
-        write_line(dev, "CMD STOP\n")
-        time.sleep(0.3)
-        sync_standard_params(dev, args)
-        write_line(dev, f"CMD V 0.000000 {omega:.6f}\n")
-        deadline = time.monotonic() + duration_s
-        while time.monotonic() < deadline:
-            line = dev.readline().decode("utf-8", errors="replace").strip()
-            if line.startswith("S,"):
-                print(line)
-        write_line(dev, "CMD STOP\n")
+        prepare_direct_bench_session(dev, args)
+        try:
+            sync_standard_params(dev, args)
+            quiet_status_stream(dev, True)
+            write_line(dev, f"CMD V 0.000000 {omega:.6f}\n")
+            deadline = time.monotonic() + duration_s
+            while time.monotonic() < deadline:
+                line = dev.readline().decode("utf-8", errors="replace").strip()
+                if line.startswith("S,"):
+                    print(line)
+        finally:
+            safe_stop_and_restore_stream(dev)
     return 0
 
 

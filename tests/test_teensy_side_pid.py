@@ -197,6 +197,8 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "DEFAULT_CONTROL_INTERVAL_MS = 10" in firmware
     assert "side_mismatch_fault_tps" in firmware
     assert "encoder_jump_tps" in firmware
+    assert "STATUS_STREAM" in firmware
+    assert "status_stream_enabled" in firmware
     assert "left_side_stall" in firmware
     assert "right_side_stall" in firmware
     assert "left_mismatch" in firmware

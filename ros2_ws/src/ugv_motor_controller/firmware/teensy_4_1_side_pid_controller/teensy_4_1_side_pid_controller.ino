@@ -84,6 +84,7 @@ unsigned long last_control_ms = 0;
 unsigned long last_status_ms = 0;
 unsigned long last_command_ms = 0;
 unsigned long control_interval_ms = DEFAULT_CONTROL_INTERVAL_MS;
+bool status_stream_enabled = true;
 unsigned long fl_stall_start_ms = 0;
 unsigned long rl_stall_start_ms = 0;
 unsigned long fr_stall_start_ms = 0;
@@ -706,6 +707,20 @@ void sendParamAck(const char* name, bool ok) {
   printParamAck(Serial1, name, ok);
 }
 
+void printControlAck(Stream& stream, const char* name, const char* value) {
+  stream.print("CTRL,");
+  stream.print(name);
+  stream.print(",");
+  stream.println(value);
+}
+
+void sendControlAck(const char* name, const char* value) {
+  if (Serial) {
+    printControlAck(Serial, name, value);
+  }
+  printControlAck(Serial1, name, value);
+}
+
 void printParamDump(Stream& stream) {
   stream.print("PARAMS,track_width_m=");
   stream.print(track_width_m, 6);
@@ -747,7 +762,9 @@ void printParamDump(Stream& stream) {
   stream.print(",encoder_jump_tps=");
   stream.print(encoder_jump_tps, 2);
   stream.print(",command_timeout_ms=");
-  stream.println(command_timeout_ms, 0);
+  stream.print(command_timeout_ms, 0);
+  stream.print(",status_stream_enabled=");
+  stream.println(status_stream_enabled ? 1 : 0);
 }
 
 void sendParamDump() {
@@ -834,6 +851,16 @@ void parseCommand(char* s, const char* transport_name) {
   if (strcmp(verb, "STATUS") == 0) {
     sendStatus();
     sendParamDump();
+    return;
+  }
+
+  if (strcmp(verb, "STATUS_STREAM") == 0) {
+    char* value_text = strtok(NULL, " ");
+    if (value_text == NULL) {
+      return;
+    }
+    status_stream_enabled = atoi(value_text) != 0;
+    sendControlAck("status_stream", status_stream_enabled ? "on" : "off");
     return;
   }
 
@@ -955,7 +982,7 @@ void loop() {
     controlStep(now_ms);
   }
 
-  if (now_ms - last_status_ms >= STATUS_INTERVAL_MS) {
+  if (status_stream_enabled && now_ms - last_status_ms >= STATUS_INTERVAL_MS) {
     last_status_ms = now_ms;
     sendStatus();
   }

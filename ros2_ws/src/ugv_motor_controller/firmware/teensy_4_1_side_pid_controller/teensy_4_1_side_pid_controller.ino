@@ -93,6 +93,10 @@ unsigned long left_side_stall_start_ms = 0;
 unsigned long right_side_stall_start_ms = 0;
 unsigned long left_mismatch_start_ms = 0;
 unsigned long right_mismatch_start_ms = 0;
+unsigned long fl_sign_start_ms = 0;
+unsigned long rl_sign_start_ms = 0;
+unsigned long fr_sign_start_ms = 0;
+unsigned long rr_sign_start_ms = 0;
 
 char usb_buf[96];
 char uart_buf[96];
@@ -151,12 +155,12 @@ long last_fr_ticks = 0;
 long last_rl_ticks = 0;
 long last_rr_ticks = 0;
 
-int fl_encoder_sign = 1;
+int fl_encoder_sign = -1;
 int fr_encoder_sign = 1;
-int rl_encoder_sign = 1;
+int rl_encoder_sign = -1;
 int rr_encoder_sign = 1;
 int left_motor_sign = 1;
-int right_motor_sign = 1;
+int right_motor_sign = -1;
 
 bool stall_fault_enabled = true;
 float stall_target_tps = 15.0f;
@@ -165,6 +169,8 @@ float stall_moving_peer_tps = 12.0f;
 float stall_pwm_delta_us = 120.0f;
 unsigned long stall_timeout_ms = 300;
 float sign_mismatch_tps = 10.0f;
+float sign_mismatch_target_tps = 100.0f;
+unsigned long sign_mismatch_timeout_ms = 250;
 bool side_mismatch_fault_enabled = true;
 float side_mismatch_warn_tps = 80.0f;
 float side_mismatch_fault_tps = 180.0f;
@@ -239,6 +245,10 @@ void clearFault() {
   right_side_stall_start_ms = 0;
   left_mismatch_start_ms = 0;
   right_mismatch_start_ms = 0;
+  fl_sign_start_ms = 0;
+  rl_sign_start_ms = 0;
+  fr_sign_start_ms = 0;
+  rr_sign_start_ms = 0;
 }
 
 void setFault(const char* reason) {
@@ -466,6 +476,36 @@ bool shouldFaultForSideMismatch(
   return false;
 }
 
+bool shouldFaultForSignMismatch(
+  const char* reason,
+  float side_target_tps,
+  float suspect_tps,
+  float peer_tps,
+  unsigned long& start_ms
+) {
+  int target_sign = signOf(side_target_tps, sign_mismatch_target_tps);
+  if (target_sign == 0) {
+    start_ms = 0;
+    return false;
+  }
+  if (
+    signOf(suspect_tps, sign_mismatch_tps) != -target_sign ||
+    signOf(peer_tps, sign_mismatch_tps) != target_sign
+  ) {
+    start_ms = 0;
+    return false;
+  }
+  if (start_ms == 0) {
+    start_ms = millis();
+    return false;
+  }
+  if (millis() - start_ms >= sign_mismatch_timeout_ms) {
+    setFault(reason);
+    return true;
+  }
+  return false;
+}
+
 bool checkEncoderDiagnostics() {
   if (controller_mode != MODE_VELOCITY) {
     fl_stall_start_ms = 0;
@@ -476,6 +516,10 @@ bool checkEncoderDiagnostics() {
     right_side_stall_start_ms = 0;
     left_mismatch_start_ms = 0;
     right_mismatch_start_ms = 0;
+    fl_sign_start_ms = 0;
+    rl_sign_start_ms = 0;
+    fr_sign_start_ms = 0;
+    rr_sign_start_ms = 0;
     return false;
   }
 
@@ -488,40 +532,10 @@ bool checkEncoderDiagnostics() {
   if (shouldFaultForSideMismatch("left_mismatch", left_target_tps, fl_tps, rl_tps, current_left_pwm, left_mismatch_start_ms)) return true;
   if (shouldFaultForSideMismatch("right_mismatch", right_target_tps, fr_tps, rr_tps, current_right_pwm, right_mismatch_start_ms)) return true;
 
-  int left_target_sign = signOf(left_target_tps, sign_mismatch_tps);
-  int right_target_sign = signOf(right_target_tps, sign_mismatch_tps);
-  if (
-    left_target_sign != 0 &&
-    signOf(fl_tps, sign_mismatch_tps) == -left_target_sign &&
-    signOf(rl_tps, sign_mismatch_tps) == left_target_sign
-  ) {
-    setFault("fl_sign");
-    return true;
-  }
-  if (
-    left_target_sign != 0 &&
-    signOf(rl_tps, sign_mismatch_tps) == -left_target_sign &&
-    signOf(fl_tps, sign_mismatch_tps) == left_target_sign
-  ) {
-    setFault("rl_sign");
-    return true;
-  }
-  if (
-    right_target_sign != 0 &&
-    signOf(fr_tps, sign_mismatch_tps) == -right_target_sign &&
-    signOf(rr_tps, sign_mismatch_tps) == right_target_sign
-  ) {
-    setFault("fr_sign");
-    return true;
-  }
-  if (
-    right_target_sign != 0 &&
-    signOf(rr_tps, sign_mismatch_tps) == -right_target_sign &&
-    signOf(fr_tps, sign_mismatch_tps) == right_target_sign
-  ) {
-    setFault("rr_sign");
-    return true;
-  }
+  if (shouldFaultForSignMismatch("fl_sign", left_target_tps, fl_tps, rl_tps, fl_sign_start_ms)) return true;
+  if (shouldFaultForSignMismatch("rl_sign", left_target_tps, rl_tps, fl_tps, rl_sign_start_ms)) return true;
+  if (shouldFaultForSignMismatch("fr_sign", right_target_tps, fr_tps, rr_tps, fr_sign_start_ms)) return true;
+  if (shouldFaultForSignMismatch("rr_sign", right_target_tps, rr_tps, fr_tps, rr_sign_start_ms)) return true;
 
   return false;
 }
@@ -759,6 +773,12 @@ void printParamDump(Stream& stream) {
   stream.print(side_mismatch_warn_tps, 2);
   stream.print(",side_mismatch_fault_tps=");
   stream.print(side_mismatch_fault_tps, 2);
+  stream.print(",sign_mismatch_tps=");
+  stream.print(sign_mismatch_tps, 2);
+  stream.print(",sign_mismatch_target_tps=");
+  stream.print(sign_mismatch_target_tps, 2);
+  stream.print(",sign_mismatch_timeout_ms=");
+  stream.print(sign_mismatch_timeout_ms);
   stream.print(",encoder_jump_tps=");
   stream.print(encoder_jump_tps, 2);
   stream.print(",command_timeout_ms=");
@@ -809,6 +829,8 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "stall_pwm_delta_us") == 0) stall_pwm_delta_us = max(0.0f, value);
   else if (strcmp(name, "stall_timeout_ms") == 0) stall_timeout_ms = (unsigned long)max(0.0f, value);
   else if (strcmp(name, "sign_mismatch_tps") == 0) sign_mismatch_tps = max(0.0f, value);
+  else if (strcmp(name, "sign_mismatch_target_tps") == 0) sign_mismatch_target_tps = max(0.0f, value);
+  else if (strcmp(name, "sign_mismatch_timeout_ms") == 0) sign_mismatch_timeout_ms = (unsigned long)max(0.0f, value);
   else if (strcmp(name, "side_mismatch_fault_enabled") == 0) side_mismatch_fault_enabled = value != 0.0f;
   else if (strcmp(name, "side_mismatch_warn_tps") == 0) side_mismatch_warn_tps = max(0.0f, value);
   else if (strcmp(name, "side_mismatch_fault_tps") == 0) side_mismatch_fault_tps = max(0.0f, value);

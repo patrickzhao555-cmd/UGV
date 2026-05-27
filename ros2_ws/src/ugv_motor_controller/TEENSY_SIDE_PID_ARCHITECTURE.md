@@ -48,7 +48,7 @@ Fault diagnostics include:
 - whole-side stall when both same-side encoders stay near zero with high PWM
 - same-side encoder mismatch above the configured fault threshold
 - impossible encoder jump while in velocity or raw test mode
-- encoder sign mismatch during commanded motion
+- encoder sign mismatch during commanded motion, after a persistence timeout
 
 Motor faults latch on the Teensy. A later `CMD V` or `CMD RAW2` does not clear
 the fault; send `CMD STOP` first, inspect wiring/status, then restart the test.
@@ -62,6 +62,7 @@ CMD V <v_mps> <omega_radps>
 CMD STOP
 CMD PARAM <name> <value>
 CMD STATUS
+CMD STATUS_STREAM <0|1>
 ```
 
 Teensy to Jetson:
@@ -70,6 +71,7 @@ Teensy to Jetson:
 PARAM,<name>,ok
 PARAM,<name>,unknown
 S,<millis>,<fl_ticks>,<fr_ticks>,<rl_ticks>,<rr_ticks>,...
+CTRL,status_stream,<on|off>
 ```
 
 The firmware requires the Arduino `QuickPID` library. If QuickPID is missing,
@@ -106,6 +108,14 @@ pwm_neutral_us = 1500
 pwm_min_us = 1100
 pwm_max_us = 1900
 control_hz = 100
+left_motor_sign = 1
+right_motor_sign = -1
+fl_encoder_sign = -1
+fr_encoder_sign = 1
+rl_encoder_sign = -1
+rr_encoder_sign = 1
+sign_mismatch_target_tps = 100
+sign_mismatch_timeout_ms = 250
 ```
 
 Do not mix the current physical wheel radius with the old effective

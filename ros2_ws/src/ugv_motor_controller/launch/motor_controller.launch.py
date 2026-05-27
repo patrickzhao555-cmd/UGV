@@ -38,6 +38,8 @@ def generate_launch_description():
     teensy_stall_pwm_delta_us = LaunchConfiguration("teensy_stall_pwm_delta_us")
     teensy_stall_timeout_ms = LaunchConfiguration("teensy_stall_timeout_ms")
     teensy_sign_mismatch_tps = LaunchConfiguration("teensy_sign_mismatch_tps")
+    teensy_sign_mismatch_target_tps = LaunchConfiguration("teensy_sign_mismatch_target_tps")
+    teensy_sign_mismatch_timeout_ms = LaunchConfiguration("teensy_sign_mismatch_timeout_ms")
     teensy_side_mismatch_fault_enabled = LaunchConfiguration("teensy_side_mismatch_fault_enabled")
     teensy_side_mismatch_warn_tps = LaunchConfiguration("teensy_side_mismatch_warn_tps")
     teensy_side_mismatch_fault_tps = LaunchConfiguration("teensy_side_mismatch_fault_tps")
@@ -118,7 +120,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_fl_encoder_sign",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_FL_ENCODER_SIGN", default_value="1"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_FL_ENCODER_SIGN", default_value="-1"),
             ),
             DeclareLaunchArgument(
                 "teensy_fr_encoder_sign",
@@ -126,7 +128,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_rl_encoder_sign",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_RL_ENCODER_SIGN", default_value="1"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_RL_ENCODER_SIGN", default_value="-1"),
             ),
             DeclareLaunchArgument(
                 "teensy_rr_encoder_sign",
@@ -159,6 +161,14 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "teensy_sign_mismatch_tps",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_SIGN_MISMATCH_TPS", default_value="10.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_sign_mismatch_target_tps",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_SIGN_MISMATCH_TARGET_TPS", default_value="100.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_sign_mismatch_timeout_ms",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_SIGN_MISMATCH_TIMEOUT_MS", default_value="250"),
             ),
             DeclareLaunchArgument(
                 "teensy_side_mismatch_fault_enabled",
@@ -226,6 +236,14 @@ def generate_launch_description():
                         "teensy_stall_pwm_delta_us": ParameterValue(teensy_stall_pwm_delta_us, value_type=float),
                         "teensy_stall_timeout_ms": ParameterValue(teensy_stall_timeout_ms, value_type=int),
                         "teensy_sign_mismatch_tps": ParameterValue(teensy_sign_mismatch_tps, value_type=float),
+                        "teensy_sign_mismatch_target_tps": ParameterValue(
+                            teensy_sign_mismatch_target_tps,
+                            value_type=float,
+                        ),
+                        "teensy_sign_mismatch_timeout_ms": ParameterValue(
+                            teensy_sign_mismatch_timeout_ms,
+                            value_type=int,
+                        ),
                         "teensy_side_mismatch_fault_enabled": ParameterValue(
                             teensy_side_mismatch_fault_enabled,
                             value_type=bool,

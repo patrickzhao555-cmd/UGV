@@ -76,9 +76,9 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_pid_min_target_tps", 2.0)
         self.declare_parameter("teensy_left_motor_sign", 1)
         self.declare_parameter("teensy_right_motor_sign", -1)
-        self.declare_parameter("teensy_fl_encoder_sign", 1)
+        self.declare_parameter("teensy_fl_encoder_sign", -1)
         self.declare_parameter("teensy_fr_encoder_sign", 1)
-        self.declare_parameter("teensy_rl_encoder_sign", 1)
+        self.declare_parameter("teensy_rl_encoder_sign", -1)
         self.declare_parameter("teensy_rr_encoder_sign", 1)
         self.declare_parameter("teensy_stall_fault_enabled", True)
         self.declare_parameter("teensy_stall_target_tps", 15.0)
@@ -87,6 +87,8 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_stall_pwm_delta_us", 120.0)
         self.declare_parameter("teensy_stall_timeout_ms", 300)
         self.declare_parameter("teensy_sign_mismatch_tps", 10.0)
+        self.declare_parameter("teensy_sign_mismatch_target_tps", 100.0)
+        self.declare_parameter("teensy_sign_mismatch_timeout_ms", 250)
         self.declare_parameter("teensy_side_mismatch_fault_enabled", True)
         self.declare_parameter("teensy_side_mismatch_warn_tps", 80.0)
         self.declare_parameter("teensy_side_mismatch_fault_tps", 180.0)
@@ -138,6 +140,14 @@ class MotorControllerBridge(Node):
         self.teensy_stall_pwm_delta_us = max(0.0, float(self.get_parameter("teensy_stall_pwm_delta_us").value))
         self.teensy_stall_timeout_ms = max(0, int(self.get_parameter("teensy_stall_timeout_ms").value))
         self.teensy_sign_mismatch_tps = max(0.0, float(self.get_parameter("teensy_sign_mismatch_tps").value))
+        self.teensy_sign_mismatch_target_tps = max(
+            0.0,
+            float(self.get_parameter("teensy_sign_mismatch_target_tps").value),
+        )
+        self.teensy_sign_mismatch_timeout_ms = max(
+            0,
+            int(self.get_parameter("teensy_sign_mismatch_timeout_ms").value),
+        )
         self.teensy_side_mismatch_fault_enabled = bool(
             self.get_parameter("teensy_side_mismatch_fault_enabled").value
         )
@@ -444,6 +454,8 @@ class MotorControllerBridge(Node):
                 ("stall_pwm_delta_us", self.teensy_stall_pwm_delta_us),
                 ("stall_timeout_ms", self.teensy_stall_timeout_ms),
                 ("sign_mismatch_tps", self.teensy_sign_mismatch_tps),
+                ("sign_mismatch_target_tps", self.teensy_sign_mismatch_target_tps),
+                ("sign_mismatch_timeout_ms", self.teensy_sign_mismatch_timeout_ms),
                 ("side_mismatch_fault_enabled", 1 if self.teensy_side_mismatch_fault_enabled else 0),
                 ("side_mismatch_warn_tps", self.teensy_side_mismatch_warn_tps),
                 ("side_mismatch_fault_tps", self.teensy_side_mismatch_fault_tps),
@@ -547,6 +559,9 @@ class MotorControllerBridge(Node):
             "teensy_control_hz": round(self.teensy_control_hz, 3),
             "teensy_side_mismatch_warn_tps": round(self.teensy_side_mismatch_warn_tps, 3),
             "teensy_side_mismatch_fault_tps": round(self.teensy_side_mismatch_fault_tps, 3),
+            "teensy_sign_mismatch_tps": round(self.teensy_sign_mismatch_tps, 3),
+            "teensy_sign_mismatch_target_tps": round(self.teensy_sign_mismatch_target_tps, 3),
+            "teensy_sign_mismatch_timeout_ms": int(self.teensy_sign_mismatch_timeout_ms),
             "teensy_encoder_jump_tps": round(self.teensy_encoder_jump_tps, 3),
             "target_left_mps": round(self.target_left_mps, 4),
             "target_right_mps": round(self.target_right_mps, 4),

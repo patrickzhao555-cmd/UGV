@@ -116,8 +116,12 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "kd": 0.0,
             "control_hz": 100.0,
             "side_mismatch_fault_tps": 180.0,
+            "sign_mismatch_target_tps": 100.0,
+            "sign_mismatch_timeout_ms": 250,
             "encoder_jump_tps": 12000.0,
             "right_motor_sign": -1,
+            "fl_encoder_sign": -1,
+            "rl_encoder_sign": -1,
         }
     )
     assert "CMD PARAM track_width_m 0.425\n" in commands
@@ -126,8 +130,12 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
     assert "CMD PARAM kp 0.45\n" in commands
     assert "CMD PARAM control_hz 100\n" in commands
     assert "CMD PARAM side_mismatch_fault_tps 180\n" in commands
+    assert "CMD PARAM sign_mismatch_target_tps 100\n" in commands
+    assert "CMD PARAM sign_mismatch_timeout_ms 250\n" in commands
     assert "CMD PARAM encoder_jump_tps 12000\n" in commands
     assert "CMD PARAM right_motor_sign -1\n" in commands
+    assert "CMD PARAM fl_encoder_sign -1\n" in commands
+    assert "CMD PARAM rl_encoder_sign -1\n" in commands
     assert "CMD PARAM ticks_per_rev 2151\n" not in commands
 
 
@@ -195,7 +203,12 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "DEFAULT_WHEEL_RADIUS_M = 0.0825f" in firmware
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
     assert "DEFAULT_CONTROL_INTERVAL_MS = 10" in firmware
+    assert "int fl_encoder_sign = -1" in firmware
+    assert "int rl_encoder_sign = -1" in firmware
+    assert "int right_motor_sign = -1" in firmware
     assert "side_mismatch_fault_tps" in firmware
+    assert "sign_mismatch_target_tps" in firmware
+    assert "sign_mismatch_timeout_ms" in firmware
     assert "encoder_jump_tps" in firmware
     assert "STATUS_STREAM" in firmware
     assert "status_stream_enabled" in firmware

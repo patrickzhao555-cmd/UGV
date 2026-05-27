@@ -48,12 +48,15 @@ export MOTOR_TEENSY_CONTROL_HZ="${MOTOR_TEENSY_CONTROL_HZ:-100.0}"
 export MOTOR_TEENSY_SIDE_MISMATCH_FAULT_ENABLED="${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_ENABLED:-true}"
 export MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS="${MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS:-80.0}"
 export MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS="${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS:-180.0}"
+export MOTOR_TEENSY_SIGN_MISMATCH_TPS="${MOTOR_TEENSY_SIGN_MISMATCH_TPS:-10.0}"
+export MOTOR_TEENSY_SIGN_MISMATCH_TARGET_TPS="${MOTOR_TEENSY_SIGN_MISMATCH_TARGET_TPS:-100.0}"
+export MOTOR_TEENSY_SIGN_MISMATCH_TIMEOUT_MS="${MOTOR_TEENSY_SIGN_MISMATCH_TIMEOUT_MS:-250}"
 export MOTOR_TEENSY_ENCODER_JUMP_FAULT_ENABLED="${MOTOR_TEENSY_ENCODER_JUMP_FAULT_ENABLED:-true}"
 export MOTOR_TEENSY_ENCODER_JUMP_TPS="${MOTOR_TEENSY_ENCODER_JUMP_TPS:-12000.0}"
 
 echo "Motor model: track_width_m=${MOTOR_TRACK_WIDTH_M}, wheel_radius_m=${MOTOR_WHEEL_RADIUS_M}, ticks_per_rev=${MOTOR_TICKS_PER_REV}"
 echo "Teensy PID: kp=${MOTOR_TEENSY_PID_KP}, ki=${MOTOR_TEENSY_PID_KI}, kd=${MOTOR_TEENSY_PID_KD}, control_hz=${MOTOR_TEENSY_CONTROL_HZ}"
-echo "Diagnostics: side_mismatch_warn_tps=${MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS}, side_mismatch_fault_tps=${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS}, encoder_jump_tps=${MOTOR_TEENSY_ENCODER_JUMP_TPS}"
+echo "Diagnostics: side_mismatch_warn_tps=${MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS}, side_mismatch_fault_tps=${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS}, sign_mismatch_timeout_ms=${MOTOR_TEENSY_SIGN_MISMATCH_TIMEOUT_MS}, encoder_jump_tps=${MOTOR_TEENSY_ENCODER_JUMP_TPS}"
 
 exec ros2 launch ugv_motor_controller motor_controller.launch.py \
   track_width_m:="${MOTOR_TRACK_WIDTH_M}" \
@@ -69,10 +72,13 @@ exec ros2 launch ugv_motor_controller motor_controller.launch.py \
   command_timeout_s:="${MOTOR_COMMAND_TIMEOUT_S:-0.75}" \
   teensy_left_motor_sign:="${MOTOR_TEENSY_LEFT_MOTOR_SIGN:-1}" \
   teensy_right_motor_sign:="${MOTOR_TEENSY_RIGHT_MOTOR_SIGN:--1}" \
-  teensy_fl_encoder_sign:="${MOTOR_TEENSY_FL_ENCODER_SIGN:-1}" \
+  teensy_fl_encoder_sign:="${MOTOR_TEENSY_FL_ENCODER_SIGN:--1}" \
   teensy_fr_encoder_sign:="${MOTOR_TEENSY_FR_ENCODER_SIGN:-1}" \
-  teensy_rl_encoder_sign:="${MOTOR_TEENSY_RL_ENCODER_SIGN:-1}" \
+  teensy_rl_encoder_sign:="${MOTOR_TEENSY_RL_ENCODER_SIGN:--1}" \
   teensy_rr_encoder_sign:="${MOTOR_TEENSY_RR_ENCODER_SIGN:-1}" \
+  teensy_sign_mismatch_tps:="${MOTOR_TEENSY_SIGN_MISMATCH_TPS}" \
+  teensy_sign_mismatch_target_tps:="${MOTOR_TEENSY_SIGN_MISMATCH_TARGET_TPS}" \
+  teensy_sign_mismatch_timeout_ms:="${MOTOR_TEENSY_SIGN_MISMATCH_TIMEOUT_MS}" \
   teensy_side_mismatch_fault_enabled:="${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_ENABLED}" \
   teensy_side_mismatch_warn_tps:="${MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS}" \
   teensy_side_mismatch_fault_tps:="${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS}" \

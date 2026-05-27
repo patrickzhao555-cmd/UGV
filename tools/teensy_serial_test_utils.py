@@ -15,6 +15,9 @@ def add_common_serial_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--param-timeout-s", type=float, default=4.0)
     parser.add_argument("--settle-s", type=float, default=1.0)
     parser.add_argument("--param-retries", type=int, default=3)
+    parser.add_argument("--sign-mismatch-tps", type=float, default=10.0)
+    parser.add_argument("--sign-mismatch-target-tps", type=float, default=100.0)
+    parser.add_argument("--sign-mismatch-timeout-ms", type=int, default=250)
 
 
 def open_teensy_serial(port: str, baud: int) -> serial.Serial:
@@ -113,6 +116,9 @@ def sync_standard_params(dev: serial.Serial, args: argparse.Namespace) -> None:
         ("fr_encoder_sign", args.fr_encoder_sign),
         ("rl_encoder_sign", args.rl_encoder_sign),
         ("rr_encoder_sign", args.rr_encoder_sign),
+        ("sign_mismatch_tps", args.sign_mismatch_tps),
+        ("sign_mismatch_target_tps", args.sign_mismatch_target_tps),
+        ("sign_mismatch_timeout_ms", args.sign_mismatch_timeout_ms),
     ]
     for name, value in params:
         send_param(dev, name, value, args.param_timeout_s, args.param_retries)

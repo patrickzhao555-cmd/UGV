@@ -2,6 +2,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -117,3 +118,20 @@ def test_active_sources_do_not_reference_removed_entrypoints():
             text = file_path.read_text(errors="ignore")
             for token in forbidden:
                 assert token not in text, f"{token!r} found in {file_path}"
+
+
+def _package_dependency_names(package_xml: pathlib.Path) -> set[str]:
+    root = ET.parse(package_xml).getroot()
+    deps = set()
+    for element in root:
+        if element.tag.endswith("depend") and element.text:
+            deps.add(element.text.strip())
+    return deps
+
+
+def test_package_metadata_declares_runtime_dependencies_for_active_launches_and_nodes():
+    sensor_deps = _package_dependency_names(ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "package.xml")
+    motor_deps = _package_dependency_names(ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "package.xml")
+
+    assert {"cv_bridge", "launch", "launch_ros"}.issubset(sensor_deps)
+    assert {"launch", "launch_ros", "python3-serial"}.issubset(motor_deps)

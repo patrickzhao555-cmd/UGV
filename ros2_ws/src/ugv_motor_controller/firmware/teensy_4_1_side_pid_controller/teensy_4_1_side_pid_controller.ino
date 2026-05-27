@@ -59,9 +59,11 @@ const int DEFAULT_PWM_MAX_US = 1900;
 const float DEFAULT_TRACK_WIDTH_M = 0.425f;
 const float DEFAULT_WHEEL_RADIUS_M = 0.0825f;
 const float DEFAULT_TICKS_PER_REV = 3200.0f;
-const float DEFAULT_KP = 0.55f;
+const float DEFAULT_KP = 0.10f;
 const float DEFAULT_KI = 0.0f;
 const float DEFAULT_KD = 0.0f;
+const float DEFAULT_FF_US_PER_TPS = 0.04f;
+const float DEFAULT_STATIC_FF_US = 100.0f;
 
 enum ControllerMode {
   MODE_STOPPED,
@@ -119,7 +121,8 @@ float command_timeout_ms = DEFAULT_COMMAND_TIMEOUT_MS;
 float kp = DEFAULT_KP;
 float ki = DEFAULT_KI;
 float kd = DEFAULT_KD;
-float feedforward_us_per_tps = 0.0f;
+float feedforward_us_per_tps = DEFAULT_FF_US_PER_TPS;
+float static_ff_us = DEFAULT_STATIC_FF_US;
 float pid_output_limit_us = 350.0f;
 float pwm_slew_us_per_s = 2400.0f;
 float min_target_tps = 2.0f;
@@ -232,6 +235,14 @@ float mpsToTicksPerSec(float mps) {
 
 long readEncoderSigned(Encoder& encoder, int sign) {
   return encoder.read() * sign;
+}
+
+float staticFeedforwardForTarget(float target_tps) {
+  int target_sign = signOf(target_tps, min_target_tps);
+  if (target_sign == 0) {
+    return 0.0f;
+  }
+  return (float)target_sign * max(0.0f, static_ff_us);
 }
 
 void clearFault() {
@@ -644,8 +655,14 @@ void updatePidAndOutputs(unsigned long dt_ms) {
   right_i_term = right_pid.GetIterm();
   right_d_term = right_pid.GetDterm();
 
-  float left_delta_us = feedforward_us_per_tps * left_target_tps + left_pid_output_us;
-  float right_delta_us = feedforward_us_per_tps * right_target_tps + right_pid_output_us;
+  float left_delta_us =
+    staticFeedforwardForTarget(left_target_tps) +
+    feedforward_us_per_tps * left_target_tps +
+    left_pid_output_us;
+  float right_delta_us =
+    staticFeedforwardForTarget(right_target_tps) +
+    feedforward_us_per_tps * right_target_tps +
+    right_pid_output_us;
   left_delta_us = clampFloat(left_delta_us, -(float)(pwm_max_us - pwm_neutral_us), (float)(pwm_max_us - pwm_neutral_us));
   right_delta_us = clampFloat(right_delta_us, -(float)(pwm_max_us - pwm_neutral_us), (float)(pwm_max_us - pwm_neutral_us));
 
@@ -748,6 +765,12 @@ void printParamDump(Stream& stream) {
   stream.print(ki, 6);
   stream.print(",kd=");
   stream.print(kd, 6);
+  stream.print(",ff_us_per_tps=");
+  stream.print(feedforward_us_per_tps, 6);
+  stream.print(",static_ff_us=");
+  stream.print(static_ff_us, 2);
+  stream.print(",pid_output_limit_us=");
+  stream.print(pid_output_limit_us, 2);
   stream.print(",pid_backend=QuickPID");
   stream.print(",left_motor_sign=");
   stream.print(left_motor_sign);
@@ -803,6 +826,8 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "ki") == 0) { ki = value; critical = true; }
   else if (strcmp(name, "kd") == 0) { kd = value; critical = true; }
   else if (strcmp(name, "ff_us_per_tps") == 0) { feedforward_us_per_tps = value; critical = true; }
+  else if (strcmp(name, "static_ff_us") == 0) { static_ff_us = max(0.0f, value); critical = true; }
+  else if (strcmp(name, "static_feedforward_us") == 0) { static_ff_us = max(0.0f, value); critical = true; }
   else if (strcmp(name, "pid_output_limit_us") == 0) { pid_output_limit_us = max(1.0f, value); critical = true; }
   else if (strcmp(name, "pwm_slew_us_per_s") == 0) { pwm_slew_us_per_s = max(0.0f, value); critical = true; }
   else if (strcmp(name, "control_hz") == 0) { control_interval_ms = (unsigned long)clampFloat(roundf(1000.0f / max(1.0f, value)), 5.0f, 50.0f); critical = true; }

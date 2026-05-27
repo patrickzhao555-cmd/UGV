@@ -17,6 +17,7 @@ def add_common_serial_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--param-retries", type=int, default=3)
     parser.add_argument("--command-timeout-ms", type=int, default=1200)
     parser.add_argument("--refresh-period-s", type=float, default=0.10)
+    parser.add_argument("--static-ff-us", type=float, default=100.0)
     parser.add_argument("--sign-mismatch-tps", type=float, default=10.0)
     parser.add_argument("--sign-mismatch-target-tps", type=float, default=100.0)
     parser.add_argument("--sign-mismatch-timeout-ms", type=int, default=250)
@@ -119,6 +120,7 @@ def sync_standard_params(dev: serial.Serial, args: argparse.Namespace) -> None:
         ("rl_encoder_sign", args.rl_encoder_sign),
         ("rr_encoder_sign", args.rr_encoder_sign),
         ("command_timeout_ms", max(100, int(args.command_timeout_ms))),
+        ("static_ff_us", args.static_ff_us),
         ("sign_mismatch_tps", args.sign_mismatch_tps),
         ("sign_mismatch_target_tps", args.sign_mismatch_target_tps),
         ("sign_mismatch_timeout_ms", args.sign_mismatch_timeout_ms),

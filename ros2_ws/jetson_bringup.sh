@@ -53,9 +53,11 @@ fi
 MOTOR_TRACK_WIDTH_M="${MOTOR_TRACK_WIDTH_M:-0.425}"
 MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-0.0825}"
 MOTOR_TICKS_PER_REV="${MOTOR_TICKS_PER_REV:-3200}"
-MOTOR_TEENSY_PID_KP="${MOTOR_TEENSY_PID_KP:-0.80}"
+MOTOR_TEENSY_PID_KP="${MOTOR_TEENSY_PID_KP:-0.10}"
 MOTOR_TEENSY_PID_KI="${MOTOR_TEENSY_PID_KI:-0.0}"
-MOTOR_TEENSY_PID_KD="${MOTOR_TEENSY_PID_KD:-0.02}"
+MOTOR_TEENSY_PID_KD="${MOTOR_TEENSY_PID_KD:-0.0}"
+MOTOR_TEENSY_PID_FF_US_PER_TPS="${MOTOR_TEENSY_PID_FF_US_PER_TPS:-0.04}"
+MOTOR_TEENSY_PID_STATIC_FF_US="${MOTOR_TEENSY_PID_STATIC_FF_US:-100.0}"
 MOTOR_TEENSY_CONTROL_HZ="${MOTOR_TEENSY_CONTROL_HZ:-100.0}"
 MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS="${MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS:-80.0}"
 MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS="${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS:-180.0}"
@@ -68,7 +70,7 @@ echo "UGV clean runtime branch: cleanup/two-side-pid-runtime"
 echo "Hardware: four Pololu motors, two goBILDA speed controllers"
 echo "Motor control: Teensy two-controller/four-encoder side PID only"
 echo "Motor model: track_width_m=${MOTOR_TRACK_WIDTH_M}, wheel_radius_m=${MOTOR_WHEEL_RADIUS_M}, ticks_per_rev=${MOTOR_TICKS_PER_REV}"
-echo "Teensy PID gains: kp=${MOTOR_TEENSY_PID_KP}, ki=${MOTOR_TEENSY_PID_KI}, kd=${MOTOR_TEENSY_PID_KD}"
+echo "Teensy PID: kp=${MOTOR_TEENSY_PID_KP}, ki=${MOTOR_TEENSY_PID_KI}, kd=${MOTOR_TEENSY_PID_KD}, ff_us_per_tps=${MOTOR_TEENSY_PID_FF_US_PER_TPS}, static_ff_us=${MOTOR_TEENSY_PID_STATIC_FF_US}"
 echo "Teensy control loop: ${MOTOR_TEENSY_CONTROL_HZ} Hz"
 echo "Teensy diagnostics: mismatch warn=${MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS} tps, mismatch fault=${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS} tps, encoder jump=${MOTOR_TEENSY_ENCODER_JUMP_TPS} tps"
 echo "Motor port: ${MOTOR_PORT}"
@@ -86,6 +88,8 @@ exec ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   motor_teensy_pid_kp:="${MOTOR_TEENSY_PID_KP}" \
   motor_teensy_pid_ki:="${MOTOR_TEENSY_PID_KI}" \
   motor_teensy_pid_kd:="${MOTOR_TEENSY_PID_KD}" \
+  motor_teensy_pid_feedforward_us_per_tps:="${MOTOR_TEENSY_PID_FF_US_PER_TPS}" \
+  motor_teensy_pid_static_ff_us:="${MOTOR_TEENSY_PID_STATIC_FF_US}" \
   motor_teensy_side_mismatch_warn_tps:="${MOTOR_TEENSY_SIDE_MISMATCH_WARN_TPS}" \
   motor_teensy_side_mismatch_fault_tps:="${MOTOR_TEENSY_SIDE_MISMATCH_FAULT_TPS}" \
   motor_teensy_encoder_jump_tps:="${MOTOR_TEENSY_ENCODER_JUMP_TPS}"

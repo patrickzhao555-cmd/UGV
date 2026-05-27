@@ -68,10 +68,11 @@ class MotorControllerBridge(Node):
         self.declare_parameter("pwm_max_us", 1900)
         self.declare_parameter("pwm_slew_rate_us_per_s", 2400.0)
         self.declare_parameter("teensy_control_hz", 100.0)
-        self.declare_parameter("teensy_pid_kp", 0.80)
+        self.declare_parameter("teensy_pid_kp", 0.10)
         self.declare_parameter("teensy_pid_ki", 0.0)
-        self.declare_parameter("teensy_pid_kd", 0.02)
-        self.declare_parameter("teensy_pid_feedforward_us_per_tps", 0.0)
+        self.declare_parameter("teensy_pid_kd", 0.0)
+        self.declare_parameter("teensy_pid_feedforward_us_per_tps", 0.04)
+        self.declare_parameter("teensy_pid_static_ff_us", 100.0)
         self.declare_parameter("teensy_pid_output_limit_us", 350.0)
         self.declare_parameter("teensy_pid_min_target_tps", 2.0)
         self.declare_parameter("teensy_left_motor_sign", 1)
@@ -125,6 +126,7 @@ class MotorControllerBridge(Node):
         self.teensy_pid_feedforward_us_per_tps = float(
             self.get_parameter("teensy_pid_feedforward_us_per_tps").value
         )
+        self.teensy_pid_static_ff_us = max(0.0, float(self.get_parameter("teensy_pid_static_ff_us").value))
         self.teensy_pid_output_limit_us = max(1.0, float(self.get_parameter("teensy_pid_output_limit_us").value))
         self.teensy_pid_min_target_tps = max(0.0, float(self.get_parameter("teensy_pid_min_target_tps").value))
         self.teensy_left_motor_sign = _sign_param(self.get_parameter("teensy_left_motor_sign").value)
@@ -207,7 +209,9 @@ class MotorControllerBridge(Node):
             "Motor bridge active path: Jetson velocity command -> Teensy two-controller four-encoder side PID "
             f"(port={self.port}, dry_run={self.dry_run}, radius={self.wheel_radius_m}, "
             f"ticks_per_rev={self.ticks_per_rev}, motor_signs="
-            f"{self.teensy_left_motor_sign}/{self.teensy_right_motor_sign})"
+            f"{self.teensy_left_motor_sign}/{self.teensy_right_motor_sign}, "
+            f"kp={self.teensy_pid_kp}, ff={self.teensy_pid_feedforward_us_per_tps}, "
+            f"static_ff={self.teensy_pid_static_ff_us})"
         )
 
     def command_callback(self, msg: String) -> None:
@@ -445,6 +449,7 @@ class MotorControllerBridge(Node):
                 ("rl_encoder_sign", self.teensy_rl_encoder_sign),
                 ("rr_encoder_sign", self.teensy_rr_encoder_sign),
                 ("ff_us_per_tps", self.teensy_pid_feedforward_us_per_tps),
+                ("static_ff_us", self.teensy_pid_static_ff_us),
                 ("pid_output_limit_us", self.teensy_pid_output_limit_us),
                 ("min_target_tps", self.teensy_pid_min_target_tps),
                 ("stall_fault_enabled", 1 if self.teensy_stall_fault_enabled else 0),
@@ -557,6 +562,11 @@ class MotorControllerBridge(Node):
             "wheel_radius_m": round(self.wheel_radius_m, 4),
             "ticks_per_rev": int(self.ticks_per_rev),
             "teensy_control_hz": round(self.teensy_control_hz, 3),
+            "teensy_pid_kp": round(self.teensy_pid_kp, 6),
+            "teensy_pid_ki": round(self.teensy_pid_ki, 6),
+            "teensy_pid_kd": round(self.teensy_pid_kd, 6),
+            "teensy_pid_feedforward_us_per_tps": round(self.teensy_pid_feedforward_us_per_tps, 6),
+            "teensy_pid_static_ff_us": round(self.teensy_pid_static_ff_us, 3),
             "teensy_side_mismatch_warn_tps": round(self.teensy_side_mismatch_warn_tps, 3),
             "teensy_side_mismatch_fault_tps": round(self.teensy_side_mismatch_fault_tps, 3),
             "teensy_sign_mismatch_tps": round(self.teensy_sign_mismatch_tps, 3),

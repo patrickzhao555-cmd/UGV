@@ -23,6 +23,7 @@ def generate_launch_description():
     teensy_pid_ki = LaunchConfiguration("teensy_pid_ki")
     teensy_pid_kd = LaunchConfiguration("teensy_pid_kd")
     teensy_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_pid_feedforward_us_per_tps")
+    teensy_pid_static_ff_us = LaunchConfiguration("teensy_pid_static_ff_us")
     teensy_pid_output_limit_us = LaunchConfiguration("teensy_pid_output_limit_us")
     teensy_pid_min_target_tps = LaunchConfiguration("teensy_pid_min_target_tps")
     teensy_left_motor_sign = LaunchConfiguration("teensy_left_motor_sign")
@@ -88,7 +89,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kp",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.80"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.10"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_ki",
@@ -96,11 +97,15 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kd",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KD", default_value="0.02"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KD", default_value="0.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_feedforward_us_per_tps",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_FF_US_PER_TPS", default_value="0.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_FF_US_PER_TPS", default_value="0.04"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_pid_static_ff_us",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="100.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_output_limit_us",
@@ -221,6 +226,7 @@ def generate_launch_description():
                             teensy_pid_feedforward_us_per_tps,
                             value_type=float,
                         ),
+                        "teensy_pid_static_ff_us": ParameterValue(teensy_pid_static_ff_us, value_type=float),
                         "teensy_pid_output_limit_us": ParameterValue(teensy_pid_output_limit_us, value_type=float),
                         "teensy_pid_min_target_tps": ParameterValue(teensy_pid_min_target_tps, value_type=float),
                         "teensy_left_motor_sign": ParameterValue(teensy_left_motor_sign, value_type=int),

@@ -27,8 +27,12 @@ def generate_launch_description():
     motor_dry_run = LaunchConfiguration("motor_dry_run")
     motor_command_timeout_s = LaunchConfiguration("motor_command_timeout_s")
     motor_command_refresh_period_s = LaunchConfiguration("motor_command_refresh_period_s")
+    motor_track_width_m = LaunchConfiguration("motor_track_width_m")
     motor_wheel_radius_m = LaunchConfiguration("motor_wheel_radius_m")
     motor_ticks_per_rev = LaunchConfiguration("motor_ticks_per_rev")
+    motor_teensy_pid_kp = LaunchConfiguration("motor_teensy_pid_kp")
+    motor_teensy_pid_ki = LaunchConfiguration("motor_teensy_pid_ki")
+    motor_teensy_pid_kd = LaunchConfiguration("motor_teensy_pid_kd")
     motor_teensy_left_motor_sign = LaunchConfiguration("motor_teensy_left_motor_sign")
     motor_teensy_right_motor_sign = LaunchConfiguration("motor_teensy_right_motor_sign")
     motor_teensy_fl_encoder_sign = LaunchConfiguration("motor_teensy_fl_encoder_sign")
@@ -45,8 +49,12 @@ def generate_launch_description():
             "dry_run": motor_dry_run,
             "command_timeout_s": motor_command_timeout_s,
             "command_refresh_period_s": motor_command_refresh_period_s,
+            "track_width_m": motor_track_width_m,
             "wheel_radius_m": motor_wheel_radius_m,
             "ticks_per_rev": motor_ticks_per_rev,
+            "teensy_pid_kp": motor_teensy_pid_kp,
+            "teensy_pid_ki": motor_teensy_pid_ki,
+            "teensy_pid_kd": motor_teensy_pid_kd,
             "teensy_left_motor_sign": motor_teensy_left_motor_sign,
             "teensy_right_motor_sign": motor_teensy_right_motor_sign,
             "teensy_fl_encoder_sign": motor_teensy_fl_encoder_sign,
@@ -79,8 +87,12 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_dry_run", default_value="false"),
             DeclareLaunchArgument("motor_command_timeout_s", default_value="0.75"),
             DeclareLaunchArgument("motor_command_refresh_period_s", default_value="0.10"),
+            DeclareLaunchArgument("motor_track_width_m", default_value="0.6096"),
             DeclareLaunchArgument("motor_wheel_radius_m", default_value="0.0889"),
             DeclareLaunchArgument("motor_ticks_per_rev", default_value="3200"),
+            DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.80"),
+            DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.0"),
+            DeclareLaunchArgument("motor_teensy_pid_kd", default_value="0.02"),
             DeclareLaunchArgument("motor_teensy_left_motor_sign", default_value="1"),
             DeclareLaunchArgument("motor_teensy_right_motor_sign", default_value="-1"),
             DeclareLaunchArgument("motor_teensy_fl_encoder_sign", default_value="1"),

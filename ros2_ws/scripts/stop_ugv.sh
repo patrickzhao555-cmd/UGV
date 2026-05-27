@@ -38,7 +38,6 @@ if [[ -f "${WORKSPACE_DIR}/install/setup.bash" ]]; then
   source_setup_compat "${WORKSPACE_DIR}/install/setup.bash"
 fi
 
-MISSION_FLAG_PAYLOAD='{"state":"stop","source":"stop_ugv.sh"}'
 STOP_CMD_PAYLOAD='{"mode":"STOP","command_type":"stop","reason":"manual stop_ugv.sh","v_mps":0.0,"omega_radps":0.0}'
 
 if ! command -v timeout >/dev/null 2>&1; then
@@ -48,9 +47,6 @@ fi
 
 echo "sending immediate motor stop"
 timeout 1.2s ros2 topic pub -r 10 /ugv_nav_cmd std_msgs/msg/String "{data: '${STOP_CMD_PAYLOAD}'}" || true
-
-echo "sending mission stop"
-timeout 2s ros2 topic pub --once /ugv/mission_flag std_msgs/msg/String "{data: '${MISSION_FLAG_PAYLOAD}'}" || true
 
 echo "sending final motor stop"
 timeout 1.2s ros2 topic pub -r 10 /ugv_nav_cmd std_msgs/msg/String "{data: '${STOP_CMD_PAYLOAD}'}" || true

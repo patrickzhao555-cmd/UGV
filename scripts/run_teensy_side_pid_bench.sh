@@ -27,10 +27,18 @@ fi
 
 export MOTOR_WHEEL_RADIUS_M="${MOTOR_WHEEL_RADIUS_M:-0.0889}"
 export MOTOR_TICKS_PER_REV="${MOTOR_TICKS_PER_REV:-3200}"
+export MOTOR_TRACK_WIDTH_M="${MOTOR_TRACK_WIDTH_M:-0.6096}"
+export MOTOR_TEENSY_PID_KP="${MOTOR_TEENSY_PID_KP:-0.80}"
+export MOTOR_TEENSY_PID_KI="${MOTOR_TEENSY_PID_KI:-0.0}"
+export MOTOR_TEENSY_PID_KD="${MOTOR_TEENSY_PID_KD:-0.02}"
 
 exec ros2 launch ugv_motor_controller motor_controller.launch.py \
+  track_width_m:="${MOTOR_TRACK_WIDTH_M}" \
   wheel_radius_m:="${MOTOR_WHEEL_RADIUS_M}" \
   ticks_per_rev:="${MOTOR_TICKS_PER_REV}" \
+  teensy_pid_kp:="${MOTOR_TEENSY_PID_KP}" \
+  teensy_pid_ki:="${MOTOR_TEENSY_PID_KI}" \
+  teensy_pid_kd:="${MOTOR_TEENSY_PID_KD}" \
   port:="${MOTOR_PORT:-/dev/ttyACM0}" \
   baud:="${MOTOR_BAUD:-115200}" \
   dry_run:="${MOTOR_DRY_RUN:-false}" \

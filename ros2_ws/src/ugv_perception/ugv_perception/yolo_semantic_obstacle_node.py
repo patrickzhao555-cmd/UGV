@@ -102,7 +102,7 @@ class YoloSemanticObstacleNode(Node):
         except Exception as exc:
             self.get_logger().warn(
                 "ultralytics is not installed; YOLO semantic obstacle points are disabled. "
-                f"Install it on the Jetson or set START_YOLO_OBSTACLES=false. ({exc})"
+                f"Install it on the Jetson before running this optional node. ({exc})"
             )
             return
 

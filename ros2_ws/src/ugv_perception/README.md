@@ -35,19 +35,19 @@ python3 -m pip install --user --force-reinstall "numpy==1.26.4"
 python3 -m pip install --user "ultralytics" "numpy<2"
 ```
 
-Launch through the main stack:
+Run it manually when the sensor stack is publishing `/zed/image` and `/zed/depth`:
 
 ```bash
-START_YOLO_OBSTACLES=true EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+ros2 run ugv_perception yolo_semantic_obstacles
 ```
 
 ## Dashboard
 
-The dashboard needs a GUI display, usually TigerVNC:
+The dashboard needs a GUI display, usually TigerVNC. Run it manually when the
+topics you want to inspect are already running:
 
 ```bash
-START_DEBUG_DASHBOARD=true START_YOLO_OBSTACLES=true \
-EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash bash jetson_bringup.sh
+ros2 run ugv_perception ugv_debug_dashboard
 ```
 
 Keys:

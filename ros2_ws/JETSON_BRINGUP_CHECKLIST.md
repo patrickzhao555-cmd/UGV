@@ -49,8 +49,12 @@ The cleaned runtime starts:
 cd ~/ugv_project/ros2_ws
 MOTOR_PORT=/dev/ttyACM0 \
 MOTOR_DRY_RUN=false \
+MOTOR_TRACK_WIDTH_M=0.6096 \
 MOTOR_WHEEL_RADIUS_M=0.0889 \
 MOTOR_TICKS_PER_REV=3200 \
+MOTOR_TEENSY_PID_KP=0.80 \
+MOTOR_TEENSY_PID_KI=0.0 \
+MOTOR_TEENSY_PID_KD=0.02 \
 EXTRA_SETUP_BASH=~/ugv_ws_albert/install/setup.bash \
 bash jetson_bringup.sh
 ```
@@ -79,6 +83,7 @@ The bridge should report:
 - `motor_hardware=two_gobilda_speed_controllers`
 - `accepted_command_contract=velocity_only`
 - `teensy_pid_params_synced=true`
+- `track_width_m=0.6096`
 - `wheel_radius_m=0.0889`
 - `ticks_per_rev=3200`
 

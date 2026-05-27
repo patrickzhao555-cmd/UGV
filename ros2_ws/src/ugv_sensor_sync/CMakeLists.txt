@@ -9,7 +9,6 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(message_filters REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -19,7 +18,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/EncoderTicksStamped.msg"
   "msg/NavSensorFrame.msg"
   "msg/SyncedSensorPacket.msg"
-  "msg/UwbRange.msg"
   DEPENDENCIES std_msgs sensor_msgs geometry_msgs builtin_interfaces
 )
 

@@ -39,7 +39,7 @@ topics.
 Removed from active runtime:
 
 - ROS-side velocity PID
-- legacy `M<left>,<right>` Teensy bridge firmware
+- previous two-value Teensy bridge firmware
 - direct raw motor test node/launch
 
 Those files are recoverable from the backup branch:

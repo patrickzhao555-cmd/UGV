@@ -1,3 +1,5 @@
+.vscode/
+.pytest_cache/
 ros2_ws/src/ugv_perception/models/*.npz
 ros2_ws/build/
 ros2_ws/install/

@@ -64,6 +64,10 @@ def test_obsolete_runtime_packages_are_removed_from_source_tree():
         "ros2_ws/src/ugv_sensor_sync/ugv_sensor_sync_nodes/mock_field_map_node.py",
         "ros2_ws/src/ugv_perception/ugv_perception/obstacle_warning.py",
         "ros2_ws/src/ugv_perception/ugv_perception/zed_obj_distance.py",
+        "ros2_ws/src/third_party/zed-ros2-wrapper",
+        "ros2_ws/src/ugv_esp/communication.ino",
+        "ros2_ws/src/ugv_sensor_sync/msg/UwbRange.msg",
+        "ros2_ws/src/ugv_sensor_sync/include/ugv_sensor_sync/clock_mapper.hpp",
     ]
 
     for rel_path in removed_paths:
@@ -83,6 +87,13 @@ def test_active_sources_do_not_reference_removed_entrypoints():
         "/ugv_goal",
         "obstacle_warning",
         "zed_obj_distance",
+        "zed_msgs",
+        "UwbRange",
+        "clock_mapper",
+        "third_party",
+        "zed-ros2-wrapper",
+        "mission_flag",
+        "/ugv/uav_flag",
     ]
     active_paths = [
         ROOT / "README.md",
@@ -100,6 +111,8 @@ def test_active_sources_do_not_reference_removed_entrypoints():
         files = [path] if path.is_file() else [p for p in path.rglob("*") if p.is_file()]
         for file_path in files:
             if "__pycache__" in file_path.parts:
+                continue
+            if file_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".npz"}:
                 continue
             text = file_path.read_text(errors="ignore")
             for token in forbidden:

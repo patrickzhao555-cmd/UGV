@@ -20,7 +20,7 @@ setup(
     zip_safe=True,
     maintainer="bluelule",
     maintainer_email="bluelule@todo.todo",
-    description="UGV ZED marker vision, YOLO semantic obstacle assist, depth warning, and dashboard nodes.",
+    description="UGV ZED marker vision, YOLO semantic obstacle assist, and dashboard nodes.",
     license="Apache-2.0",
     extras_require={
         "test": [

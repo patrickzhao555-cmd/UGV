@@ -3,7 +3,7 @@
 <package format="3">
   <name>ugv_perception</name>
   <version>0.0.0</version>
-  <description>Depth-based obstacle warning and small ZED debug helpers for the UGV.</description>
+  <description>ZED marker vision, YOLO semantic obstacle assist, and operator dashboard nodes for the UGV.</description>
   <maintainer email="bluelule@todo.todo">bluelule</maintainer>
   <license>Apache-2.0</license>
 
@@ -15,7 +15,6 @@
   <depend>std_msgs</depend>
   <depend>ugv_sensor_sync</depend>
   <depend>cv_bridge</depend>
-  <depend>zed_msgs</depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
 

@@ -17,7 +17,6 @@ class DebugStatusNode(Node):
         self.declare_parameter('fusion_summary_topic', '/sensors/synced_summary')
         self.declare_parameter('motor_status_topic', '/motor_controller/status')
         self.declare_parameter('nav_status_topic', '/ugv_nav_status')
-        self.declare_parameter('uav_flag_topic', '/ugv/uav_flag')
 
         publish_topic = self.get_parameter('publish_topic').value
         self.publish_period_s = max(0.2, float(self.get_parameter('publish_period_s').value))
@@ -28,7 +27,6 @@ class DebugStatusNode(Node):
         self._subscribe_json('fusion', self.get_parameter('fusion_summary_topic').value)
         self._subscribe_json('motor', self.get_parameter('motor_status_topic').value)
         self._subscribe_json('nav', self.get_parameter('nav_status_topic').value)
-        self._subscribe_json('uav_flag', self.get_parameter('uav_flag_topic').value)
         self.create_timer(self.publish_period_s, self.publish_debug)
         self.get_logger().info(f'UGV debug status node publishing {publish_topic}')
 

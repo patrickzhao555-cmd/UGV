@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-def test_clean_nav_placeholder_outputs_stop_in_sim_help_path():
+def test_clean_nav_chassis_controller_outputs_safe_sim_help_path():
     nav_script = ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py"
     result = subprocess.run(
         [sys.executable, str(nav_script), "--mode", "sim"],
@@ -16,7 +16,7 @@ def test_clean_nav_placeholder_outputs_stop_in_sim_help_path():
         capture_output=True,
         text=True,
     )
-    assert "Clean navigation placeholder" in result.stdout
+    assert "Clean navigation chassis controller" in result.stdout
 
 
 def test_clean_nav_command_contract_is_stop_safe():

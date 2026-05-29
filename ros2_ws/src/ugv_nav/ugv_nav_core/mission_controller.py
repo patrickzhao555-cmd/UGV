@@ -29,6 +29,7 @@ class MissionSegment:
     angle_deg: float = 0.0
     speed_mps: Optional[float] = None
     max_omega_radps: Optional[float] = None
+    timeout_s: Optional[float] = None
     wait_s: float = 0.0
     raw: Dict[str, Any] = field(default_factory=dict)
 
@@ -108,13 +109,17 @@ def parse_mission_plan(data: Dict[str, Any], *, source: str = "") -> MissionPlan
             if distance_m <= 0.0:
                 raise ValueError(f"segment {index} distance_m must be positive")
             speed_mps = _optional_finite_float(item.get("speed_mps"), name=f"segment {index} speed_mps")
-            if speed_mps is not None and speed_mps < 0.0:
-                raise ValueError(f"segment {index} speed_mps must be non-negative")
+            if speed_mps is not None and speed_mps <= 0.0:
+                raise ValueError(f"segment {index} speed_mps must be positive")
+            timeout_s = _optional_finite_float(item.get("timeout_s"), name=f"segment {index} timeout_s")
+            if timeout_s is not None and timeout_s <= 0.0:
+                raise ValueError(f"segment {index} timeout_s must be positive")
             segments.append(
                 MissionSegment(
                     segment_type="straight",
                     distance_m=distance_m,
                     speed_mps=speed_mps,
+                    timeout_s=timeout_s,
                     raw=dict(item),
                 )
             )
@@ -128,11 +133,15 @@ def parse_mission_plan(data: Dict[str, Any], *, source: str = "") -> MissionPlan
             )
             if max_omega_radps is not None and max_omega_radps <= 0.0:
                 raise ValueError(f"segment {index} max_omega_radps must be positive")
+            timeout_s = _optional_finite_float(item.get("timeout_s"), name=f"segment {index} timeout_s")
+            if timeout_s is not None and timeout_s <= 0.0:
+                raise ValueError(f"segment {index} timeout_s must be positive")
             segments.append(
                 MissionSegment(
                     segment_type="pivot",
                     angle_deg=angle_deg,
                     max_omega_radps=max_omega_radps,
+                    timeout_s=timeout_s,
                     raw=dict(item),
                 )
             )
@@ -163,8 +172,20 @@ def segment_speed_mps(segment: MissionSegment, config: ChassisControllerConfig) 
     requested = config.mission_default_speed_mps if segment.speed_mps is None else float(segment.speed_mps)
     return apply_competition_speed_rule(
         requested,
+        allow_stop=False,
         min_speed_mps=float(config.competition_min_speed_mps),
     )
+
+
+def segment_timeout_s(segment: MissionSegment, config: ChassisControllerConfig) -> Optional[float]:
+    if segment.timeout_s is not None:
+        return float(segment.timeout_s)
+    if segment.segment_type == "straight":
+        speed = max(abs(segment_speed_mps(segment, config)), MOTION_EPSILON)
+        return max(3.0, float(segment.distance_m) / speed * 3.0 + 1.0)
+    if segment.segment_type == "pivot":
+        return max(0.0, float(config.pivot_timeout_s))
+    return None
 
 
 def encoder_average_distance_m(

@@ -20,6 +20,7 @@ from ugv_nav_core.mission_controller import (  # noqa: E402
     motion_rule_ok,
     parse_mission_plan,
     segment_speed_mps,
+    segment_timeout_s,
     summarize_mission_records,
 )
 
@@ -62,9 +63,25 @@ def test_parse_mission_plan_validates_segments():
     assert segment_speed_mps(plan.segments[0], ChassisControllerConfig()) == pytest.approx(0.15)
 
 
+def test_segment_speed_never_returns_zero_for_straight_default():
+    plan = parse_mission_plan({"segments": [{"type": "straight", "distance_m": 1.0}]})
+    config = ChassisControllerConfig(mission_default_speed_mps=0.0)
+    assert segment_speed_mps(plan.segments[0], config) == pytest.approx(0.089408)
+    assert segment_timeout_s(plan.segments[0], config) > 1.0 / 0.089408
+
+
+def test_explicit_segment_timeout_is_preserved():
+    plan = parse_mission_plan({"segments": [{"type": "straight", "distance_m": 1.0, "timeout_s": 4.5}]})
+    assert segment_timeout_s(plan.segments[0], ChassisControllerConfig()) == pytest.approx(4.5)
+
+
 def test_parse_mission_plan_rejects_bad_segments():
     with pytest.raises(ValueError):
         parse_mission_plan({"segments": [{"type": "straight", "distance_m": -1.0}]})
+    with pytest.raises(ValueError):
+        parse_mission_plan({"segments": [{"type": "straight", "distance_m": 1.0, "speed_mps": 0.0}]})
+    with pytest.raises(ValueError):
+        parse_mission_plan({"segments": [{"type": "straight", "distance_m": 1.0, "timeout_s": 0.0}]})
     with pytest.raises(ValueError):
         parse_mission_plan({"segments": [{"type": "pivot", "angle_deg": 0.0}]})
 

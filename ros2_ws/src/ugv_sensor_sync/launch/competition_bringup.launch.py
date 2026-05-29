@@ -153,7 +153,7 @@ def generate_launch_description():
         condition=IfCondition(start_sensor_sync),
     )
 
-    nav_placeholder = ExecuteProcess(
+    nav_controller = ExecuteProcess(
         cmd=[
             FindExecutable(name="python3"),
             str(nav_script),
@@ -371,6 +371,6 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_telemetry_dir", default_value="~/.ros/ugv_mission_logs"),
             motor_controller_launch,
             sensor_sync_launch,
-            nav_placeholder,
+            nav_controller,
         ]
     )

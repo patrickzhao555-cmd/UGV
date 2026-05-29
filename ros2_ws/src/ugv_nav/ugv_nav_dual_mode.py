@@ -45,6 +45,7 @@ from ugv_nav_core.mission_controller import (
     heading_error_rms,
     load_mission_plan,
     motion_rule_ok,
+    segment_timeout_s,
     straight_omega_with_slew,
 )
 
@@ -224,7 +225,7 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
 
 
 def run_sim() -> None:
-    print("Clean navigation placeholder: safe chassis controller is idle unless a test mode is selected.")
+    print("Clean navigation chassis controller: real mode is idle unless a test or mission mode is selected.")
 
 
 def run_real(args: argparse.Namespace) -> None:
@@ -593,6 +594,13 @@ def run_real(args: argparse.Namespace) -> None:
 
             dt_s = 0.0 if self.last_mission_update_s is None else max(0.0, now_s - self.last_mission_update_s)
             self.last_mission_update_s = now_s
+            segment_elapsed_s = 0.0 if self.segment_start_s is None else now_s - self.segment_start_s
+            timeout_s = segment_timeout_s(segment, self.config)
+            if timeout_s is not None and segment_elapsed_s > timeout_s:
+                self.mission_state = "abort"
+                self.mission_safety_level = "critical"
+                self.mission_safety_reason = "segment_timeout"
+                return build_stop_command("segment_timeout"), heading, heading_error, "segment_timeout"
 
             if self.mission_safety_level == "degraded":
                 if self.mission_safety_reason in {"sensor_missing", "sensor_stale", "front_clearance_invalid"}:
@@ -631,6 +639,7 @@ def run_real(args: argparse.Namespace) -> None:
                 else:
                     v_cmd = apply_competition_speed_rule(
                         requested_v,
+                        allow_stop=False,
                         min_speed_mps=self.config.competition_min_speed_mps,
                     )
                 self.sub_min_speed_command_blocked = (
@@ -663,6 +672,8 @@ def run_real(args: argparse.Namespace) -> None:
                             float(segment.max_omega_radps),
                         ),
                     )
+                if segment.timeout_s is not None:
+                    pivot_config = replace(pivot_config, pivot_timeout_s=float(segment.timeout_s))
                 step = step_profiled_pivot(
                     self.pivot,
                     now_s=now_s,
@@ -687,8 +698,7 @@ def run_real(args: argparse.Namespace) -> None:
                 return build_stop_command(step.reason), heading, heading_error, "ok"
 
             wait_s = max(0.0, float(segment.wait_s))
-            elapsed_s = 0.0 if self.segment_start_s is None else now_s - self.segment_start_s
-            if elapsed_s >= wait_s:
+            if segment_elapsed_s >= wait_s:
                 return self._finish_mission_segment("segment_complete"), heading, heading_error, "ok"
             return build_stop_command("mission_wait"), heading, heading_error, "ok"
 

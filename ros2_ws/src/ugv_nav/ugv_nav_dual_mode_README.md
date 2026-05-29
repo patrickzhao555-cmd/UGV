@@ -49,6 +49,10 @@ Mission files are JSON or YAML with relative segments:
 }
 ```
 
+`straight` and `pivot` segments may also include `timeout_s`. If omitted,
+straight segments use a conservative timeout derived from distance and commanded
+speed; pivot segments use `nav_pivot_timeout_s`.
+
 Run it through the competition bringup:
 
 ```bash

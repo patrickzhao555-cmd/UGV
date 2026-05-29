@@ -71,6 +71,10 @@ Mission files use relative segments:
 }
 ```
 
+`straight` and `pivot` segments can include an explicit `timeout_s`. If it is
+omitted, straight segments get a conservative timeout from distance and legal
+speed, while pivot segments use the pivot controller timeout.
+
 ## Pivot Primitive
 
 `pivot_test` publishes velocity JSON with `v_mps=0.0`; the motor bridge converts

@@ -126,6 +126,9 @@ class FusionNode(Node):
         self.latest_encoder_pair: Optional[dict] = None
         self.zed_frame_history = deque()
         self.zed_frame_map = {}
+        self.latest_imu_msg: Optional[Imu] = None
+        self.latest_imu_stamp_s: Optional[float] = None
+        self.latest_imu_received_s: Optional[float] = None
         self.latest_semantic_obstacles: Optional[dict] = None
         self.last_encoder_warning_s = 0.0
         self.last_frame_age_warning_s = 0.0
@@ -202,8 +205,9 @@ class FusionNode(Node):
         frame['depth'] = msg
 
     def imu_callback(self, msg: Imu) -> None:
-        frame = self._upsert_zed_frame(msg.header)
-        frame['imu'] = msg
+        self.latest_imu_msg = msg
+        self.latest_imu_stamp_s = self._header_stamp_to_seconds(msg.header)
+        self.latest_imu_received_s = self._clock_now_seconds()
 
     def semantic_obstacles_callback(self, msg: PoseArray) -> None:
         self.latest_semantic_obstacles = {
@@ -234,11 +238,14 @@ class FusionNode(Node):
         image_msg = zed_frame.get('image')
         if image_msg is None:
             image_msg = self._empty_image_like(zed_frame['depth'].header)
+        imu_msg = self._select_imu_for_scan(scan_msg.header)
+        if imu_msg is None:
+            imu_msg = self._empty_imu_like(scan_msg.header)
         self.fused_callback(
             scan_msg,
             image_msg,
             zed_frame['depth'],
-            zed_frame['imu'],
+            imu_msg,
             zed_stamp_age_s=zed_stamp_age_s,
             zed_receive_age_s=zed_receive_age_s,
             zed_available=True,
@@ -506,7 +513,7 @@ class FusionNode(Node):
         freshest_receive_age_s = float('inf')
         freshest_stamp_age_s = float('inf')
         for _, frame in self.zed_frame_history:
-            if frame.get('depth') is None or frame.get('imu') is None:
+            if frame.get('depth') is None:
                 continue
             age_s = abs(frame_stamp_s - float(frame['stamp_s']))
             receive_age_s = max(0.0, now_s - float(frame.get('received_s', frame['stamp_s'])))
@@ -541,6 +548,20 @@ class FusionNode(Node):
 
         best_receive_age_s = max(0.0, now_s - float(best.get('received_s', best['stamp_s'])))
         return best, best_age_s, best_receive_age_s
+
+    def _select_imu_for_scan(self, scan_header) -> Optional[Imu]:
+        if self.latest_imu_msg is None or self.latest_imu_stamp_s is None or self.latest_imu_received_s is None:
+            return None
+        now_s = self._clock_now_seconds()
+        receive_age_s = max(0.0, now_s - float(self.latest_imu_received_s))
+        if receive_age_s > self.zed_fresh_timeout_s:
+            self._warn_zed_gap(f'latest ZED IMU stale for scan fusion (recv_age={receive_age_s:.3f}s)')
+            return None
+        scan_stamp_s = self._header_stamp_to_seconds(scan_header)
+        stamp_age_s = abs(scan_stamp_s - float(self.latest_imu_stamp_s))
+        if stamp_age_s > max(self.sync_slop_s, self.zed_fresh_timeout_s):
+            self._warn_zed_gap(f'latest ZED IMU stamp far from scan (stamp_age={stamp_age_s:.3f}s)')
+        return self.latest_imu_msg
 
     def _compute_lidar_min_range(self, scan_msg: LaserScan) -> float:
         valid = [r for r in scan_msg.ranges if scan_msg.range_min < r < scan_msg.range_max]

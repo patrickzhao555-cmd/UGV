@@ -1,8 +1,8 @@
 # Jetson Chassis Control Architecture
 
-`ugv_nav_dual_mode.py` is now the safe Jetson chassis test entrypoint. It is not
-full mission navigation. Its first job is to verify two high-level behaviors:
-hold a straight heading and pivot to a bounded relative angle.
+`ugv_nav_dual_mode.py` is now the safe Jetson chassis control entrypoint. It
+keeps the calibration test modes, and adds a first mission-sequence mode for
+relative straight/pivot/wait segments.
 
 The active command contract remains:
 
@@ -19,9 +19,8 @@ The split is intentional:
 
 - Teensy: low-level left/right side velocity PID.
 - Jetson motor bridge: thin protocol bridge and motor health/status.
-- Jetson chassis controller: heading/yaw tests that publish `v_mps` and
-  `omega_radps`.
-- Future mission navigation: goal selection and behavior sequencing.
+- Jetson chassis controller: heading/yaw tests and mission sequencing that
+  publish `v_mps` and `omega_radps`.
 
 ## Chassis Test Modes
 
@@ -31,6 +30,8 @@ The split is intentional:
 - `pivot_test`: records current heading, adds a relative target angle, then
   runs a profiled pivot primitive with breakaway, rotate, approach, brake,
   settle, and at most one correction retry.
+- `mission_sequence`: runs a JSON/YAML relative mission with `straight`,
+  `pivot`, and `wait` segments.
 
 The heading estimate integrates high-rate `/zed/imu` gyro data directly. The
 ZED depth/image path can stay at 10 Hz, while IMU defaults to 100 Hz and the
@@ -41,6 +42,34 @@ gyro integration because skid is expected during turns.
 Before each active test, the node holds STOP and calibrates gyro bias. If the
 robot moves or gyro samples are too noisy during calibration, it keeps holding
 STOP and restarts calibration.
+
+## Competition Motion Rule
+
+Mission mode applies the 0-or-at-least-0.2 MPH rule to translational commands:
+
+```text
+v_mps == 0.0
+or
+abs(v_mps) >= 0.089408
+```
+
+Pivot-in-place is allowed as `v_mps=0.0` with nonzero `omega_radps`. STOP is
+allowed before a mission, between segments, after completion, and for safety.
+The default reliable straight speed is `0.15 m/s`, while the rule floor is
+`0.089408 m/s`.
+
+Mission files use relative segments:
+
+```json
+{
+  "mission_id": "course_01",
+  "segments": [
+    {"type": "straight", "distance_m": 1.0, "speed_mps": 0.15},
+    {"type": "pivot", "angle_deg": 90.0},
+    {"type": "straight", "distance_m": 1.0, "speed_mps": 0.15}
+  ]
+}
+```
 
 ## Pivot Primitive
 
@@ -77,10 +106,15 @@ Active test modes publish STOP if:
 - Pivot clearance from the scan is below `nav_pivot_clearance_m`.
 - The bounded test duration elapses.
 
+Mission mode classifies safety as `ok`, `degraded`, or `critical`. Degraded
+conditions may slow to the legal minimum or pause; critical conditions abort
+with STOP.
+
 ## Non-Goals
 
 - No raw PWM from navigation.
 - No motor PID on Jetson.
 - No four-motor independent PID while the robot has only two goBILDA speed
   controller actuator outputs.
-- No full mission navigation inside this test node.
+- No GPS/global planner in v1 mission mode; it composes relative motion
+  primitives only.

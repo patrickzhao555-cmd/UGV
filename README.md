@@ -62,9 +62,22 @@ The cleanup removes the old mixed runtime:
 - old nav core modules and their tests
 - old tuned round launch wrappers
 
-The current `ugv_nav_dual_mode.py` is a STOP-only placeholder. It remains so
-ROS launch has a safe entrypoint while the new Jetson high-level navigation code
-is built.
+`ugv_nav_dual_mode.py` is now the safe Jetson chassis controller entrypoint. It
+keeps `idle`, `straight_test`, and `pivot_test` for bringup, and adds
+`mission_sequence` for relative straight/pivot/wait missions. Navigation still
+publishes only velocity/STOP JSON; raw PWM stays out of Jetson navigation.
+
+Mission mode enforces the competition translational-speed rule:
+
+```text
+v_mps == 0.0
+or
+abs(v_mps) >= 0.089408
+```
+
+So STOP is legal, pivot-in-place is legal as `v_mps=0.0, omega_radps!=0.0`, and
+any forward segment is clamped to at least 0.2 mph unless explicit debug
+sub-min crawl is enabled.
 
 ## Start Clean Runtime
 
@@ -80,4 +93,13 @@ For motor bench with wheels off the ground:
 ```bash
 cd ..
 scripts/run_teensy_side_pid_bench.sh --yes
+```
+
+For a dry mission-sequence run, provide a mission JSON file:
+
+```bash
+cd ros2_ws
+ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  nav_controller_mode:=mission_sequence \
+  nav_mission_file:=/path/to/course_01.json
 ```

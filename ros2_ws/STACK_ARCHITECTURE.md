@@ -26,11 +26,12 @@ they should not change the drivetrain contract.
 
 ## 3. Navigation
 
-`ugv_nav/ugv_nav_dual_mode.py` is currently a safe clean-slate placeholder. It
-publishes STOP only while the new Jetson high-level navigation stack is being
-designed.
+`ugv_nav/ugv_nav_dual_mode.py` is the safe Jetson chassis controller entrypoint.
+It provides STOP-only `idle`, bounded calibration modes (`straight_test` and
+`pivot_test`), and a first `mission_sequence` mode for relative straight,
+pivot, and wait segments.
 
-The future active navigation contract is velocity-only JSON on `/ugv_nav_cmd`:
+The active navigation contract is velocity-only JSON on `/ugv_nav_cmd`:
 
 ```json
 {"command_type":"velocity","v_mps":0.20,"omega_radps":0.35}
@@ -38,6 +39,18 @@ The future active navigation contract is velocity-only JSON on `/ugv_nav_cmd`:
 
 Navigation must not publish raw PWM and must not run motor PID. Its job is
 high-level pathing, obstacle avoidance, mission logic, and velocity intent.
+
+Mission mode applies the competition motion rule to translational speed:
+
+```text
+v_mps == 0.0
+or
+abs(v_mps) >= 0.089408
+```
+
+STOP is legal, pivot-in-place is legal with `v_mps=0.0` and nonzero
+`omega_radps`, and straight mission segments are clamped to at least 0.2 mph by
+default.
 
 ## 4. Actuation
 
@@ -79,7 +92,8 @@ Same-side synchronization is diagnostic only.
 
 ## 5. Debug Topics
 
-- `/ugv_nav_status`: current navigation placeholder status, later new nav status
+- `/ugv_nav_status`: chassis controller status, mission state, speed-rule
+  compliance, safety reason, and turn/heading telemetry
 - `/motor_controller/status`: Teensy side PID bridge status and PID debug
 - `/encoder_ticks_stamped`: four encoder tick values with controller millis
 - `/sensors/synced_summary`: fusion and sensor-health summary

@@ -14,10 +14,55 @@ When a test mode is explicitly selected, it still uses one command contract:
 - `idle`: STOP only.
 - `straight_test`: drive forward while holding the start heading.
 - `pivot_test`: profiled tank-drive turn to a bounded relative angle.
+- `mission_sequence`: run relative straight/pivot/wait mission segments.
 
 The Teensy remains the only motor velocity PID layer. Jetson heading correction
 is done by changing `omega_radps`; navigation must not publish raw PWM and must
 not run motor PID.
+
+## Competition Motion Rule
+
+Mission mode enforces:
+
+```text
+v_mps == 0.0
+or
+abs(v_mps) >= 0.089408
+```
+
+This means STOP is allowed, pivot-in-place is allowed as `v_mps=0.0`, and
+straight motion is never commanded below 0.2 mph unless explicit debug sub-min
+crawl is enabled.
+
+## Mission Sequence
+
+Mission files are JSON or YAML with relative segments:
+
+```json
+{
+  "mission_id": "course_01",
+  "segments": [
+    {"type": "straight", "distance_m": 1.0, "speed_mps": 0.15},
+    {"type": "pivot", "angle_deg": 90.0},
+    {"type": "straight", "distance_m": 1.0, "speed_mps": 0.15}
+  ]
+}
+```
+
+Run it through the competition bringup:
+
+```bash
+ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  nav_controller_mode:=mission_sequence \
+  nav_mission_file:=/home/bluelule/ugv_project/missions/course_01.json
+```
+
+Mission telemetry is written to `~/.ros/ugv_mission_logs` by default. Analyze a
+log with:
+
+```bash
+python3 tools/analyze_mission_log.py ~/.ros/ugv_mission_logs/<log>.jsonl
+```
 
 ## Pivot Test
 

@@ -96,6 +96,18 @@ def generate_launch_description():
     nav_pivot_max_correction_retries = LaunchConfiguration("nav_pivot_max_correction_retries")
     nav_pivot_clearance_m = LaunchConfiguration("nav_pivot_clearance_m")
     nav_slip_disagreement_rad = LaunchConfiguration("nav_slip_disagreement_rad")
+    nav_mission_file = LaunchConfiguration("nav_mission_file")
+    nav_competition_min_speed_mps = LaunchConfiguration("nav_competition_min_speed_mps")
+    nav_mission_default_speed_mps = LaunchConfiguration("nav_mission_default_speed_mps")
+    nav_mission_reliable_speed_mps = LaunchConfiguration("nav_mission_reliable_speed_mps")
+    nav_mission_slow_speed_mps = LaunchConfiguration("nav_mission_slow_speed_mps")
+    nav_mission_emergency_stop_clearance_m = LaunchConfiguration("nav_mission_emergency_stop_clearance_m")
+    nav_mission_critical_sensor_timeout_s = LaunchConfiguration("nav_mission_critical_sensor_timeout_s")
+    nav_mission_straight_max_omega_radps = LaunchConfiguration("nav_mission_straight_max_omega_radps")
+    nav_mission_straight_omega_slew_radps2 = LaunchConfiguration("nav_mission_straight_omega_slew_radps2")
+    nav_debug_allow_sub_min_crawl = LaunchConfiguration("nav_debug_allow_sub_min_crawl")
+    nav_telemetry_enabled = LaunchConfiguration("nav_telemetry_enabled")
+    nav_telemetry_dir = LaunchConfiguration("nav_telemetry_dir")
 
     motor_controller_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(motor_launch)),
@@ -233,6 +245,30 @@ def generate_launch_description():
             nav_pivot_clearance_m,
             "--slip-disagreement-rad",
             nav_slip_disagreement_rad,
+            "--mission-file",
+            nav_mission_file,
+            "--competition-min-speed-mps",
+            nav_competition_min_speed_mps,
+            "--mission-default-speed-mps",
+            nav_mission_default_speed_mps,
+            "--mission-reliable-speed-mps",
+            nav_mission_reliable_speed_mps,
+            "--mission-slow-speed-mps",
+            nav_mission_slow_speed_mps,
+            "--mission-emergency-stop-clearance-m",
+            nav_mission_emergency_stop_clearance_m,
+            "--mission-critical-sensor-timeout-s",
+            nav_mission_critical_sensor_timeout_s,
+            "--mission-straight-max-omega-radps",
+            nav_mission_straight_max_omega_radps,
+            "--mission-straight-omega-slew-radps2",
+            nav_mission_straight_omega_slew_radps2,
+            "--debug-allow-sub-min-crawl",
+            nav_debug_allow_sub_min_crawl,
+            "--telemetry-enabled",
+            nav_telemetry_enabled,
+            "--telemetry-dir",
+            nav_telemetry_dir,
             "--track-width-m",
             motor_track_width_m,
             "--wheel-radius-m",
@@ -321,6 +357,18 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_pivot_max_correction_retries", default_value="1"),
             DeclareLaunchArgument("nav_pivot_clearance_m", default_value="0.35"),
             DeclareLaunchArgument("nav_slip_disagreement_rad", default_value="0.35"),
+            DeclareLaunchArgument("nav_mission_file", default_value=""),
+            DeclareLaunchArgument("nav_competition_min_speed_mps", default_value="0.089408"),
+            DeclareLaunchArgument("nav_mission_default_speed_mps", default_value="0.15"),
+            DeclareLaunchArgument("nav_mission_reliable_speed_mps", default_value="0.15"),
+            DeclareLaunchArgument("nav_mission_slow_speed_mps", default_value="0.09"),
+            DeclareLaunchArgument("nav_mission_emergency_stop_clearance_m", default_value="0.18"),
+            DeclareLaunchArgument("nav_mission_critical_sensor_timeout_s", default_value="1.0"),
+            DeclareLaunchArgument("nav_mission_straight_max_omega_radps", default_value="0.20"),
+            DeclareLaunchArgument("nav_mission_straight_omega_slew_radps2", default_value="0.80"),
+            DeclareLaunchArgument("nav_debug_allow_sub_min_crawl", default_value="false"),
+            DeclareLaunchArgument("nav_telemetry_enabled", default_value="true"),
+            DeclareLaunchArgument("nav_telemetry_dir", default_value="~/.ros/ugv_mission_logs"),
             motor_controller_launch,
             sensor_sync_launch,
             nav_placeholder,

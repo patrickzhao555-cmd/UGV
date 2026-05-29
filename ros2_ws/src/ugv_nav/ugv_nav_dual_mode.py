@@ -13,7 +13,7 @@ import argparse
 import json
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Dict, Optional
 
 from ugv_nav_core.chassis_controller import (
@@ -34,6 +34,18 @@ from ugv_nav_core.chassis_controller import (
     update_encoder_heading,
     update_gyro_bias_calibration,
     update_gyro_heading,
+)
+from ugv_nav_core.mission_controller import (
+    MissionPlan,
+    MissionSegment,
+    MissionTelemetryRecorder,
+    apply_competition_speed_rule,
+    classify_mission_safety,
+    encoder_average_distance_m,
+    heading_error_rms,
+    load_mission_plan,
+    motion_rule_ok,
+    straight_omega_with_slew,
 )
 
 
@@ -73,13 +85,26 @@ def build_velocity_command(v_mps: float, omega_radps: float, reason: str) -> Con
     )
 
 
+def parse_bool(value: str) -> bool:
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(f"invalid boolean value: {value!r}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Safe UGV chassis controller. Default mode publishes STOP.",
         allow_abbrev=False,
     )
     parser.add_argument("--mode", choices=["sim", "real"], default="sim")
-    parser.add_argument("--controller-mode", choices=["idle", "straight_test", "pivot_test"], default="idle")
+    parser.add_argument(
+        "--controller-mode",
+        choices=["idle", "straight_test", "pivot_test", "mission_sequence"],
+        default="idle",
+    )
     parser.add_argument("--command-topic", default="/ugv_nav_cmd")
     parser.add_argument("--status-topic", default="/ugv_nav_status")
     parser.add_argument("--nav-frame-topic", default="/sensors/nav_frame")
@@ -124,6 +149,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pivot-max-correction-retries", type=int, default=1)
     parser.add_argument("--pivot-clearance-m", type=float, default=0.35)
     parser.add_argument("--slip-disagreement-rad", type=float, default=0.35)
+    parser.add_argument("--mission-file", default="")
+    parser.add_argument("--competition-min-speed-mps", type=float, default=0.089408)
+    parser.add_argument("--mission-default-speed-mps", type=float, default=0.15)
+    parser.add_argument("--mission-reliable-speed-mps", type=float, default=0.15)
+    parser.add_argument("--mission-slow-speed-mps", type=float, default=0.09)
+    parser.add_argument("--mission-emergency-stop-clearance-m", type=float, default=0.18)
+    parser.add_argument("--mission-critical-sensor-timeout-s", type=float, default=1.0)
+    parser.add_argument("--mission-straight-max-omega-radps", type=float, default=0.20)
+    parser.add_argument("--mission-straight-omega-slew-radps2", type=float, default=0.80)
+    parser.add_argument("--debug-allow-sub-min-crawl", type=parse_bool, default=False)
+    parser.add_argument("--telemetry-enabled", type=parse_bool, default=True)
+    parser.add_argument("--telemetry-dir", default="~/.ros/ugv_mission_logs")
     parser.add_argument("--track-width-m", type=float, default=0.425)
     parser.add_argument("--wheel-radius-m", type=float, default=0.0825)
     parser.add_argument("--ticks-per-rev", type=float, default=3200.0)
@@ -171,6 +208,15 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         pivot_max_correction_retries=int(args.pivot_max_correction_retries),
         pivot_clearance_m=float(args.pivot_clearance_m),
         slip_disagreement_rad=float(args.slip_disagreement_rad),
+        competition_min_speed_mps=float(args.competition_min_speed_mps),
+        mission_default_speed_mps=float(args.mission_default_speed_mps),
+        mission_reliable_speed_mps=float(args.mission_reliable_speed_mps),
+        mission_slow_speed_mps=float(args.mission_slow_speed_mps),
+        mission_emergency_stop_clearance_m=float(args.mission_emergency_stop_clearance_m),
+        mission_critical_sensor_timeout_s=float(args.mission_critical_sensor_timeout_s),
+        mission_straight_max_omega_radps=float(args.mission_straight_max_omega_radps),
+        mission_straight_omega_slew_radps2=float(args.mission_straight_omega_slew_radps2),
+        debug_allow_sub_min_crawl=bool(args.debug_allow_sub_min_crawl),
         track_width_m=float(args.track_width_m),
         wheel_radius_m=float(args.wheel_radius_m),
         ticks_per_rev=float(args.ticks_per_rev),
@@ -192,6 +238,14 @@ def run_real(args: argparse.Namespace) -> None:
         raise SystemExit(f"ROS 2 Python packages are required for real mode: {exc}") from exc
 
     config = config_from_args(args)
+    mission_plan: Optional[MissionPlan] = None
+    if str(args.controller_mode) == "mission_sequence":
+        if not str(args.mission_file).strip():
+            raise SystemExit("--mission-file is required for controller-mode=mission_sequence")
+        try:
+            mission_plan = load_mission_plan(str(args.mission_file))
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"Failed to load mission file: {exc}") from exc
 
     class ChassisControllerNode(Node):
         def __init__(self) -> None:
@@ -220,6 +274,28 @@ def run_real(args: argparse.Namespace) -> None:
             self.last_safety_log_s = 0.0
             self.last_safety_reason: Optional[str] = None
             self.last_command_payload: Dict[str, Any] = json.loads(build_stop_command().to_json())
+            self.current_left_ticks: Optional[int] = None
+            self.current_right_ticks: Optional[int] = None
+            self.encoder_available = False
+            self.mission_plan = mission_plan
+            self.mission_state = "idle"
+            self.mission_safety_level = "ok"
+            self.mission_safety_reason = "idle"
+            self.segment_index: Optional[int] = None
+            self.segment_start_s: Optional[float] = None
+            self.segment_start_left_ticks: Optional[int] = None
+            self.segment_start_right_ticks: Optional[int] = None
+            self.segment_distance_m = 0.0
+            self.target_distance_m: Optional[float] = None
+            self.previous_straight_omega_radps = 0.0
+            self.last_mission_update_s: Optional[float] = None
+            self.straight_heading_error_samples: list[float] = []
+            self.sub_min_speed_command_blocked = False
+            self.telemetry = MissionTelemetryRecorder(
+                enabled=bool(args.telemetry_enabled) and self.mission_plan is not None,
+                telemetry_dir=str(args.telemetry_dir),
+                mission_id=self.mission_plan.mission_id if self.mission_plan is not None else "mission",
+            )
 
             self.imu_axis = str(args.imu_yaw_axis)
             self.imu_sign = -1.0 if float(args.imu_yaw_sign) < 0.0 else 1.0
@@ -241,11 +317,14 @@ def run_real(args: argparse.Namespace) -> None:
             self.front_clearance_m = float(msg.front_clearance_m)
             self.last_scan_ranges = [float(value) for value in getattr(msg.scan, "ranges", [])]
             self.pivot_clearance_m = min_finite_range(self.last_scan_ranges)
+            self.current_left_ticks = int(msg.left_encoder_ticks)
+            self.current_right_ticks = int(msg.right_encoder_ticks)
+            self.encoder_available = bool(msg.encoder_available)
             self.estimator = update_encoder_heading(
                 self.estimator,
-                left_ticks=int(msg.left_encoder_ticks),
-                right_ticks=int(msg.right_encoder_ticks),
-                encoder_available=bool(msg.encoder_available),
+                left_ticks=self.current_left_ticks,
+                right_ticks=self.current_right_ticks,
+                encoder_available=self.encoder_available,
                 config=self.config,
             )
 
@@ -368,6 +447,251 @@ def run_real(args: argparse.Namespace) -> None:
                     return pivot_safety.reason
             return "ok"
 
+        def _reset_mission_state(self) -> None:
+            self.mission_state = "idle"
+            self.mission_safety_level = "ok"
+            self.mission_safety_reason = "idle"
+            self.segment_index = None
+            self.segment_start_s = None
+            self.segment_start_left_ticks = None
+            self.segment_start_right_ticks = None
+            self.segment_distance_m = 0.0
+            self.target_distance_m = None
+            self.previous_straight_omega_radps = 0.0
+            self.last_mission_update_s = None
+            self.straight_heading_error_samples.clear()
+            self.target_heading_rad = None
+            reset_pivot(self.pivot)
+
+        def _current_segment(self) -> Optional[MissionSegment]:
+            if self.mission_plan is None or self.segment_index is None:
+                return None
+            if self.segment_index < 0 or self.segment_index >= len(self.mission_plan.segments):
+                return None
+            return self.mission_plan.segments[self.segment_index]
+
+        def _start_mission_segment(self, now_s: float) -> None:
+            segment = self._current_segment()
+            if segment is None:
+                self.mission_state = "mission_complete"
+                self.target_distance_m = None
+                return
+            self.segment_start_s = now_s
+            self.segment_start_left_ticks = self.current_left_ticks
+            self.segment_start_right_ticks = self.current_right_ticks
+            self.segment_distance_m = 0.0
+            self.previous_straight_omega_radps = 0.0
+            self.last_mission_update_s = now_s
+            self.straight_heading_error_samples.clear()
+            if segment.segment_type == "straight":
+                self.target_heading_rad = self.estimator.heading_rad
+                self.target_distance_m = segment.distance_m
+                self.mission_state = "straight_active"
+            elif segment.segment_type == "pivot":
+                reset_pivot(self.pivot)
+                start_pivot(
+                    self.pivot,
+                    now_s=now_s,
+                    current_heading_rad=self.estimator.heading_rad,
+                    encoder_heading_rad=self.estimator.encoder_heading_rad,
+                    target_angle_rad=math.radians(segment.angle_deg),
+                )
+                self.target_heading_rad = self.pivot.target_heading_rad
+                self.target_distance_m = None
+                self.mission_state = "pivot_active"
+            else:
+                self.target_heading_rad = self.estimator.heading_rad
+                self.target_distance_m = None
+                self.mission_state = "wait_active"
+
+        def _finish_mission_segment(self, reason: str) -> ControlCommand:
+            if self.segment_index is None:
+                self.mission_state = "mission_complete"
+                return build_stop_command("mission_complete")
+            self.segment_index += 1
+            reset_pivot(self.pivot)
+            self.previous_straight_omega_radps = 0.0
+            self.segment_start_s = None
+            self.target_heading_rad = None
+            self.target_distance_m = None
+            if self.mission_plan is None or self.segment_index >= len(self.mission_plan.segments):
+                self.mission_state = "mission_complete"
+                return build_stop_command("mission_complete")
+            self.mission_state = "segment_complete"
+            return build_stop_command(reason)
+
+        def _mission_segment_distance(self) -> float:
+            self.segment_distance_m = encoder_average_distance_m(
+                start_left_ticks=self.segment_start_left_ticks,
+                start_right_ticks=self.segment_start_right_ticks,
+                current_left_ticks=self.current_left_ticks,
+                current_right_ticks=self.current_right_ticks,
+                config=self.config,
+            )
+            return self.segment_distance_m
+
+        def _evaluate_mission_safety(self, now_s: float) -> None:
+            decision = classify_mission_safety(
+                now_s=now_s,
+                last_sensor_s=self.last_sensor_s,
+                last_imu_s=self.last_imu_s,
+                last_motor_status_s=self.last_motor_status_s,
+                motor_status=self.motor_status,
+                near_obstacle=self.near_obstacle,
+                front_clearance_m=self.front_clearance_m,
+                config=self.config,
+                require_imu=True,
+            )
+            self.mission_safety_level = decision.level
+            self.mission_safety_reason = decision.reason
+
+        def _tick_mission(self, now_s: float) -> tuple[ControlCommand, float, float, str]:
+            heading = self.estimator.heading_rad
+            heading_error = 0.0
+            self.sub_min_speed_command_blocked = False
+            if self.mission_plan is None:
+                self.mission_state = "abort"
+                self.mission_safety_level = "critical"
+                self.mission_safety_reason = "mission_missing"
+                return build_stop_command("mission_missing"), heading, heading_error, "mission_missing"
+            if self.mission_state == "mission_complete":
+                return build_stop_command("mission_complete"), heading, heading_error, "ok"
+            if self.mission_state == "abort":
+                return build_stop_command(self.mission_safety_reason), heading, heading_error, self.mission_safety_reason
+
+            if self.mission_state == "idle":
+                self.mission_state = "preflight"
+            self._evaluate_mission_safety(now_s)
+            if self.mission_safety_level == "critical":
+                if self.segment_index is None and self.mission_state in {"preflight", "gyro_bias_calibration"}:
+                    self._log_safety_stop(self.mission_safety_reason, now_s)
+                    return (
+                        build_stop_command(self.mission_safety_reason),
+                        heading,
+                        heading_error,
+                        self.mission_safety_reason,
+                    )
+                self.mission_state = "abort"
+                self._log_safety_stop(self.mission_safety_reason, now_s)
+                return build_stop_command(self.mission_safety_reason), heading, heading_error, self.mission_safety_reason
+
+            calibrated, calibration_reason = self._calibrate_gyro_bias_if_needed(now_s)
+            if not calibrated:
+                self.mission_state = "gyro_bias_calibration"
+                return build_stop_command(calibration_reason), heading, heading_error, calibration_reason
+
+            if self.segment_index is None:
+                self.segment_index = 0
+                self.mission_state = "segment_start"
+            if self.mission_state in {"segment_start", "segment_complete"}:
+                self._start_mission_segment(now_s)
+                return build_stop_command("segment_start"), heading, heading_error, "ok"
+            segment = self._current_segment()
+            if segment is None:
+                self.mission_state = "mission_complete"
+                return build_stop_command("mission_complete"), heading, heading_error, "ok"
+
+            dt_s = 0.0 if self.last_mission_update_s is None else max(0.0, now_s - self.last_mission_update_s)
+            self.last_mission_update_s = now_s
+
+            if self.mission_safety_level == "degraded":
+                if self.mission_safety_reason in {"sensor_missing", "sensor_stale", "front_clearance_invalid"}:
+                    return build_stop_command(self.mission_safety_reason), heading, heading_error, self.mission_safety_reason
+                if segment.segment_type == "straight":
+                    pass
+                elif segment.segment_type == "pivot":
+                    pivot_safety = evaluate_pivot_clearance(self.last_scan_ranges, self.config)
+                    if not pivot_safety.safe:
+                        return build_stop_command(pivot_safety.reason), heading, heading_error, pivot_safety.reason
+
+            if segment.segment_type == "straight":
+                distance_m = self._mission_segment_distance()
+                if distance_m >= segment.distance_m:
+                    return self._finish_mission_segment("segment_complete"), heading, heading_error, "ok"
+                if not self.encoder_available:
+                    self.mission_safety_level = "degraded"
+                    self.mission_safety_reason = "encoder_unavailable"
+                    return build_stop_command("encoder_unavailable"), heading, heading_error, "encoder_unavailable"
+                target_heading = self.target_heading_rad if self.target_heading_rad is not None else heading
+                heading_error = math.atan2(math.sin(target_heading - heading), math.cos(target_heading - heading))
+                self.straight_heading_error_samples.append(heading_error)
+                if self.mission_safety_level == "degraded":
+                    requested_v = self.config.mission_slow_speed_mps
+                    reason = f"mission_degraded:{self.mission_safety_reason}"
+                else:
+                    requested_v = (
+                        self.config.mission_default_speed_mps
+                        if segment.speed_mps is None
+                        else float(segment.speed_mps)
+                    )
+                    reason = "mission_straight"
+                raw_requested_v = requested_v
+                if self.config.debug_allow_sub_min_crawl:
+                    v_cmd = 0.0 if abs(requested_v) < 1e-6 else float(requested_v)
+                else:
+                    v_cmd = apply_competition_speed_rule(
+                        requested_v,
+                        min_speed_mps=self.config.competition_min_speed_mps,
+                    )
+                self.sub_min_speed_command_blocked = (
+                    abs(raw_requested_v) >= 1e-6
+                    and abs(raw_requested_v) < self.config.competition_min_speed_mps
+                    and abs(v_cmd) >= self.config.competition_min_speed_mps
+                )
+                omega = straight_omega_with_slew(
+                    heading_error_rad=heading_error,
+                    yaw_rate_radps=self.yaw_rate_radps,
+                    previous_omega_radps=self.previous_straight_omega_radps,
+                    dt_s=dt_s,
+                    config=self.config,
+                )
+                self.previous_straight_omega_radps = omega
+                return build_velocity_command(v_cmd, omega, reason), heading, heading_error, "ok"
+
+            if segment.segment_type == "pivot":
+                pivot_safety = evaluate_pivot_clearance(self.last_scan_ranges, self.config)
+                if not pivot_safety.safe:
+                    self.mission_safety_level = "degraded"
+                    self.mission_safety_reason = pivot_safety.reason
+                    return build_stop_command(pivot_safety.reason), heading, heading_error, pivot_safety.reason
+                pivot_config = self.config
+                if segment.max_omega_radps is not None:
+                    pivot_config = replace(
+                        self.config,
+                        pivot_max_omega_radps=min(
+                            self.config.pivot_max_omega_radps,
+                            float(segment.max_omega_radps),
+                        ),
+                    )
+                step = step_profiled_pivot(
+                    self.pivot,
+                    now_s=now_s,
+                    heading_rad=heading,
+                    yaw_rate_radps=self.yaw_rate_radps,
+                    encoder_heading_rad=self.estimator.encoder_heading_rad,
+                    config=pivot_config,
+                )
+                heading_error = step.heading_error_rad
+                self.target_heading_rad = self.pivot.target_heading_rad
+                self.encoder_gyro_disagreement_rad = pivot_encoder_gyro_disagreement(
+                    pivot_start_gyro_heading_rad=self.pivot.start_heading_rad,
+                    pivot_start_encoder_heading_rad=self.pivot.start_encoder_heading_rad,
+                    current_gyro_heading_rad=self.estimator.gyro_heading_rad,
+                    current_encoder_heading_rad=self.estimator.encoder_heading_rad,
+                )
+                self.slip_detected = self.encoder_gyro_disagreement_rad > self.config.slip_disagreement_rad
+                if step.complete:
+                    return self._finish_mission_segment("segment_complete"), heading, heading_error, "ok"
+                if step.command_type == "velocity":
+                    return build_velocity_command(0.0, step.omega_radps, step.reason), heading, heading_error, "ok"
+                return build_stop_command(step.reason), heading, heading_error, "ok"
+
+            wait_s = max(0.0, float(segment.wait_s))
+            elapsed_s = 0.0 if self.segment_start_s is None else now_s - self.segment_start_s
+            if elapsed_s >= wait_s:
+                return self._finish_mission_segment("segment_complete"), heading, heading_error, "ok"
+            return build_stop_command("mission_wait"), heading, heading_error, "ok"
+
         def tick(self) -> None:
             now_s = time.monotonic()
             heading = self.estimator.heading_rad
@@ -377,6 +701,9 @@ def run_real(args: argparse.Namespace) -> None:
 
             if self.mode == "idle":
                 self._reset_test_state()
+                self._reset_mission_state()
+            elif self.mode == "mission_sequence":
+                cmd, heading, heading_error, safety_state = self._tick_mission(now_s)
             else:
                 safety_state = self._evaluate_active_safety(now_s)
                 if safety_state != "ok":
@@ -483,6 +810,22 @@ def run_real(args: argparse.Namespace) -> None:
                 "nav_runtime": "chassis_controller",
                 "controller_mode": self.mode,
                 "active": self.last_command_payload.get("command_type") == "velocity",
+                "mission_active": self.mode == "mission_sequence" and self.mission_state not in {"idle", "mission_complete"},
+                "mission_state": self.mission_state,
+                "segment_index": self.segment_index,
+                "segment_type": None if self._current_segment() is None else self._current_segment().segment_type,
+                "segment_distance_m": self.segment_distance_m,
+                "target_distance_m": self.target_distance_m,
+                "competition_min_speed_mps": self.config.competition_min_speed_mps,
+                "motion_rule_ok": motion_rule_ok(
+                    float(self.last_command_payload.get("v_mps", 0.0)),
+                    min_speed_mps=self.config.competition_min_speed_mps,
+                ),
+                "sub_min_speed_command_blocked": self.sub_min_speed_command_blocked,
+                "below_reliable_motion_speed": (
+                    abs(float(self.last_command_payload.get("v_mps", 0.0))) >= 1e-6
+                    and abs(float(self.last_command_payload.get("v_mps", 0.0))) < self.config.mission_reliable_speed_mps
+                ),
                 "pivot_state": pivot_state,
                 "target_heading_rad": self.target_heading_rad,
                 "estimated_heading_rad": heading,
@@ -500,6 +843,11 @@ def run_real(args: argparse.Namespace) -> None:
                 "v_mps": self.last_command_payload.get("v_mps", 0.0),
                 "omega_radps": self.last_command_payload.get("omega_radps", 0.0),
                 "safety_state": safety_state,
+                "safety_level": self.mission_safety_level if self.mode == "mission_sequence" else (
+                    "ok" if safety_state in {"idle", "ok"} else "critical"
+                ),
+                "safety_reason": self.mission_safety_reason if self.mode == "mission_sequence" else safety_state,
+                "straight_heading_error_rms": heading_error_rms(self.straight_heading_error_samples),
                 "near_obstacle": self.near_obstacle,
                 "front_clearance_m": self.front_clearance_m,
                 "pivot_clearance_m": self.pivot_clearance_m,
@@ -509,19 +857,24 @@ def run_real(args: argparse.Namespace) -> None:
                     None if self.last_motor_status_s is None else round(now_s - self.last_motor_status_s, 3)
                 ),
                 "last_command": self.last_command_payload,
+                "telemetry_path": None if self.telemetry.path is None else str(self.telemetry.path),
                 "timestamp_s": round(time.time(), 3),
             }
             self.status_pub.publish(String(data=json.dumps(status, sort_keys=True)))
+            self.telemetry.write(status)
             self.last_status_publish_s = now_s
 
     rclpy.init()
-    node = ChassisControllerNode()
+    node: Optional[ChassisControllerNode] = None
     try:
+        node = ChassisControllerNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
+        if node is not None:
+            node.telemetry.close()
+            node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
 

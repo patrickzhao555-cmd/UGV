@@ -44,6 +44,15 @@ class ChassisControllerConfig:
     pivot_max_correction_retries: int = 1
     pivot_clearance_m: float = 0.35
     slip_disagreement_rad: float = 0.35
+    competition_min_speed_mps: float = 0.089408
+    mission_default_speed_mps: float = 0.15
+    mission_reliable_speed_mps: float = 0.15
+    mission_slow_speed_mps: float = 0.09
+    mission_emergency_stop_clearance_m: float = 0.18
+    mission_critical_sensor_timeout_s: float = 1.0
+    mission_straight_max_omega_radps: float = 0.20
+    mission_straight_omega_slew_radps2: float = 0.80
+    debug_allow_sub_min_crawl: bool = False
     track_width_m: float = 0.425
     wheel_radius_m: float = 0.0825
     ticks_per_rev: float = 3200.0
@@ -163,6 +172,17 @@ def encoder_yaw_delta(
     left_m = float(left_delta_ticks) / ticks * circumference_m
     right_m = float(right_delta_ticks) / ticks * circumference_m
     return (right_m - left_m) / track
+
+
+def encoder_ticks_to_distance_m(
+    delta_ticks: float,
+    *,
+    wheel_radius_m: float,
+    ticks_per_rev: float,
+) -> float:
+    ticks = max(1e-6, float(ticks_per_rev))
+    circumference_m = 2.0 * math.pi * max(1e-6, float(wheel_radius_m))
+    return float(delta_ticks) / ticks * circumference_m
 
 
 def update_gyro_heading(

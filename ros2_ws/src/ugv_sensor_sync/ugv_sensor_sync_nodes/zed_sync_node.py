@@ -29,6 +29,7 @@ class ZedSyncNode(Node):
         self.declare_parameter('depth_frame_id', 'zed_depth')
         self.declare_parameter('imu_frame_id', 'zed_imu')
         self.declare_parameter('publish_rate_hz', 10.0)
+        self.declare_parameter('imu_publish_rate_hz', 100.0)
         self.declare_parameter('publish_image', False)
         self.declare_parameter('depth_downsample_factor', 2)
         self.declare_parameter('status_topic', '/zed/status')
@@ -41,6 +42,7 @@ class ZedSyncNode(Node):
         self.depth_frame_id = self.get_parameter('depth_frame_id').value
         self.imu_frame_id = self.get_parameter('imu_frame_id').value
         publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
+        imu_publish_rate_hz = float(self.get_parameter('imu_publish_rate_hz').value)
         self.publish_image = bool(self.get_parameter('publish_image').value)
         self.depth_downsample_factor = max(1, int(self.get_parameter('depth_downsample_factor').value))
         status_topic = self.get_parameter('status_topic').value
@@ -54,6 +56,7 @@ class ZedSyncNode(Node):
         self.imu_pub = self.create_publisher(Imu, imu_topic, qos_profile_sensor_data)
         self.status_pub = self.create_publisher(String, status_topic, 10)
         self.frame_count = 0
+        self.imu_count = 0
         self.last_status_s = 0.0
 
         self.zed = sl.Camera()
@@ -72,10 +75,12 @@ class ZedSyncNode(Node):
         self.sensor_data = sl.SensorsData()
 
         self.create_timer(1.0 / max(publish_rate_hz, 1.0), self.grab_frame)
+        self.create_timer(1.0 / max(imu_publish_rate_hz, 1.0), self.publish_imu)
         self.get_logger().info(
             'ZED sync node started '
             f'(image={"disabled" if not self.publish_image else image_topic}, '
             f'depth={depth_topic}, imu={imu_topic}, '
+            f'depth_rate={publish_rate_hz:.1f}Hz, imu_rate={imu_publish_rate_hz:.1f}Hz, '
             f'status={status_topic}, '
             f'depth_downsample_factor={self.depth_downsample_factor}, '
             f'cv_bridge={"enabled" if self.bridge is not None else "disabled"})'
@@ -111,7 +116,12 @@ class ZedSyncNode(Node):
             )
         )
 
-        self.zed.get_sensors_data(self.sensor_data, sl.TIME_REFERENCE.IMAGE)
+        self._publish_status(depth_np, stamp)
+
+    def publish_imu(self):
+        stamp = self.get_clock().now().to_msg()
+        if self.zed.get_sensors_data(self.sensor_data, sl.TIME_REFERENCE.CURRENT) != sl.ERROR_CODE.SUCCESS:
+            return
         imu = self.sensor_data.get_imu_data()
         lin = imu.get_linear_acceleration()
         ang = imu.get_angular_velocity()
@@ -125,7 +135,7 @@ class ZedSyncNode(Node):
         imu_msg.angular_velocity.y = ang[1]
         imu_msg.angular_velocity.z = ang[2]
         self.imu_pub.publish(imu_msg)
-        self._publish_status(depth_np, stamp)
+        self.imu_count += 1
 
     def _publish_status(self, depth_np, stamp) -> None:
         now_s = self.get_clock().now().nanoseconds / 1e9
@@ -147,6 +157,7 @@ class ZedSyncNode(Node):
         status = {
             'stamp_sec': float(stamp.sec) + float(stamp.nanosec) / 1e9,
             'frame_count': self.frame_count,
+            'imu_count': self.imu_count,
             'depth_shape': [int(depth_np.shape[0]), int(depth_np.shape[1])],
             'valid_depth_samples': int(valid.size),
             'depth_min_m': self._finite_or_none(depth_min),

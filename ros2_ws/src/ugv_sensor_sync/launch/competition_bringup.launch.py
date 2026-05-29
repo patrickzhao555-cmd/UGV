@@ -29,6 +29,7 @@ def generate_launch_description():
     start_fusion = LaunchConfiguration("start_fusion")
     lidar_port = LaunchConfiguration("lidar_port")
     lidar_baud = LaunchConfiguration("lidar_baud")
+    zed_imu_publish_rate_hz = LaunchConfiguration("zed_imu_publish_rate_hz")
     motor_port = LaunchConfiguration("motor_port")
     motor_baud = LaunchConfiguration("motor_baud")
     motor_dry_run = LaunchConfiguration("motor_dry_run")
@@ -53,8 +54,13 @@ def generate_launch_description():
     motor_teensy_side_mismatch_fault_tps = LaunchConfiguration("motor_teensy_side_mismatch_fault_tps")
     motor_teensy_encoder_jump_tps = LaunchConfiguration("motor_teensy_encoder_jump_tps")
     nav_status_period_s = LaunchConfiguration("nav_status_period_s")
+    nav_control_period_s = LaunchConfiguration("nav_control_period_s")
     nav_controller_mode = LaunchConfiguration("nav_controller_mode")
     nav_frame_topic = LaunchConfiguration("nav_frame_topic")
+    nav_imu_topic = LaunchConfiguration("nav_imu_topic")
+    nav_imu_yaw_axis = LaunchConfiguration("nav_imu_yaw_axis")
+    nav_imu_yaw_sign = LaunchConfiguration("nav_imu_yaw_sign")
+    nav_imu_timeout_s = LaunchConfiguration("nav_imu_timeout_s")
     nav_motor_status_topic = LaunchConfiguration("nav_motor_status_topic")
     nav_straight_speed_mps = LaunchConfiguration("nav_straight_speed_mps")
     nav_straight_duration_s = LaunchConfiguration("nav_straight_duration_s")
@@ -69,6 +75,27 @@ def generate_launch_description():
     nav_motor_status_timeout_s = LaunchConfiguration("nav_motor_status_timeout_s")
     nav_max_test_duration_s = LaunchConfiguration("nav_max_test_duration_s")
     nav_gyro_bias_calibration_s = LaunchConfiguration("nav_gyro_bias_calibration_s")
+    nav_gyro_bias_max_std_radps = LaunchConfiguration("nav_gyro_bias_max_std_radps")
+    nav_gyro_bias_warn_abs_radps = LaunchConfiguration("nav_gyro_bias_warn_abs_radps")
+    nav_gyro_bias_max_encoder_delta_ticks = LaunchConfiguration("nav_gyro_bias_max_encoder_delta_ticks")
+    nav_pivot_max_omega_radps = LaunchConfiguration("nav_pivot_max_omega_radps")
+    nav_pivot_min_omega_radps = LaunchConfiguration("nav_pivot_min_omega_radps")
+    nav_pivot_breakaway_omega_radps = LaunchConfiguration("nav_pivot_breakaway_omega_radps")
+    nav_pivot_breakaway_s = LaunchConfiguration("nav_pivot_breakaway_s")
+    nav_pivot_accel_limit_radps2 = LaunchConfiguration("nav_pivot_accel_limit_radps2")
+    nav_pivot_decel_limit_radps2 = LaunchConfiguration("nav_pivot_decel_limit_radps2")
+    nav_pivot_approach_error_rad = LaunchConfiguration("nav_pivot_approach_error_rad")
+    nav_pivot_min_omega_disable_error_rad = LaunchConfiguration("nav_pivot_min_omega_disable_error_rad")
+    nav_pivot_kp_approach = LaunchConfiguration("nav_pivot_kp_approach")
+    nav_pivot_kd_yaw_rate = LaunchConfiguration("nav_pivot_kd_yaw_rate")
+    nav_pivot_settle_error_rad = LaunchConfiguration("nav_pivot_settle_error_rad")
+    nav_pivot_settle_yaw_rate_radps = LaunchConfiguration("nav_pivot_settle_yaw_rate_radps")
+    nav_pivot_settle_time_s = LaunchConfiguration("nav_pivot_settle_time_s")
+    nav_pivot_brake_s = LaunchConfiguration("nav_pivot_brake_s")
+    nav_pivot_timeout_s = LaunchConfiguration("nav_pivot_timeout_s")
+    nav_pivot_max_correction_retries = LaunchConfiguration("nav_pivot_max_correction_retries")
+    nav_pivot_clearance_m = LaunchConfiguration("nav_pivot_clearance_m")
+    nav_slip_disagreement_rad = LaunchConfiguration("nav_slip_disagreement_rad")
 
     motor_controller_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(motor_launch)),
@@ -109,6 +136,7 @@ def generate_launch_description():
             "start_uwb": "false",
             "lidar_port": lidar_port,
             "lidar_baud": lidar_baud,
+            "zed_imu_publish_rate_hz": zed_imu_publish_rate_hz,
         }.items(),
         condition=IfCondition(start_sensor_sync),
     )
@@ -121,10 +149,20 @@ def generate_launch_description():
             "real",
             "--nav-status-period-s",
             nav_status_period_s,
+            "--control-period-s",
+            nav_control_period_s,
             "--controller-mode",
             nav_controller_mode,
             "--nav-frame-topic",
             nav_frame_topic,
+            "--imu-topic",
+            nav_imu_topic,
+            "--imu-yaw-axis",
+            nav_imu_yaw_axis,
+            "--imu-yaw-sign",
+            nav_imu_yaw_sign,
+            "--imu-timeout-s",
+            nav_imu_timeout_s,
             "--motor-status-topic",
             nav_motor_status_topic,
             "--straight-speed-mps",
@@ -153,6 +191,48 @@ def generate_launch_description():
             nav_max_test_duration_s,
             "--gyro-bias-calibration-s",
             nav_gyro_bias_calibration_s,
+            "--gyro-bias-max-std-radps",
+            nav_gyro_bias_max_std_radps,
+            "--gyro-bias-warn-abs-radps",
+            nav_gyro_bias_warn_abs_radps,
+            "--gyro-bias-max-encoder-delta-ticks",
+            nav_gyro_bias_max_encoder_delta_ticks,
+            "--pivot-max-omega-radps",
+            nav_pivot_max_omega_radps,
+            "--pivot-min-omega-radps",
+            nav_pivot_min_omega_radps,
+            "--pivot-breakaway-omega-radps",
+            nav_pivot_breakaway_omega_radps,
+            "--pivot-breakaway-s",
+            nav_pivot_breakaway_s,
+            "--pivot-accel-limit-radps2",
+            nav_pivot_accel_limit_radps2,
+            "--pivot-decel-limit-radps2",
+            nav_pivot_decel_limit_radps2,
+            "--pivot-approach-error-rad",
+            nav_pivot_approach_error_rad,
+            "--pivot-min-omega-disable-error-rad",
+            nav_pivot_min_omega_disable_error_rad,
+            "--pivot-kp-approach",
+            nav_pivot_kp_approach,
+            "--pivot-kd-yaw-rate",
+            nav_pivot_kd_yaw_rate,
+            "--pivot-settle-error-rad",
+            nav_pivot_settle_error_rad,
+            "--pivot-settle-yaw-rate-radps",
+            nav_pivot_settle_yaw_rate_radps,
+            "--pivot-settle-time-s",
+            nav_pivot_settle_time_s,
+            "--pivot-brake-s",
+            nav_pivot_brake_s,
+            "--pivot-timeout-s",
+            nav_pivot_timeout_s,
+            "--pivot-max-correction-retries",
+            nav_pivot_max_correction_retries,
+            "--pivot-clearance-m",
+            nav_pivot_clearance_m,
+            "--slip-disagreement-rad",
+            nav_slip_disagreement_rad,
             "--track-width-m",
             motor_track_width_m,
             "--wheel-radius-m",
@@ -174,6 +254,7 @@ def generate_launch_description():
             DeclareLaunchArgument("start_fusion", default_value="true"),
             DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB0"),
             DeclareLaunchArgument("lidar_baud", default_value="115200"),
+            DeclareLaunchArgument("zed_imu_publish_rate_hz", default_value="100.0"),
             DeclareLaunchArgument("motor_port", default_value="/dev/ttyACM0"),
             DeclareLaunchArgument("motor_baud", default_value="115200"),
             DeclareLaunchArgument("motor_dry_run", default_value="false"),
@@ -198,8 +279,13 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_side_mismatch_fault_tps", default_value="180.0"),
             DeclareLaunchArgument("motor_teensy_encoder_jump_tps", default_value="12000.0"),
             DeclareLaunchArgument("nav_status_period_s", default_value="0.25"),
+            DeclareLaunchArgument("nav_control_period_s", default_value="0.02"),
             DeclareLaunchArgument("nav_controller_mode", default_value="idle"),
             DeclareLaunchArgument("nav_frame_topic", default_value="/sensors/nav_frame"),
+            DeclareLaunchArgument("nav_imu_topic", default_value="/zed/imu"),
+            DeclareLaunchArgument("nav_imu_yaw_axis", default_value="z"),
+            DeclareLaunchArgument("nav_imu_yaw_sign", default_value="1.0"),
+            DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.12"),
             DeclareLaunchArgument("nav_motor_status_topic", default_value="/motor_controller/status"),
             DeclareLaunchArgument("nav_straight_speed_mps", default_value="0.20"),
             DeclareLaunchArgument("nav_straight_duration_s", default_value="2.0"),
@@ -213,7 +299,28 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_sensor_timeout_s", default_value="0.30"),
             DeclareLaunchArgument("nav_motor_status_timeout_s", default_value="0.50"),
             DeclareLaunchArgument("nav_max_test_duration_s", default_value="3.0"),
-            DeclareLaunchArgument("nav_gyro_bias_calibration_s", default_value="0.75"),
+            DeclareLaunchArgument("nav_gyro_bias_calibration_s", default_value="1.5"),
+            DeclareLaunchArgument("nav_gyro_bias_max_std_radps", default_value="0.03"),
+            DeclareLaunchArgument("nav_gyro_bias_warn_abs_radps", default_value="0.10"),
+            DeclareLaunchArgument("nav_gyro_bias_max_encoder_delta_ticks", default_value="2"),
+            DeclareLaunchArgument("nav_pivot_max_omega_radps", default_value="0.35"),
+            DeclareLaunchArgument("nav_pivot_min_omega_radps", default_value="0.16"),
+            DeclareLaunchArgument("nav_pivot_breakaway_omega_radps", default_value="0.18"),
+            DeclareLaunchArgument("nav_pivot_breakaway_s", default_value="0.20"),
+            DeclareLaunchArgument("nav_pivot_accel_limit_radps2", default_value="0.80"),
+            DeclareLaunchArgument("nav_pivot_decel_limit_radps2", default_value="0.60"),
+            DeclareLaunchArgument("nav_pivot_approach_error_rad", default_value="0.25"),
+            DeclareLaunchArgument("nav_pivot_min_omega_disable_error_rad", default_value="0.10"),
+            DeclareLaunchArgument("nav_pivot_kp_approach", default_value="0.75"),
+            DeclareLaunchArgument("nav_pivot_kd_yaw_rate", default_value="0.10"),
+            DeclareLaunchArgument("nav_pivot_settle_error_rad", default_value="0.035"),
+            DeclareLaunchArgument("nav_pivot_settle_yaw_rate_radps", default_value="0.05"),
+            DeclareLaunchArgument("nav_pivot_settle_time_s", default_value="0.35"),
+            DeclareLaunchArgument("nav_pivot_brake_s", default_value="0.15"),
+            DeclareLaunchArgument("nav_pivot_timeout_s", default_value="4.0"),
+            DeclareLaunchArgument("nav_pivot_max_correction_retries", default_value="1"),
+            DeclareLaunchArgument("nav_pivot_clearance_m", default_value="0.35"),
+            DeclareLaunchArgument("nav_slip_disagreement_rad", default_value="0.35"),
             motor_controller_launch,
             sensor_sync_launch,
             nav_placeholder,

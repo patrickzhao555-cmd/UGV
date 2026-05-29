@@ -45,6 +45,7 @@ def generate_launch_description():
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
     zed_publish_rate_hz = LaunchConfiguration('zed_publish_rate_hz')
+    zed_imu_publish_rate_hz = LaunchConfiguration('zed_imu_publish_rate_hz')
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
     zed_publish_image = LaunchConfiguration('zed_publish_image')
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
@@ -102,6 +103,11 @@ def generate_launch_description():
             'zed_publish_rate_hz',
             default_value='10.0',
             description='Target ZED publish rate.',
+        ),
+        DeclareLaunchArgument(
+            'zed_imu_publish_rate_hz',
+            default_value='100.0',
+            description='Independent ZED IMU publish rate for chassis heading control.',
         ),
         DeclareLaunchArgument(
             'zed_depth_downsample_factor',
@@ -194,6 +200,8 @@ def generate_launch_description():
                 '__node:=zed_sync_node',
                 '-p',
                 ros_param_arg('publish_rate_hz', zed_publish_rate_hz),
+                '-p',
+                ros_param_arg('imu_publish_rate_hz', zed_imu_publish_rate_hz),
                 '-p',
                 ros_param_arg('depth_downsample_factor', zed_depth_downsample_factor),
                 '-p',

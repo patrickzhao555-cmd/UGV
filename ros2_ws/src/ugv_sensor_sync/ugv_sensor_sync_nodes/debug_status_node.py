@@ -59,12 +59,12 @@ class DebugStatusNode(Node):
         cmd = nav.get('last_command', {}) if isinstance(nav.get('last_command'), dict) else {}
         if not cmd:
             cmd = nav.get('cmd', {}) if isinstance(nav.get('cmd'), dict) else {}
-        sectors = nav.get('sectors_m', {}) if isinstance(nav, dict) else {}
-        odom_delta = nav.get('odom_delta', {}) if isinstance(nav, dict) else {}
 
         self.get_logger().info(
             'debug '
             f"zed_valid={zed.get('valid_depth_samples')} "
+            f"imu_rate={nav.get('imu_rate_hz')} "
+            f"imu_age={nav.get('imu_age_s')} "
             f"depth_p10={zed.get('depth_p10_m')} "
             f"front_lidar={fusion.get('front_lidar_range_m')} "
             f"depth_roi={fusion.get('min_depth_range_m')} "
@@ -80,12 +80,19 @@ class DebugStatusNode(Node):
             f"params_synced={motor.get('teensy_pid_params_synced')} "
             f"fault={motor.get('fault_reason') or motor.get('fault')} "
             f"cmd={cmd.get('command_type') or cmd.get('mode')} "
+            f"mission={nav.get('mission_state')} "
+            f"seg={nav.get('segment_index')}:{nav.get('segment_type')} "
+            f"pivot={nav.get('pivot_state')} "
+            f"v={nav.get('v_mps')} "
+            f"omega={nav.get('omega_radps')} "
+            f"heading_err={nav.get('heading_error_rad')} "
+            f"yaw_rate={nav.get('yaw_rate_radps')} "
+            f"gyro_bias={nav.get('gyro_bias_radps')} "
+            f"safety={nav.get('safety_level')}:{nav.get('safety_reason')} "
+            f"stuck={nav.get('stuck_detected')}:{nav.get('stuck_reason')} "
             f"target_tps=({motor.get('left_target_tps')},{motor.get('right_target_tps')}) "
             f"measured_tps=({motor.get('left_measured_tps')},{motor.get('right_measured_tps')}) "
             f"pwm=({motor.get('left_pwm')},{motor.get('right_pwm')}) "
-            f"odom_warn={odom_delta.get('warning')} "
-            f"pose={nav.get('pose_m')} "
-            f"sectors={self._sector_text(sectors)}"
         )
 
     @staticmethod

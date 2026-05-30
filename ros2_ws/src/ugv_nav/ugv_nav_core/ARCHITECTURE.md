@@ -122,3 +122,66 @@ with STOP.
   controller actuator outputs.
 - No GPS/global planner in v1 mission mode; it composes relative motion
   primitives only.
+
+## Nav2 Field Navigation Path
+
+The GPS-denied obstacle-avoidance path is a separate Nav2 integration layer. It
+does not replace the tested chassis primitives or the Teensy PID layer:
+
+```text
+Nav2 planner/controller
+  -> /cmd_vel_raw
+  -> collision_monitor   # stop-only hard safety from /scan/filtered
+  -> /cmd_vel
+  -> ugv_nav2_adapter
+  -> /ugv_nav_cmd velocity JSON
+  -> motor_controller_bridge
+  -> Teensy side velocity PID
+```
+
+The `map` frame is the competition field frame: lower-left origin, `+x` to the
+right, `+y` upward, and yaw positive counter-clockwise. `ugv_field_odom_node.py`
+publishes `map -> odom -> base_link`, using a manual initial field pose plus
+wheel encoder distance and ZED gyro yaw. `/initialpose` can update the manual
+map anchor during setup.
+
+The first obstacle-avoidance policy is deliberately conservative:
+
+- LiDAR is the hard collision source for Nav2 costmaps.
+- ZED/semantic obstacle points are converted to `/sensors/zed_obstacle_cloud`
+  and used as conservative marking observations.
+- Collision Monitor is enabled by default for Nav2 ground tests. `/cmd_vel_raw`
+  is never a motor command; it is checked first and only `/cmd_vel` reaches
+  `ugv_nav2_adapter`.
+- If the adapter sees stale localization/sensors, motor faults, near-obstacle
+  flags, or emergency front clearance, it publishes STOP regardless of Nav2.
+- UAV field targets arrive on `/ugv/uav_target` as `PointStamped` in `map`;
+  `ugv_uav_goal_bridge.py` validates frame, units, field bounds, and costmap
+  occupancy before sending `NavigateToPose`.
+- Autonomous Nav2 reverse is blocked by default because the rear LiDAR sector
+  is physically obstructed.
+
+Launch the experimental Nav2 stack with:
+
+```bash
+ros2 launch ugv_sensor_sync nav2_field_navigation.launch.py \
+  initial_x_m:=1.0 initial_y_m:=1.0 initial_yaw_deg:=0.0 \
+  field_width_m:=13.716 field_height_m:=13.716
+```
+
+Use `field_width_m` and `field_height_m` as the single source of truth for the
+competition field. The launch file rewrites the Nav2 global costmap dimensions
+from those values so goal validation and planning share the same `map` bounds.
+The default is `15 yd x 15 yd` (`13.716 m x 13.716 m`), and the adapter rejects
+translational commands in the boundary margin or predicted to leave the safe
+inner field as a final containment gate. Start Nav2 ground tests from a pose
+inside the safe inner field, not `(0,0)`.
+
+LiDAR observations use `/scan/filtered`, not raw `/scan`. The filter keeps the
+front `250 deg` sector and invalidates the rear `110 deg` sector blocked by the
+UGV body, so costmaps and Collision Monitor do not treat the chassis as an
+obstacle.
+
+Keep `straight_test`, `pivot_test`, `mission_sequence`, manual teleop, and the
+motion test runner as the acceptance tools before enabling full autonomous
+goal execution.

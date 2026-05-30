@@ -55,6 +55,24 @@ class MissionSafetyDecision:
         return self.level == "critical"
 
 
+@dataclass
+class StuckMonitorState:
+    command_kind: str = "stop"
+    segment_key: Optional[str] = None
+    command_start_s: Optional[float] = None
+    last_response_s: Optional[float] = None
+    recovery_count: int = 0
+    stuck_detected: bool = False
+    reason: str = "ok"
+
+
+@dataclass(frozen=True)
+class StuckMonitorResult:
+    stuck: bool
+    reason: str
+    recovery_count: int
+
+
 def apply_competition_speed_rule(
     v_mps: float,
     *,
@@ -71,6 +89,64 @@ def apply_competition_speed_rule(
 def motion_rule_ok(v_mps: float, *, min_speed_mps: float = COMPETITION_MIN_SPEED_MPS) -> bool:
     value = abs(float(v_mps))
     return value < MOTION_EPSILON or value + 1e-9 >= max(0.0, float(min_speed_mps))
+
+
+def normalized_imu_qos(value: str) -> str:
+    text = str(value).strip().lower().replace("-", "_")
+    if text in {"sensor", "sensor_data", "best_effort", "besteffort"}:
+        return "sensor_data"
+    if text in {"default", "reliable"}:
+        return "default"
+    raise ValueError(f"unsupported IMU QoS {value!r}")
+
+
+def telemetry_force_flush_key(
+    *,
+    mission_state: str,
+    safety_level: str,
+    safety_reason: str,
+    segment_index: Optional[int],
+) -> Optional[str]:
+    state = str(mission_state)
+    level = str(safety_level)
+    if state not in {"mission_complete", "abort"} and level != "critical":
+        return None
+    return f"{state}:{level}:{safety_reason}:{segment_index}"
+
+
+def mission_segment_start_hold_reason(
+    segment: MissionSegment,
+    *,
+    safety_level: str,
+    safety_reason: str,
+    encoder_available: bool,
+    left_ticks: Optional[int],
+    right_ticks: Optional[int],
+    pivot_clearance_reason: Optional[str],
+    config: ChassisControllerConfig,
+) -> Optional[str]:
+    if str(safety_level) == "critical":
+        return str(safety_reason)
+
+    reason = str(safety_reason)
+    if str(safety_level) == "degraded":
+        if reason in {"sensor_missing", "sensor_stale", "front_clearance_invalid"}:
+            return reason
+        if (
+            segment.segment_type == "straight"
+            and bool(config.mission_stop_on_degraded_obstacle)
+            and reason in {"near_obstacle", "front_clearance_low"}
+        ):
+            return reason
+
+    if segment.segment_type == "straight":
+        if not encoder_available or left_ticks is None or right_ticks is None:
+            return "encoder_unavailable"
+
+    if segment.segment_type == "pivot" and pivot_clearance_reason:
+        return str(pivot_clearance_reason)
+
+    return None
 
 
 def _finite_float(value: Any, *, name: str) -> float:
@@ -277,29 +353,193 @@ def heading_error_rms(samples: Sequence[float]) -> float:
     return math.sqrt(sum(float(sample) ** 2 for sample in samples) / float(len(samples)))
 
 
+def average_abs_measured_speed_mps(motor_status: Optional[Dict[str, Any]]) -> float:
+    if not isinstance(motor_status, dict):
+        return 0.0
+    try:
+        left = abs(float(motor_status.get("measured_left_mps", 0.0) or 0.0))
+        right = abs(float(motor_status.get("measured_right_mps", 0.0) or 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+    return 0.5 * (left + right)
+
+
+def reset_stuck_monitor(state: StuckMonitorState, *, keep_recovery_count: bool = False) -> None:
+    recovery_count = state.recovery_count if keep_recovery_count else 0
+    state.command_kind = "stop"
+    state.segment_key = None
+    state.command_start_s = None
+    state.last_response_s = None
+    state.recovery_count = recovery_count
+    state.stuck_detected = False
+    state.reason = "ok"
+
+
+def update_stuck_monitor(
+    state: StuckMonitorState,
+    *,
+    now_s: float,
+    segment_key: str,
+    command_kind: str,
+    v_cmd_mps: float,
+    omega_cmd_radps: float,
+    yaw_rate_radps: float,
+    motor_status: Optional[Dict[str, Any]],
+    config: ChassisControllerConfig,
+) -> StuckMonitorResult:
+    if not config.stuck_detection_enabled:
+        reset_stuck_monitor(state)
+        return StuckMonitorResult(False, "disabled", state.recovery_count)
+
+    dry_run_value = motor_status.get("dry_run", False) if isinstance(motor_status, dict) else False
+    dry_run = dry_run_value if isinstance(dry_run_value, bool) else str(dry_run_value).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if dry_run:
+        reset_stuck_monitor(state)
+        state.reason = "dry_run_bypass"
+        return StuckMonitorResult(False, "dry_run_bypass", state.recovery_count)
+
+    if command_kind == "pivot":
+        moving = abs(float(omega_cmd_radps)) >= max(0.0, float(config.pivot_stuck_min_yaw_rate_radps))
+    elif command_kind == "straight":
+        moving = abs(float(v_cmd_mps)) >= max(MOTION_EPSILON, float(config.straight_stuck_min_measured_mps))
+    else:
+        moving = abs(float(v_cmd_mps)) > MOTION_EPSILON or abs(float(omega_cmd_radps)) > MOTION_EPSILON
+    if command_kind == "stop" or not moving:
+        reset_stuck_monitor(state)
+        return StuckMonitorResult(False, "ok", state.recovery_count)
+
+    if state.segment_key != segment_key or state.command_kind != command_kind:
+        state.command_kind = command_kind
+        state.segment_key = segment_key
+        state.command_start_s = float(now_s)
+        state.last_response_s = float(now_s)
+        state.stuck_detected = False
+        state.reason = "ok"
+
+    if command_kind == "straight":
+        responding = average_abs_measured_speed_mps(motor_status) >= max(
+            0.0,
+            float(config.straight_stuck_min_measured_mps),
+        )
+        timeout_s = max(0.0, float(config.straight_stuck_timeout_s))
+        reason = "straight_stuck"
+    elif command_kind == "pivot":
+        responding = abs(float(yaw_rate_radps)) >= max(0.0, float(config.pivot_stuck_min_yaw_rate_radps))
+        timeout_s = max(0.0, float(config.pivot_stuck_timeout_s))
+        reason = "pivot_stuck"
+    else:
+        reset_stuck_monitor(state)
+        return StuckMonitorResult(False, "ok", state.recovery_count)
+
+    if responding:
+        state.last_response_s = float(now_s)
+        state.stuck_detected = False
+        state.reason = "ok"
+        return StuckMonitorResult(False, "ok", state.recovery_count)
+
+    reference_s = state.last_response_s if state.last_response_s is not None else state.command_start_s
+    reference_s = float(reference_s) if reference_s is not None else float(now_s)
+    if now_s - reference_s >= timeout_s:
+        state.stuck_detected = True
+        state.reason = reason
+        return StuckMonitorResult(True, reason, state.recovery_count)
+
+    state.stuck_detected = False
+    state.reason = "ok"
+    return StuckMonitorResult(False, "ok", state.recovery_count)
+
+
 class MissionTelemetryRecorder:
-    def __init__(self, *, enabled: bool, telemetry_dir: str, mission_id: str) -> None:
+    def __init__(
+        self,
+        *,
+        enabled: bool,
+        telemetry_dir: str,
+        mission_id: str,
+        flush_period_s: float = 0.50,
+        flush_max_records: int = 25,
+    ) -> None:
         self.enabled = bool(enabled)
         self.path: Optional[Path] = None
         self._file = None
+        self.error: Optional[str] = None
+        self.failed = False
+        self.flush_period_s = max(0.0, float(flush_period_s))
+        self.flush_max_records = max(1, int(flush_max_records))
+        self._pending_records = 0
+        self._last_flush_s: Optional[float] = None
         if not self.enabled:
             return
         safe_id = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in mission_id) or "mission"
         log_dir = Path(telemetry_dir).expanduser()
-        log_dir.mkdir(parents=True, exist_ok=True)
-        stamp = time.strftime("%Y%m%d_%H%M%S")
-        self.path = log_dir / f"{stamp}_{safe_id}.jsonl"
-        self._file = self.path.open("a", encoding="utf-8")
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            self.path = log_dir / f"{stamp}_{safe_id}.jsonl"
+            self._file = self.path.open("a", encoding="utf-8")
+        except OSError as exc:
+            self._mark_failed(exc)
 
-    def write(self, record: Dict[str, Any]) -> None:
-        if self._file is None:
+    def _mark_failed(self, exc: OSError) -> None:
+        self.error = str(exc)
+        self.failed = True
+        self.enabled = False
+        file_obj = self._file
+        self._file = None
+        if file_obj is not None:
+            try:
+                file_obj.close()
+            except OSError:
+                pass
+
+    def write(
+        self,
+        record: Dict[str, Any],
+        *,
+        now_s: Optional[float] = None,
+        force_flush: bool = False,
+    ) -> None:
+        if self._file is None or self.failed:
             return
-        self._file.write(json.dumps(record, sort_keys=True) + "\n")
-        self._file.flush()
+        now = time.monotonic() if now_s is None else float(now_s)
+        if self._last_flush_s is None:
+            self._last_flush_s = now
+        try:
+            self._file.write(json.dumps(record, sort_keys=True) + "\n")
+        except OSError as exc:
+            self._mark_failed(exc)
+            return
+        self._pending_records += 1
+        period_elapsed = self.flush_period_s > 0.0 and (now - self._last_flush_s) >= self.flush_period_s
+        max_records_reached = self._pending_records >= self.flush_max_records
+        if force_flush or period_elapsed or max_records_reached:
+            self.flush(now_s=now)
+
+    def flush(self, *, now_s: Optional[float] = None) -> None:
+        if self._file is None or self.failed:
+            return
+        try:
+            self._file.flush()
+        except OSError as exc:
+            self._mark_failed(exc)
+            return
+        self._pending_records = 0
+        self._last_flush_s = time.monotonic() if now_s is None else float(now_s)
 
     def close(self) -> None:
         if self._file is not None:
-            self._file.close()
+            self.flush()
+        if self._file is not None:
+            try:
+                self._file.close()
+            except OSError as exc:
+                self._mark_failed(exc)
+                return
             self._file = None
 
 
@@ -308,6 +548,8 @@ def summarize_mission_records(records: Iterable[Dict[str, Any]]) -> Dict[str, An
     sub_min_count = 0
     critical_count = 0
     sensor_stale_count = 0
+    saturation_count = 0
+    stop_reasons: Dict[str, int] = {}
     for record in records:
         if not bool(record.get("motion_rule_ok", True)):
             sub_min_count += 1
@@ -315,6 +557,14 @@ def summarize_mission_records(records: Iterable[Dict[str, Any]]) -> Dict[str, An
             critical_count += 1
         if "stale" in str(record.get("safety_reason", "")):
             sensor_stale_count += 1
+        if bool(record.get("omega_saturated", False)):
+            saturation_count += 1
+        reason = record.get("last_command", {}).get("reason") if isinstance(record.get("last_command"), dict) else None
+        if reason is None:
+            reason = record.get("safety_reason")
+        if reason:
+            reason_text = str(reason)
+            stop_reasons[reason_text] = stop_reasons.get(reason_text, 0) + 1
         index = record.get("segment_index")
         if index is None:
             continue
@@ -370,4 +620,6 @@ def summarize_mission_records(records: Iterable[Dict[str, Any]]) -> Dict[str, An
         "sub_min_speed_command_count": sub_min_count,
         "critical_stop_count": critical_count,
         "sensor_stale_count": sensor_stale_count,
+        "omega_saturation_count": saturation_count,
+        "stop_reasons": stop_reasons,
     }

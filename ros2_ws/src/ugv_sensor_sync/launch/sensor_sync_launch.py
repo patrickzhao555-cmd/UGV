@@ -34,16 +34,20 @@ def generate_launch_description():
     sensor_nodes_root = workspace_root / 'src' / 'ugv_sensor_sync' / 'ugv_sensor_sync_nodes'
     zed_sync_script = str(sensor_nodes_root / 'zed_sync_node.py')
     lidar_sync_script = str(sensor_nodes_root / 'lidar_sync_node.py')
+    lidar_filter_script = str(sensor_nodes_root / 'lidar_scan_filter_node.py')
     uwb_script = str(sensor_nodes_root / 'uwb_node.py')
     fusion_script = str(sensor_nodes_root / 'fusion_node.py')
 
     start_uwb = LaunchConfiguration('start_uwb')
     start_zed = LaunchConfiguration('start_zed')
     start_lidar = LaunchConfiguration('start_lidar')
+    start_lidar_filter = LaunchConfiguration('start_lidar_filter')
     start_fusion = LaunchConfiguration('start_fusion')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
+    lidar_filter_forward_fov_deg = LaunchConfiguration('lidar_filter_forward_fov_deg')
+    lidar_filtered_topic = LaunchConfiguration('lidar_filtered_topic')
     zed_publish_rate_hz = LaunchConfiguration('zed_publish_rate_hz')
     zed_imu_publish_rate_hz = LaunchConfiguration('zed_imu_publish_rate_hz')
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
@@ -80,6 +84,11 @@ def generate_launch_description():
             description='Launch the lidar driver and lidar timestamp sync node.',
         ),
         DeclareLaunchArgument(
+            'start_lidar_filter',
+            default_value='true',
+            description='Filter the rear LiDAR sector blocked by the UGV body before fusion/Nav2.',
+        ),
+        DeclareLaunchArgument(
             'start_fusion',
             default_value='true',
             description='Launch the fused sensor frame node.',
@@ -98,6 +107,16 @@ def generate_launch_description():
             'lidar_scan_freq_hz',
             default_value='10.0',
             description='Expected lidar scan frequency for midpoint timestamp correction.',
+        ),
+        DeclareLaunchArgument(
+            'lidar_filter_forward_fov_deg',
+            default_value='250.0',
+            description='Forward LiDAR sector kept for navigation. The remaining rear sector is invalidated.',
+        ),
+        DeclareLaunchArgument(
+            'lidar_filtered_topic',
+            default_value='/scan/filtered',
+            description='Filtered LiDAR scan topic consumed by fusion, Nav2 costmaps, and collision monitor.',
         ),
         DeclareLaunchArgument(
             'zed_publish_rate_hz',
@@ -227,6 +246,26 @@ def generate_launch_description():
             ),
         ]),
 
+        TimerAction(period=2.5, actions=[
+            ExecuteProcess(
+                cmd=[
+                    FindExecutable(name='python3'),
+                    lidar_filter_script,
+                    '--ros-args',
+                    '-r',
+                    '__node:=lidar_scan_filter_node',
+                    '-p',
+                    ros_param_arg('input_topic', '/scan/synced'),
+                    '-p',
+                    ros_param_arg('output_topic', lidar_filtered_topic),
+                    '-p',
+                    ros_param_arg('forward_fov_deg', lidar_filter_forward_fov_deg),
+                ],
+                output='screen',
+                condition=IfCondition(start_lidar_filter),
+            ),
+        ]),
+
         ExecuteProcess(
             cmd=[
                 FindExecutable(name='python3'),
@@ -253,6 +292,8 @@ def generate_launch_description():
                     '--ros-args',
                     '-r',
                     '__node:=fusion_node',
+                    '-p',
+                    ros_param_arg('scan_topic', lidar_filtered_topic),
                     '-p',
                     ros_param_arg('zed_fresh_timeout_s', fusion_zed_fresh_timeout_s),
                     '-p',

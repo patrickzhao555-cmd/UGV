@@ -47,6 +47,11 @@ def main() -> None:
     print(f"Sub-min speed command count: {summary['sub_min_speed_command_count']}")
     print(f"Critical stop count: {summary['critical_stop_count']}")
     print(f"Sensor stale count: {summary['sensor_stale_count']}")
+    print(f"Omega saturation count: {summary.get('omega_saturation_count', 0)}")
+    stop_reasons = summary.get("stop_reasons") or {}
+    if stop_reasons:
+        reason_text = ", ".join(f"{key}={value}" for key, value in sorted(stop_reasons.items()))
+        print(f"Reasons: {reason_text}")
     print("Segments:")
     for index in sorted(summary["segments"]):
         segment = summary["segments"][index]

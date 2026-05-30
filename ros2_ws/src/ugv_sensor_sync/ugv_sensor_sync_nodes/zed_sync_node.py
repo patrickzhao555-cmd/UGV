@@ -7,7 +7,7 @@ import pyzed.sl as sl
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import Image, Imu
+from sensor_msgs.msg import CameraInfo, Image, Imu
 from std_msgs.msg import Header, String
 
 try:
@@ -23,6 +23,7 @@ class ZedSyncNode(Node):
         super().__init__('zed_sync_node')
 
         self.declare_parameter('image_topic', '/zed/image')
+        self.declare_parameter('camera_info_topic', '/zed/left/camera_info')
         self.declare_parameter('depth_topic', '/zed/depth')
         self.declare_parameter('imu_topic', '/zed/imu')
         self.declare_parameter('image_frame_id', 'zed_left')
@@ -36,6 +37,7 @@ class ZedSyncNode(Node):
         self.declare_parameter('status_period_s', 1.0)
 
         image_topic = self.get_parameter('image_topic').value
+        camera_info_topic = self.get_parameter('camera_info_topic').value
         depth_topic = self.get_parameter('depth_topic').value
         imu_topic = self.get_parameter('imu_topic').value
         self.image_frame_id = self.get_parameter('image_frame_id').value
@@ -50,8 +52,10 @@ class ZedSyncNode(Node):
         self.bridge = CvBridge() if CvBridge is not None else None
 
         self.image_pub = None
+        self.camera_info_pub = None
         if self.publish_image:
             self.image_pub = self.create_publisher(Image, image_topic, qos_profile_sensor_data)
+            self.camera_info_pub = self.create_publisher(CameraInfo, camera_info_topic, qos_profile_sensor_data)
         self.depth_pub = self.create_publisher(Image, depth_topic, qos_profile_sensor_data)
         self.imu_pub = self.create_publisher(Imu, imu_topic, qos_profile_sensor_data)
         self.status_pub = self.create_publisher(String, status_topic, 10)
@@ -73,6 +77,7 @@ class ZedSyncNode(Node):
         self.left_image = sl.Mat()
         self.depth_image = sl.Mat()
         self.sensor_data = sl.SensorsData()
+        self.left_camera_info_template = self._build_left_camera_info_template()
 
         self.create_timer(1.0 / max(publish_rate_hz, 1.0), self.grab_frame)
         self.create_timer(1.0 / max(imu_publish_rate_hz, 1.0), self.publish_imu)
@@ -107,6 +112,8 @@ class ZedSyncNode(Node):
             if self.depth_downsample_factor > 1:
                 left_np = left_np[::self.depth_downsample_factor, ::self.depth_downsample_factor]
             self.image_pub.publish(self._image_from_array(left_np, 'bgra8', self.image_frame_id, stamp))
+            if self.camera_info_pub is not None:
+                self.camera_info_pub.publish(self._camera_info_for_image(left_np.shape, stamp))
         self.depth_pub.publish(
             self._image_from_array(
                 np.ascontiguousarray(depth_np.astype(np.float32, copy=False)),
@@ -170,6 +177,68 @@ class ZedSyncNode(Node):
     @staticmethod
     def _finite_or_none(value: float):
         return value if math.isfinite(value) else None
+
+    def _build_left_camera_info_template(self) -> CameraInfo:
+        msg = CameraInfo()
+        msg.header.frame_id = self.image_frame_id
+        try:
+            camera_info = self.zed.get_camera_information()
+            config = camera_info.camera_configuration
+            resolution = config.resolution
+            calib = config.calibration_parameters.left_cam
+            width = int(getattr(resolution, 'width', 0) or 0)
+            height = int(getattr(resolution, 'height', 0) or 0)
+            fx = float(calib.fx)
+            fy = float(calib.fy)
+            cx = float(calib.cx)
+            cy = float(calib.cy)
+            distortion = [float(v) for v in getattr(calib, 'disto', [])]
+        except Exception as exc:  # pragma: no cover - depends on ZED SDK runtime
+            self.get_logger().warn(f'Could not read ZED left camera calibration; CameraInfo will be approximate: {exc}')
+            width = 1280
+            height = 720
+            fx = fy = 700.0
+            cx = width * 0.5
+            cy = height * 0.5
+            distortion = [0.0, 0.0, 0.0, 0.0, 0.0]
+
+        scale = float(max(1, self.depth_downsample_factor))
+        msg.width = max(1, int(round(width / scale)))
+        msg.height = max(1, int(round(height / scale)))
+        msg.distortion_model = 'plumb_bob'
+        msg.d = distortion[:5] if distortion else [0.0, 0.0, 0.0, 0.0, 0.0]
+        fx_s = fx / scale
+        fy_s = fy / scale
+        cx_s = cx / scale
+        cy_s = cy / scale
+        msg.k = [
+            fx_s, 0.0, cx_s,
+            0.0, fy_s, cy_s,
+            0.0, 0.0, 1.0,
+        ]
+        msg.r = [
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0,
+        ]
+        msg.p = [
+            fx_s, 0.0, cx_s, 0.0,
+            0.0, fy_s, cy_s, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+        ]
+        return msg
+
+    def _camera_info_for_image(self, image_shape, stamp) -> CameraInfo:
+        msg = CameraInfo()
+        msg.header = Header(stamp=stamp, frame_id=self.image_frame_id)
+        msg.height = int(image_shape[0])
+        msg.width = int(image_shape[1])
+        msg.distortion_model = self.left_camera_info_template.distortion_model
+        msg.d = list(self.left_camera_info_template.d)
+        msg.k = list(self.left_camera_info_template.k)
+        msg.r = list(self.left_camera_info_template.r)
+        msg.p = list(self.left_camera_info_template.p)
+        return msg
 
     def _image_from_array(self, array, encoding: str, frame_id: str, stamp) -> Image:
         if self.bridge is not None:

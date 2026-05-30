@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
+from .safety_status import motor_fault_reason
+
 
 @dataclass(frozen=True)
 class ChassisControllerConfig:
@@ -53,6 +55,18 @@ class ChassisControllerConfig:
     mission_straight_max_omega_radps: float = 0.20
     mission_straight_omega_slew_radps2: float = 0.80
     debug_allow_sub_min_crawl: bool = False
+    debug_allow_unknown_pivot_clearance: bool = False
+    mission_stop_on_degraded_obstacle: bool = True
+    mission_telemetry_active_hz: float = 50.0
+    mission_telemetry_flush_period_s: float = 0.50
+    mission_telemetry_flush_max_records: int = 25
+    imu_rate_window_s: float = 2.0
+    stuck_detection_enabled: bool = True
+    straight_stuck_timeout_s: float = 0.50
+    pivot_stuck_timeout_s: float = 0.45
+    straight_stuck_min_measured_mps: float = 0.025
+    pivot_stuck_min_yaw_rate_radps: float = 0.04
+    pivot_breakaway_retry_scale: float = 1.25
     track_width_m: float = 0.425
     wheel_radius_m: float = 0.0825
     ticks_per_rev: float = 3200.0
@@ -116,6 +130,11 @@ class PivotControllerState:
     abort_reason: Optional[str] = None
     last_error_rad: float = 0.0
     last_command_reason: str = "idle"
+    direction: str = "none"
+    initial_error_sign: float = 0.0
+    overshoot_rad: float = 0.0
+    final_error_rad: Optional[float] = None
+    retry_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -440,6 +459,11 @@ def start_pivot(
     state.abort_reason = None
     state.last_error_rad = wrap_pi(state.target_heading_rad - float(current_heading_rad))
     state.last_command_reason = "pivot_breakaway"
+    state.initial_error_sign = 1.0 if state.last_error_rad >= 0.0 else -1.0
+    state.direction = "left" if state.initial_error_sign > 0.0 else "right"
+    state.overshoot_rad = 0.0
+    state.final_error_rad = None
+    state.retry_reason = ""
 
 
 def reset_pivot(state: PivotControllerState) -> None:
@@ -457,6 +481,11 @@ def reset_pivot(state: PivotControllerState) -> None:
     state.abort_reason = None
     state.last_error_rad = 0.0
     state.last_command_reason = "idle"
+    state.direction = "none"
+    state.initial_error_sign = 0.0
+    state.overshoot_rad = 0.0
+    state.final_error_rad = None
+    state.retry_reason = ""
 
 
 def pivot_encoder_gyro_disagreement(
@@ -485,6 +514,8 @@ def step_profiled_pivot(
 
     error = wrap_pi(float(state.target_heading_rad) - float(heading_rad))
     state.last_error_rad = error
+    if state.initial_error_sign and error * state.initial_error_sign < 0.0:
+        state.overshoot_rad = max(state.overshoot_rad, abs(error))
     dt_s = 0.0 if state.last_update_s is None else clamp(float(now_s) - state.last_update_s, 0.0, 0.1)
     state.last_update_s = float(now_s)
     motion_start_s = float(state.motion_start_s) if state.motion_start_s is not None else float(now_s)
@@ -534,17 +565,20 @@ def step_profiled_pivot(
             if now_s - state.settle_start_s >= max(0.0, float(config.pivot_settle_time_s)):
                 state.state = "complete"
                 state.complete = True
+                state.final_error_rad = error
                 state.last_command_reason = "pivot_test_complete"
                 return PivotStepResult("stop", 0.0, "pivot_test_complete", state.state, error, True)
         else:
             state.settle_start_s = None
             if state.retry_count < max(0, int(config.pivot_max_correction_retries)):
                 state.retry_count += 1
+                state.retry_reason = "settle_error"
                 state.state = "correction_retry"
                 state.state_start_s = float(now_s)
             else:
                 state.state = "complete"
                 state.complete = True
+                state.final_error_rad = error
                 state.last_command_reason = "pivot_test_complete"
                 return PivotStepResult("stop", 0.0, "pivot_test_complete", state.state, error, True)
         state.last_command_reason = "pivot_settling"
@@ -587,9 +621,15 @@ def min_finite_range(ranges: Iterable[float]) -> Optional[float]:
 
 def evaluate_pivot_clearance(ranges: Optional[Iterable[float]], config: ChassisControllerConfig) -> SafetyDecision:
     if ranges is None:
-        return SafetyDecision(True, "ok")
+        if config.debug_allow_unknown_pivot_clearance:
+            return SafetyDecision(True, "ok")
+        return SafetyDecision(False, "pivot_clearance_unknown")
     min_range = min_finite_range(ranges)
-    if min_range is not None and min_range < max(0.0, float(config.pivot_clearance_m)):
+    if min_range is None:
+        if config.debug_allow_unknown_pivot_clearance:
+            return SafetyDecision(True, "ok")
+        return SafetyDecision(False, "pivot_clearance_unknown")
+    if min_range < max(0.0, float(config.pivot_clearance_m)):
         return SafetyDecision(False, "pivot_clearance_low")
     return SafetyDecision(True, "ok")
 
@@ -601,13 +641,9 @@ def motor_status_ready(status: Optional[Dict[str, Any]]) -> SafetyDecision:
         return SafetyDecision(False, "motor_disconnected")
     if not bool(status.get("teensy_pid_params_synced", False)):
         return SafetyDecision(False, "motor_params_not_synced")
-    for key in ("fault_reason", "fault"):
-        value = status.get(key)
-        if value is None:
-            continue
-        text = str(value).strip().lower()
-        if text and text not in {"none", "0", "false"}:
-            return SafetyDecision(False, f"motor_fault:{value}")
+    fault = motor_fault_reason(status)
+    if fault is not None:
+        return SafetyDecision(False, f"motor_fault:{fault}")
     return SafetyDecision(True, "ok")
 
 

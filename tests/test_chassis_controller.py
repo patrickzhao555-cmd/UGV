@@ -421,6 +421,24 @@ def test_low_pivot_clearance_stops_pivot_test():
     assert decision.reason == "pivot_clearance_low"
 
 
+def test_unknown_pivot_clearance_is_unsafe_by_default():
+    missing = evaluate_pivot_clearance(None, ChassisControllerConfig())
+    empty = evaluate_pivot_clearance([], ChassisControllerConfig())
+    all_invalid = evaluate_pivot_clearance([float("inf"), float("nan")], ChassisControllerConfig())
+    assert not missing.safe
+    assert missing.reason == "pivot_clearance_unknown"
+    assert not empty.safe
+    assert empty.reason == "pivot_clearance_unknown"
+    assert not all_invalid.safe
+    assert all_invalid.reason == "pivot_clearance_unknown"
+
+
+def test_debug_flag_allows_unknown_pivot_clearance():
+    decision = evaluate_pivot_clearance(None, ChassisControllerConfig(debug_allow_unknown_pivot_clearance=True))
+    assert decision.safe
+    assert decision.reason == "ok"
+
+
 def test_slip_disagreement_is_diagnostic_only():
     from ugv_nav_core.chassis_controller import pivot_encoder_gyro_disagreement
 

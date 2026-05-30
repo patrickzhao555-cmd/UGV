@@ -26,10 +26,13 @@ def generate_launch_description():
     start_nav = LaunchConfiguration("start_nav")
     start_zed = LaunchConfiguration("start_zed")
     start_lidar = LaunchConfiguration("start_lidar")
+    start_lidar_filter = LaunchConfiguration("start_lidar_filter")
     start_fusion = LaunchConfiguration("start_fusion")
     lidar_port = LaunchConfiguration("lidar_port")
     lidar_baud = LaunchConfiguration("lidar_baud")
+    lidar_filter_forward_fov_deg = LaunchConfiguration("lidar_filter_forward_fov_deg")
     zed_imu_publish_rate_hz = LaunchConfiguration("zed_imu_publish_rate_hz")
+    zed_publish_image = LaunchConfiguration("zed_publish_image")
     motor_port = LaunchConfiguration("motor_port")
     motor_baud = LaunchConfiguration("motor_baud")
     motor_dry_run = LaunchConfiguration("motor_dry_run")
@@ -58,6 +61,7 @@ def generate_launch_description():
     nav_controller_mode = LaunchConfiguration("nav_controller_mode")
     nav_frame_topic = LaunchConfiguration("nav_frame_topic")
     nav_imu_topic = LaunchConfiguration("nav_imu_topic")
+    nav_imu_qos = LaunchConfiguration("nav_imu_qos")
     nav_imu_yaw_axis = LaunchConfiguration("nav_imu_yaw_axis")
     nav_imu_yaw_sign = LaunchConfiguration("nav_imu_yaw_sign")
     nav_imu_timeout_s = LaunchConfiguration("nav_imu_timeout_s")
@@ -106,6 +110,17 @@ def generate_launch_description():
     nav_mission_straight_max_omega_radps = LaunchConfiguration("nav_mission_straight_max_omega_radps")
     nav_mission_straight_omega_slew_radps2 = LaunchConfiguration("nav_mission_straight_omega_slew_radps2")
     nav_debug_allow_sub_min_crawl = LaunchConfiguration("nav_debug_allow_sub_min_crawl")
+    nav_debug_allow_unknown_args = LaunchConfiguration("nav_debug_allow_unknown_args")
+    nav_debug_allow_unknown_pivot_clearance = LaunchConfiguration("nav_debug_allow_unknown_pivot_clearance")
+    nav_mission_stop_on_degraded_obstacle = LaunchConfiguration("nav_mission_stop_on_degraded_obstacle")
+    nav_mission_telemetry_active_hz = LaunchConfiguration("nav_mission_telemetry_active_hz")
+    nav_mission_telemetry_flush_period_s = LaunchConfiguration("nav_mission_telemetry_flush_period_s")
+    nav_mission_telemetry_flush_max_records = LaunchConfiguration("nav_mission_telemetry_flush_max_records")
+    nav_imu_rate_window_s = LaunchConfiguration("nav_imu_rate_window_s")
+    nav_stuck_detection_enabled = LaunchConfiguration("nav_stuck_detection_enabled")
+    nav_straight_stuck_timeout_s = LaunchConfiguration("nav_straight_stuck_timeout_s")
+    nav_pivot_stuck_timeout_s = LaunchConfiguration("nav_pivot_stuck_timeout_s")
+    nav_pivot_breakaway_retry_scale = LaunchConfiguration("nav_pivot_breakaway_retry_scale")
     nav_telemetry_enabled = LaunchConfiguration("nav_telemetry_enabled")
     nav_telemetry_dir = LaunchConfiguration("nav_telemetry_dir")
 
@@ -144,11 +159,14 @@ def generate_launch_description():
         launch_arguments={
             "start_zed": start_zed,
             "start_lidar": start_lidar,
+            "start_lidar_filter": start_lidar_filter,
             "start_fusion": start_fusion,
             "start_uwb": "false",
             "lidar_port": lidar_port,
             "lidar_baud": lidar_baud,
+            "lidar_filter_forward_fov_deg": lidar_filter_forward_fov_deg,
             "zed_imu_publish_rate_hz": zed_imu_publish_rate_hz,
+            "zed_publish_image": zed_publish_image,
         }.items(),
         condition=IfCondition(start_sensor_sync),
     )
@@ -169,6 +187,8 @@ def generate_launch_description():
             nav_frame_topic,
             "--imu-topic",
             nav_imu_topic,
+            "--imu-qos",
+            nav_imu_qos,
             "--imu-yaw-axis",
             nav_imu_yaw_axis,
             "--imu-yaw-sign",
@@ -265,6 +285,28 @@ def generate_launch_description():
             nav_mission_straight_omega_slew_radps2,
             "--debug-allow-sub-min-crawl",
             nav_debug_allow_sub_min_crawl,
+            "--debug-allow-unknown-args",
+            nav_debug_allow_unknown_args,
+            "--debug-allow-unknown-pivot-clearance",
+            nav_debug_allow_unknown_pivot_clearance,
+            "--mission-stop-on-degraded-obstacle",
+            nav_mission_stop_on_degraded_obstacle,
+            "--mission-telemetry-active-hz",
+            nav_mission_telemetry_active_hz,
+            "--mission-telemetry-flush-period-s",
+            nav_mission_telemetry_flush_period_s,
+            "--mission-telemetry-flush-max-records",
+            nav_mission_telemetry_flush_max_records,
+            "--imu-rate-window-s",
+            nav_imu_rate_window_s,
+            "--stuck-detection-enabled",
+            nav_stuck_detection_enabled,
+            "--straight-stuck-timeout-s",
+            nav_straight_stuck_timeout_s,
+            "--pivot-stuck-timeout-s",
+            nav_pivot_stuck_timeout_s,
+            "--pivot-breakaway-retry-scale",
+            nav_pivot_breakaway_retry_scale,
             "--telemetry-enabled",
             nav_telemetry_enabled,
             "--telemetry-dir",
@@ -287,10 +329,13 @@ def generate_launch_description():
             DeclareLaunchArgument("start_nav", default_value="true"),
             DeclareLaunchArgument("start_zed", default_value="true"),
             DeclareLaunchArgument("start_lidar", default_value="true"),
+            DeclareLaunchArgument("start_lidar_filter", default_value="true"),
             DeclareLaunchArgument("start_fusion", default_value="true"),
             DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB0"),
             DeclareLaunchArgument("lidar_baud", default_value="115200"),
+            DeclareLaunchArgument("lidar_filter_forward_fov_deg", default_value="250.0"),
             DeclareLaunchArgument("zed_imu_publish_rate_hz", default_value="100.0"),
+            DeclareLaunchArgument("zed_publish_image", default_value="false"),
             DeclareLaunchArgument("motor_port", default_value="/dev/ttyACM0"),
             DeclareLaunchArgument("motor_baud", default_value="115200"),
             DeclareLaunchArgument("motor_dry_run", default_value="false"),
@@ -319,6 +364,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_controller_mode", default_value="idle"),
             DeclareLaunchArgument("nav_frame_topic", default_value="/sensors/nav_frame"),
             DeclareLaunchArgument("nav_imu_topic", default_value="/zed/imu"),
+            DeclareLaunchArgument("nav_imu_qos", default_value="sensor_data"),
             DeclareLaunchArgument("nav_imu_yaw_axis", default_value="z"),
             DeclareLaunchArgument("nav_imu_yaw_sign", default_value="1.0"),
             DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.12"),
@@ -367,6 +413,17 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_mission_straight_max_omega_radps", default_value="0.20"),
             DeclareLaunchArgument("nav_mission_straight_omega_slew_radps2", default_value="0.80"),
             DeclareLaunchArgument("nav_debug_allow_sub_min_crawl", default_value="false"),
+            DeclareLaunchArgument("nav_debug_allow_unknown_args", default_value="false"),
+            DeclareLaunchArgument("nav_debug_allow_unknown_pivot_clearance", default_value="false"),
+            DeclareLaunchArgument("nav_mission_stop_on_degraded_obstacle", default_value="true"),
+            DeclareLaunchArgument("nav_mission_telemetry_active_hz", default_value="50.0"),
+            DeclareLaunchArgument("nav_mission_telemetry_flush_period_s", default_value="0.50"),
+            DeclareLaunchArgument("nav_mission_telemetry_flush_max_records", default_value="25"),
+            DeclareLaunchArgument("nav_imu_rate_window_s", default_value="2.0"),
+            DeclareLaunchArgument("nav_stuck_detection_enabled", default_value="true"),
+            DeclareLaunchArgument("nav_straight_stuck_timeout_s", default_value="0.50"),
+            DeclareLaunchArgument("nav_pivot_stuck_timeout_s", default_value="0.45"),
+            DeclareLaunchArgument("nav_pivot_breakaway_retry_scale", default_value="1.25"),
             DeclareLaunchArgument("nav_telemetry_enabled", default_value="true"),
             DeclareLaunchArgument("nav_telemetry_dir", default_value="~/.ros/ugv_mission_logs"),
             motor_controller_launch,

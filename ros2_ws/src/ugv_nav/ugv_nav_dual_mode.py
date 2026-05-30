@@ -13,8 +13,9 @@ import argparse
 import json
 import math
 import time
+from collections import deque
 from dataclasses import dataclass, replace
-from typing import Any, Dict, Optional
+from typing import Any, Deque, Dict, Optional, Sequence
 
 from ugv_nav_core.chassis_controller import (
     ChassisControllerConfig,
@@ -39,14 +40,20 @@ from ugv_nav_core.mission_controller import (
     MissionPlan,
     MissionSegment,
     MissionTelemetryRecorder,
+    StuckMonitorState,
     apply_competition_speed_rule,
     classify_mission_safety,
     encoder_average_distance_m,
     heading_error_rms,
     load_mission_plan,
+    mission_segment_start_hold_reason,
     motion_rule_ok,
+    normalized_imu_qos,
+    reset_stuck_monitor,
     segment_timeout_s,
     straight_omega_with_slew,
+    telemetry_force_flush_key,
+    update_stuck_monitor,
 )
 
 
@@ -95,7 +102,7 @@ def parse_bool(value: str) -> bool:
     raise argparse.ArgumentTypeError(f"invalid boolean value: {value!r}")
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Safe UGV chassis controller. Default mode publishes STOP.",
         allow_abbrev=False,
@@ -110,6 +117,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--status-topic", default="/ugv_nav_status")
     parser.add_argument("--nav-frame-topic", default="/sensors/nav_frame")
     parser.add_argument("--imu-topic", default="/zed/imu")
+    parser.add_argument("--imu-qos", default="sensor_data")
     parser.add_argument("--imu-yaw-axis", choices=["x", "y", "z"], default="z")
     parser.add_argument("--imu-yaw-sign", type=float, default=1.0)
     parser.add_argument("--motor-status-topic", default="/motor_controller/status")
@@ -160,15 +168,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mission-straight-max-omega-radps", type=float, default=0.20)
     parser.add_argument("--mission-straight-omega-slew-radps2", type=float, default=0.80)
     parser.add_argument("--debug-allow-sub-min-crawl", type=parse_bool, default=False)
+    parser.add_argument("--debug-allow-unknown-args", type=parse_bool, default=False)
+    parser.add_argument("--debug-allow-unknown-pivot-clearance", type=parse_bool, default=False)
+    parser.add_argument("--mission-stop-on-degraded-obstacle", type=parse_bool, default=True)
+    parser.add_argument("--mission-telemetry-active-hz", type=float, default=50.0)
+    parser.add_argument("--mission-telemetry-flush-period-s", type=float, default=0.50)
+    parser.add_argument("--mission-telemetry-flush-max-records", type=int, default=25)
+    parser.add_argument("--imu-rate-window-s", type=float, default=2.0)
+    parser.add_argument("--stuck-detection-enabled", type=parse_bool, default=True)
+    parser.add_argument("--straight-stuck-timeout-s", type=float, default=0.50)
+    parser.add_argument("--pivot-stuck-timeout-s", type=float, default=0.45)
+    parser.add_argument("--pivot-breakaway-retry-scale", type=float, default=1.25)
     parser.add_argument("--telemetry-enabled", type=parse_bool, default=True)
     parser.add_argument("--telemetry-dir", default="~/.ros/ugv_mission_logs")
     parser.add_argument("--track-width-m", type=float, default=0.425)
     parser.add_argument("--wheel-radius-m", type=float, default=0.0825)
     parser.add_argument("--ticks-per-rev", type=float, default=3200.0)
     parser.add_argument("--once", action="store_true", help="publish one command/status cycle and exit in real mode")
-    args, unknown = parser.parse_known_args()
+    args, unknown = parser.parse_known_args(argv)
+    try:
+        args.imu_qos = normalized_imu_qos(args.imu_qos)
+    except ValueError as exc:
+        parser.error(str(exc))
     if unknown:
-        print(f"Ignoring unsupported navigation arguments: {' '.join(unknown)}")
+        if bool(args.debug_allow_unknown_args):
+            print(f"Ignoring unsupported navigation arguments: {' '.join(unknown)}")
+        else:
+            parser.error(f"unsupported navigation arguments: {' '.join(unknown)}")
     return args
 
 
@@ -218,6 +244,16 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         mission_straight_max_omega_radps=float(args.mission_straight_max_omega_radps),
         mission_straight_omega_slew_radps2=float(args.mission_straight_omega_slew_radps2),
         debug_allow_sub_min_crawl=bool(args.debug_allow_sub_min_crawl),
+        debug_allow_unknown_pivot_clearance=bool(args.debug_allow_unknown_pivot_clearance),
+        mission_stop_on_degraded_obstacle=bool(args.mission_stop_on_degraded_obstacle),
+        mission_telemetry_active_hz=float(args.mission_telemetry_active_hz),
+        mission_telemetry_flush_period_s=float(args.mission_telemetry_flush_period_s),
+        mission_telemetry_flush_max_records=int(args.mission_telemetry_flush_max_records),
+        imu_rate_window_s=float(args.imu_rate_window_s),
+        stuck_detection_enabled=bool(args.stuck_detection_enabled),
+        straight_stuck_timeout_s=float(args.straight_stuck_timeout_s),
+        pivot_stuck_timeout_s=float(args.pivot_stuck_timeout_s),
+        pivot_breakaway_retry_scale=float(args.pivot_breakaway_retry_scale),
         track_width_m=float(args.track_width_m),
         wheel_radius_m=float(args.wheel_radius_m),
         ticks_per_rev=float(args.ticks_per_rev),
@@ -232,6 +268,7 @@ def run_real(args: argparse.Namespace) -> None:
     try:
         import rclpy
         from rclpy.node import Node
+        from rclpy.qos import qos_profile_sensor_data
         from sensor_msgs.msg import Imu
         from std_msgs.msg import String
         from ugv_sensor_sync.msg import NavSensorFrame
@@ -272,6 +309,8 @@ def run_real(args: argparse.Namespace) -> None:
             self.encoder_gyro_disagreement_rad = 0.0
             self.slip_detected = False
             self.last_status_publish_s = 0.0
+            self.last_telemetry_write_s = 0.0
+            self.last_telemetry_force_flush_key: Optional[str] = None
             self.last_safety_log_s = 0.0
             self.last_safety_reason: Optional[str] = None
             self.last_command_payload: Dict[str, Any] = json.loads(build_stop_command().to_json())
@@ -292,23 +331,45 @@ def run_real(args: argparse.Namespace) -> None:
             self.last_mission_update_s: Optional[float] = None
             self.straight_heading_error_samples: list[float] = []
             self.sub_min_speed_command_blocked = False
+            self.imu_arrival_times_s: Deque[float] = deque()
+            self.imu_dt_samples_s: Deque[tuple[float, float]] = deque()
+            self.imu_skipped_integrations = 0
+            self.imu_max_dt_s = 0.0
+            self.stuck_monitor = StuckMonitorState()
+            self.stuck_detected = False
+            self.stuck_reason = "ok"
+            self.pivot_breakaway_scale = 1.0
             self.telemetry = MissionTelemetryRecorder(
                 enabled=bool(args.telemetry_enabled) and self.mission_plan is not None,
                 telemetry_dir=str(args.telemetry_dir),
                 mission_id=self.mission_plan.mission_id if self.mission_plan is not None else "mission",
+                flush_period_s=float(self.config.mission_telemetry_flush_period_s),
+                flush_max_records=int(self.config.mission_telemetry_flush_max_records),
             )
 
             self.imu_axis = str(args.imu_yaw_axis)
             self.imu_sign = -1.0 if float(args.imu_yaw_sign) < 0.0 else 1.0
+            self.imu_qos_name = normalized_imu_qos(str(args.imu_qos))
+            imu_qos = qos_profile_sensor_data if self.imu_qos_name == "sensor_data" else 50
 
             self.cmd_pub = self.create_publisher(String, args.command_topic, 10)
             self.status_pub = self.create_publisher(String, args.status_topic, 10)
             self.create_subscription(NavSensorFrame, args.nav_frame_topic, self.nav_frame_callback, 10)
-            self.create_subscription(Imu, args.imu_topic, self.imu_callback, 50)
+            self.create_subscription(Imu, args.imu_topic, self.imu_callback, imu_qos)
             self.create_subscription(String, args.motor_status_topic, self.motor_status_callback, 10)
             self.timer = self.create_timer(max(0.01, float(args.control_period_s)), self.tick)
             self.get_logger().warn(
                 f"Chassis controller started in {self.mode}; only velocity/STOP JSON is published."
+            )
+            self.get_logger().info(
+                "Chassis sanity: "
+                f"control_hz={1.0 / max(0.01, float(args.control_period_s)):.1f}, "
+                f"imu_topic={args.imu_topic}, imu_qos={self.imu_qos_name}, "
+                f"competition_min_speed={self.config.competition_min_speed_mps:.6f}m/s, "
+                f"heading_kp={self.config.heading_kp:.3f}, heading_kd={self.config.heading_kd:.3f}, "
+                f"pivot_max_omega={self.config.pivot_max_omega_radps:.3f}, "
+                f"stop_clearance={self.config.stop_clearance_m:.3f}, "
+                f"pivot_clearance={self.config.pivot_clearance_m:.3f}"
             )
 
         def nav_frame_callback(self, msg: Any) -> None:
@@ -333,16 +394,26 @@ def run_real(args: argparse.Namespace) -> None:
             now_s = time.monotonic()
             stamp_s = self._stamp_to_seconds(msg.header.stamp) or now_s
             self.last_imu_s = now_s
+            self._record_imu_arrival(now_s)
             angular_velocity = msg.angular_velocity
             raw_value = float(getattr(angular_velocity, self.imu_axis))
             self.raw_yaw_rate_radps = self.imu_sign * raw_value
             bias = self.gyro_bias.bias_radps if self.gyro_bias.ready else 0.0
+            previous_stamp_s = self.estimator.last_stamp_s
             self.estimator, self.yaw_rate_radps, self.imu_dt_integrated = update_gyro_heading(
                 self.estimator,
                 stamp_s=stamp_s,
                 raw_yaw_rate_radps=self.raw_yaw_rate_radps,
                 gyro_bias_radps=bias,
             )
+            if previous_stamp_s is not None:
+                dt_s = float(stamp_s) - float(previous_stamp_s)
+                if math.isfinite(dt_s) and dt_s > 0.0:
+                    self.imu_dt_samples_s.append((now_s, dt_s))
+                    self.imu_max_dt_s = max(self.imu_max_dt_s, dt_s)
+                if not self.imu_dt_integrated:
+                    self.imu_skipped_integrations += 1
+            self._trim_imu_diagnostics(now_s)
 
         def motor_status_callback(self, msg: Any) -> None:
             try:
@@ -361,6 +432,26 @@ def run_real(args: argparse.Namespace) -> None:
             if sec == 0 and nanosec == 0:
                 return None
             return float(sec) + float(nanosec) * 1e-9
+
+        def _record_imu_arrival(self, now_s: float) -> None:
+            self.imu_arrival_times_s.append(float(now_s))
+            self._trim_imu_diagnostics(now_s)
+
+        def _trim_imu_diagnostics(self, now_s: float) -> None:
+            window_s = max(0.1, float(self.config.imu_rate_window_s))
+            while self.imu_arrival_times_s and now_s - self.imu_arrival_times_s[0] > window_s:
+                self.imu_arrival_times_s.popleft()
+            while self.imu_dt_samples_s and now_s - self.imu_dt_samples_s[0][0] > window_s:
+                self.imu_dt_samples_s.popleft()
+            self.imu_max_dt_s = max((dt for _, dt in self.imu_dt_samples_s), default=0.0)
+
+        def _imu_rate_hz(self) -> float:
+            if len(self.imu_arrival_times_s) < 2:
+                return 0.0
+            elapsed_s = self.imu_arrival_times_s[-1] - self.imu_arrival_times_s[0]
+            if elapsed_s <= 0.0:
+                return 0.0
+            return float(len(self.imu_arrival_times_s) - 1) / elapsed_s
 
         def _start_straight_if_needed(self, now_s: float) -> None:
             if self.mode_start_s is not None:
@@ -462,6 +553,11 @@ def run_real(args: argparse.Namespace) -> None:
             self.last_mission_update_s = None
             self.straight_heading_error_samples.clear()
             self.target_heading_rad = None
+            self.last_telemetry_force_flush_key = None
+            self.stuck_detected = False
+            self.stuck_reason = "ok"
+            reset_stuck_monitor(self.stuck_monitor)
+            self.pivot_breakaway_scale = 1.0
             reset_pivot(self.pivot)
 
         def _current_segment(self) -> Optional[MissionSegment]:
@@ -484,6 +580,11 @@ def run_real(args: argparse.Namespace) -> None:
             self.previous_straight_omega_radps = 0.0
             self.last_mission_update_s = now_s
             self.straight_heading_error_samples.clear()
+            self.last_telemetry_force_flush_key = None
+            self.stuck_detected = False
+            self.stuck_reason = "ok"
+            reset_stuck_monitor(self.stuck_monitor)
+            self.pivot_breakaway_scale = 1.0
             if segment.segment_type == "straight":
                 self.target_heading_rad = self.estimator.heading_rad
                 self.target_distance_m = segment.distance_m
@@ -512,9 +613,14 @@ def run_real(args: argparse.Namespace) -> None:
             self.segment_index += 1
             reset_pivot(self.pivot)
             self.previous_straight_omega_radps = 0.0
+            reset_stuck_monitor(self.stuck_monitor)
+            self.stuck_detected = False
+            self.stuck_reason = "ok"
+            self.pivot_breakaway_scale = 1.0
             self.segment_start_s = None
             self.target_heading_rad = None
             self.target_distance_m = None
+            self.last_telemetry_force_flush_key = None
             if self.mission_plan is None or self.segment_index >= len(self.mission_plan.segments):
                 self.mission_state = "mission_complete"
                 return build_stop_command("mission_complete")
@@ -545,6 +651,55 @@ def run_real(args: argparse.Namespace) -> None:
             )
             self.mission_safety_level = decision.level
             self.mission_safety_reason = decision.reason
+
+        def _segment_key(self) -> str:
+            segment_type = None if self._current_segment() is None else self._current_segment().segment_type
+            return f"{self.segment_index}:{segment_type}:{self.segment_start_s}"
+
+        def _stuck_stop_or_abort(
+            self,
+            *,
+            now_s: float,
+            command_kind: str,
+            cmd: ControlCommand,
+        ) -> Optional[ControlCommand]:
+            result = update_stuck_monitor(
+                self.stuck_monitor,
+                now_s=now_s,
+                segment_key=self._segment_key(),
+                command_kind=command_kind,
+                v_cmd_mps=cmd.v_mps,
+                omega_cmd_radps=cmd.omega_radps,
+                yaw_rate_radps=self.yaw_rate_radps,
+                motor_status=self.motor_status,
+                config=self.config,
+            )
+            self.stuck_detected = result.stuck
+            self.stuck_reason = result.reason
+            if not result.stuck:
+                return None
+            if self.stuck_monitor.recovery_count < 1:
+                self.stuck_monitor.recovery_count += 1
+                retry_reason = f"{result.reason}_retry"
+                self.stuck_reason = retry_reason
+                if command_kind == "pivot":
+                    self.pivot_breakaway_scale *= max(1.0, float(self.config.pivot_breakaway_retry_scale))
+                    if self.pivot.target_heading_rad is not None:
+                        self.pivot.state = "breakaway"
+                        self.pivot.state_start_s = now_s
+                        self.pivot.last_update_s = now_s
+                        self.pivot.previous_omega_radps = 0.0
+                        self.pivot.settle_start_s = None
+                        self.pivot.retry_reason = result.reason
+                self._log_safety_stop(retry_reason, now_s)
+                reset_stuck_monitor(self.stuck_monitor, keep_recovery_count=True)
+                return build_stop_command(retry_reason)
+
+            self.mission_state = "abort"
+            self.mission_safety_level = "critical"
+            self.mission_safety_reason = result.reason
+            self._log_safety_stop(result.reason, now_s)
+            return build_stop_command(result.reason)
 
         def _tick_mission(self, now_s: float) -> tuple[ControlCommand, float, float, str]:
             heading = self.estimator.heading_rad
@@ -585,6 +740,30 @@ def run_real(args: argparse.Namespace) -> None:
                 self.segment_index = 0
                 self.mission_state = "segment_start"
             if self.mission_state in {"segment_start", "segment_complete"}:
+                segment = self._current_segment()
+                if segment is None:
+                    self.mission_state = "mission_complete"
+                    return build_stop_command("mission_complete"), heading, heading_error, "ok"
+                pivot_clearance_reason = None
+                if segment.segment_type == "pivot":
+                    pivot_safety = evaluate_pivot_clearance(self.last_scan_ranges, self.config)
+                    if not pivot_safety.safe:
+                        pivot_clearance_reason = pivot_safety.reason
+                hold_reason = mission_segment_start_hold_reason(
+                    segment,
+                    safety_level=self.mission_safety_level,
+                    safety_reason=self.mission_safety_reason,
+                    encoder_available=self.encoder_available,
+                    left_ticks=self.current_left_ticks,
+                    right_ticks=self.current_right_ticks,
+                    pivot_clearance_reason=pivot_clearance_reason,
+                    config=self.config,
+                )
+                if hold_reason is not None:
+                    self.mission_safety_level = "degraded"
+                    self.mission_safety_reason = hold_reason
+                    self._log_safety_stop(hold_reason, now_s)
+                    return build_stop_command(hold_reason), heading, heading_error, hold_reason
                 self._start_mission_segment(now_s)
                 return build_stop_command("segment_start"), heading, heading_error, "ok"
             segment = self._current_segment()
@@ -606,7 +785,16 @@ def run_real(args: argparse.Namespace) -> None:
                 if self.mission_safety_reason in {"sensor_missing", "sensor_stale", "front_clearance_invalid"}:
                     return build_stop_command(self.mission_safety_reason), heading, heading_error, self.mission_safety_reason
                 if segment.segment_type == "straight":
-                    pass
+                    if (
+                        self.config.mission_stop_on_degraded_obstacle
+                        and self.mission_safety_reason in {"near_obstacle", "front_clearance_low"}
+                    ):
+                        return (
+                            build_stop_command(self.mission_safety_reason),
+                            heading,
+                            heading_error,
+                            self.mission_safety_reason,
+                        )
                 elif segment.segment_type == "pivot":
                     pivot_safety = evaluate_pivot_clearance(self.last_scan_ranges, self.config)
                     if not pivot_safety.safe:
@@ -655,7 +843,11 @@ def run_real(args: argparse.Namespace) -> None:
                     config=self.config,
                 )
                 self.previous_straight_omega_radps = omega
-                return build_velocity_command(v_cmd, omega, reason), heading, heading_error, "ok"
+                cmd = build_velocity_command(v_cmd, omega, reason)
+                stuck_cmd = self._stuck_stop_or_abort(now_s=now_s, command_kind="straight", cmd=cmd)
+                if stuck_cmd is not None:
+                    return stuck_cmd, heading, heading_error, self.stuck_reason
+                return cmd, heading, heading_error, "ok"
 
             if segment.segment_type == "pivot":
                 pivot_safety = evaluate_pivot_clearance(self.last_scan_ranges, self.config)
@@ -674,6 +866,13 @@ def run_real(args: argparse.Namespace) -> None:
                     )
                 if segment.timeout_s is not None:
                     pivot_config = replace(pivot_config, pivot_timeout_s=float(segment.timeout_s))
+                if self.pivot_breakaway_scale != 1.0:
+                    pivot_config = replace(
+                        pivot_config,
+                        pivot_breakaway_omega_radps=(
+                            pivot_config.pivot_breakaway_omega_radps * self.pivot_breakaway_scale
+                        ),
+                    )
                 step = step_profiled_pivot(
                     self.pivot,
                     now_s=now_s,
@@ -694,7 +893,11 @@ def run_real(args: argparse.Namespace) -> None:
                 if step.complete:
                     return self._finish_mission_segment("segment_complete"), heading, heading_error, "ok"
                 if step.command_type == "velocity":
-                    return build_velocity_command(0.0, step.omega_radps, step.reason), heading, heading_error, "ok"
+                    cmd = build_velocity_command(0.0, step.omega_radps, step.reason)
+                    stuck_cmd = self._stuck_stop_or_abort(now_s=now_s, command_kind="pivot", cmd=cmd)
+                    if stuck_cmd is not None:
+                        return stuck_cmd, heading, heading_error, self.stuck_reason
+                    return cmd, heading, heading_error, "ok"
                 return build_stop_command(step.reason), heading, heading_error, "ok"
 
             wait_s = max(0.0, float(segment.wait_s))
@@ -781,6 +984,7 @@ def run_real(args: argparse.Namespace) -> None:
 
             self._publish_command(cmd)
             self._publish_status_if_needed(now_s, heading, heading_error, safety_state)
+            self._write_telemetry_if_needed(now_s, heading, heading_error, safety_state)
             if args.once:
                 raise KeyboardInterrupt
 
@@ -806,6 +1010,48 @@ def run_real(args: argparse.Namespace) -> None:
             period_s = max(0.05, float(args.nav_status_period_s))
             if now_s - self.last_status_publish_s < period_s:
                 return
+            status = self._build_status_record(now_s, heading, heading_error, safety_state)
+            self.status_pub.publish(String(data=json.dumps(status, sort_keys=True)))
+            self.last_status_publish_s = now_s
+
+        def _write_telemetry_if_needed(
+            self,
+            now_s: float,
+            heading: float,
+            heading_error: float,
+            safety_state: str,
+        ) -> None:
+            if self.mission_plan is None:
+                return
+            active = self.mission_state in {"straight_active", "pivot_active", "wait_active"}
+            active_period_s = 1.0 / max(1.0, float(self.config.mission_telemetry_active_hz))
+            idle_period_s = max(0.05, float(args.nav_status_period_s))
+            period_s = active_period_s if active else idle_period_s
+            force_key = telemetry_force_flush_key(
+                mission_state=self.mission_state,
+                safety_level=self.mission_safety_level,
+                safety_reason=self.mission_safety_reason,
+                segment_index=self.segment_index,
+            )
+            force_flush = force_key is not None and force_key != self.last_telemetry_force_flush_key
+            if not force_flush and now_s - self.last_telemetry_write_s < period_s:
+                return
+            self.telemetry.write(
+                self._build_status_record(now_s, heading, heading_error, safety_state),
+                now_s=now_s,
+                force_flush=force_flush,
+            )
+            if force_flush:
+                self.last_telemetry_force_flush_key = force_key
+            self.last_telemetry_write_s = now_s
+
+        def _build_status_record(
+            self,
+            now_s: float,
+            heading: float,
+            heading_error: float,
+            safety_state: str,
+        ) -> Dict[str, Any]:
             pivot_state = self.pivot.state
             if self.mode == "pivot_test":
                 if safety_state in {
@@ -816,7 +1062,16 @@ def run_real(args: argparse.Namespace) -> None:
                     pivot_state = "gyro_bias_calibration"
                 elif safety_state not in {"ok", "idle"}:
                     pivot_state = "precheck" if self.pivot.state == "idle" else "abort"
-            status = {
+            last_v = float(self.last_command_payload.get("v_mps", 0.0))
+            last_omega = float(self.last_command_payload.get("omega_radps", 0.0))
+            straight_limit = max(0.0, min(float(self.config.max_omega_radps), float(self.config.mission_straight_max_omega_radps)))
+            pivot_limit = max(0.0, min(float(self.config.max_omega_radps), float(self.config.pivot_max_omega_radps)))
+            omega_limit = pivot_limit if pivot_state not in {"idle", "complete"} else straight_limit
+            pivot_state_elapsed_s = (
+                None if self.pivot.state_start_s is None else round(max(0.0, now_s - self.pivot.state_start_s), 3)
+            )
+            pivot_clearance_known = self.last_scan_ranges is not None and self.pivot_clearance_m is not None
+            return {
                 "nav_runtime": "chassis_controller",
                 "controller_mode": self.mode,
                 "active": self.last_command_payload.get("command_type") == "velocity",
@@ -828,15 +1083,16 @@ def run_real(args: argparse.Namespace) -> None:
                 "target_distance_m": self.target_distance_m,
                 "competition_min_speed_mps": self.config.competition_min_speed_mps,
                 "motion_rule_ok": motion_rule_ok(
-                    float(self.last_command_payload.get("v_mps", 0.0)),
+                    last_v,
                     min_speed_mps=self.config.competition_min_speed_mps,
                 ),
                 "sub_min_speed_command_blocked": self.sub_min_speed_command_blocked,
                 "below_reliable_motion_speed": (
-                    abs(float(self.last_command_payload.get("v_mps", 0.0))) >= 1e-6
-                    and abs(float(self.last_command_payload.get("v_mps", 0.0))) < self.config.mission_reliable_speed_mps
+                    abs(last_v) >= 1e-6
+                    and abs(last_v) < self.config.mission_reliable_speed_mps
                 ),
                 "pivot_state": pivot_state,
+                "pivot_state_elapsed_s": pivot_state_elapsed_s,
                 "target_heading_rad": self.target_heading_rad,
                 "estimated_heading_rad": heading,
                 "gyro_heading_rad": self.estimator.gyro_heading_rad,
@@ -849,9 +1105,16 @@ def run_real(args: argparse.Namespace) -> None:
                 "gyro_bias_radps": self.gyro_bias.bias_radps,
                 "gyro_bias_std_radps": self.gyro_bias.std_radps,
                 "gyro_bias_ready": self.gyro_bias.ready,
+                "gyro_bias_sample_count": len(self.gyro_bias.samples),
+                "gyro_bias_status": "ready" if self.gyro_bias.ready else safety_state,
                 "pivot_retry_count": self.pivot.retry_count,
-                "v_mps": self.last_command_payload.get("v_mps", 0.0),
-                "omega_radps": self.last_command_payload.get("omega_radps", 0.0),
+                "pivot_direction": self.pivot.direction,
+                "pivot_retry_reason": self.pivot.retry_reason,
+                "pivot_overshoot_rad": self.pivot.overshoot_rad,
+                "pivot_final_error_rad": self.pivot.final_error_rad,
+                "v_mps": last_v,
+                "omega_radps": last_omega,
+                "omega_saturated": abs(last_omega) >= max(0.0, omega_limit - 1e-6) and abs(last_omega) > 1e-6,
                 "safety_state": safety_state,
                 "safety_level": self.mission_safety_level if self.mode == "mission_sequence" else (
                     "ok" if safety_state in {"idle", "ok"} else "critical"
@@ -861,18 +1124,25 @@ def run_real(args: argparse.Namespace) -> None:
                 "near_obstacle": self.near_obstacle,
                 "front_clearance_m": self.front_clearance_m,
                 "pivot_clearance_m": self.pivot_clearance_m,
+                "pivot_clearance_known": pivot_clearance_known,
                 "sensor_age_s": None if self.last_sensor_s is None else round(now_s - self.last_sensor_s, 3),
                 "imu_age_s": None if self.last_imu_s is None else round(now_s - self.last_imu_s, 3),
+                "imu_rate_hz": round(self._imu_rate_hz(), 3),
+                "imu_max_dt_s": round(self.imu_max_dt_s, 4),
+                "imu_skipped_integrations": self.imu_skipped_integrations,
+                "imu_qos": self.imu_qos_name,
                 "motor_status_age_s": (
                     None if self.last_motor_status_s is None else round(now_s - self.last_motor_status_s, 3)
                 ),
+                "stuck_detected": self.stuck_detected,
+                "stuck_reason": self.stuck_reason,
+                "stuck_recovery_count": self.stuck_monitor.recovery_count,
                 "last_command": self.last_command_payload,
                 "telemetry_path": None if self.telemetry.path is None else str(self.telemetry.path),
+                "telemetry_enabled": bool(self.telemetry.enabled) and not bool(self.telemetry.failed),
+                "telemetry_error": self.telemetry.error,
                 "timestamp_s": round(time.time(), 3),
             }
-            self.status_pub.publish(String(data=json.dumps(status, sort_keys=True)))
-            self.telemetry.write(status)
-            self.last_status_publish_s = now_s
 
     rclpy.init()
     node: Optional[ChassisControllerNode] = None

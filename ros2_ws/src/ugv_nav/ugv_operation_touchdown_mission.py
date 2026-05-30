@@ -69,6 +69,7 @@ class OperationTouchdownMissionNode(Node):
         self.declare_parameter("marker_target_gate_radius_m", 2.274)
         self.declare_parameter("marker_lost_timeout_s", 0.75)
         self.declare_parameter("marker_search_timeout_s", 6.0)
+        self.declare_parameter("coordinate_arrival_marker_search_s", 2.0)
         self.declare_parameter("status_period_s", 0.25)
         self.declare_parameter("terminal_control_period_s", 0.05)
 
@@ -102,6 +103,10 @@ class OperationTouchdownMissionNode(Node):
         self.marker_target_gate_radius_m = max(0.0, float(self.get_parameter("marker_target_gate_radius_m").value))
         self.marker_lost_timeout_s = max(0.0, float(self.get_parameter("marker_lost_timeout_s").value))
         self.marker_search_timeout_s = max(0.0, float(self.get_parameter("marker_search_timeout_s").value))
+        self.coordinate_arrival_marker_search_s = max(
+            0.0,
+            float(self.get_parameter("coordinate_arrival_marker_search_s").value),
+        )
         self.status_period_s = max(0.05, float(self.get_parameter("status_period_s").value))
         self.terminal_control_period_s = max(0.02, float(self.get_parameter("terminal_control_period_s").value))
 
@@ -367,6 +372,10 @@ class OperationTouchdownMissionNode(Node):
             self._set_state("abort", "terminal_missing_pose_or_target")
             return
         target_x, target_y = self.target_xy_m
+        marker_fresh = self.last_marker_s is not None and now_s - self.last_marker_s <= self.marker_lost_timeout_s
+        if marker_fresh:
+            self._set_state("terminal_approach", "marker_confirmed")
+            return
         if destination_reached_by_coordinate(
             robot_x_m=self.latest_pose.x,
             robot_y_m=self.latest_pose.y,
@@ -375,11 +384,10 @@ class OperationTouchdownMissionNode(Node):
             destination_radius_m=self.destination_radius_m,
             buffer_m=self.terminal_arrival_buffer_m,
         ):
-            self._set_state("destination_stop", "destination_reached_by_coordinate_no_marker_visual")
-            return
-        marker_fresh = self.last_marker_s is not None and now_s - self.last_marker_s <= self.marker_lost_timeout_s
-        if marker_fresh:
-            self._set_state("terminal_approach", "marker_confirmed")
+            if now_s - self.state_start_s >= self.coordinate_arrival_marker_search_s:
+                self._set_state("destination_stop", "destination_reached_by_coordinate_no_marker_visual")
+            else:
+                self.reason = "marker_search_coordinate_hold"
             return
         if self.marker_search_timeout_s > 0.0 and now_s - self.state_start_s > self.marker_search_timeout_s:
             self._set_state("abort", "marker_lost")
@@ -462,6 +470,7 @@ class OperationTouchdownMissionNode(Node):
             "marker_age_s": None if self.last_marker_s is None else now_s - self.last_marker_s,
             "marker_distance_m": self.latest_marker_distance_m,
             "marker_target_gate_radius_m": self.marker_target_gate_radius_m,
+            "coordinate_arrival_marker_search_s": self.coordinate_arrival_marker_search_s,
             "last_marker_reject_reason": self.last_marker_reject_reason,
             "last_terminal_command": self.last_terminal_command,
             "kill_switch_active": self.kill_switch_active,

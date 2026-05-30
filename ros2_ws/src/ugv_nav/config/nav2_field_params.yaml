@@ -190,7 +190,15 @@ global_costmap:
       transform_tolerance: 0.3
       footprint: "[[0.36, 0.30], [0.36, -0.30], [-0.36, -0.30], [-0.36, 0.30]]"
       track_unknown_space: true
-      plugins: [obstacle_layer, inflation_layer]
+      plugins: [static_layer, obstacle_layer, inflation_layer]
+      static_layer:
+        plugin: nav2_costmap_2d::StaticLayer
+        enabled: true
+        map_topic: /map
+        map_subscribe_transient_local: true
+        subscribe_to_updates: false
+        lethal_cost_threshold: 65
+        trinary_costmap: true
       obstacle_layer:
         plugin: nav2_costmap_2d::ObstacleLayer
         enabled: true

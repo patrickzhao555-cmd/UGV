@@ -376,8 +376,8 @@ def test_nav2_launch_publishes_explicit_field_free_space_and_keepout_map():
     assert "ugv_field_map_node.py" in launch_text
     assert 'DeclareLaunchArgument("start_field_map", default_value="true")' in launch_text
     assert 'DeclareLaunchArgument("field_map_resolution_m", default_value="0.05")' in launch_text
-    assert "plugins: [static_layer, obstacle_layer, inflation_layer]" in nav2_params
-    assert "plugin: nav2_costmap_2d::StaticLayer" in nav2_params
+    assert nav2_params.count("plugins: [static_layer, obstacle_layer, inflation_layer]") >= 2
+    assert nav2_params.count("plugin: nav2_costmap_2d::StaticLayer") >= 2
     assert "map_subscribe_transient_local: true" in nav2_params
     assert "inside_free" in field_map_text
     assert "data.append(0 if inside_free else 100)" in field_map_text

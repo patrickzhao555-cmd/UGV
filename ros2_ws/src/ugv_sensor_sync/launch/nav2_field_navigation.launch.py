@@ -84,6 +84,7 @@ def generate_launch_description():
     terminal_stop_distance_m = LaunchConfiguration("terminal_stop_distance_m")
     terminal_forward_speed_mps = LaunchConfiguration("terminal_forward_speed_mps")
     marker_target_gate_radius_m = LaunchConfiguration("marker_target_gate_radius_m")
+    coordinate_arrival_marker_search_s = LaunchConfiguration("coordinate_arrival_marker_search_s")
     lidar_x_m = LaunchConfiguration("lidar_x_m")
     lidar_y_m = LaunchConfiguration("lidar_y_m")
     lidar_z_m = LaunchConfiguration("lidar_z_m")
@@ -295,6 +296,8 @@ def generate_launch_description():
             "-p",
             ["marker_target_gate_radius_m:=", marker_target_gate_radius_m],
             "-p",
+            ["coordinate_arrival_marker_search_s:=", coordinate_arrival_marker_search_s],
+            "-p",
             ["cmd_vel_topic:=", mission_cmd_vel_topic],
         ],
         output="screen",
@@ -489,6 +492,7 @@ def generate_launch_description():
             DeclareLaunchArgument("terminal_stop_distance_m", default_value="1.0"),
             DeclareLaunchArgument("terminal_forward_speed_mps", default_value="0.10"),
             DeclareLaunchArgument("marker_target_gate_radius_m", default_value="2.274"),
+            DeclareLaunchArgument("coordinate_arrival_marker_search_s", default_value="2.0"),
             DeclareLaunchArgument("lidar_x_m", default_value="0.0"),
             DeclareLaunchArgument("lidar_y_m", default_value="0.0"),
             DeclareLaunchArgument("lidar_z_m", default_value="0.18"),

@@ -75,6 +75,7 @@ class ArucoMarkerNode(Node):
         self.declare_parameter("max_pose_jump_m", 0.75)
         self.declare_parameter("tf_timeout_s", 0.05)
         self.declare_parameter("allow_planar_projection_fallback", False)
+        self.declare_parameter("pnp_tvec_frame", "optical")
         self.declare_parameter("camera_x_m", 0.0)
         self.declare_parameter("camera_y_m", 0.0)
         self.declare_parameter("camera_yaw_offset_rad", 0.0)
@@ -104,6 +105,10 @@ class ArucoMarkerNode(Node):
         self.max_pose_jump_m = max(0.0, float(self.get_parameter("max_pose_jump_m").value))
         self.tf_timeout_s = max(0.0, float(self.get_parameter("tf_timeout_s").value))
         self.allow_planar_projection_fallback = bool(self.get_parameter("allow_planar_projection_fallback").value)
+        self.pnp_tvec_frame = str(self.get_parameter("pnp_tvec_frame").value).strip().lower()
+        if self.pnp_tvec_frame not in {"optical", "tf"}:
+            self.get_logger().warn(f"Unsupported pnp_tvec_frame={self.pnp_tvec_frame!r}; using optical.")
+            self.pnp_tvec_frame = "optical"
         self.camera_x_m = float(self.get_parameter("camera_x_m").value)
         self.camera_y_m = float(self.get_parameter("camera_y_m").value)
         self.camera_yaw_offset_rad = float(self.get_parameter("camera_yaw_offset_rad").value)
@@ -135,7 +140,7 @@ class ArucoMarkerNode(Node):
             "ArUco marker node started "
             f"(image={self.image_topic}, camera_info={self.camera_info_topic}, "
             f"dictionary={self.dictionary_name}, ids={sorted(self.allowed_marker_ids)}, "
-            f"marker_size={self.marker_size_m:.4f}m)"
+            f"marker_size={self.marker_size_m:.4f}m, pnp_tvec_frame={self.pnp_tvec_frame})"
         )
 
     def _build_dictionary(self, name: str):
@@ -345,9 +350,10 @@ class ArucoMarkerNode(Node):
             point.header.frame_id = frame_id
             lookup_time = self._lookup_time_from_stamp(stamp)
             point.header.stamp = lookup_time.to_msg()
-            point.point.x = float(tvec[0])
-            point.point.y = float(tvec[1])
-            point.point.z = float(tvec[2])
+            tf_x, tf_y, tf_z = self._tvec_to_tf_frame_xyz(tvec)
+            point.point.x = tf_x
+            point.point.y = tf_y
+            point.point.z = tf_z
             try:
                 transform = self._lookup_transform(frame_id, lookup_time)
                 map_point = self._transform_point(point, transform)
@@ -377,6 +383,28 @@ class ArucoMarkerNode(Node):
         if not math.isfinite(map_x) or not math.isfinite(map_y):
             return None
         return map_x, map_y
+
+    def _tvec_to_tf_frame_xyz(self, tvec: np.ndarray) -> tuple[float, float, float]:
+        """Convert solvePnP tvec into the frame used by the image header TF.
+
+        OpenCV returns ``tvec`` in camera optical axes: +x right, +y down,
+        +z forward.  Our launch's ``zed_left`` static transform is a normal
+        robot/body-style sensor frame: +x forward, +y left, +z up.  Converting
+        here keeps the TF tree intuitive and avoids treating optical z-forward
+        as robot z-up.
+
+        Set ``pnp_tvec_frame=tf`` only if the image header frame is already a
+        true optical frame in TF.
+        """
+        x_opt = float(tvec[0])
+        y_opt = float(tvec[1])
+        z_opt = float(tvec[2])
+        if self.pnp_tvec_frame == "tf":
+            return x_opt, y_opt, z_opt
+        camera_forward_m = z_opt
+        camera_left_m = -x_opt
+        camera_up_m = -y_opt
+        return camera_forward_m, camera_left_m, camera_up_m
 
     @staticmethod
     def _lookup_time_from_stamp(stamp) -> Time:

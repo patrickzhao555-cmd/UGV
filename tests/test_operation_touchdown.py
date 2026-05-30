@@ -172,6 +172,7 @@ def test_nav2_launch_defaults_to_mission_supervisor_and_aruco_not_direct_goal_br
     assert "aruco_marker_node.py" in launch_text
     assert 'DeclareLaunchArgument("zed_publish_image", default_value="true")' in launch_text
     assert 'DeclareLaunchArgument("marker_target_gate_radius_m", default_value="2.274")' in launch_text
+    assert 'DeclareLaunchArgument("coordinate_arrival_marker_search_s", default_value="2.0")' in launch_text
 
 
 def test_mission_supervisor_does_not_publish_stop_while_nav2_owns_cmd_vel_raw():
@@ -210,8 +211,20 @@ def test_aruco_detector_uses_full_tf_projection_not_yaw_only_projection_by_defau
     assert "TransformListener" in aruco_text
     assert "lookup_transform" in aruco_text
     assert 'self.declare_parameter("allow_planar_projection_fallback", False)' in aruco_text
+    assert 'self.declare_parameter("pnp_tvec_frame", "optical")' in aruco_text
+    assert "camera_forward_m = z_opt" in aruco_text
+    assert "camera_left_m = -x_opt" in aruco_text
+    assert "camera_up_m = -y_opt" in aruco_text
     assert "_transform_point" in aruco_text
     assert "msg_out.header.frame_id = self.map_frame" in aruco_text
+
+
+def test_mission_supervisor_holds_briefly_for_visual_marker_before_coordinate_fallback():
+    mission_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_operation_touchdown_mission.py").read_text()
+
+    assert 'self.declare_parameter("coordinate_arrival_marker_search_s", 2.0)' in mission_text
+    assert '"marker_search_coordinate_hold"' in mission_text
+    assert "now_s - self.state_start_s >= self.coordinate_arrival_marker_search_s" in mission_text
 
 
 def test_nav2_adapter_has_explicit_kill_switch_hard_stop():

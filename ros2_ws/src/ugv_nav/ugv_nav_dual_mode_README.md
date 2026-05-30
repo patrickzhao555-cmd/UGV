@@ -229,7 +229,9 @@ the mission supervisor selects a nearby staging pose instead, so the UGV stops
 inside the rulebook's 5 ft destination radius rather than blindly driving over
 the flat ground marker. The ArUco detector requires ZED image publishing and
 `/zed/left/camera_info`; the Nav2 launch enables `zed_publish_image:=true` by
-default. If the marker is not visible near the destination but localization
+default. After reaching staging, the supervisor briefly holds STOP to give the
+ZED detector a visual confirmation window before falling back to the UAV
+coordinate. If the marker is not visible near the destination but localization
 places the UGV inside the destination circle, the mission stops conservatively
 with `destination_reached_by_coordinate_no_marker_visual`.
 ArUco map projection uses the full camera-to-map TF transform, including ZED

@@ -17,10 +17,14 @@ from ugv_motion_test_runner import (  # noqa: E402
     case_launch_args,
     compensation_table_draft,
     compute_case_metrics,
+    custom_pivot_case,
+    custom_straight_case,
     expected_distance_for_case,
     expand_repeats,
+    load_requested_suite,
     load_suite_file,
     merge_launch_args,
+    parse_args,
     parse_launch_arg,
     parse_optional_float,
     select_cases,
@@ -108,6 +112,71 @@ def test_mission_case_writes_mission_file_and_launch_arg(tmp_path):
     args = case_launch_args(case, case_dir=tmp_path)
     assert args["nav_controller_mode"] == "mission_sequence"
     assert args["nav_mission_file"] == str(mission_path)
+
+
+def test_custom_distance_straight_case_uses_distance_based_mission(tmp_path):
+    case = custom_straight_case(
+        speed_mps=0.18,
+        distance_m=1.25,
+        duration_s=None,
+        heading_kp=0.4,
+        heading_kd=0.06,
+        max_omega_radps=0.16,
+    )
+    assert case.mode == "mission_sequence"
+    assert case.expected_distance_m == pytest.approx(1.25)
+    assert case.mission["segments"] == [{"type": "straight", "distance_m": 1.25, "speed_mps": 0.18}]
+    args = case_launch_args(case, case_dir=tmp_path)
+    assert args["nav_controller_mode"] == "mission_sequence"
+    assert args["nav_heading_kp"] == "0.4"
+    assert args["nav_heading_kd"] == "0.06"
+    assert args["nav_mission_straight_max_omega_radps"] == "0.16"
+    assert "nav_mission_file" in args
+
+
+def test_custom_time_straight_case_can_be_open_loop():
+    case = custom_straight_case(
+        speed_mps=0.2,
+        distance_m=None,
+        duration_s=3.0,
+        heading_kp=0.4,
+        heading_kd=0.06,
+        max_omega_radps=0.16,
+        open_loop=True,
+        repeat=2,
+    )
+    assert case.mode == "straight_test"
+    assert case.repeat == 2
+    assert case.expected_distance_m == pytest.approx(0.6)
+    assert case.launch_args["nav_heading_kp"] == "0"
+    assert case.launch_args["nav_heading_kd"] == "0"
+    assert case.launch_args["nav_max_omega_radps"] == "0"
+
+
+def test_custom_pivot_case_uses_requested_angle_and_timeout():
+    case = custom_pivot_case(angle_deg=-37.5, repeat=3, max_test_duration_s=8.0, pivot_timeout_s=5.5)
+    assert case.mode == "pivot_test"
+    assert case.repeat == 3
+    assert case.expected_angle_deg == pytest.approx(-37.5)
+    assert case.launch_args["nav_pivot_angle_deg"] == "-37.5"
+    assert case.launch_args["nav_max_test_duration_s"] == "8"
+    assert case.launch_args["nav_pivot_timeout_s"] == "5.5"
+
+
+def test_load_requested_suite_builds_custom_cases_from_cli_args():
+    straight_args = parse_args(["--straight-speed-mps", "0.15", "--straight-distance-m", "1.0"])
+    straight_suite = load_requested_suite(straight_args)
+    assert straight_suite.suite_id == "custom_straight"
+    assert straight_suite.cases[0].mode == "mission_sequence"
+
+    pivot_args = parse_args(["--pivot-angle-deg", "45", "--custom-repeat", "2"])
+    pivot_suite = load_requested_suite(pivot_args)
+    assert pivot_suite.suite_id == "custom_pivot"
+    assert pivot_suite.cases[0].expected_angle_deg == pytest.approx(45.0)
+    assert pivot_suite.cases[0].repeat == 2
+
+    with pytest.raises(ValueError):
+        load_requested_suite(parse_args(["--pivot-angle-deg", "45", "--straight-speed-mps", "0.15", "--straight-distance-m", "1.0"]))
 
 
 def test_runner_launch_args_can_pin_telemetry_under_case_dir(tmp_path):

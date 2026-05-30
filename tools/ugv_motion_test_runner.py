@@ -177,6 +177,125 @@ def _mission_case(case_id: str, *, segments: list[dict[str, Any]], description: 
     )
 
 
+def _sanitize_case_token(value: float, suffix: str) -> str:
+    text = f"{float(value):.3f}".rstrip("0").rstrip(".").replace("-", "neg").replace(".", "p")
+    return f"{text}{suffix}"
+
+
+def custom_straight_case(
+    *,
+    speed_mps: float,
+    distance_m: Optional[float],
+    duration_s: Optional[float],
+    heading_kp: float,
+    heading_kd: float,
+    max_omega_radps: float,
+    open_loop: bool = False,
+    case_id: Optional[str] = None,
+    repeat: int = 1,
+) -> MotionTestCase:
+    if speed_mps <= 0.0 or not math.isfinite(float(speed_mps)):
+        raise ValueError("custom straight requires --straight-speed-mps > 0")
+    if distance_m is None and duration_s is None:
+        raise ValueError("custom straight requires --straight-distance-m or --straight-duration-s")
+    if distance_m is not None and duration_s is not None:
+        raise ValueError("custom straight accepts distance or duration, not both")
+    if repeat < 1:
+        raise ValueError("--custom-repeat must be >= 1")
+
+    kp = 0.0 if open_loop else float(heading_kp)
+    kd = 0.0 if open_loop else float(heading_kd)
+    max_omega = 0.0 if open_loop else float(max_omega_radps)
+
+    if distance_m is not None:
+        distance = float(distance_m)
+        if distance <= 0.0 or not math.isfinite(distance):
+            raise ValueError("--straight-distance-m must be > 0")
+        case_name = case_id or (
+            "custom_straight_"
+            + _sanitize_case_token(distance, "m")
+            + "_"
+            + _sanitize_case_token(speed_mps, "mps")
+        )
+        segment = {
+            "type": "straight",
+            "distance_m": distance,
+            "speed_mps": float(speed_mps),
+        }
+        launch_args = {
+            "nav_heading_kp": _fmt_float(kp),
+            "nav_heading_kd": _fmt_float(kd),
+            "nav_mission_straight_max_omega_radps": _fmt_float(max_omega),
+        }
+        return MotionTestCase(
+            id=case_name,
+            mode="mission_sequence",
+            description=(
+                f"Custom distance-based straight: {distance:.3f} m at {speed_mps:.3f} m/s "
+                f"({'open loop' if open_loop else 'heading hold'})."
+            ),
+            expected_distance_m=distance,
+            speed_mps=float(speed_mps),
+            repeat=int(repeat),
+            mission={"mission_id": case_name, "segments": [segment]},
+            max_case_duration_s=estimate_mission_duration_s({"segments": [segment]}),
+            launch_args=launch_args,
+        )
+
+    duration = float(duration_s)
+    if duration <= 0.0 or not math.isfinite(duration):
+        raise ValueError("--straight-duration-s must be > 0")
+    case_name = case_id or (
+        "custom_straight_"
+        + _sanitize_case_token(duration, "s")
+        + "_"
+        + _sanitize_case_token(speed_mps, "mps")
+    )
+    case = _straight_test_case(
+        case_name,
+        speed_mps=float(speed_mps),
+        duration_s=duration,
+        heading_kp=kp,
+        heading_kd=kd,
+        max_omega_radps=max_omega,
+        description=(
+            f"Custom time-based straight: {duration:.3f} s at {speed_mps:.3f} m/s "
+            f"({'open loop' if open_loop else 'heading hold'})."
+        ),
+    )
+    return replace(case, repeat=int(repeat))
+
+
+def custom_pivot_case(
+    *,
+    angle_deg: float,
+    case_id: Optional[str] = None,
+    repeat: int = 1,
+    max_test_duration_s: float = 6.0,
+    pivot_timeout_s: float = 4.0,
+) -> MotionTestCase:
+    angle = float(angle_deg)
+    if not math.isfinite(angle) or abs(angle) < 1e-9:
+        raise ValueError("--pivot-angle-deg must be a non-zero finite angle")
+    if repeat < 1:
+        raise ValueError("--custom-repeat must be >= 1")
+    base = _pivot_test_case(angle)
+    if case_id is None:
+        side = "left" if angle > 0.0 else "right"
+        case_id = "custom_pivot_" + side + "_" + _sanitize_case_token(abs(angle), "deg")
+    launch_args = dict(base.launch_args)
+    launch_args["nav_max_test_duration_s"] = _fmt_float(max_test_duration_s)
+    launch_args["nav_pivot_timeout_s"] = _fmt_float(pivot_timeout_s)
+    return replace(
+        base,
+        id=case_id,
+        repeat=int(repeat),
+        max_case_duration_s=float(max_test_duration_s) + 0.5,
+        launch_args=launch_args,
+        description=f"Custom pivot: {angle:.3f} deg; CCW is positive per REP 103.",
+    )
+
+
 def builtin_suite(name: str) -> MotionTestSuite:
     suite_id = str(name).strip().lower()
     if suite_id == "basic":
@@ -856,6 +975,18 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--suite", default="basic", help="Built-in suite: basic, pivot_calibration, mission_smoke")
     parser.add_argument("--suite-file", help="Path to a custom JSON suite")
     parser.add_argument("--case", action="append", default=[], help="Run only this case id; can be repeated")
+    parser.add_argument("--straight-speed-mps", type=float, help="Create a one-off custom straight test at this speed")
+    parser.add_argument("--straight-distance-m", type=float, help="Create a distance-based straight test using mission_sequence")
+    parser.add_argument("--straight-duration-s", type=float, help="Create a time-based straight_test")
+    parser.add_argument("--straight-heading-kp", type=float, default=0.3)
+    parser.add_argument("--straight-heading-kd", type=float, default=0.05)
+    parser.add_argument("--straight-max-omega-radps", type=float, default=0.15)
+    parser.add_argument("--straight-open-loop", action="store_true", help="Disable heading correction for a custom straight test")
+    parser.add_argument("--pivot-angle-deg", type=float, help="Create a one-off custom pivot_test; CCW/left is positive")
+    parser.add_argument("--custom-case-id", help="Optional id for a custom straight/pivot case")
+    parser.add_argument("--custom-repeat", type=int, default=1, help="Repeat count for a custom straight/pivot case")
+    parser.add_argument("--custom-pivot-max-test-duration-s", type=float, default=6.0)
+    parser.add_argument("--custom-pivot-timeout-s", type=float, default=4.0)
     parser.add_argument("--yes", action="store_true", help="Run without interactive pre-case prompts or manual measurements")
     parser.add_argument("--record-bag", action="store_true", help="Also run ros2 bag record for key topics")
     parser.add_argument("--output-dir", default="~/.ros/ugv_motion_tests")
@@ -866,7 +997,46 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _has_custom_straight_args(args: argparse.Namespace) -> bool:
+    return (
+        args.straight_speed_mps is not None
+        or args.straight_distance_m is not None
+        or args.straight_duration_s is not None
+        or bool(args.straight_open_loop)
+    )
+
+
 def load_requested_suite(args: argparse.Namespace) -> MotionTestSuite:
+    has_custom_straight = _has_custom_straight_args(args)
+    has_custom_pivot = args.pivot_angle_deg is not None
+    if has_custom_straight or has_custom_pivot:
+        if has_custom_straight and has_custom_pivot:
+            raise ValueError("custom straight and custom pivot options cannot be used together")
+        if args.suite_file:
+            raise ValueError("--suite-file cannot be combined with custom straight/pivot options")
+        if args.case:
+            raise ValueError("--case cannot be combined with custom straight/pivot options")
+        if has_custom_straight:
+            case = custom_straight_case(
+                speed_mps=float(args.straight_speed_mps) if args.straight_speed_mps is not None else 0.0,
+                distance_m=args.straight_distance_m,
+                duration_s=args.straight_duration_s,
+                heading_kp=float(args.straight_heading_kp),
+                heading_kd=float(args.straight_heading_kd),
+                max_omega_radps=float(args.straight_max_omega_radps),
+                open_loop=bool(args.straight_open_loop),
+                case_id=args.custom_case_id,
+                repeat=int(args.custom_repeat),
+            )
+            return MotionTestSuite(suite_id="custom_straight", cases=(case,))
+        case = custom_pivot_case(
+            angle_deg=float(args.pivot_angle_deg),
+            case_id=args.custom_case_id,
+            repeat=int(args.custom_repeat),
+            max_test_duration_s=float(args.custom_pivot_max_test_duration_s),
+            pivot_timeout_s=float(args.custom_pivot_timeout_s),
+        )
+        return MotionTestSuite(suite_id="custom_pivot", cases=(case,))
     if args.suite_file:
         return load_suite_file(Path(args.suite_file))
     return builtin_suite(args.suite)

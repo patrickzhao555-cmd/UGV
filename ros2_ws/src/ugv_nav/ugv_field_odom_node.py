@@ -68,7 +68,7 @@ class FieldOdometryNode(Node):
         self.declare_parameter("initial_x_m", 0.0)
         self.declare_parameter("initial_y_m", 0.0)
         self.declare_parameter("initial_yaw_deg", 0.0)
-        self.declare_parameter("track_width_m", 0.425)
+        self.declare_parameter("track_width_m", 0.416)
         self.declare_parameter("wheel_radius_m", 0.0825)
         self.declare_parameter("ticks_per_rev", 3200.0)
         self.declare_parameter("gyro_bias_calibration_s", 1.5)

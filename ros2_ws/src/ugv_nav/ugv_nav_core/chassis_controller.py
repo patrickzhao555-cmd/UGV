@@ -67,7 +67,7 @@ class ChassisControllerConfig:
     straight_stuck_min_measured_mps: float = 0.025
     pivot_stuck_min_yaw_rate_radps: float = 0.04
     pivot_breakaway_retry_scale: float = 1.25
-    track_width_m: float = 0.425
+    track_width_m: float = 0.416
     wheel_radius_m: float = 0.0825
     ticks_per_rev: float = 3200.0
 

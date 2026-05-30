@@ -93,5 +93,5 @@ Default motor model:
 ```text
 wheel_radius_m=0.0825
 ticks_per_rev=3200
-track_width_m=0.425
+track_width_m=0.416
 ```

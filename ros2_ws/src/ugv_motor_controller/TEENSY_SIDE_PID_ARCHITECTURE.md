@@ -93,7 +93,7 @@ wheel_radius_m = 0.0825
 wheel_width_m = 0.096
 robot_length_m = 0.74
 robot_total_width_m = 0.54
-track_width_m = 0.425
+track_width_m = 0.416
 front_sensor_offset_m ~= 0.37
 ```
 
@@ -103,7 +103,7 @@ Use the physical wheel radius with the Pololu gearbox-output encoder count:
 wheel_diameter_m = 0.165
 wheel_radius_m = 0.0825
 ticks_per_rev = 3200
-track_width_m = 0.425
+track_width_m = 0.416
 pwm_neutral_us = 1500
 pwm_min_us = 1100
 pwm_max_us = 1900

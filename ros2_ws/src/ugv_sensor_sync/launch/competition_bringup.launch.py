@@ -341,7 +341,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_dry_run", default_value="false"),
             DeclareLaunchArgument("motor_command_timeout_s", default_value="0.75"),
             DeclareLaunchArgument("motor_command_refresh_period_s", default_value="0.10"),
-            DeclareLaunchArgument("motor_track_width_m", default_value="0.425"),
+            DeclareLaunchArgument("motor_track_width_m", default_value="0.416"),
             DeclareLaunchArgument("motor_wheel_radius_m", default_value="0.0825"),
             DeclareLaunchArgument("motor_ticks_per_rev", default_value="3200"),
             DeclareLaunchArgument("motor_teensy_control_hz", default_value="50.0"),

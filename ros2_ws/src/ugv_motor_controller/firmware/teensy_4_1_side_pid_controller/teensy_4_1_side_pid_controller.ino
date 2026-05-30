@@ -56,7 +56,7 @@ const int DEFAULT_PWM_MIN_US = 1100;
 const int DEFAULT_PWM_NEUTRAL_US = 1500;
 const int DEFAULT_PWM_MAX_US = 1900;
 
-const float DEFAULT_TRACK_WIDTH_M = 0.425f;
+const float DEFAULT_TRACK_WIDTH_M = 0.416f;
 const float DEFAULT_WHEEL_RADIUS_M = 0.0825f;
 const float DEFAULT_TICKS_PER_REV = 3200.0f;
 const float DEFAULT_KP = 0.05f;

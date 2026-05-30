@@ -181,7 +181,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--pivot-breakaway-retry-scale", type=float, default=1.25)
     parser.add_argument("--telemetry-enabled", type=parse_bool, default=True)
     parser.add_argument("--telemetry-dir", default="~/.ros/ugv_mission_logs")
-    parser.add_argument("--track-width-m", type=float, default=0.425)
+    parser.add_argument("--track-width-m", type=float, default=0.416)
     parser.add_argument("--wheel-radius-m", type=float, default=0.0825)
     parser.add_argument("--ticks-per-rev", type=float, default=3200.0)
     parser.add_argument("--once", action="store_true", help="publish one command/status cycle and exit in real mode")

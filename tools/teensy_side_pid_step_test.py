@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ki", type=float)
     parser.add_argument("--kd", type=float)
     parser.add_argument("--ff-us-per-tps", type=float)
-    parser.add_argument("--track-width-m", type=float, default=0.425)
+    parser.add_argument("--track-width-m", type=float, default=0.416)
     parser.add_argument("--wheel-radius-m", type=float, default=0.0825)
     parser.add_argument("--ticks-per-rev", type=int, default=3200)
     parser.add_argument("--control-hz", type=float, default=50.0)

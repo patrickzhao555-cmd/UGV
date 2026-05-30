@@ -99,9 +99,9 @@ def test_encoder_yaw_delta_from_left_right_ticks():
         3200,
         wheel_radius_m=0.0825,
         ticks_per_rev=3200,
-        track_width_m=0.425,
+        track_width_m=0.416,
     )
-    assert yaw == pytest.approx((2.0 * math.pi * 0.0825) / 0.425)
+    assert yaw == pytest.approx((2.0 * math.pi * 0.0825) / 0.416)
 
 
 def test_straight_heading_correction_sign():

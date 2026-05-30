@@ -108,7 +108,7 @@ def test_teensy_serial_command_builders():
 def test_teensy_startup_param_sequence_uses_physical_defaults():
     commands = build_teensy_param_init_commands(
         {
-            "track_width_m": 0.425,
+            "track_width_m": 0.416,
             "wheel_radius_m": 0.0825,
             "ticks_per_rev": 3200,
             "kp": 0.45,
@@ -126,7 +126,7 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "rl_encoder_sign": -1,
         }
     )
-    assert "CMD PARAM track_width_m 0.425\n" in commands
+    assert "CMD PARAM track_width_m 0.416\n" in commands
     assert "CMD PARAM wheel_radius_m 0.0825\n" in commands
     assert "CMD PARAM ticks_per_rev 3200\n" in commands
     assert "CMD PARAM kp 0.45\n" in commands
@@ -203,7 +203,7 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "CMD V" in bridge_file
     assert "CMD RAW2" not in bridge_file
     assert "PARAM,<name>,ok" in firmware
-    assert "DEFAULT_TRACK_WIDTH_M = 0.425f" in firmware
+    assert "DEFAULT_TRACK_WIDTH_M = 0.416f" in firmware
     assert "DEFAULT_WHEEL_RADIUS_M = 0.0825f" in firmware
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
     assert "DEFAULT_KP = 0.05f" in firmware

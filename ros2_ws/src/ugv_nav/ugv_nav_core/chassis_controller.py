@@ -15,8 +15,8 @@ class ChassisControllerConfig:
     straight_duration_s: float = 2.0
     pivot_angle_deg: float = 90.0
     max_omega_radps: float = 0.45
-    heading_kp: float = 1.2
-    heading_kd: float = 0.15
+    heading_kp: float = 0.6
+    heading_kd: float = 0.08
     pivot_kp: float = 1.0
     heading_deadband_rad: float = 0.025
     stop_clearance_m: float = 0.45
@@ -570,17 +570,18 @@ def step_profiled_pivot(
                 return PivotStepResult("stop", 0.0, "pivot_test_complete", state.state, error, True)
         else:
             state.settle_start_s = None
-            if state.retry_count < max(0, int(config.pivot_max_correction_retries)):
-                state.retry_count += 1
-                state.retry_reason = "settle_error"
-                state.state = "correction_retry"
-                state.state_start_s = float(now_s)
-            else:
-                state.state = "complete"
-                state.complete = True
-                state.final_error_rad = error
-                state.last_command_reason = "pivot_test_complete"
-                return PivotStepResult("stop", 0.0, "pivot_test_complete", state.state, error, True)
+            if state_elapsed_s >= max(0.0, float(config.pivot_settle_time_s)):
+                if state.retry_count < max(0, int(config.pivot_max_correction_retries)):
+                    state.retry_count += 1
+                    state.retry_reason = "settle_error"
+                    state.state = "correction_retry"
+                    state.state_start_s = float(now_s)
+                else:
+                    state.state = "abort"
+                    state.abort_reason = "pivot_settle_failed"
+                    state.final_error_rad = error
+                    state.last_command_reason = "pivot_settle_failed"
+                    return PivotStepResult("stop", 0.0, "pivot_settle_failed", state.state, error)
         state.last_command_reason = "pivot_settling"
         return PivotStepResult("stop", 0.0, "pivot_settling", state.state, error)
 

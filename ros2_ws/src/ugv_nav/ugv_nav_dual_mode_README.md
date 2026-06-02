@@ -210,6 +210,16 @@ python3 ros2_ws/src/ugv_nav/ugv_uav_target_receiver.py --ros-args \
   -p target_units:=meters
 ```
 
+For quick one-shot terminal tests, use the standalone publisher:
+
+```bash
+python3 tools/send_uav_target.py --x 5.0 --y 7.0
+```
+
+It publishes a `PointStamped` in the `map` frame on `/ugv/uav_target` and does
+not publish motor commands. Use `--repeat-hz` and `--count` if you want to send
+the same coordinate multiple times while checking the mission supervisor.
+
 For ESP line input use:
 
 ```bash
@@ -231,14 +241,24 @@ the flat ground marker. The ArUco detector requires ZED image publishing and
 `/zed/left/camera_info`; the Nav2 launch enables `zed_publish_image:=true` by
 default. After reaching staging, the supervisor briefly holds STOP to give the
 ZED detector a visual confirmation window before falling back to the UAV
-coordinate. If the marker is not visible near the destination but localization
-places the UGV inside the destination circle, the mission stops conservatively
-with `destination_reached_by_coordinate_no_marker_visual`.
+coordinate. Coordinate arrival is a hard terminal condition: once localization
+places the UGV inside the destination circle, the mission stops even if a fresh
+ArUco detection would otherwise suggest driving closer to the marker center.
+If the marker is confirmed at that moment, the reason is
+`destination_reached_coordinate_marker_confirmed`; otherwise it is
+`destination_reached_by_coordinate_no_marker_visual`.
 ArUco map projection uses the full camera-to-map TF transform, including ZED
 height/pitch/roll. Measure the ZED extrinsics before trusting visual terminal
 approach; the yaw-only planar fallback is disabled by default and is only for
 debug. A fresh ArUco detection must also agree with the UAV target within
 `marker_target_gate_radius_m` before the mission supervisor accepts it.
+
+Before first autonomous motion, run a no-motion check with `motor_dry_run:=true`
+and a safe initial pose away from the field margin. Confirm `/scan/filtered` is
+near the LiDAR rate and the rear body blockage is removed, `/zed/left/camera_info`
+and `/ugv/aruco_detection` exist, `/ugv_nav2_adapter/status` reports boundary
+OK, Collision Monitor is active, and RViz shows `map`, `base_link`, LiDAR scan,
+ZED obstacles, and field origin aligned with the real robot.
 
 An explicit `/ugv/kill_switch` (`std_msgs/Bool`) is part of the autonomous
 safety chain. Publishing `true` causes the Nav2 adapter and mission supervisor

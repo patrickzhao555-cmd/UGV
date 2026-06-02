@@ -57,6 +57,7 @@ def generate_launch_description():
     motor_dry_run = LaunchConfiguration("motor_dry_run")
     lidar_port = LaunchConfiguration("lidar_port")
     zed_publish_image = LaunchConfiguration("zed_publish_image")
+    zed_image_downsample_factor = LaunchConfiguration("zed_image_downsample_factor")
     field_width_m = LaunchConfiguration("field_width_m")
     field_height_m = LaunchConfiguration("field_height_m")
     field_margin_m = LaunchConfiguration("field_margin_m")
@@ -121,6 +122,7 @@ def generate_launch_description():
             "motor_dry_run": motor_dry_run,
             "lidar_port": lidar_port,
             "zed_publish_image": zed_publish_image,
+            "zed_image_downsample_factor": zed_image_downsample_factor,
         }.items(),
     )
 
@@ -465,6 +467,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_dry_run", default_value="false"),
             DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB0"),
             DeclareLaunchArgument("zed_publish_image", default_value="true"),
+            DeclareLaunchArgument("zed_image_downsample_factor", default_value="1"),
             DeclareLaunchArgument("field_width_m", default_value="13.716"),
             DeclareLaunchArgument("field_height_m", default_value="13.716"),
             DeclareLaunchArgument("field_margin_m", default_value="0.45"),

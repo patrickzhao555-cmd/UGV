@@ -55,6 +55,13 @@ class TerminalCommandDecision:
     reason: str
 
 
+@dataclass(frozen=True)
+class CoordinateArrivalDecision:
+    destination_reached: bool
+    distance_to_target_m: Optional[float]
+    reason: str
+
+
 def parse_allowed_marker_ids(raw: object, *, default: Sequence[int] = DEFAULT_ALLOWED_ARUCO_IDS) -> tuple[int, ...]:
     """Parse a comma/space separated marker ID list.
 
@@ -92,6 +99,45 @@ def destination_reached_by_coordinate(
         return False
     allowed = max(0.0, float(destination_radius_m) - max(0.0, float(buffer_m)))
     return math.hypot(float(robot_x_m) - float(target_x_m), float(robot_y_m) - float(target_y_m)) <= allowed
+
+
+def coordinate_arrival_decision(
+    *,
+    robot_pose: Transform2D,
+    target_x_m: float,
+    target_y_m: float,
+    marker_confirmed: bool = False,
+    destination_radius_m: float = DESTINATION_RADIUS_M,
+    buffer_m: float = 0.0,
+) -> CoordinateArrivalDecision:
+    """Evaluate the rulebook destination circle using the UAV coordinate.
+
+    Reaching the coordinate destination circle is a hard terminal condition for
+    Operation Touchdown.  ArUco may confirm the stop, but it must not command
+    further motion once this check is satisfied.
+    """
+
+    values = (
+        robot_pose.x,
+        robot_pose.y,
+        target_x_m,
+        target_y_m,
+        destination_radius_m,
+        buffer_m,
+    )
+    if not all(math.isfinite(float(value)) for value in values):
+        return CoordinateArrivalDecision(False, None, "coordinate_pose_or_target_invalid")
+
+    distance = math.hypot(float(robot_pose.x) - float(target_x_m), float(robot_pose.y) - float(target_y_m))
+    allowed = max(0.0, float(destination_radius_m) - max(0.0, float(buffer_m)))
+    if distance <= allowed:
+        reason = (
+            "destination_reached_coordinate_marker_confirmed"
+            if bool(marker_confirmed)
+            else "destination_reached_by_coordinate_no_marker_visual"
+        )
+        return CoordinateArrivalDecision(True, distance, reason)
+    return CoordinateArrivalDecision(False, distance, "destination_not_reached_by_coordinate")
 
 
 def choose_marker_staging_pose(

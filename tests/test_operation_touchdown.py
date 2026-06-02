@@ -14,6 +14,7 @@ from ugv_nav_core.operation_touchdown import (  # noqa: E402
     DEFAULT_ALLOWED_ARUCO_IDS,
     DESTINATION_RADIUS_M,
     choose_marker_staging_pose,
+    coordinate_arrival_decision,
     destination_reached_by_coordinate,
     footprint_allows_pose,
     parse_allowed_marker_ids,
@@ -50,6 +51,31 @@ def test_destination_reached_by_coordinate_uses_five_foot_radius_with_buffer():
         destination_radius_m=DESTINATION_RADIUS_M,
         buffer_m=0.20,
     )
+
+
+def test_coordinate_arrival_decision_stops_by_coordinate_before_visual_refinement():
+    no_visual = coordinate_arrival_decision(
+        robot_pose=Transform2D(0.0, 0.0, 0.0),
+        target_x_m=1.0,
+        target_y_m=0.0,
+        marker_confirmed=False,
+        destination_radius_m=DESTINATION_RADIUS_M,
+        buffer_m=0.20,
+    )
+    assert no_visual.destination_reached
+    assert no_visual.reason == "destination_reached_by_coordinate_no_marker_visual"
+    assert no_visual.distance_to_target_m == pytest.approx(1.0)
+
+    confirmed = coordinate_arrival_decision(
+        robot_pose=Transform2D(0.0, 0.0, 0.0),
+        target_x_m=1.0,
+        target_y_m=0.0,
+        marker_confirmed=True,
+        destination_radius_m=DESTINATION_RADIUS_M,
+        buffer_m=0.20,
+    )
+    assert confirmed.destination_reached
+    assert confirmed.reason == "destination_reached_coordinate_marker_confirmed"
 
 
 def test_choose_marker_staging_pose_is_inside_destination_circle_and_faces_marker():
@@ -200,10 +226,20 @@ def test_mission_supervisor_gates_marker_detections_against_uav_target():
 
 def test_zed_sync_publishes_camera_info_for_aruco_pnp():
     zed_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "zed_sync_node.py").read_text()
+    sensor_launch_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "sensor_sync_launch.py").read_text()
+    nav2_launch_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "nav2_field_navigation.launch.py").read_text()
+
     assert "CameraInfo" in zed_text
     assert "camera_info_topic" in zed_text
     assert "/zed/left/camera_info" in zed_text
     assert "_camera_info_for_image" in zed_text
+    assert "image_downsample_factor" in zed_text
+    assert "self.image_downsample_factor" in zed_text
+    assert "self.depth_downsample_factor" in zed_text
+    assert "if depth_np.ndim == 3:\n            depth_np = depth_np[:, :, 0]\n        if self.depth_downsample_factor > 1:" in zed_text
+    assert "left_np[::self.image_downsample_factor, ::self.image_downsample_factor]" in zed_text
+    assert "zed_image_downsample_factor" in sensor_launch_text
+    assert 'DeclareLaunchArgument("zed_image_downsample_factor", default_value="1")' in nav2_launch_text
 
 
 def test_aruco_detector_uses_full_tf_projection_not_yaw_only_projection_by_default():
@@ -219,12 +255,41 @@ def test_aruco_detector_uses_full_tf_projection_not_yaw_only_projection_by_defau
     assert "msg_out.header.frame_id = self.map_frame" in aruco_text
 
 
-def test_mission_supervisor_holds_briefly_for_visual_marker_before_coordinate_fallback():
+def test_mission_supervisor_global_coordinate_gate_stops_even_during_nav2_stage():
     mission_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_operation_touchdown_mission.py").read_text()
 
-    assert 'self.declare_parameter("coordinate_arrival_marker_search_s", 2.0)' in mission_text
-    assert '"marker_search_coordinate_hold"' in mission_text
-    assert "now_s - self.state_start_s >= self.coordinate_arrival_marker_search_s" in mission_text
+    assert "def _coordinate_terminal_gate" in mission_text
+    gate_text = mission_text[
+        mission_text.index("    def _coordinate_terminal_gate") : mission_text.index("    def _plan_or_wait_for_staging")
+    ]
+    assert '"nav2_to_staging"' in gate_text
+    assert "_cancel_active_goal(decision.reason)" in gate_text
+    assert "_set_state(\"destination_stop\", decision.reason)" in gate_text
+    assert "_publish_stop(decision.reason)" in gate_text
+    assert '"marker_search_coordinate_hold"' not in mission_text
+
+
+def test_mission_supervisor_makes_coordinate_radius_a_hard_terminal_stop():
+    mission_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_operation_touchdown_mission.py").read_text()
+    timer_text = mission_text[mission_text.index("    def timer_callback") : mission_text.index("    def _coordinate_terminal_gate")]
+    gate_text = mission_text[
+        mission_text.index("    def _coordinate_terminal_gate") : mission_text.index("    def _plan_or_wait_for_staging")
+    ]
+    terminal_step = mission_text[mission_text.index("    def _terminal_step") : mission_text.index("    def _marker_fresh")]
+
+    assert "if self._coordinate_terminal_gate(now_s):" in timer_text
+    assert "coordinate_arrival_decision(" in gate_text
+    assert "if not decision.destination_reached:" in gate_text
+    assert "coordinate_arrival_decision(" in terminal_step
+    assert "if coordinate_decision.destination_reached:" in terminal_step
+    assert "terminal_approach_command(" in terminal_step
+    assert terminal_step.index("if coordinate_decision.destination_reached:") < terminal_step.index(
+        "terminal_approach_command("
+    )
+    assert '"coordinate_distance_to_target_m"' in mission_text
+    assert '"coordinate_destination_reached"' in mission_text
+    assert '"visual_marker_used_for_motion"' in mission_text
+    assert '"marker_target_disagreement_m"' in mission_text
 
 
 def test_nav2_adapter_has_explicit_kill_switch_hard_stop():

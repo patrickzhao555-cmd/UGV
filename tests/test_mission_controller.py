@@ -98,6 +98,11 @@ def test_unknown_cli_args_fail_fast_unless_debug_enabled():
     assert args.debug_allow_unknown_args
 
 
+def test_pivot_test_angle_fails_fast_above_shortest_path_range():
+    with pytest.raises(SystemExit):
+        parse_args(["--controller-mode", "pivot_test", "--pivot-angle-deg", "181"])
+
+
 def test_parse_mission_plan_validates_segments():
     plan = parse_mission_plan(
         {
@@ -136,6 +141,8 @@ def test_parse_mission_plan_rejects_bad_segments():
         parse_mission_plan({"segments": [{"type": "straight", "distance_m": 1.0, "timeout_s": 0.0}]})
     with pytest.raises(ValueError):
         parse_mission_plan({"segments": [{"type": "pivot", "angle_deg": 0.0}]})
+    with pytest.raises(ValueError):
+        parse_mission_plan({"segments": [{"type": "pivot", "angle_deg": 181.0}]})
 
 
 def test_load_mission_plan_from_json_file(tmp_path):
@@ -477,6 +484,26 @@ def test_duplicate_telemetry_force_flush_key_only_forces_once():
     second_force = key is not None and key != seen_key
     assert first_force
     assert not second_force
+
+
+def test_chassis_runtime_aborts_mission_on_pivot_controller_abort_and_slews_straight_test():
+    controller_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
+    pivot_block = controller_text[
+        controller_text.index('if segment.segment_type == "pivot":') : controller_text.index(
+            '            wait_s = max(0.0, float(segment.wait_s))'
+        )
+    ]
+    straight_test_block = controller_text[
+        controller_text.index('if self.mode == "straight_test":') : controller_text.index(
+            '                        elif self.mode == "pivot_test":'
+        )
+    ]
+
+    assert 'if step.state == "abort":' in pivot_block
+    assert 'self.mission_state = "abort"' in pivot_block
+    assert 'self.mission_safety_level = "critical"' in pivot_block
+    assert "straight_omega_with_slew(" in straight_test_block
+    assert "self.previous_straight_omega_radps = omega" in straight_test_block
 
 
 def test_telemetry_recorder_does_not_flush_every_write():

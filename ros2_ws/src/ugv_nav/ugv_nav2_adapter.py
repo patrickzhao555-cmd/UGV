@@ -183,7 +183,7 @@ class Nav2AdapterNode(Node):
             return None
         pose = self.localization_status.get("pose_m")
         if not isinstance(pose, list) or len(pose) < 3:
-            return "field_pose_missing"
+            return "field_pose_invalid"
         try:
             x_m = float(pose[0])
             y_m = float(pose[1])

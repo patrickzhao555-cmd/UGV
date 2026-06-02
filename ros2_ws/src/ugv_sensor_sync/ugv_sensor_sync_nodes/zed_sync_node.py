@@ -33,6 +33,7 @@ class ZedSyncNode(Node):
         self.declare_parameter('imu_publish_rate_hz', 100.0)
         self.declare_parameter('publish_image', False)
         self.declare_parameter('depth_downsample_factor', 2)
+        self.declare_parameter('image_downsample_factor', 1)
         self.declare_parameter('status_topic', '/zed/status')
         self.declare_parameter('status_period_s', 1.0)
 
@@ -47,6 +48,7 @@ class ZedSyncNode(Node):
         imu_publish_rate_hz = float(self.get_parameter('imu_publish_rate_hz').value)
         self.publish_image = bool(self.get_parameter('publish_image').value)
         self.depth_downsample_factor = max(1, int(self.get_parameter('depth_downsample_factor').value))
+        self.image_downsample_factor = max(1, int(self.get_parameter('image_downsample_factor').value))
         status_topic = self.get_parameter('status_topic').value
         self.status_period_s = max(0.2, float(self.get_parameter('status_period_s').value))
         self.bridge = CvBridge() if CvBridge is not None else None
@@ -109,8 +111,8 @@ class ZedSyncNode(Node):
         if self.publish_image and self.image_pub is not None:
             self.zed.retrieve_image(self.left_image, sl.VIEW.LEFT)
             left_np = np.array(self.left_image.get_data(), copy=True)
-            if self.depth_downsample_factor > 1:
-                left_np = left_np[::self.depth_downsample_factor, ::self.depth_downsample_factor]
+            if self.image_downsample_factor > 1:
+                left_np = left_np[::self.image_downsample_factor, ::self.image_downsample_factor]
             self.image_pub.publish(self._image_from_array(left_np, 'bgra8', self.image_frame_id, stamp))
             if self.camera_info_pub is not None:
                 self.camera_info_pub.publish(self._camera_info_for_image(left_np.shape, stamp))
@@ -171,6 +173,8 @@ class ZedSyncNode(Node):
             'depth_p10_m': self._finite_or_none(depth_p10),
             'depth_mean_m': self._finite_or_none(depth_mean),
             'publish_image': self.publish_image,
+            'depth_downsample_factor': self.depth_downsample_factor,
+            'image_downsample_factor': self.image_downsample_factor,
         }
         self.status_pub.publish(String(data=json.dumps(status)))
 
@@ -202,7 +206,7 @@ class ZedSyncNode(Node):
             cy = height * 0.5
             distortion = [0.0, 0.0, 0.0, 0.0, 0.0]
 
-        scale = float(max(1, self.depth_downsample_factor))
+        scale = float(max(1, self.image_downsample_factor))
         msg.width = max(1, int(round(width / scale)))
         msg.height = max(1, int(round(height / scale)))
         msg.distortion_model = 'plumb_bob'

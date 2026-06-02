@@ -277,6 +277,8 @@ def custom_pivot_case(
     angle = float(angle_deg)
     if not math.isfinite(angle) or abs(angle) < 1e-9:
         raise ValueError("--pivot-angle-deg must be a non-zero finite angle")
+    if abs(angle) > 180.0:
+        raise ValueError("--pivot-angle-deg supports -180..180; split larger rotations into multiple tests")
     if repeat < 1:
         raise ValueError("--custom-repeat must be >= 1")
     base = _pivot_test_case(angle)

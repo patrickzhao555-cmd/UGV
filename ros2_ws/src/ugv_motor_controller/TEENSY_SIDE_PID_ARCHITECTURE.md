@@ -74,9 +74,24 @@ S,<millis>,<fl_ticks>,<fr_ticks>,<rl_ticks>,<rr_ticks>,...
 CTRL,status_stream,<on|off>
 ```
 
-The firmware requires the Arduino `QuickPID` library. If QuickPID is missing,
-compilation should fail instead of silently using a hand-written fallback. The
-`PARAMS` line reports `pid_backend=QuickPID`.
+The firmware requires these Arduino/Teensy libraries:
+
+```text
+Encoder
+QuickPID
+Servo
+```
+
+`Servo` is normally provided by the Teensy/Arduino core. Install `Encoder` and
+`QuickPID` through the Arduino Library Manager before flashing a new Teensy. If
+one of these libraries is missing, compilation should fail instead of silently
+using a hand-written fallback. The `PARAMS` line reports
+`pid_backend=QuickPID`.
+
+Do not install a separate generic Arduino `Servo` library for Teensy 4.1. If
+the compiler includes `Documents/Arduino/libraries/Servo/src/Servo.h` and
+reports that Servo only supports AVR/SAM/etc. boards, remove or rename that
+external `Servo` folder so the Teensy core's Servo library is used.
 
 Startup parameter sync is ACK-gated. The bridge sends `CMD PARAM` for wheel
 model, PID gains, PWM limits, motor signs, encoder signs, loop rate, and fault

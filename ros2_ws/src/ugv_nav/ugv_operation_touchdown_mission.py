@@ -25,6 +25,7 @@ from ugv_nav_core.nav2_bridge import FieldBounds, OccupancyGridSpec, Transform2D
 from ugv_nav_core.operation_touchdown import (
     DESTINATION_RADIUS_M,
     choose_marker_staging_pose,
+    coordinate_arrival_decision,
     destination_reached_by_coordinate,
     terminal_approach_command,
 )
@@ -122,6 +123,9 @@ class OperationTouchdownMissionNode(Node):
         self.latest_marker_distance_m: Optional[float] = None
         self.last_marker_s: Optional[float] = None
         self.last_marker_reject_reason: Optional[str] = None
+        self.last_marker_reject_s: Optional[float] = None
+        self.marker_target_disagreement_m: Optional[float] = None
+        self.visual_marker_used_for_motion = False
         self.nav2_goal_sent = False
         self.goal_handle = None
         self.goal_sequence = 0
@@ -182,6 +186,9 @@ class OperationTouchdownMissionNode(Node):
         self.latest_marker_distance_m = None
         self.last_marker_s = None
         self.last_marker_reject_reason = None
+        self.last_marker_reject_s = None
+        self.marker_target_disagreement_m = None
+        self.visual_marker_used_for_motion = False
         self.nav2_goal_sent = False
         self.goal_handle = None
         self.nav2_goal_cancel_requested = False
@@ -190,24 +197,30 @@ class OperationTouchdownMissionNode(Node):
     def marker_callback(self, msg: PointStamped) -> None:
         if str(msg.header.frame_id).strip() != self.map_frame:
             self.last_marker_reject_reason = "marker_frame_invalid"
+            self.last_marker_reject_s = self._now_s()
             return
         x_m = float(msg.point.x)
         y_m = float(msg.point.y)
         if not math.isfinite(x_m) or not math.isfinite(y_m):
             self.last_marker_reject_reason = "marker_pose_invalid"
+            self.last_marker_reject_s = self._now_s()
             return
         if self.target_xy_m is None:
             self.last_marker_reject_reason = "marker_without_uav_target"
+            self.last_marker_reject_s = self._now_s()
             return
+        distance_to_target = math.hypot(x_m - self.target_xy_m[0], y_m - self.target_xy_m[1])
+        self.marker_target_disagreement_m = distance_to_target
         if self.marker_target_gate_radius_m > 0.0:
-            distance_to_target = math.hypot(x_m - self.target_xy_m[0], y_m - self.target_xy_m[1])
             if distance_to_target > self.marker_target_gate_radius_m:
                 self.last_marker_reject_reason = "marker_target_disagreement"
+                self.last_marker_reject_s = self._now_s()
                 return
         self.latest_marker_xy_m = (x_m, y_m)
         self.latest_marker_distance_m = float(msg.point.z) if math.isfinite(float(msg.point.z)) else None
         self.last_marker_s = self._now_s()
         self.last_marker_reject_reason = None
+        self.last_marker_reject_s = None
 
     def localization_status_callback(self, msg: String) -> None:
         try:
@@ -243,6 +256,10 @@ class OperationTouchdownMissionNode(Node):
             self._publish_status(now_s, force=True)
             return
 
+        if self._coordinate_terminal_gate(now_s):
+            self._publish_status(now_s, force=True)
+            return
+
         if self.state == "plan_to_staging":
             self._plan_or_wait_for_staging()
         elif self.state == "marker_search":
@@ -253,6 +270,37 @@ class OperationTouchdownMissionNode(Node):
             self._publish_stop(self.reason)
 
         self._publish_status(now_s)
+
+    def _coordinate_terminal_gate(self, now_s: float) -> bool:
+        """Stop the mission as soon as the rulebook destination circle is reached.
+
+        This gate intentionally runs above the state-specific logic, including
+        while Nav2 is still driving to the staging goal.  The competition only
+        requires the UGV to stop inside the destination radius, so ArUco visual
+        refinement must never keep the robot moving after the coordinate-based
+        success condition is satisfied.
+        """
+
+        if self.state not in {"plan_to_staging", "nav2_to_staging", "marker_search", "terminal_approach"}:
+            return False
+        if self.target_xy_m is None or self.latest_pose is None:
+            return False
+        marker_fresh = self._marker_fresh(now_s)
+        decision = coordinate_arrival_decision(
+            robot_pose=self.latest_pose,
+            target_x_m=self.target_xy_m[0],
+            target_y_m=self.target_xy_m[1],
+            marker_confirmed=marker_fresh,
+            destination_radius_m=self.destination_radius_m,
+            buffer_m=self.terminal_arrival_buffer_m,
+        )
+        if not decision.destination_reached:
+            return False
+        if self.state == "nav2_to_staging":
+            self._cancel_active_goal(decision.reason)
+        self._set_state("destination_stop", decision.reason)
+        self._publish_stop(decision.reason)
+        return True
 
     def _plan_or_wait_for_staging(self) -> None:
         if self.target_xy_m is None:
@@ -272,18 +320,6 @@ class OperationTouchdownMissionNode(Node):
             return
 
         target_x, target_y = self.target_xy_m
-        if destination_reached_by_coordinate(
-            robot_x_m=self.latest_pose.x,
-            robot_y_m=self.latest_pose.y,
-            target_x_m=target_x,
-            target_y_m=target_y,
-            destination_radius_m=self.destination_radius_m,
-            buffer_m=self.terminal_arrival_buffer_m,
-        ):
-            self._set_state("destination_stop", "destination_reached_by_coordinate_no_marker_visual")
-            self._publish_stop(self.reason)
-            return
-
         decision = choose_marker_staging_pose(
             robot_pose=self.latest_pose,
             marker_x_m=target_x,
@@ -367,49 +403,48 @@ class OperationTouchdownMissionNode(Node):
             self.get_logger().warn(f"Failed to request Nav2 goal cancel ({reason}): {exc}")
 
     def _marker_search_step(self, now_s: float) -> None:
-        self._publish_stop("marker_search")
         if self.target_xy_m is None or self.latest_pose is None:
             self._set_state("abort", "terminal_missing_pose_or_target")
+            self._publish_stop(self.reason)
             return
         target_x, target_y = self.target_xy_m
-        marker_fresh = self.last_marker_s is not None and now_s - self.last_marker_s <= self.marker_lost_timeout_s
+        marker_fresh = self._marker_fresh(now_s)
+        if self._recent_marker_disagreement(now_s):
+            self.reason = "marker_target_disagreement"
+            self._publish_stop(self.reason)
+            return
         if marker_fresh:
             self._set_state("terminal_approach", "marker_confirmed")
             return
-        if destination_reached_by_coordinate(
-            robot_x_m=self.latest_pose.x,
-            robot_y_m=self.latest_pose.y,
-            target_x_m=target_x,
-            target_y_m=target_y,
-            destination_radius_m=self.destination_radius_m,
-            buffer_m=self.terminal_arrival_buffer_m,
-        ):
-            if now_s - self.state_start_s >= self.coordinate_arrival_marker_search_s:
-                self._set_state("destination_stop", "destination_reached_by_coordinate_no_marker_visual")
-            else:
-                self.reason = "marker_search_coordinate_hold"
-            return
         if self.marker_search_timeout_s > 0.0 and now_s - self.state_start_s > self.marker_search_timeout_s:
             self._set_state("abort", "marker_lost")
+            self._publish_stop(self.reason)
+            return
+        self._publish_stop("marker_search")
 
     def _terminal_step(self, now_s: float) -> None:
         if self.latest_pose is None or self.target_xy_m is None:
             self._set_state("abort", "terminal_missing_pose_or_target")
             self._publish_stop(self.reason)
             return
-        marker_fresh = self.last_marker_s is not None and now_s - self.last_marker_s <= self.marker_lost_timeout_s
-        marker_xy = self.latest_marker_xy_m if marker_fresh and self.latest_marker_xy_m is not None else self.target_xy_m
-        if not marker_fresh and destination_reached_by_coordinate(
-            robot_x_m=self.latest_pose.x,
-            robot_y_m=self.latest_pose.y,
+        marker_fresh = self._marker_fresh(now_s)
+        coordinate_decision = coordinate_arrival_decision(
+            robot_pose=self.latest_pose,
             target_x_m=self.target_xy_m[0],
             target_y_m=self.target_xy_m[1],
+            marker_confirmed=marker_fresh,
             destination_radius_m=self.destination_radius_m,
             buffer_m=self.terminal_arrival_buffer_m,
-        ):
-            self._set_state("destination_stop", "destination_reached_by_coordinate_no_marker_visual")
-            self._publish_stop(self.reason)
+        )
+        if coordinate_decision.destination_reached:
+            self._set_state("destination_stop", coordinate_decision.reason)
+            self._publish_stop(coordinate_decision.reason)
             return
+        if self._recent_marker_disagreement(now_s):
+            self._publish_stop("marker_target_disagreement")
+            self.reason = "marker_target_disagreement"
+            return
+        marker_xy = self.latest_marker_xy_m if marker_fresh and self.latest_marker_xy_m is not None else self.target_xy_m
         decision = terminal_approach_command(
             robot_pose=self.latest_pose,
             marker_x_m=marker_xy[0],
@@ -430,7 +465,18 @@ class OperationTouchdownMissionNode(Node):
             self._set_state("abort", "marker_lost")
             self._publish_stop("marker_lost")
             return
+        self.visual_marker_used_for_motion = marker_fresh and decision.command.command_type == "velocity"
         self._publish_velocity(decision.command.v_mps, decision.command.omega_radps, decision.reason)
+
+    def _marker_fresh(self, now_s: float) -> bool:
+        return self.last_marker_s is not None and now_s - self.last_marker_s <= self.marker_lost_timeout_s
+
+    def _recent_marker_disagreement(self, now_s: float) -> bool:
+        return (
+            self.last_marker_reject_reason == "marker_target_disagreement"
+            and self.last_marker_reject_s is not None
+            and now_s - self.last_marker_reject_s <= self.marker_lost_timeout_s
+        )
 
     def _publish_velocity(self, v_mps: float, omega_radps: float, reason: str) -> None:
         msg = Twist()
@@ -444,6 +490,7 @@ class OperationTouchdownMissionNode(Node):
         }
 
     def _publish_stop(self, reason: str) -> None:
+        self.visual_marker_used_for_motion = False
         self._publish_velocity(0.0, 0.0, reason)
         if self.state == "destination_stop":
             self._set_state("mission_complete", reason)
@@ -453,8 +500,17 @@ class OperationTouchdownMissionNode(Node):
             return
         self.last_status_publish_s = now_s
         target_distance = None
+        coordinate_destination_reached = False
         if self.target_xy_m is not None and self.latest_pose is not None:
             target_distance = math.hypot(self.latest_pose.x - self.target_xy_m[0], self.latest_pose.y - self.target_xy_m[1])
+            coordinate_destination_reached = destination_reached_by_coordinate(
+                robot_x_m=self.latest_pose.x,
+                robot_y_m=self.latest_pose.y,
+                target_x_m=self.target_xy_m[0],
+                target_y_m=self.target_xy_m[1],
+                destination_radius_m=self.destination_radius_m,
+                buffer_m=self.terminal_arrival_buffer_m,
+            )
         payload = {
             "node": "ugv_operation_touchdown_mission",
             "mission_state": self.state,
@@ -466,12 +522,16 @@ class OperationTouchdownMissionNode(Node):
             else [self.staging_pose.x_m, self.staging_pose.y_m, math.degrees(self.staging_pose.yaw_rad)],
             "destination_radius_m": self.destination_radius_m,
             "distance_to_uav_target_m": target_distance,
+            "coordinate_distance_to_target_m": target_distance,
+            "coordinate_destination_reached": coordinate_destination_reached,
             "latest_marker_m": None if self.latest_marker_xy_m is None else [self.latest_marker_xy_m[0], self.latest_marker_xy_m[1]],
             "marker_age_s": None if self.last_marker_s is None else now_s - self.last_marker_s,
             "marker_distance_m": self.latest_marker_distance_m,
+            "marker_target_disagreement_m": self.marker_target_disagreement_m,
             "marker_target_gate_radius_m": self.marker_target_gate_radius_m,
             "coordinate_arrival_marker_search_s": self.coordinate_arrival_marker_search_s,
             "last_marker_reject_reason": self.last_marker_reject_reason,
+            "visual_marker_used_for_motion": self.visual_marker_used_for_motion,
             "last_terminal_command": self.last_terminal_command,
             "kill_switch_active": self.kill_switch_active,
             "costmap_available": self.latest_grid is not None,

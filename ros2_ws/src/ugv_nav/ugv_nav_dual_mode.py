@@ -127,8 +127,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--straight-duration-s", type=float, default=2.0)
     parser.add_argument("--pivot-angle-deg", type=float, default=90.0)
     parser.add_argument("--max-omega-radps", type=float, default=0.45)
-    parser.add_argument("--heading-kp", type=float, default=1.2)
-    parser.add_argument("--heading-kd", type=float, default=0.15)
+    parser.add_argument("--heading-kp", type=float, default=0.6)
+    parser.add_argument("--heading-kd", type=float, default=0.08)
     parser.add_argument("--pivot-kp", type=float, default=1.0)
     parser.add_argument("--heading-deadband-rad", type=float, default=0.025)
     parser.add_argument("--stop-clearance-m", type=float, default=0.45)
@@ -195,6 +195,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
             print(f"Ignoring unsupported navigation arguments: {' '.join(unknown)}")
         else:
             parser.error(f"unsupported navigation arguments: {' '.join(unknown)}")
+    if abs(float(args.pivot_angle_deg)) > 180.0:
+        parser.error("--pivot-angle-deg supports -180..180 degrees; split larger rotations into multiple pivots")
     return args
 
 
@@ -458,6 +460,8 @@ def run_real(args: argparse.Namespace) -> None:
                 return
             self.mode_start_s = now_s
             self.target_heading_rad = self.estimator.heading_rad
+            self.previous_straight_omega_radps = 0.0
+            self.last_mission_update_s = now_s
 
         def _start_pivot_if_needed(self, now_s: float) -> None:
             if self.pivot.state != "idle":
@@ -478,6 +482,8 @@ def run_real(args: argparse.Namespace) -> None:
             reset_pivot(self.pivot)
             self.encoder_gyro_disagreement_rad = 0.0
             self.slip_detected = False
+            self.previous_straight_omega_radps = 0.0
+            self.last_mission_update_s = None
 
         def _reset_bias_and_heading(self) -> None:
             reset_gyro_bias_calibration(self.gyro_bias)
@@ -890,6 +896,12 @@ def run_real(args: argparse.Namespace) -> None:
                     current_encoder_heading_rad=self.estimator.encoder_heading_rad,
                 )
                 self.slip_detected = self.encoder_gyro_disagreement_rad > self.config.slip_disagreement_rad
+                if step.state == "abort":
+                    self.mission_state = "abort"
+                    self.mission_safety_level = "critical"
+                    self.mission_safety_reason = step.reason
+                    self._log_safety_stop(step.reason, now_s)
+                    return build_stop_command(step.reason), heading, heading_error, step.reason
                 if step.complete:
                     return self._finish_mission_segment("segment_complete"), heading, heading_error, "ok"
                 if step.command_type == "velocity":
@@ -945,12 +957,24 @@ def run_real(args: argparse.Namespace) -> None:
                             elif elapsed_s >= duration_s:
                                 cmd = build_stop_command("straight_test_complete")
                             else:
-                                omega, heading_error = compute_straight_omega(
-                                    target_heading_rad=float(self.target_heading_rad),
-                                    heading_rad=heading,
+                                dt_s = (
+                                    0.0
+                                    if self.last_mission_update_s is None
+                                    else max(0.0, now_s - self.last_mission_update_s)
+                                )
+                                self.last_mission_update_s = now_s
+                                heading_error = math.atan2(
+                                    math.sin(float(self.target_heading_rad) - heading),
+                                    math.cos(float(self.target_heading_rad) - heading),
+                                )
+                                omega = straight_omega_with_slew(
+                                    heading_error_rad=heading_error,
                                     yaw_rate_radps=self.yaw_rate_radps,
+                                    previous_omega_radps=self.previous_straight_omega_radps,
+                                    dt_s=dt_s,
                                     config=self.config,
                                 )
+                                self.previous_straight_omega_radps = omega
                                 cmd = build_velocity_command(
                                     self.config.straight_speed_mps,
                                     omega,

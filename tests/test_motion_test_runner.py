@@ -163,6 +163,11 @@ def test_custom_pivot_case_uses_requested_angle_and_timeout():
     assert case.launch_args["nav_pivot_timeout_s"] == "5.5"
 
 
+def test_custom_pivot_case_rejects_angles_outside_supported_shortest_path_range():
+    with pytest.raises(ValueError):
+        custom_pivot_case(angle_deg=181.0)
+
+
 def test_load_requested_suite_builds_custom_cases_from_cli_args():
     straight_args = parse_args(["--straight-speed-mps", "0.15", "--straight-distance-m", "1.0"])
     straight_suite = load_requested_suite(straight_args)

@@ -32,6 +32,7 @@ def generate_launch_description():
     lidar_baud = LaunchConfiguration("lidar_baud")
     lidar_filter_forward_fov_deg = LaunchConfiguration("lidar_filter_forward_fov_deg")
     zed_imu_publish_rate_hz = LaunchConfiguration("zed_imu_publish_rate_hz")
+    zed_image_downsample_factor = LaunchConfiguration("zed_image_downsample_factor")
     zed_publish_image = LaunchConfiguration("zed_publish_image")
     motor_port = LaunchConfiguration("motor_port")
     motor_baud = LaunchConfiguration("motor_baud")
@@ -166,6 +167,7 @@ def generate_launch_description():
             "lidar_baud": lidar_baud,
             "lidar_filter_forward_fov_deg": lidar_filter_forward_fov_deg,
             "zed_imu_publish_rate_hz": zed_imu_publish_rate_hz,
+            "zed_image_downsample_factor": zed_image_downsample_factor,
             "zed_publish_image": zed_publish_image,
         }.items(),
         condition=IfCondition(start_sensor_sync),
@@ -335,6 +337,7 @@ def generate_launch_description():
             DeclareLaunchArgument("lidar_baud", default_value="115200"),
             DeclareLaunchArgument("lidar_filter_forward_fov_deg", default_value="250.0"),
             DeclareLaunchArgument("zed_imu_publish_rate_hz", default_value="100.0"),
+            DeclareLaunchArgument("zed_image_downsample_factor", default_value="1"),
             DeclareLaunchArgument("zed_publish_image", default_value="false"),
             DeclareLaunchArgument("motor_port", default_value="/dev/ttyACM0"),
             DeclareLaunchArgument("motor_baud", default_value="115200"),
@@ -373,8 +376,8 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_straight_duration_s", default_value="2.0"),
             DeclareLaunchArgument("nav_pivot_angle_deg", default_value="90.0"),
             DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
-            DeclareLaunchArgument("nav_heading_kp", default_value="1.2"),
-            DeclareLaunchArgument("nav_heading_kd", default_value="0.15"),
+            DeclareLaunchArgument("nav_heading_kp", default_value="0.6"),
+            DeclareLaunchArgument("nav_heading_kd", default_value="0.08"),
             DeclareLaunchArgument("nav_pivot_kp", default_value="1.0"),
             DeclareLaunchArgument("nav_heading_deadband_rad", default_value="0.025"),
             DeclareLaunchArgument("nav_stop_clearance_m", default_value="0.45"),

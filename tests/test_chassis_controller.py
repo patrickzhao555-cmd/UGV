@@ -318,6 +318,48 @@ def test_profiled_pivot_state_machine_reaches_complete():
     assert state.state == "idle"
 
 
+def test_profiled_pivot_waits_for_settle_and_aborts_if_final_error_persists():
+    config = ChassisControllerConfig(
+        pivot_settle_time_s=0.20,
+        pivot_max_correction_retries=0,
+        pivot_timeout_s=3.0,
+    )
+    state = PivotControllerState(
+        state="settle",
+        state_start_s=1.0,
+        motion_start_s=0.0,
+        target_heading_rad=0.5,
+        start_heading_rad=0.0,
+        last_update_s=1.0,
+        last_error_rad=0.5,
+    )
+
+    waiting = step_profiled_pivot(
+        state,
+        now_s=1.05,
+        heading_rad=0.0,
+        yaw_rate_radps=0.0,
+        encoder_heading_rad=0.0,
+        config=config,
+    )
+    assert waiting.reason == "pivot_settling"
+    assert waiting.state == "settle"
+    assert not waiting.complete
+
+    failed = step_profiled_pivot(
+        state,
+        now_s=1.25,
+        heading_rad=0.0,
+        yaw_rate_radps=0.0,
+        encoder_heading_rad=0.0,
+        config=config,
+    )
+    assert failed.reason == "pivot_settle_failed"
+    assert failed.state == "abort"
+    assert not failed.complete
+    assert state.abort_reason == "pivot_settle_failed"
+
+
 def test_stale_sensor_stops_chassis_test():
     decision = evaluate_safety(
         now_s=10.0,

@@ -417,6 +417,8 @@ def test_nav2_launch_passes_strict_uav_goal_and_adapter_safety_parameters():
     assert 'self.declare_parameter("unknown_cost_is_blocked", True)' in goal_bridge_text
     assert 'self.declare_parameter("require_target_frame", True)' in goal_bridge_text
     assert 'self.declare_parameter("target_units", "meters")' in goal_bridge_text
+    assert '"field_pose_missing"' not in adapter_text
+    assert '"field_pose_invalid"' in adapter_text
 
 
 def test_nav2_launch_parameterizes_sensor_static_transforms():

@@ -203,6 +203,8 @@ def parse_mission_plan(data: Dict[str, Any], *, source: str = "") -> MissionPlan
             angle_deg = _finite_float(item.get("angle_deg"), name=f"segment {index} angle_deg")
             if abs(angle_deg) < 1e-6:
                 raise ValueError(f"segment {index} angle_deg must be non-zero")
+            if abs(angle_deg) > 180.0:
+                raise ValueError(f"segment {index} angle_deg must be between -180 and 180 degrees")
             max_omega_radps = _optional_finite_float(
                 item.get("max_omega_radps"),
                 name=f"segment {index} max_omega_radps",

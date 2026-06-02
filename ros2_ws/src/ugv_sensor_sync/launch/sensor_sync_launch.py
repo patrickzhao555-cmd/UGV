@@ -51,6 +51,7 @@ def generate_launch_description():
     zed_publish_rate_hz = LaunchConfiguration('zed_publish_rate_hz')
     zed_imu_publish_rate_hz = LaunchConfiguration('zed_imu_publish_rate_hz')
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
+    zed_image_downsample_factor = LaunchConfiguration('zed_image_downsample_factor')
     zed_publish_image = LaunchConfiguration('zed_publish_image')
     fusion_zed_fresh_timeout_s = LaunchConfiguration('fusion_zed_fresh_timeout_s')
     fusion_allow_lidar_only = LaunchConfiguration('fusion_allow_lidar_only')
@@ -132,6 +133,11 @@ def generate_launch_description():
             'zed_depth_downsample_factor',
             default_value='2',
             description='Integer decimation factor applied before publishing ZED depth frames.',
+        ),
+        DeclareLaunchArgument(
+            'zed_image_downsample_factor',
+            default_value='1',
+            description='Integer decimation factor applied before publishing ZED left image frames.',
         ),
         DeclareLaunchArgument(
             'zed_publish_image',
@@ -223,6 +229,8 @@ def generate_launch_description():
                 ros_param_arg('imu_publish_rate_hz', zed_imu_publish_rate_hz),
                 '-p',
                 ros_param_arg('depth_downsample_factor', zed_depth_downsample_factor),
+                '-p',
+                ros_param_arg('image_downsample_factor', zed_image_downsample_factor),
                 '-p',
                 ros_param_arg('publish_image', zed_publish_image),
             ],

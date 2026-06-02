@@ -1,3 +1,5 @@
+#include <QuickPID.h>
+
 // Teensy 4.1 two-controller, four-encoder closed-loop motor controller.
 //
 // Hardware truth:
@@ -51,6 +53,13 @@
 const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 20;  // 50 Hz
 const unsigned long STATUS_INTERVAL_MS = 50;   // 20 Hz
 const unsigned long DEFAULT_COMMAND_TIMEOUT_MS = 500;
+const unsigned long HEARTBEAT_LED_INTERVAL_MS = 500;
+
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 13
+#endif
+
+const int HEARTBEAT_LED_PIN = LED_BUILTIN;
 
 const int DEFAULT_PWM_MIN_US = 1100;
 const int DEFAULT_PWM_NEUTRAL_US = 1500;
@@ -85,6 +94,8 @@ ControllerMode controller_mode = MODE_STOPPED;
 unsigned long last_control_ms = 0;
 unsigned long last_status_ms = 0;
 unsigned long last_command_ms = 0;
+unsigned long last_heartbeat_led_ms = 0;
+bool heartbeat_led_on = false;
 unsigned long control_interval_ms = DEFAULT_CONTROL_INTERVAL_MS;
 bool status_stream_enabled = true;
 unsigned long fl_stall_start_ms = 0;
@@ -982,9 +993,21 @@ void processTransport(Stream& stream, char* buf, int& buf_idx, const char* trans
   }
 }
 
+void updateHeartbeatLed(unsigned long now_ms) {
+  if (now_ms - last_heartbeat_led_ms < HEARTBEAT_LED_INTERVAL_MS) {
+    return;
+  }
+  last_heartbeat_led_ms = now_ms;
+  heartbeat_led_on = !heartbeat_led_on;
+  digitalWrite(HEARTBEAT_LED_PIN, heartbeat_led_on ? HIGH : LOW);
+}
+
 void setup() {
   Serial.begin(115200);
   Serial1.begin(115200);
+
+  pinMode(HEARTBEAT_LED_PIN, OUTPUT);
+  digitalWrite(HEARTBEAT_LED_PIN, LOW);
 
   motor_left.attach(PWM_L, 1000, 2000);
   motor_right.attach(PWM_R, 1000, 2000);
@@ -993,6 +1016,7 @@ void setup() {
   last_control_ms = millis();
   last_status_ms = millis();
   last_command_ms = millis();
+  last_heartbeat_led_ms = millis();
   fl_ticks = readEncoderSigned(enc_fl, fl_encoder_sign);
   fr_ticks = readEncoderSigned(enc_fr, fr_encoder_sign);
   rl_ticks = readEncoderSigned(enc_rl, rl_encoder_sign);
@@ -1017,6 +1041,8 @@ void loop() {
   processTransport(Serial1, uart_buf, uart_buf_idx, "uart");
 
   unsigned long now_ms = millis();
+  updateHeartbeatLed(now_ms);
+
   if (
     controller_mode != MODE_STOPPED &&
     controller_mode != MODE_FAULT &&

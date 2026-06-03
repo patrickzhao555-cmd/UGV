@@ -151,6 +151,43 @@ def test_terminal_backend_can_explicitly_map_single_turn_key_to_forward_arc():
     assert payload["reason"] == "manual_terminal_arc_left"
 
 
+def test_terminal_backend_does_not_keep_stale_reverse_key_for_single_arc():
+    config = TeleopConfig(
+        forward_mps=0.30,
+        reverse_mps=0.10,
+        arc_turn_radps=2.20,
+        arc_min_turn_radius_m=0.12,
+        terminal_single_key_arcs=True,
+    )
+    state = TeleopState()
+    set_motion_key_pressed(state, "s", 10.0, release_events_supported=False)
+    set_motion_key_pressed(state, "a", 10.1, release_events_supported=False)
+    payload = payload_for_state(state, config, 10.2)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.30)
+    assert payload["omega_radps"] > 0.0
+    assert payload["reason"] == "manual_terminal_arc_left"
+    assert state.pressed_motion_keys == ["a"]
+
+
+def test_terminal_backend_does_not_keep_stale_forward_key_for_single_arc():
+    config = TeleopConfig(
+        forward_mps=0.30,
+        arc_turn_radps=2.20,
+        arc_min_turn_radius_m=0.12,
+        terminal_single_key_arcs=True,
+    )
+    state = TeleopState()
+    set_motion_key_pressed(state, "w", 10.0, release_events_supported=False)
+    set_motion_key_pressed(state, "d", 10.1, release_events_supported=False)
+    payload = payload_for_state(state, config, 10.2)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.30)
+    assert payload["omega_radps"] < 0.0
+    assert payload["reason"] == "manual_terminal_arc_right"
+    assert state.pressed_motion_keys == ["d"]
+
+
 def test_release_event_backend_keeps_single_turn_key_as_pivot_fallback():
     config = TeleopConfig(pivot_turn_radps=0.75)
     state = TeleopState()

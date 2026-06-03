@@ -389,6 +389,14 @@ def clear_motion_state(state: TeleopState) -> None:
 
 def set_motion_key_pressed(state: TeleopState, key: str, now_s: float, *, release_events_supported: bool) -> None:
     state.release_events_supported = bool(release_events_supported)
+    if not release_events_supported:
+        # Terminal/SSH input reports key presses but not releases, so keeping a
+        # held-key set would make old W/S/A/D keys stick and create fake combos.
+        state.pressed_motion_keys.clear()
+        state.pressed_motion_keys.append(key)
+        state.active_key = key
+        state.last_motion_time_s = float(now_s)
+        return
     if key in state.pressed_motion_keys:
         state.pressed_motion_keys.remove(key)
     state.pressed_motion_keys.append(key)
@@ -591,9 +599,9 @@ def print_help(config: TeleopConfig) -> None:
             f"left={left_mps:.3f} m/s, right={right_mps:.3f} m/s\n"
         )
     terminal_line = (
-        "  Terminal/SSH fallback: A / D alone sends forward rolling arc\n"
+        "  Terminal/SSH fallback: A / D alone sends forward rolling arc; combos require evdev\n"
         if config.terminal_single_key_arcs
-        else "  Terminal/SSH fallback disabled: A / D alone uses pivot fallback\n"
+        else "  Terminal/SSH fallback disabled: A / D alone uses pivot fallback; combos require evdev\n"
     )
     print(
         "\nUGV manual teleop controls\n"

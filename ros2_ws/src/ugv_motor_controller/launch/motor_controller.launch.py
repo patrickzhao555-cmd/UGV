@@ -12,6 +12,10 @@ def generate_launch_description():
     command_timeout_s = LaunchConfiguration("command_timeout_s")
     command_refresh_period_s = LaunchConfiguration("command_refresh_period_s")
     track_width_m = LaunchConfiguration("track_width_m")
+    left_forward_speed_scale = LaunchConfiguration("left_forward_speed_scale")
+    right_forward_speed_scale = LaunchConfiguration("right_forward_speed_scale")
+    left_reverse_speed_scale = LaunchConfiguration("left_reverse_speed_scale")
+    right_reverse_speed_scale = LaunchConfiguration("right_reverse_speed_scale")
     wheel_radius_m = LaunchConfiguration("wheel_radius_m")
     ticks_per_rev = LaunchConfiguration("ticks_per_rev")
     pwm_min_us = LaunchConfiguration("pwm_min_us")
@@ -23,8 +27,14 @@ def generate_launch_description():
     teensy_pid_ki = LaunchConfiguration("teensy_pid_ki")
     teensy_pid_kd = LaunchConfiguration("teensy_pid_kd")
     teensy_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_pid_feedforward_us_per_tps")
+    teensy_left_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_left_pid_feedforward_us_per_tps")
+    teensy_right_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_right_pid_feedforward_us_per_tps")
     teensy_pid_static_ff_us = LaunchConfiguration("teensy_pid_static_ff_us")
+    teensy_left_pid_static_ff_us = LaunchConfiguration("teensy_left_pid_static_ff_us")
+    teensy_right_pid_static_ff_us = LaunchConfiguration("teensy_right_pid_static_ff_us")
     teensy_pid_output_limit_us = LaunchConfiguration("teensy_pid_output_limit_us")
+    teensy_left_pid_output_limit_us = LaunchConfiguration("teensy_left_pid_output_limit_us")
+    teensy_right_pid_output_limit_us = LaunchConfiguration("teensy_right_pid_output_limit_us")
     teensy_pid_min_target_tps = LaunchConfiguration("teensy_pid_min_target_tps")
     teensy_left_motor_sign = LaunchConfiguration("teensy_left_motor_sign")
     teensy_right_motor_sign = LaunchConfiguration("teensy_right_motor_sign")
@@ -58,6 +68,22 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "track_width_m",
                 default_value=EnvironmentVariable("MOTOR_TRACK_WIDTH_M", default_value="0.416"),
+            ),
+            DeclareLaunchArgument(
+                "left_forward_speed_scale",
+                default_value=EnvironmentVariable("MOTOR_LEFT_FORWARD_SPEED_SCALE", default_value="1.0"),
+            ),
+            DeclareLaunchArgument(
+                "right_forward_speed_scale",
+                default_value=EnvironmentVariable("MOTOR_RIGHT_FORWARD_SPEED_SCALE", default_value="1.0"),
+            ),
+            DeclareLaunchArgument(
+                "left_reverse_speed_scale",
+                default_value=EnvironmentVariable("MOTOR_LEFT_REVERSE_SPEED_SCALE", default_value="1.0"),
+            ),
+            DeclareLaunchArgument(
+                "right_reverse_speed_scale",
+                default_value=EnvironmentVariable("MOTOR_RIGHT_REVERSE_SPEED_SCALE", default_value="1.0"),
             ),
             DeclareLaunchArgument(
                 "wheel_radius_m",
@@ -104,12 +130,36 @@ def generate_launch_description():
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PID_FF_US_PER_TPS", default_value="0.04"),
             ),
             DeclareLaunchArgument(
+                "teensy_left_pid_feedforward_us_per_tps",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_LEFT_PID_FF_US_PER_TPS", default_value="-1.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_right_pid_feedforward_us_per_tps",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_RIGHT_PID_FF_US_PER_TPS", default_value="-1.0"),
+            ),
+            DeclareLaunchArgument(
                 "teensy_pid_static_ff_us",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="170.0"),
             ),
             DeclareLaunchArgument(
+                "teensy_left_pid_static_ff_us",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_LEFT_PID_STATIC_FF_US", default_value="-1.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_right_pid_static_ff_us",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_RIGHT_PID_STATIC_FF_US", default_value="-1.0"),
+            ),
+            DeclareLaunchArgument(
                 "teensy_pid_output_limit_us",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PID_OUTPUT_LIMIT_US", default_value="350.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_left_pid_output_limit_us",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_LEFT_PID_OUTPUT_LIMIT_US", default_value="-1.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_right_pid_output_limit_us",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_RIGHT_PID_OUTPUT_LIMIT_US", default_value="-1.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_min_target_tps",
@@ -212,6 +262,10 @@ def generate_launch_description():
                         "command_timeout_s": ParameterValue(command_timeout_s, value_type=float),
                         "command_refresh_period_s": ParameterValue(command_refresh_period_s, value_type=float),
                         "track_width_m": ParameterValue(track_width_m, value_type=float),
+                        "left_forward_speed_scale": ParameterValue(left_forward_speed_scale, value_type=float),
+                        "right_forward_speed_scale": ParameterValue(right_forward_speed_scale, value_type=float),
+                        "left_reverse_speed_scale": ParameterValue(left_reverse_speed_scale, value_type=float),
+                        "right_reverse_speed_scale": ParameterValue(right_reverse_speed_scale, value_type=float),
                         "wheel_radius_m": ParameterValue(wheel_radius_m, value_type=float),
                         "ticks_per_rev": ParameterValue(ticks_per_rev, value_type=int),
                         "pwm_min_us": ParameterValue(pwm_min_us, value_type=int),
@@ -226,8 +280,20 @@ def generate_launch_description():
                             teensy_pid_feedforward_us_per_tps,
                             value_type=float,
                         ),
+                        "teensy_left_pid_feedforward_us_per_tps": ParameterValue(
+                            teensy_left_pid_feedforward_us_per_tps,
+                            value_type=float,
+                        ),
+                        "teensy_right_pid_feedforward_us_per_tps": ParameterValue(
+                            teensy_right_pid_feedforward_us_per_tps,
+                            value_type=float,
+                        ),
                         "teensy_pid_static_ff_us": ParameterValue(teensy_pid_static_ff_us, value_type=float),
+                        "teensy_left_pid_static_ff_us": ParameterValue(teensy_left_pid_static_ff_us, value_type=float),
+                        "teensy_right_pid_static_ff_us": ParameterValue(teensy_right_pid_static_ff_us, value_type=float),
                         "teensy_pid_output_limit_us": ParameterValue(teensy_pid_output_limit_us, value_type=float),
+                        "teensy_left_pid_output_limit_us": ParameterValue(teensy_left_pid_output_limit_us, value_type=float),
+                        "teensy_right_pid_output_limit_us": ParameterValue(teensy_right_pid_output_limit_us, value_type=float),
                         "teensy_pid_min_target_tps": ParameterValue(teensy_pid_min_target_tps, value_type=float),
                         "teensy_left_motor_sign": ParameterValue(teensy_left_motor_sign, value_type=int),
                         "teensy_right_motor_sign": ParameterValue(teensy_right_motor_sign, value_type=int),

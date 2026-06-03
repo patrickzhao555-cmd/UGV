@@ -53,6 +53,48 @@ def velocity_to_side_speeds(v_mps: float, omega_radps: float, track_width_m: flo
     )
 
 
+def side_speeds_to_velocity(left_mps: float, right_mps: float, track_width_m: float) -> Tuple[float, float]:
+    track = max(1e-6, float(track_width_m))
+    left = float(left_mps)
+    right = float(right_mps)
+    return (
+        0.5 * (left + right),
+        (right - left) / track,
+    )
+
+
+def _scaled_side_speed(side_mps: float, *, forward_scale: float, reverse_scale: float) -> float:
+    speed = float(side_mps)
+    if speed > 0.0:
+        return speed * max(0.0, float(forward_scale))
+    if speed < 0.0:
+        return speed * max(0.0, float(reverse_scale))
+    return 0.0
+
+
+def apply_side_speed_scales(
+    left_mps: float,
+    right_mps: float,
+    *,
+    left_forward_scale: float = 1.0,
+    right_forward_scale: float = 1.0,
+    left_reverse_scale: float = 1.0,
+    right_reverse_scale: float = 1.0,
+) -> Tuple[float, float]:
+    return (
+        _scaled_side_speed(
+            left_mps,
+            forward_scale=left_forward_scale,
+            reverse_scale=left_reverse_scale,
+        ),
+        _scaled_side_speed(
+            right_mps,
+            forward_scale=right_forward_scale,
+            reverse_scale=right_reverse_scale,
+        ),
+    )
+
+
 def mps_to_ticks_per_sec(mps: float, *, wheel_radius_m: float, ticks_per_rev: int) -> float:
     radius = max(1e-6, float(wheel_radius_m))
     ticks = max(1, int(ticks_per_rev))

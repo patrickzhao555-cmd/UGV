@@ -23,14 +23,17 @@ from std_msgs.msg import Bool, Int32MultiArray, String
 from ugv_motor_controller.teensy_side_pid import (
     TeensyParamSyncTracker,
     TeensySidePidStatus,
+    apply_side_speed_scales,
     build_teensy_param_command,
     build_teensy_stop_command,
     build_teensy_velocity_command,
     extract_velocity_command,
+    finite_float,
     is_stop_command,
     parse_teensy_param_ack_line,
     parse_teensy_side_pid_status_line,
     side_mismatch_flags,
+    side_speeds_to_velocity,
     ticks_per_sec_to_mps,
     velocity_to_side_speeds,
 )
@@ -39,6 +42,17 @@ from ugv_sensor_sync.msg import EncoderTicksStamped
 
 def _sign_param(value: Any) -> int:
     return -1 if int(value) < 0 else 1
+
+
+def _scale_param(value: Any, *, name: str) -> float:
+    return max(0.0, finite_float(value, name=name))
+
+
+def _side_param_or_global(value: Any, global_value: float, *, name: str, minimum: float = 0.0) -> float:
+    resolved = finite_float(value, name=name)
+    if resolved < 0.0:
+        resolved = float(global_value)
+    return max(float(minimum), resolved)
 
 
 class MotorControllerBridge(Node):
@@ -61,6 +75,10 @@ class MotorControllerBridge(Node):
         self.declare_parameter("poll_period_s", 0.02)
         self.declare_parameter("status_period_s", 0.5)
         self.declare_parameter("track_width_m", 0.416)
+        self.declare_parameter("left_forward_speed_scale", 1.0)
+        self.declare_parameter("right_forward_speed_scale", 1.0)
+        self.declare_parameter("left_reverse_speed_scale", 1.0)
+        self.declare_parameter("right_reverse_speed_scale", 1.0)
         self.declare_parameter("wheel_radius_m", float(os.environ.get("MOTOR_WHEEL_RADIUS_M", "0.0825")))
         self.declare_parameter("ticks_per_rev", int(os.environ.get("MOTOR_TICKS_PER_REV", "3200")))
         self.declare_parameter("pwm_min_us", 1100)
@@ -72,8 +90,14 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_pid_ki", 0.0)
         self.declare_parameter("teensy_pid_kd", 0.0)
         self.declare_parameter("teensy_pid_feedforward_us_per_tps", 0.04)
+        self.declare_parameter("teensy_left_pid_feedforward_us_per_tps", -1.0)
+        self.declare_parameter("teensy_right_pid_feedforward_us_per_tps", -1.0)
         self.declare_parameter("teensy_pid_static_ff_us", 170.0)
+        self.declare_parameter("teensy_left_pid_static_ff_us", -1.0)
+        self.declare_parameter("teensy_right_pid_static_ff_us", -1.0)
         self.declare_parameter("teensy_pid_output_limit_us", 350.0)
+        self.declare_parameter("teensy_left_pid_output_limit_us", -1.0)
+        self.declare_parameter("teensy_right_pid_output_limit_us", -1.0)
         self.declare_parameter("teensy_pid_min_target_tps", 2.0)
         self.declare_parameter("teensy_left_motor_sign", 1)
         self.declare_parameter("teensy_right_motor_sign", -1)
@@ -113,6 +137,22 @@ class MotorControllerBridge(Node):
         self.poll_period_s = max(0.02, float(self.get_parameter("poll_period_s").value))
         self.status_period_s = max(0.1, float(self.get_parameter("status_period_s").value))
         self.track_width_m = max(0.05, float(self.get_parameter("track_width_m").value))
+        self.left_forward_speed_scale = _scale_param(
+            self.get_parameter("left_forward_speed_scale").value,
+            name="left_forward_speed_scale",
+        )
+        self.right_forward_speed_scale = _scale_param(
+            self.get_parameter("right_forward_speed_scale").value,
+            name="right_forward_speed_scale",
+        )
+        self.left_reverse_speed_scale = _scale_param(
+            self.get_parameter("left_reverse_speed_scale").value,
+            name="left_reverse_speed_scale",
+        )
+        self.right_reverse_speed_scale = _scale_param(
+            self.get_parameter("right_reverse_speed_scale").value,
+            name="right_reverse_speed_scale",
+        )
         self.wheel_radius_m = max(0.005, float(self.get_parameter("wheel_radius_m").value))
         self.ticks_per_rev = max(1, int(self.get_parameter("ticks_per_rev").value))
         self.pwm_min_us = int(self.get_parameter("pwm_min_us").value)
@@ -126,8 +166,40 @@ class MotorControllerBridge(Node):
         self.teensy_pid_feedforward_us_per_tps = float(
             self.get_parameter("teensy_pid_feedforward_us_per_tps").value
         )
+        self.teensy_left_pid_feedforward_us_per_tps = _side_param_or_global(
+            self.get_parameter("teensy_left_pid_feedforward_us_per_tps").value,
+            self.teensy_pid_feedforward_us_per_tps,
+            name="teensy_left_pid_feedforward_us_per_tps",
+        )
+        self.teensy_right_pid_feedforward_us_per_tps = _side_param_or_global(
+            self.get_parameter("teensy_right_pid_feedforward_us_per_tps").value,
+            self.teensy_pid_feedforward_us_per_tps,
+            name="teensy_right_pid_feedforward_us_per_tps",
+        )
         self.teensy_pid_static_ff_us = max(0.0, float(self.get_parameter("teensy_pid_static_ff_us").value))
+        self.teensy_left_pid_static_ff_us = _side_param_or_global(
+            self.get_parameter("teensy_left_pid_static_ff_us").value,
+            self.teensy_pid_static_ff_us,
+            name="teensy_left_pid_static_ff_us",
+        )
+        self.teensy_right_pid_static_ff_us = _side_param_or_global(
+            self.get_parameter("teensy_right_pid_static_ff_us").value,
+            self.teensy_pid_static_ff_us,
+            name="teensy_right_pid_static_ff_us",
+        )
         self.teensy_pid_output_limit_us = max(1.0, float(self.get_parameter("teensy_pid_output_limit_us").value))
+        self.teensy_left_pid_output_limit_us = _side_param_or_global(
+            self.get_parameter("teensy_left_pid_output_limit_us").value,
+            self.teensy_pid_output_limit_us,
+            name="teensy_left_pid_output_limit_us",
+            minimum=1.0,
+        )
+        self.teensy_right_pid_output_limit_us = _side_param_or_global(
+            self.get_parameter("teensy_right_pid_output_limit_us").value,
+            self.teensy_pid_output_limit_us,
+            name="teensy_right_pid_output_limit_us",
+            minimum=1.0,
+        )
         self.teensy_pid_min_target_tps = max(0.0, float(self.get_parameter("teensy_pid_min_target_tps").value))
         self.teensy_left_motor_sign = _sign_param(self.get_parameter("teensy_left_motor_sign").value)
         self.teensy_right_motor_sign = _sign_param(self.get_parameter("teensy_right_motor_sign").value)
@@ -181,6 +253,12 @@ class MotorControllerBridge(Node):
         self.last_log_s = 0.0
         self.timeout_stop_sent = False
         self.active_velocity_command: Optional[Tuple[float, float]] = None
+        self.requested_v_mps = 0.0
+        self.requested_omega_radps = 0.0
+        self.commanded_v_mps = 0.0
+        self.commanded_omega_radps = 0.0
+        self.requested_left_mps = 0.0
+        self.requested_right_mps = 0.0
         self.target_left_mps = 0.0
         self.target_right_mps = 0.0
         self.measured_left_mps = 0.0
@@ -210,9 +288,45 @@ class MotorControllerBridge(Node):
             f"(port={self.port}, dry_run={self.dry_run}, radius={self.wheel_radius_m}, "
             f"ticks_per_rev={self.ticks_per_rev}, motor_signs="
             f"{self.teensy_left_motor_sign}/{self.teensy_right_motor_sign}, "
+            f"side_speed_scales=LF{self.left_forward_speed_scale}/RF{self.right_forward_speed_scale}/"
+            f"LR{self.left_reverse_speed_scale}/RR{self.right_reverse_speed_scale}, "
             f"kp={self.teensy_pid_kp}, ff={self.teensy_pid_feedforward_us_per_tps}, "
             f"static_ff={self.teensy_pid_static_ff_us})"
         )
+
+    def _clear_velocity_targets(self) -> None:
+        self.active_velocity_command = None
+        self.requested_v_mps = 0.0
+        self.requested_omega_radps = 0.0
+        self.commanded_v_mps = 0.0
+        self.commanded_omega_radps = 0.0
+        self.requested_left_mps = 0.0
+        self.requested_right_mps = 0.0
+        self.target_left_mps = 0.0
+        self.target_right_mps = 0.0
+
+    def _apply_side_speed_compensation(self, velocity: Tuple[float, float]) -> Tuple[float, float]:
+        self.requested_v_mps = velocity[0]
+        self.requested_omega_radps = velocity[1]
+        self.requested_left_mps, self.requested_right_mps = velocity_to_side_speeds(
+            velocity[0],
+            velocity[1],
+            self.track_width_m,
+        )
+        self.target_left_mps, self.target_right_mps = apply_side_speed_scales(
+            self.requested_left_mps,
+            self.requested_right_mps,
+            left_forward_scale=self.left_forward_speed_scale,
+            right_forward_scale=self.right_forward_speed_scale,
+            left_reverse_scale=self.left_reverse_speed_scale,
+            right_reverse_scale=self.right_reverse_speed_scale,
+        )
+        self.commanded_v_mps, self.commanded_omega_radps = side_speeds_to_velocity(
+            self.target_left_mps,
+            self.target_right_mps,
+            self.track_width_m,
+        )
+        return (self.commanded_v_mps, self.commanded_omega_radps)
 
     def command_callback(self, msg: String) -> None:
         try:
@@ -223,9 +337,7 @@ class MotorControllerBridge(Node):
 
         if is_stop_command(obj):
             self.last_command_received_s = time.monotonic()
-            self.active_velocity_command = None
-            self.target_left_mps = 0.0
-            self.target_right_mps = 0.0
+            self._clear_velocity_targets()
             self.timeout_stop_sent = True
             self._send_stop("nav stop command")
             self._publish_status(event="nav stop received")
@@ -242,17 +354,15 @@ class MotorControllerBridge(Node):
 
         self.last_command_received_s = time.monotonic()
         self.timeout_stop_sent = False
-        self.active_velocity_command = velocity
-        self.target_left_mps, self.target_right_mps = velocity_to_side_speeds(
-            velocity[0],
-            velocity[1],
-            self.track_width_m,
-        )
+        self.active_velocity_command = self._apply_side_speed_compensation(velocity)
         if self._transport_available() and self._motion_allowed():
             self._write_command(
-                build_teensy_velocity_command(*velocity),
+                build_teensy_velocity_command(*self.active_velocity_command),
                 reason="nav velocity command",
-                log_payload=f"CMD V {velocity[0]:.4f} {velocity[1]:.4f}",
+                log_payload=(
+                    f"CMD V {self.active_velocity_command[0]:.4f} {self.active_velocity_command[1]:.4f}"
+                    f" (requested {velocity[0]:.4f} {velocity[1]:.4f})"
+                ),
             )
         self._publish_status(event="nav velocity received")
 
@@ -308,9 +418,7 @@ class MotorControllerBridge(Node):
             return
         if time.monotonic() - self.last_command_received_s > self.command_timeout_s:
             self.timeout_stop_sent = True
-            self.active_velocity_command = None
-            self.target_left_mps = 0.0
-            self.target_right_mps = 0.0
+            self._clear_velocity_targets()
             self._send_stop("command timeout")
 
     def _drain_serial(self) -> None:
@@ -449,8 +557,14 @@ class MotorControllerBridge(Node):
                 ("rl_encoder_sign", self.teensy_rl_encoder_sign),
                 ("rr_encoder_sign", self.teensy_rr_encoder_sign),
                 ("ff_us_per_tps", self.teensy_pid_feedforward_us_per_tps),
+                ("left_ff_us_per_tps", self.teensy_left_pid_feedforward_us_per_tps),
+                ("right_ff_us_per_tps", self.teensy_right_pid_feedforward_us_per_tps),
                 ("static_ff_us", self.teensy_pid_static_ff_us),
+                ("left_static_ff_us", self.teensy_left_pid_static_ff_us),
+                ("right_static_ff_us", self.teensy_right_pid_static_ff_us),
                 ("pid_output_limit_us", self.teensy_pid_output_limit_us),
+                ("left_pid_output_limit_us", self.teensy_left_pid_output_limit_us),
+                ("right_pid_output_limit_us", self.teensy_right_pid_output_limit_us),
                 ("min_target_tps", self.teensy_pid_min_target_tps),
                 ("stall_fault_enabled", 1 if self.teensy_stall_fault_enabled else 0),
                 ("stall_target_tps", self.teensy_stall_target_tps),
@@ -559,6 +673,10 @@ class MotorControllerBridge(Node):
             "teensy_pid_param_sync_count": int(self.teensy_pid_param_sync_count),
             "teensy_pid_param_sync_last_s": self.teensy_pid_param_sync_last_s,
             "track_width_m": round(self.track_width_m, 4),
+            "left_forward_speed_scale": round(self.left_forward_speed_scale, 4),
+            "right_forward_speed_scale": round(self.right_forward_speed_scale, 4),
+            "left_reverse_speed_scale": round(self.left_reverse_speed_scale, 4),
+            "right_reverse_speed_scale": round(self.right_reverse_speed_scale, 4),
             "wheel_radius_m": round(self.wheel_radius_m, 4),
             "ticks_per_rev": int(self.ticks_per_rev),
             "teensy_control_hz": round(self.teensy_control_hz, 3),
@@ -566,13 +684,26 @@ class MotorControllerBridge(Node):
             "teensy_pid_ki": round(self.teensy_pid_ki, 6),
             "teensy_pid_kd": round(self.teensy_pid_kd, 6),
             "teensy_pid_feedforward_us_per_tps": round(self.teensy_pid_feedforward_us_per_tps, 6),
+            "teensy_left_pid_feedforward_us_per_tps": round(self.teensy_left_pid_feedforward_us_per_tps, 6),
+            "teensy_right_pid_feedforward_us_per_tps": round(self.teensy_right_pid_feedforward_us_per_tps, 6),
             "teensy_pid_static_ff_us": round(self.teensy_pid_static_ff_us, 3),
+            "teensy_left_pid_static_ff_us": round(self.teensy_left_pid_static_ff_us, 3),
+            "teensy_right_pid_static_ff_us": round(self.teensy_right_pid_static_ff_us, 3),
+            "teensy_pid_output_limit_us": round(self.teensy_pid_output_limit_us, 3),
+            "teensy_left_pid_output_limit_us": round(self.teensy_left_pid_output_limit_us, 3),
+            "teensy_right_pid_output_limit_us": round(self.teensy_right_pid_output_limit_us, 3),
             "teensy_side_mismatch_warn_tps": round(self.teensy_side_mismatch_warn_tps, 3),
             "teensy_side_mismatch_fault_tps": round(self.teensy_side_mismatch_fault_tps, 3),
             "teensy_sign_mismatch_tps": round(self.teensy_sign_mismatch_tps, 3),
             "teensy_sign_mismatch_target_tps": round(self.teensy_sign_mismatch_target_tps, 3),
             "teensy_sign_mismatch_timeout_ms": int(self.teensy_sign_mismatch_timeout_ms),
             "teensy_encoder_jump_tps": round(self.teensy_encoder_jump_tps, 3),
+            "requested_v_mps": round(self.requested_v_mps, 4),
+            "requested_omega_radps": round(self.requested_omega_radps, 4),
+            "commanded_v_mps": round(self.commanded_v_mps, 4),
+            "commanded_omega_radps": round(self.commanded_omega_radps, 4),
+            "requested_left_mps": round(self.requested_left_mps, 4),
+            "requested_right_mps": round(self.requested_right_mps, 4),
             "target_left_mps": round(self.target_left_mps, 4),
             "target_right_mps": round(self.target_right_mps, 4),
             "measured_left_mps": round(self.measured_left_mps, 4),

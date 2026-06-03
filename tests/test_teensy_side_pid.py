@@ -1,12 +1,15 @@
 import pathlib
 import sys
 
+import pytest
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_motor_controller"))
 
 from ugv_motor_controller.teensy_side_pid import (  # noqa: E402
     TeensyParamSyncTracker,
+    apply_side_speed_scales,
     build_teensy_param_command,
     build_teensy_param_init_commands,
     build_teensy_stop_command,
@@ -18,7 +21,9 @@ from ugv_motor_controller.teensy_side_pid import (  # noqa: E402
     parse_teensy_side_pid_status_line,
     side_encoder_mismatch,
     side_mismatch_flags,
+    side_speeds_to_velocity,
     side_ticks_from_wheels,
+    velocity_to_side_speeds,
     velocity_to_side_pid_targets,
 )
 
@@ -55,6 +60,29 @@ def test_velocity_to_side_target_signs_for_forward_and_pivots():
     )
     assert pivot_right_left_tps > 0.0
     assert pivot_right_right_tps < 0.0
+
+
+def test_velocity_side_speed_conversion_is_reversible_for_arcs():
+    left_mps, right_mps = velocity_to_side_speeds(0.30, 1.20, 0.416)
+    assert left_mps == pytest.approx(0.0504)
+    assert right_mps == pytest.approx(0.5496)
+    v_mps, omega_radps = side_speeds_to_velocity(left_mps, right_mps, 0.416)
+    assert v_mps == pytest.approx(0.30)
+    assert omega_radps == pytest.approx(1.20)
+
+
+def test_side_speed_scales_can_compensate_directional_side_weakness():
+    left_mps, right_mps = velocity_to_side_speeds(0.30, 1.20, 0.416)
+    scaled_left, scaled_right = apply_side_speed_scales(
+        left_mps,
+        right_mps,
+        right_forward_scale=1.2,
+    )
+    adjusted_v, adjusted_omega = side_speeds_to_velocity(scaled_left, scaled_right, 0.416)
+    assert scaled_left == pytest.approx(left_mps)
+    assert scaled_right == pytest.approx(right_mps * 1.2)
+    assert adjusted_v > 0.30
+    assert adjusted_omega > 1.20
 
 
 def test_mps_to_ticks_per_sec_conversion():
@@ -116,6 +144,12 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "kd": 0.0,
             "ff_us_per_tps": 0.04,
             "static_ff_us": 170.0,
+            "left_ff_us_per_tps": 0.04,
+            "right_ff_us_per_tps": 0.04,
+            "left_static_ff_us": 170.0,
+            "right_static_ff_us": 170.0,
+            "left_pid_output_limit_us": 350.0,
+            "right_pid_output_limit_us": 350.0,
             "control_hz": 50.0,
             "side_mismatch_fault_tps": 180.0,
             "sign_mismatch_target_tps": 100.0,
@@ -132,6 +166,12 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
     assert "CMD PARAM kp 0.45\n" in commands
     assert "CMD PARAM ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM static_ff_us 170\n" in commands
+    assert "CMD PARAM left_ff_us_per_tps 0.04\n" in commands
+    assert "CMD PARAM right_ff_us_per_tps 0.04\n" in commands
+    assert "CMD PARAM left_static_ff_us 170\n" in commands
+    assert "CMD PARAM right_static_ff_us 170\n" in commands
+    assert "CMD PARAM left_pid_output_limit_us 350\n" in commands
+    assert "CMD PARAM right_pid_output_limit_us 350\n" in commands
     assert "CMD PARAM control_hz 50\n" in commands
     assert "CMD PARAM side_mismatch_fault_tps 180\n" in commands
     assert "CMD PARAM sign_mismatch_target_tps 100\n" in commands
@@ -209,6 +249,12 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "DEFAULT_KP = 0.05f" in firmware
     assert "DEFAULT_FF_US_PER_TPS = 0.04f" in firmware
     assert "DEFAULT_STATIC_FF_US = 170.0f" in firmware
+    assert "left_feedforward_us_per_tps" in firmware
+    assert "right_feedforward_us_per_tps" in firmware
+    assert "left_static_ff_us" in firmware
+    assert "right_static_ff_us" in firmware
+    assert "left_pid_output_limit_us" in firmware
+    assert "right_pid_output_limit_us" in firmware
     assert "DEFAULT_CONTROL_INTERVAL_MS = 20" in firmware
     assert "int fl_encoder_sign = -1" in firmware
     assert "int rl_encoder_sign = -1" in firmware

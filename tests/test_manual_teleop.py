@@ -56,6 +56,7 @@ def test_default_turn_rate_is_set_for_loaded_vehicle_pivot():
     assert config.max_arc_turn_radps == pytest.approx(0.90)
     assert config.max_pivot_turn_radps == pytest.approx(1.20)
     assert config.turn_step_radps == pytest.approx(0.10)
+    assert config.terminal_single_key_arcs is False
 
 
 def test_payload_for_state_keeps_velocity_while_key_is_fresh():
@@ -117,8 +118,24 @@ def test_payload_for_state_combines_held_forward_and_turn_keys_into_arc():
     assert payload["reason"] == "manual_arc_left"
 
 
-def test_terminal_backend_maps_single_turn_key_to_forward_arc():
+def test_terminal_backend_defaults_single_turn_key_to_pivot_fallback():
     config = TeleopConfig(forward_mps=0.18, arc_turn_radps=0.45, arc_min_turn_radius_m=0.75)
+    state = TeleopState()
+    set_motion_key_pressed(state, "a", 10.0, release_events_supported=False)
+    payload = payload_for_state(state, config, 10.1)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.0)
+    assert payload["omega_radps"] == pytest.approx(0.75)
+    assert payload["reason"] == "manual_pivot_left"
+
+
+def test_terminal_backend_can_explicitly_map_single_turn_key_to_forward_arc():
+    config = TeleopConfig(
+        forward_mps=0.18,
+        arc_turn_radps=0.45,
+        arc_min_turn_radius_m=0.75,
+        terminal_single_key_arcs=True,
+    )
     state = TeleopState()
     set_motion_key_pressed(state, "a", 10.0, release_events_supported=False)
     payload = payload_for_state(state, config, 10.1)
@@ -274,7 +291,7 @@ def test_parse_args_builds_config_without_importing_ros():
     assert config.publish_hz == pytest.approx(25.0)
     assert args.input_backend == "terminal"
     assert args.publish_on_change_only is False
-    assert config.terminal_single_key_arcs is True
+    assert config.terminal_single_key_arcs is False
 
 
 def test_parse_args_can_disable_terminal_single_key_arcs():

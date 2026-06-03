@@ -41,7 +41,7 @@ DEFAULT_KEY_STATE_STALE_TIMEOUT_S = 2.0
 DEFAULT_SPEED_STEP_MPS = 0.02
 DEFAULT_TURN_STEP_RADPS = 0.10
 DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
-DEFAULT_TERMINAL_SINGLE_KEY_ARCS = True
+DEFAULT_TERMINAL_SINGLE_KEY_ARCS = False
 MIN_PUBLISH_HZ = 1.0
 MAX_PUBLISH_HZ = 50.0
 MIN_DEADMAN_TIMEOUT_S = 0.05
@@ -611,7 +611,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         "--terminal-single-key-arcs",
         action=argparse.BooleanOptionalAction,
         default=DEFAULT_TERMINAL_SINGLE_KEY_ARCS,
-        help="For terminal/SSH input without key-release events, make A/D alone command forward arcs.",
+        help="For terminal/SSH input without key-release events, make A/D alone command forward arcs. Disabled by default.",
     )
     parser.add_argument("--allow-pivot-keys", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(

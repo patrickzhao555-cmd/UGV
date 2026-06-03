@@ -166,6 +166,9 @@ def test_terminal_backend_does_not_keep_stale_reverse_key_for_single_arc():
     assert payload["command_type"] == "velocity"
     assert payload["v_mps"] == pytest.approx(0.30)
     assert payload["omega_radps"] > 0.0
+    assert payload["target_left_mps"] >= -1e-9
+    assert payload["target_right_mps"] > 0.0
+    assert payload["arc_side_reverse"] is False
     assert payload["reason"] == "manual_terminal_arc_left"
     assert state.pressed_motion_keys == ["a"]
 
@@ -184,6 +187,9 @@ def test_terminal_backend_does_not_keep_stale_forward_key_for_single_arc():
     assert payload["command_type"] == "velocity"
     assert payload["v_mps"] == pytest.approx(0.30)
     assert payload["omega_radps"] < 0.0
+    assert payload["target_left_mps"] > 0.0
+    assert payload["target_right_mps"] >= -1e-9
+    assert payload["arc_side_reverse"] is False
     assert payload["reason"] == "manual_terminal_arc_right"
     assert state.pressed_motion_keys == ["d"]
 
@@ -214,6 +220,35 @@ def test_manual_arc_omega_respects_min_turn_radius():
     config = normalized_config(TeleopConfig(forward_mps=0.15, arc_turn_radps=4.0, max_arc_turn_radps=4.0))
     assert arc_omega_for_speed(0.15, 4.0, config) == pytest.approx(0.2)
     assert arc_omega_for_speed(0.15, -4.0, config) == pytest.approx(-0.2)
+
+
+def test_manual_arc_omega_blocks_side_reverse_by_default():
+    config = normalized_config(
+        TeleopConfig(
+            forward_mps=0.30,
+            arc_turn_radps=2.20,
+            max_arc_turn_radps=2.80,
+            arc_min_turn_radius_m=0.12,
+            track_width_m=0.416,
+        )
+    )
+    limited = 2.0 * 0.30 / 0.416
+    assert arc_omega_for_speed(0.30, 2.20, config) == pytest.approx(limited)
+    assert arc_omega_for_speed(0.30, -2.20, config) == pytest.approx(-limited)
+
+
+def test_manual_arc_side_reverse_is_explicit_debug_only():
+    config = normalized_config(
+        TeleopConfig(
+            forward_mps=0.30,
+            arc_turn_radps=2.20,
+            max_arc_turn_radps=2.80,
+            arc_min_turn_radius_m=0.12,
+            track_width_m=0.416,
+            allow_arc_side_reverse=True,
+        )
+    )
+    assert arc_omega_for_speed(0.30, 2.20, config) == pytest.approx(2.20)
 
 
 def test_release_event_backend_stale_timeout_is_still_a_safety_stop():
@@ -333,6 +368,7 @@ def test_parse_args_builds_config_without_importing_ros():
     assert config.max_reverse_mps == pytest.approx(0.14)
     assert config.max_arc_turn_radps == pytest.approx(0.5)
     assert config.track_width_m == pytest.approx(0.42)
+    assert config.allow_arc_side_reverse is False
     assert config.max_pivot_turn_radps == pytest.approx(1.0)
     assert config.publish_hz == pytest.approx(25.0)
     assert args.input_backend == "terminal"
@@ -343,6 +379,11 @@ def test_parse_args_builds_config_without_importing_ros():
 def test_parse_args_can_disable_terminal_single_key_arcs():
     config = config_from_args(parse_args(["--no-terminal-single-key-arcs"]))
     assert config.terminal_single_key_arcs is False
+
+
+def test_parse_args_can_enable_debug_arc_side_reverse():
+    config = config_from_args(parse_args(["--allow-arc-side-reverse"]))
+    assert config.allow_arc_side_reverse is True
 
 
 def test_publish_on_change_only_flag_is_explicit_debug_mode():

@@ -89,6 +89,7 @@ class TeleopConfig:
     arc_min_turn_radius_m: float = DEFAULT_ARC_MIN_TURN_RADIUS_M
     track_width_m: float = DEFAULT_TRACK_WIDTH_M
     terminal_single_key_arcs: bool = DEFAULT_TERMINAL_SINGLE_KEY_ARCS
+    allow_arc_side_reverse: bool = False
     allow_pivot_keys: bool = True
     adjust_pivot_turn: bool = False
     # Backwards-compatible CLI/test aliases.  If provided, they configure arc turns.
@@ -213,7 +214,15 @@ def arc_omega_for_speed(v_mps: float, requested_omega_radps: float, config: Tele
     if speed <= 1e-9:
         return 0.0
     radius_limit = speed / max(1e-6, float(config.arc_min_turn_radius_m))
-    omega_abs = min(abs(float(requested_omega_radps)), abs(float(config.max_arc_turn_radps)), radius_limit)
+    side_reverse_limit = float("inf")
+    if not config.allow_arc_side_reverse:
+        side_reverse_limit = 2.0 * speed / max(1e-6, float(config.track_width_m))
+    omega_abs = min(
+        abs(float(requested_omega_radps)),
+        abs(float(config.max_arc_turn_radps)),
+        radius_limit,
+        side_reverse_limit,
+    )
     return math.copysign(omega_abs, float(requested_omega_radps))
 
 
@@ -264,6 +273,7 @@ def build_velocity_payload(
     turn_radius_m = None
     if abs(float(v_mps)) > 1e-9 and abs(float(omega_radps)) > 1e-9:
         turn_radius_m = abs(float(v_mps) / float(omega_radps))
+    side_reverse = (left_mps < 0.0 < right_mps) or (right_mps < 0.0 < left_mps)
     return {
         "command_type": "velocity",
         "controller": config.controller,
@@ -274,6 +284,7 @@ def build_velocity_payload(
         "target_right_mps": right_mps,
         "turn_radius_m": turn_radius_m,
         "track_width_m": float(config.track_width_m),
+        "arc_side_reverse": bool(side_reverse),
         "reason": reason,
         "manual_sequence": int(sequence),
     }
@@ -596,7 +607,8 @@ def print_help(config: TeleopConfig) -> None:
         preview_line = (
             "  Effective single-key arc preview: "
             f"omega={preview_omega:.3f} rad/s, R={radius_m:.2f}m, "
-            f"left={left_mps:.3f} m/s, right={right_mps:.3f} m/s\n"
+            f"left={left_mps:.3f} m/s, right={right_mps:.3f} m/s, "
+            f"side_reverse={'allowed' if config.allow_arc_side_reverse else 'blocked'}\n"
         )
     terminal_line = (
         "  Terminal/SSH fallback: A / D alone sends forward rolling arc; combos require evdev\n"
@@ -644,6 +656,15 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--turn-step-radps", type=float, default=DEFAULT_TURN_STEP_RADPS)
     parser.add_argument("--arc-min-turn-radius-m", type=float, default=DEFAULT_ARC_MIN_TURN_RADIUS_M)
     parser.add_argument("--track-width-m", type=float, default=DEFAULT_TRACK_WIDTH_M)
+    parser.add_argument(
+        "--allow-arc-side-reverse",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Debug only: allow rolling-arc commands to reverse one side when the requested "
+            "turn radius is smaller than half the track width. Disabled by default."
+        ),
+    )
     parser.add_argument(
         "--terminal-single-key-arcs",
         action=argparse.BooleanOptionalAction,
@@ -707,6 +728,7 @@ def config_from_args(args: argparse.Namespace) -> TeleopConfig:
             arc_min_turn_radius_m=float(args.arc_min_turn_radius_m),
             track_width_m=float(args.track_width_m),
             terminal_single_key_arcs=bool(args.terminal_single_key_arcs),
+            allow_arc_side_reverse=bool(args.allow_arc_side_reverse),
             allow_pivot_keys=bool(args.allow_pivot_keys),
             adjust_pivot_turn=bool(args.adjust_pivot_turn),
         )

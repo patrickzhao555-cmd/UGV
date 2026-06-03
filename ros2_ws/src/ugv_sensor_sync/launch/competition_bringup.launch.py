@@ -55,6 +55,7 @@ def generate_launch_description():
     motor_teensy_pid_ki = LaunchConfiguration("motor_teensy_pid_ki")
     motor_teensy_pid_kd = LaunchConfiguration("motor_teensy_pid_kd")
     motor_teensy_pid_feedforward_us_per_tps = LaunchConfiguration("motor_teensy_pid_feedforward_us_per_tps")
+    motor_enable_teensy_side_specific_pid_params = LaunchConfiguration("motor_enable_teensy_side_specific_pid_params")
     motor_teensy_left_pid_feedforward_us_per_tps = LaunchConfiguration("motor_teensy_left_pid_feedforward_us_per_tps")
     motor_teensy_right_pid_feedforward_us_per_tps = LaunchConfiguration("motor_teensy_right_pid_feedforward_us_per_tps")
     motor_teensy_pid_static_ff_us = LaunchConfiguration("motor_teensy_pid_static_ff_us")
@@ -180,6 +181,7 @@ def generate_launch_description():
             "teensy_pid_ki": motor_teensy_pid_ki,
             "teensy_pid_kd": motor_teensy_pid_kd,
             "teensy_pid_feedforward_us_per_tps": motor_teensy_pid_feedforward_us_per_tps,
+            "enable_teensy_side_specific_pid_params": motor_enable_teensy_side_specific_pid_params,
             "teensy_left_pid_feedforward_us_per_tps": motor_teensy_left_pid_feedforward_us_per_tps,
             "teensy_right_pid_feedforward_us_per_tps": motor_teensy_right_pid_feedforward_us_per_tps,
             "teensy_pid_static_ff_us": motor_teensy_pid_static_ff_us,
@@ -437,6 +439,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_kd", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.04"),
+            DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="false"),
             DeclareLaunchArgument("motor_teensy_left_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="170.0"),

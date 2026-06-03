@@ -133,6 +133,7 @@ the latest Teensy firmware and tune side-specific low-level parameters instead:
 
 ```bash
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  motor_enable_teensy_side_specific_pid_params:=true \
   motor_teensy_right_pid_static_ff_us:=210.0 \
   motor_teensy_right_pid_feedforward_us_per_tps:=0.05 \
   motor_teensy_right_pid_output_limit_us:=400.0

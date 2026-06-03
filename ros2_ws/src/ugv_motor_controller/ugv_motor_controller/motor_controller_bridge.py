@@ -90,6 +90,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_pid_ki", 0.0)
         self.declare_parameter("teensy_pid_kd", 0.0)
         self.declare_parameter("teensy_pid_feedforward_us_per_tps", 0.04)
+        self.declare_parameter("enable_teensy_side_specific_pid_params", False)
         self.declare_parameter("teensy_left_pid_feedforward_us_per_tps", -1.0)
         self.declare_parameter("teensy_right_pid_feedforward_us_per_tps", -1.0)
         self.declare_parameter("teensy_pid_static_ff_us", 170.0)
@@ -165,6 +166,9 @@ class MotorControllerBridge(Node):
         self.teensy_pid_kd = float(self.get_parameter("teensy_pid_kd").value)
         self.teensy_pid_feedforward_us_per_tps = float(
             self.get_parameter("teensy_pid_feedforward_us_per_tps").value
+        )
+        self.enable_teensy_side_specific_pid_params = bool(
+            self.get_parameter("enable_teensy_side_specific_pid_params").value
         )
         self.teensy_left_pid_feedforward_us_per_tps = _side_param_or_global(
             self.get_parameter("teensy_left_pid_feedforward_us_per_tps").value,
@@ -536,7 +540,7 @@ class MotorControllerBridge(Node):
         self._publish_status(**status_dict)
 
     def _teensy_pid_param_values(self) -> OrderedDict[str, Any]:
-        return OrderedDict(
+        params = OrderedDict(
             [
                 ("track_width_m", self.track_width_m),
                 ("wheel_radius_m", self.wheel_radius_m),
@@ -557,14 +561,8 @@ class MotorControllerBridge(Node):
                 ("rl_encoder_sign", self.teensy_rl_encoder_sign),
                 ("rr_encoder_sign", self.teensy_rr_encoder_sign),
                 ("ff_us_per_tps", self.teensy_pid_feedforward_us_per_tps),
-                ("left_ff_us_per_tps", self.teensy_left_pid_feedforward_us_per_tps),
-                ("right_ff_us_per_tps", self.teensy_right_pid_feedforward_us_per_tps),
                 ("static_ff_us", self.teensy_pid_static_ff_us),
-                ("left_static_ff_us", self.teensy_left_pid_static_ff_us),
-                ("right_static_ff_us", self.teensy_right_pid_static_ff_us),
                 ("pid_output_limit_us", self.teensy_pid_output_limit_us),
-                ("left_pid_output_limit_us", self.teensy_left_pid_output_limit_us),
-                ("right_pid_output_limit_us", self.teensy_right_pid_output_limit_us),
                 ("min_target_tps", self.teensy_pid_min_target_tps),
                 ("stall_fault_enabled", 1 if self.teensy_stall_fault_enabled else 0),
                 ("stall_target_tps", self.teensy_stall_target_tps),
@@ -582,6 +580,20 @@ class MotorControllerBridge(Node):
                 ("encoder_jump_tps", self.teensy_encoder_jump_tps),
             ]
         )
+        if self.enable_teensy_side_specific_pid_params:
+            params.update(
+                OrderedDict(
+                    [
+                        ("left_ff_us_per_tps", self.teensy_left_pid_feedforward_us_per_tps),
+                        ("right_ff_us_per_tps", self.teensy_right_pid_feedforward_us_per_tps),
+                        ("left_static_ff_us", self.teensy_left_pid_static_ff_us),
+                        ("right_static_ff_us", self.teensy_right_pid_static_ff_us),
+                        ("left_pid_output_limit_us", self.teensy_left_pid_output_limit_us),
+                        ("right_pid_output_limit_us", self.teensy_right_pid_output_limit_us),
+                    ]
+                )
+            )
+        return params
 
     def _sync_teensy_pid_params(self, reason: str) -> None:
         params = self._teensy_pid_param_values()
@@ -684,6 +696,7 @@ class MotorControllerBridge(Node):
             "teensy_pid_ki": round(self.teensy_pid_ki, 6),
             "teensy_pid_kd": round(self.teensy_pid_kd, 6),
             "teensy_pid_feedforward_us_per_tps": round(self.teensy_pid_feedforward_us_per_tps, 6),
+            "enable_teensy_side_specific_pid_params": bool(self.enable_teensy_side_specific_pid_params),
             "teensy_left_pid_feedforward_us_per_tps": round(self.teensy_left_pid_feedforward_us_per_tps, 6),
             "teensy_right_pid_feedforward_us_per_tps": round(self.teensy_right_pid_feedforward_us_per_tps, 6),
             "teensy_pid_static_ff_us": round(self.teensy_pid_static_ff_us, 3),

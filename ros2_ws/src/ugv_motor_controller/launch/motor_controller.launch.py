@@ -27,6 +27,7 @@ def generate_launch_description():
     teensy_pid_ki = LaunchConfiguration("teensy_pid_ki")
     teensy_pid_kd = LaunchConfiguration("teensy_pid_kd")
     teensy_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_pid_feedforward_us_per_tps")
+    enable_teensy_side_specific_pid_params = LaunchConfiguration("enable_teensy_side_specific_pid_params")
     teensy_left_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_left_pid_feedforward_us_per_tps")
     teensy_right_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_right_pid_feedforward_us_per_tps")
     teensy_pid_static_ff_us = LaunchConfiguration("teensy_pid_static_ff_us")
@@ -128,6 +129,10 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "teensy_pid_feedforward_us_per_tps",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PID_FF_US_PER_TPS", default_value="0.04"),
+            ),
+            DeclareLaunchArgument(
+                "enable_teensy_side_specific_pid_params",
+                default_value=EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="false"),
             ),
             DeclareLaunchArgument(
                 "teensy_left_pid_feedforward_us_per_tps",
@@ -279,6 +284,10 @@ def generate_launch_description():
                         "teensy_pid_feedforward_us_per_tps": ParameterValue(
                             teensy_pid_feedforward_us_per_tps,
                             value_type=float,
+                        ),
+                        "enable_teensy_side_specific_pid_params": ParameterValue(
+                            enable_teensy_side_specific_pid_params,
+                            value_type=bool,
                         ),
                         "teensy_left_pid_feedforward_us_per_tps": ParameterValue(
                             teensy_left_pid_feedforward_us_per_tps,

@@ -223,6 +223,22 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
         / "ugv_motor_controller"
         / "motor_controller_bridge.py"
     ).read_text()
+    motor_launch_file = (
+        ROOT
+        / "ros2_ws"
+        / "src"
+        / "ugv_motor_controller"
+        / "launch"
+        / "motor_controller.launch.py"
+    ).read_text()
+    bringup_launch_file = (
+        ROOT
+        / "ros2_ws"
+        / "src"
+        / "ugv_sensor_sync"
+        / "launch"
+        / "competition_bringup.launch.py"
+    ).read_text()
     setup_file = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "setup.py").read_text()
     firmware = (
         ROOT
@@ -243,6 +259,19 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "CMD V" in bridge_file
     assert "CMD RAW2" not in bridge_file
     assert "PARAM,<name>,ok" in firmware
+    assert "FIRMWARE_ID[]" in firmware
+    assert "firmware_id=" in firmware
+    assert "parseFiniteFloatToken" in firmware
+    assert "commandHasExtraTokens" in firmware
+    assert "assignFloatInRange" in firmware
+    assert "sendControlAck(\"parse\", \"overflow\")" in firmware
+    assert "bad_velocity" in firmware
+    assert "bad_raw2" in firmware
+    assert "validPwmConfig" in firmware
+    assert "nonfinite_state" in firmware
+    assert "nonfinite_pid" in firmware
+    assert "atof(" not in firmware
+    assert "atoi(" not in firmware
     assert "DEFAULT_TRACK_WIDTH_M = 0.416f" in firmware
     assert "DEFAULT_WHEEL_RADIUS_M = 0.0825f" in firmware
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
@@ -255,6 +284,9 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "right_static_ff_us" in firmware
     assert "left_pid_output_limit_us" in firmware
     assert "right_pid_output_limit_us" in firmware
+    assert 'self.declare_parameter("enable_teensy_side_specific_pid_params", True)' in bridge_file
+    assert 'EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="true")' in motor_launch_file
+    assert 'DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="true")' in bringup_launch_file
     assert "DEFAULT_CONTROL_INTERVAL_MS = 20" in firmware
     assert "int fl_encoder_sign = -1" in firmware
     assert "int rl_encoder_sign = -1" in firmware

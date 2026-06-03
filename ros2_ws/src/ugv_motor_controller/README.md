@@ -128,12 +128,13 @@ ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   motor_right_forward_speed_scale:=1.20
 ```
 
-If the right side still cannot reach target and PWM is near its limit, reflash
-the latest Teensy firmware and tune side-specific low-level parameters instead:
+The Jetson bridge now expects the latest Teensy firmware by default and syncs
+side-specific PID/feedforward parameters at startup. If the right side still
+cannot reach target and PWM is near its limit, tune side-specific low-level
+parameters:
 
 ```bash
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \
-  motor_enable_teensy_side_specific_pid_params:=true \
   motor_teensy_right_pid_static_ff_us:=210.0 \
   motor_teensy_right_pid_feedforward_us_per_tps:=0.05 \
   motor_teensy_right_pid_output_limit_us:=400.0

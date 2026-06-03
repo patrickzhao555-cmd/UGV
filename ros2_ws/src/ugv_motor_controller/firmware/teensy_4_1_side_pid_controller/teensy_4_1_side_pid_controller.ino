@@ -1,5 +1,3 @@
-#include <QuickPID.h>
-
 // Teensy 4.1 two-controller, four-encoder closed-loop motor controller.
 //
 // Hardware truth:
@@ -36,6 +34,7 @@
 
 #include <Arduino.h>
 #include <Encoder.h>
+#include <math.h>
 #include <QuickPID.h>
 #include <Servo.h>
 
@@ -54,6 +53,7 @@ const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 20;  // 50 Hz
 const unsigned long STATUS_INTERVAL_MS = 50;   // 20 Hz
 const unsigned long DEFAULT_COMMAND_TIMEOUT_MS = 500;
 const unsigned long HEARTBEAT_LED_INTERVAL_MS = 500;
+const char FIRMWARE_ID[] = "teensy_4_1_side_pid_v2026_06_03";
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 13
@@ -61,9 +61,13 @@ const unsigned long HEARTBEAT_LED_INTERVAL_MS = 500;
 
 const int HEARTBEAT_LED_PIN = LED_BUILTIN;
 
+const int COMMAND_BUFFER_LEN = 96;
 const int DEFAULT_PWM_MIN_US = 1100;
 const int DEFAULT_PWM_NEUTRAL_US = 1500;
 const int DEFAULT_PWM_MAX_US = 1900;
+const int HARD_PWM_MIN_US = 1000;
+const int HARD_PWM_MAX_US = 2000;
+const int MIN_PWM_SPAN_US = 20;
 
 const float DEFAULT_TRACK_WIDTH_M = 0.416f;
 const float DEFAULT_WHEEL_RADIUS_M = 0.0825f;
@@ -111,10 +115,12 @@ unsigned long rl_sign_start_ms = 0;
 unsigned long fr_sign_start_ms = 0;
 unsigned long rr_sign_start_ms = 0;
 
-char usb_buf[96];
-char uart_buf[96];
+char usb_buf[COMMAND_BUFFER_LEN];
+char uart_buf[COMMAND_BUFFER_LEN];
 int usb_buf_idx = 0;
 int uart_buf_idx = 0;
+bool usb_buf_overflow = false;
+bool uart_buf_overflow = false;
 
 int pwm_min_us = DEFAULT_PWM_MIN_US;
 int pwm_neutral_us = DEFAULT_PWM_NEUTRAL_US;
@@ -237,6 +243,68 @@ float clampFloat(float value, float lo, float hi) {
 
 int clampPwm(int pwm) {
   return constrain(pwm, pwm_min_us, pwm_max_us);
+}
+
+bool validPwmConfig(int min_us, int neutral_us, int max_us) {
+  if (min_us < HARD_PWM_MIN_US || max_us > HARD_PWM_MAX_US) {
+    return false;
+  }
+  if (min_us >= neutral_us || neutral_us >= max_us) {
+    return false;
+  }
+  if (neutral_us - min_us < MIN_PWM_SPAN_US || max_us - neutral_us < MIN_PWM_SPAN_US) {
+    return false;
+  }
+  return true;
+}
+
+bool parseFiniteFloatToken(const char* text, float& out) {
+  if (text == NULL || text[0] == '\0') {
+    return false;
+  }
+  char* end = NULL;
+  float value = strtof(text, &end);
+  if (end == text || end == NULL || *end != '\0' || !isfinite(value)) {
+    return false;
+  }
+  out = value;
+  return true;
+}
+
+bool parseIntToken(const char* text, int& out) {
+  float value = 0.0f;
+  if (!parseFiniteFloatToken(text, value)) {
+    return false;
+  }
+  if (value < -32768.0f || value > 32767.0f) {
+    return false;
+  }
+  out = (int)roundf(value);
+  return true;
+}
+
+bool commandHasExtraTokens() {
+  return strtok(NULL, " ") != NULL;
+}
+
+bool valueInRange(float value, float lo, float hi) {
+  return isfinite(value) && value >= lo && value <= hi;
+}
+
+bool assignFloatInRange(float& target, float value, float lo, float hi) {
+  if (!valueInRange(value, lo, hi)) {
+    return false;
+  }
+  target = value;
+  return true;
+}
+
+bool assignUnsignedLongInRange(unsigned long& target, float value, float lo, float hi) {
+  if (!valueInRange(value, lo, hi)) {
+    return false;
+  }
+  target = (unsigned long)roundf(value);
+  return true;
 }
 
 int signOf(float value, float threshold) {
@@ -600,10 +668,30 @@ void updateEncoderSpeeds(unsigned long dt_ms) {
 }
 
 void computeVelocityTargets() {
+  if (
+    !isfinite(target_v_mps) ||
+    !isfinite(target_omega_radps) ||
+    !isfinite(track_width_m) ||
+    !isfinite(wheel_radius_m) ||
+    !isfinite(ticks_per_rev)
+  ) {
+    setFault("nonfinite_state");
+    left_target_tps = 0.0f;
+    right_target_tps = 0.0f;
+    return;
+  }
+
   float left_mps = target_v_mps - target_omega_radps * track_width_m * 0.5f;
   float right_mps = target_v_mps + target_omega_radps * track_width_m * 0.5f;
   float new_left_target_tps = mpsToTicksPerSec(left_mps);
   float new_right_target_tps = mpsToTicksPerSec(right_mps);
+
+  if (!isfinite(new_left_target_tps) || !isfinite(new_right_target_tps)) {
+    setFault("nonfinite_target");
+    left_target_tps = 0.0f;
+    right_target_tps = 0.0f;
+    return;
+  }
 
   if (abs(new_left_target_tps) < min_target_tps) {
     new_left_target_tps = 0.0f;
@@ -680,6 +768,10 @@ void updatePidAndOutputs(unsigned long dt_ms) {
     staticFeedforwardForTarget(right_target_tps, right_static_ff_us) +
     right_feedforward_us_per_tps * right_target_tps +
     right_pid_output_us;
+  if (!isfinite(left_delta_us) || !isfinite(right_delta_us)) {
+    stopController("nonfinite_pid", true);
+    return;
+  }
   left_delta_us = clampFloat(left_delta_us, -(float)(pwm_max_us - pwm_neutral_us), (float)(pwm_max_us - pwm_neutral_us));
   right_delta_us = clampFloat(right_delta_us, -(float)(pwm_max_us - pwm_neutral_us), (float)(pwm_max_us - pwm_neutral_us));
 
@@ -770,7 +862,9 @@ void sendControlAck(const char* name, const char* value) {
 }
 
 void printParamDump(Stream& stream) {
-  stream.print("PARAMS,track_width_m=");
+  stream.print("PARAMS,firmware_id=");
+  stream.print(FIRMWARE_ID);
+  stream.print(",track_width_m=");
   stream.print(track_width_m, 6);
   stream.print(",wheel_radius_m=");
   stream.print(wheel_radius_m, 6);
@@ -851,51 +945,116 @@ bool setParam(const char* name, float value) {
   bool neutralize_outputs = false;
   bool reset_encoder_baselines = false;
 
-  if (strcmp(name, "kp") == 0) { kp = value; critical = true; }
-  else if (strcmp(name, "ki") == 0) { ki = value; critical = true; }
-  else if (strcmp(name, "kd") == 0) { kd = value; critical = true; }
-  else if (strcmp(name, "ff_us_per_tps") == 0) {
-    feedforward_us_per_tps = value;
-    left_feedforward_us_per_tps = value;
-    right_feedforward_us_per_tps = value;
+  if (strcmp(name, "kp") == 0) {
+    if (!assignFloatInRange(kp, value, 0.0f, 5.0f)) return false;
     critical = true;
   }
-  else if (strcmp(name, "left_ff_us_per_tps") == 0) { left_feedforward_us_per_tps = value; critical = true; }
-  else if (strcmp(name, "right_ff_us_per_tps") == 0) { right_feedforward_us_per_tps = value; critical = true; }
+  else if (strcmp(name, "ki") == 0) {
+    if (!assignFloatInRange(ki, value, 0.0f, 5.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "kd") == 0) {
+    if (!assignFloatInRange(kd, value, 0.0f, 5.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "ff_us_per_tps") == 0) {
+    if (!assignFloatInRange(feedforward_us_per_tps, value, 0.0f, 2.0f)) return false;
+    left_feedforward_us_per_tps = feedforward_us_per_tps;
+    right_feedforward_us_per_tps = feedforward_us_per_tps;
+    critical = true;
+  }
+  else if (strcmp(name, "left_ff_us_per_tps") == 0) {
+    if (!assignFloatInRange(left_feedforward_us_per_tps, value, 0.0f, 2.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "right_ff_us_per_tps") == 0) {
+    if (!assignFloatInRange(right_feedforward_us_per_tps, value, 0.0f, 2.0f)) return false;
+    critical = true;
+  }
   else if (strcmp(name, "static_ff_us") == 0) {
-    static_ff_us = max(0.0f, value);
+    if (!assignFloatInRange(static_ff_us, value, 0.0f, 500.0f)) return false;
     left_static_ff_us = static_ff_us;
     right_static_ff_us = static_ff_us;
     critical = true;
   }
   else if (strcmp(name, "static_feedforward_us") == 0) {
-    static_ff_us = max(0.0f, value);
+    if (!assignFloatInRange(static_ff_us, value, 0.0f, 500.0f)) return false;
     left_static_ff_us = static_ff_us;
     right_static_ff_us = static_ff_us;
     critical = true;
   }
-  else if (strcmp(name, "left_static_ff_us") == 0) { left_static_ff_us = max(0.0f, value); critical = true; }
-  else if (strcmp(name, "right_static_ff_us") == 0) { right_static_ff_us = max(0.0f, value); critical = true; }
+  else if (strcmp(name, "left_static_ff_us") == 0) {
+    if (!assignFloatInRange(left_static_ff_us, value, 0.0f, 500.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "right_static_ff_us") == 0) {
+    if (!assignFloatInRange(right_static_ff_us, value, 0.0f, 500.0f)) return false;
+    critical = true;
+  }
   else if (strcmp(name, "pid_output_limit_us") == 0) {
-    pid_output_limit_us = max(1.0f, value);
+    if (!assignFloatInRange(pid_output_limit_us, value, 1.0f, 500.0f)) return false;
     left_pid_output_limit_us = pid_output_limit_us;
     right_pid_output_limit_us = pid_output_limit_us;
     critical = true;
   }
-  else if (strcmp(name, "left_pid_output_limit_us") == 0) { left_pid_output_limit_us = max(1.0f, value); critical = true; }
-  else if (strcmp(name, "right_pid_output_limit_us") == 0) { right_pid_output_limit_us = max(1.0f, value); critical = true; }
-  else if (strcmp(name, "pwm_slew_us_per_s") == 0) { pwm_slew_us_per_s = max(0.0f, value); critical = true; }
+  else if (strcmp(name, "left_pid_output_limit_us") == 0) {
+    if (!assignFloatInRange(left_pid_output_limit_us, value, 1.0f, 500.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "right_pid_output_limit_us") == 0) {
+    if (!assignFloatInRange(right_pid_output_limit_us, value, 1.0f, 500.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "pwm_slew_us_per_s") == 0) {
+    if (!assignFloatInRange(pwm_slew_us_per_s, value, 0.0f, 10000.0f)) return false;
+    critical = true;
+  }
   else if (strcmp(name, "control_hz") == 0) { control_interval_ms = (unsigned long)clampFloat(roundf(1000.0f / max(1.0f, value)), 5.0f, 50.0f); critical = true; }
   else if (strcmp(name, "control_interval_ms") == 0) { control_interval_ms = (unsigned long)clampFloat(roundf(value), 5.0f, 50.0f); critical = true; }
-  else if (strcmp(name, "track_width_m") == 0) { track_width_m = max(0.01f, value); critical = true; }
-  else if (strcmp(name, "wheel_radius_m") == 0) { wheel_radius_m = max(0.001f, value); critical = true; }
-  else if (strcmp(name, "ticks_per_rev") == 0) { ticks_per_rev = max(1.0f, value); critical = true; }
-  else if (strcmp(name, "command_timeout_ms") == 0) command_timeout_ms = max(50.0f, value);
-  else if (strcmp(name, "min_target_tps") == 0) { min_target_tps = max(0.0f, value); critical = true; }
-  else if (strcmp(name, "deadband_tps") == 0) { deadband_tps = max(0.0f, value); critical = true; }
-  else if (strcmp(name, "pwm_min_us") == 0) { pwm_min_us = (int)value; critical = true; neutralize_outputs = true; }
-  else if (strcmp(name, "pwm_neutral_us") == 0) { pwm_neutral_us = (int)value; critical = true; neutralize_outputs = true; }
-  else if (strcmp(name, "pwm_max_us") == 0) { pwm_max_us = (int)value; critical = true; neutralize_outputs = true; }
+  else if (strcmp(name, "track_width_m") == 0) {
+    if (!assignFloatInRange(track_width_m, value, 0.05f, 2.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "wheel_radius_m") == 0) {
+    if (!assignFloatInRange(wheel_radius_m, value, 0.02f, 0.30f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "ticks_per_rev") == 0) {
+    if (!assignFloatInRange(ticks_per_rev, value, 1.0f, 100000.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "command_timeout_ms") == 0) {
+    if (!assignFloatInRange(command_timeout_ms, value, 50.0f, 5000.0f)) return false;
+  }
+  else if (strcmp(name, "min_target_tps") == 0) {
+    if (!assignFloatInRange(min_target_tps, value, 0.0f, 1000.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "deadband_tps") == 0) {
+    if (!assignFloatInRange(deadband_tps, value, 0.0f, 1000.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "pwm_min_us") == 0) {
+    int candidate = (int)roundf(value);
+    if (!validPwmConfig(candidate, pwm_neutral_us, pwm_max_us)) return false;
+    pwm_min_us = candidate;
+    critical = true;
+    neutralize_outputs = true;
+  }
+  else if (strcmp(name, "pwm_neutral_us") == 0) {
+    int candidate = (int)roundf(value);
+    if (!validPwmConfig(pwm_min_us, candidate, pwm_max_us)) return false;
+    pwm_neutral_us = candidate;
+    critical = true;
+    neutralize_outputs = true;
+  }
+  else if (strcmp(name, "pwm_max_us") == 0) {
+    int candidate = (int)roundf(value);
+    if (!validPwmConfig(pwm_min_us, pwm_neutral_us, candidate)) return false;
+    pwm_max_us = candidate;
+    critical = true;
+    neutralize_outputs = true;
+  }
   else if (strcmp(name, "fl_encoder_sign") == 0) { fl_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
   else if (strcmp(name, "fr_encoder_sign") == 0) { fr_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
   else if (strcmp(name, "rl_encoder_sign") == 0) { rl_encoder_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; reset_encoder_baselines = true; }
@@ -903,19 +1062,41 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "left_motor_sign") == 0) { left_motor_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; }
   else if (strcmp(name, "right_motor_sign") == 0) { right_motor_sign = value < 0 ? -1 : 1; critical = true; neutralize_outputs = true; }
   else if (strcmp(name, "stall_fault_enabled") == 0) stall_fault_enabled = value != 0.0f;
-  else if (strcmp(name, "stall_target_tps") == 0) stall_target_tps = max(0.0f, value);
-  else if (strcmp(name, "stall_near_zero_tps") == 0) stall_near_zero_tps = max(0.0f, value);
-  else if (strcmp(name, "stall_moving_peer_tps") == 0) stall_moving_peer_tps = max(0.0f, value);
-  else if (strcmp(name, "stall_pwm_delta_us") == 0) stall_pwm_delta_us = max(0.0f, value);
-  else if (strcmp(name, "stall_timeout_ms") == 0) stall_timeout_ms = (unsigned long)max(0.0f, value);
-  else if (strcmp(name, "sign_mismatch_tps") == 0) sign_mismatch_tps = max(0.0f, value);
-  else if (strcmp(name, "sign_mismatch_target_tps") == 0) sign_mismatch_target_tps = max(0.0f, value);
-  else if (strcmp(name, "sign_mismatch_timeout_ms") == 0) sign_mismatch_timeout_ms = (unsigned long)max(0.0f, value);
+  else if (strcmp(name, "stall_target_tps") == 0) {
+    if (!assignFloatInRange(stall_target_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "stall_near_zero_tps") == 0) {
+    if (!assignFloatInRange(stall_near_zero_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "stall_moving_peer_tps") == 0) {
+    if (!assignFloatInRange(stall_moving_peer_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "stall_pwm_delta_us") == 0) {
+    if (!assignFloatInRange(stall_pwm_delta_us, value, 0.0f, 500.0f)) return false;
+  }
+  else if (strcmp(name, "stall_timeout_ms") == 0) {
+    if (!assignUnsignedLongInRange(stall_timeout_ms, value, 0.0f, 10000.0f)) return false;
+  }
+  else if (strcmp(name, "sign_mismatch_tps") == 0) {
+    if (!assignFloatInRange(sign_mismatch_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "sign_mismatch_target_tps") == 0) {
+    if (!assignFloatInRange(sign_mismatch_target_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "sign_mismatch_timeout_ms") == 0) {
+    if (!assignUnsignedLongInRange(sign_mismatch_timeout_ms, value, 0.0f, 10000.0f)) return false;
+  }
   else if (strcmp(name, "side_mismatch_fault_enabled") == 0) side_mismatch_fault_enabled = value != 0.0f;
-  else if (strcmp(name, "side_mismatch_warn_tps") == 0) side_mismatch_warn_tps = max(0.0f, value);
-  else if (strcmp(name, "side_mismatch_fault_tps") == 0) side_mismatch_fault_tps = max(0.0f, value);
+  else if (strcmp(name, "side_mismatch_warn_tps") == 0) {
+    if (!assignFloatInRange(side_mismatch_warn_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "side_mismatch_fault_tps") == 0) {
+    if (!assignFloatInRange(side_mismatch_fault_tps, value, 0.0f, 50000.0f)) return false;
+  }
   else if (strcmp(name, "encoder_jump_fault_enabled") == 0) encoder_jump_fault_enabled = value != 0.0f;
-  else if (strcmp(name, "encoder_jump_tps") == 0) encoder_jump_tps = max(0.0f, value);
+  else if (strcmp(name, "encoder_jump_tps") == 0) {
+    if (!assignFloatInRange(encoder_jump_tps, value, 0.0f, 100000.0f)) return false;
+  }
   else return false;
 
   configurePid();
@@ -951,6 +1132,10 @@ void parseCommand(char* s, const char* transport_name) {
   }
 
   if (strcmp(verb, "STATUS") == 0) {
+    if (commandHasExtraTokens()) {
+      sendControlAck("parse", "bad_status");
+      return;
+    }
     sendStatus();
     sendParamDump();
     return;
@@ -961,12 +1146,21 @@ void parseCommand(char* s, const char* transport_name) {
     if (value_text == NULL) {
       return;
     }
-    status_stream_enabled = atoi(value_text) != 0;
+    int requested_stream = 0;
+    if (!parseIntToken(value_text, requested_stream) || commandHasExtraTokens()) {
+      sendControlAck("status_stream", "bad_value");
+      return;
+    }
+    status_stream_enabled = requested_stream != 0;
     sendControlAck("status_stream", status_stream_enabled ? "on" : "off");
     return;
   }
 
   if (strcmp(verb, "PARAMDUMP") == 0) {
+    if (commandHasExtraTokens()) {
+      sendControlAck("parse", "bad_paramdump");
+      return;
+    }
     sendParamDump();
     return;
   }
@@ -975,14 +1169,26 @@ void parseCommand(char* s, const char* transport_name) {
     char* v_text = strtok(NULL, " ");
     char* omega_text = strtok(NULL, " ");
     if (v_text == NULL || omega_text == NULL) {
+      last_command_ms = millis();
+      stopController("bad_velocity", true);
       return;
     }
     last_command_ms = millis();
+    float requested_v = 0.0f;
+    float requested_omega = 0.0f;
+    if (
+      !parseFiniteFloatToken(v_text, requested_v) ||
+      !parseFiniteFloatToken(omega_text, requested_omega) ||
+      commandHasExtraTokens()
+    ) {
+      stopController("bad_velocity", true);
+      return;
+    }
     if (controller_mode == MODE_FAULT || strcmp(fault_reason, "none") != 0) {
       return;
     }
-    target_v_mps = atof(v_text);
-    target_omega_radps = atof(omega_text);
+    target_v_mps = requested_v;
+    target_omega_radps = requested_omega;
     clearFault();
     controller_mode = MODE_VELOCITY;
     return;
@@ -992,14 +1198,26 @@ void parseCommand(char* s, const char* transport_name) {
     char* left_text = strtok(NULL, " ");
     char* right_text = strtok(NULL, " ");
     if (left_text == NULL || right_text == NULL) {
+      last_command_ms = millis();
+      stopController("bad_raw2", true);
       return;
     }
     last_command_ms = millis();
+    int requested_left_pwm = DEFAULT_PWM_NEUTRAL_US;
+    int requested_right_pwm = DEFAULT_PWM_NEUTRAL_US;
+    if (
+      !parseIntToken(left_text, requested_left_pwm) ||
+      !parseIntToken(right_text, requested_right_pwm) ||
+      commandHasExtraTokens()
+    ) {
+      stopController("bad_raw2", true);
+      return;
+    }
     if (controller_mode == MODE_FAULT || strcmp(fault_reason, "none") != 0) {
       return;
     }
-    target_left_pwm = clampPwm(atoi(left_text));
-    target_right_pwm = clampPwm(atoi(right_text));
+    target_left_pwm = clampPwm(requested_left_pwm);
+    target_right_pwm = clampPwm(requested_right_pwm);
     clearFault();
     resetPidState();
     controller_mode = MODE_RAW2;
@@ -1012,7 +1230,8 @@ void parseCommand(char* s, const char* transport_name) {
     if (name == NULL || value_text == NULL) {
       return;
     }
-    bool ok = setParam(name, atof(value_text));
+    float value = 0.0f;
+    bool ok = parseFiniteFloatToken(value_text, value) && !commandHasExtraTokens() && setParam(name, value);
     sendParamAck(name, ok);
     if (Serial) {
       Serial.print("DBG PARAM ");
@@ -1024,15 +1243,35 @@ void parseCommand(char* s, const char* transport_name) {
   }
 }
 
-void processTransport(Stream& stream, char* buf, int& buf_idx, const char* transport_name) {
+void processTransport(
+  Stream& stream,
+  char* buf,
+  const int buf_len,
+  int& buf_idx,
+  bool& buf_overflow,
+  const char* transport_name
+) {
   while (stream.available()) {
     char c = stream.read();
     if (c == '\n') {
-      buf[buf_idx] = '\0';
-      parseCommand(buf, transport_name);
+      if (buf_overflow) {
+        sendControlAck("parse", "overflow");
+        buf_overflow = false;
+      } else if (buf_idx > 0) {
+        buf[buf_idx] = '\0';
+        parseCommand(buf, transport_name);
+      }
       buf_idx = 0;
-    } else if (c != '\r' && buf_idx < 95) {
-      buf[buf_idx++] = c;
+    } else if (c != '\r') {
+      if (buf_overflow) {
+        continue;
+      }
+      if (buf_idx < buf_len - 1) {
+        buf[buf_idx++] = c;
+      } else {
+        buf_idx = 0;
+        buf_overflow = true;
+      }
     }
   }
 }
@@ -1074,15 +1313,17 @@ void setup() {
 
   if (Serial) {
     Serial.println("Teensy 4.1 side PID controller ready");
+    Serial.print("DBG firmware ");
+    Serial.println(FIRMWARE_ID);
     Serial.println("DBG PID backend QuickPID");
   }
 }
 
 void loop() {
   if (Serial) {
-    processTransport(Serial, usb_buf, usb_buf_idx, "usb");
+    processTransport(Serial, usb_buf, COMMAND_BUFFER_LEN, usb_buf_idx, usb_buf_overflow, "usb");
   }
-  processTransport(Serial1, uart_buf, uart_buf_idx, "uart");
+  processTransport(Serial1, uart_buf, COMMAND_BUFFER_LEN, uart_buf_idx, uart_buf_overflow, "uart");
 
   unsigned long now_ms = millis();
   updateHeartbeatLed(now_ms);

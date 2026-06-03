@@ -132,7 +132,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "enable_teensy_side_specific_pid_params",
-                default_value=EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="false"),
+                default_value=EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="true"),
             ),
             DeclareLaunchArgument(
                 "teensy_left_pid_feedforward_us_per_tps",

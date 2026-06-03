@@ -41,6 +41,7 @@ DEFAULT_KEY_STATE_STALE_TIMEOUT_S = 2.0
 DEFAULT_SPEED_STEP_MPS = 0.02
 DEFAULT_TURN_STEP_RADPS = 0.10
 DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
+DEFAULT_ARC_INNER_MIN_MPS = 0.08
 DEFAULT_TERMINAL_SINGLE_KEY_ARCS = False
 DEFAULT_TRACK_WIDTH_M = 0.416
 MIN_PUBLISH_HZ = 1.0
@@ -87,6 +88,7 @@ class TeleopConfig:
     speed_step_mps: float = DEFAULT_SPEED_STEP_MPS
     turn_step_radps: float = DEFAULT_TURN_STEP_RADPS
     arc_min_turn_radius_m: float = DEFAULT_ARC_MIN_TURN_RADIUS_M
+    arc_inner_min_mps: float = DEFAULT_ARC_INNER_MIN_MPS
     track_width_m: float = DEFAULT_TRACK_WIDTH_M
     terminal_single_key_arcs: bool = DEFAULT_TERMINAL_SINGLE_KEY_ARCS
     allow_arc_side_reverse: bool = False
@@ -160,6 +162,7 @@ def normalized_config(config: TeleopConfig) -> TeleopConfig:
     speed_step = max(0.0, finite_float(config.speed_step_mps, name="speed_step_mps"))
     turn_step = max(0.0, finite_float(config.turn_step_radps, name="turn_step_radps"))
     arc_radius = max(1e-6, finite_float(config.arc_min_turn_radius_m, name="arc_min_turn_radius_m"))
+    arc_inner_min = max(0.0, finite_float(config.arc_inner_min_mps, name="arc_inner_min_mps"))
     track_width = max(1e-6, finite_float(config.track_width_m, name="track_width_m"))
     return replace(
         config,
@@ -177,6 +180,7 @@ def normalized_config(config: TeleopConfig) -> TeleopConfig:
         speed_step_mps=speed_step,
         turn_step_radps=turn_step,
         arc_min_turn_radius_m=arc_radius,
+        arc_inner_min_mps=arc_inner_min,
         track_width_m=track_width,
         turn_radps=arc_turn,
         max_turn_radps=max_arc_turn,
@@ -216,7 +220,8 @@ def arc_omega_for_speed(v_mps: float, requested_omega_radps: float, config: Tele
     radius_limit = speed / max(1e-6, float(config.arc_min_turn_radius_m))
     side_reverse_limit = float("inf")
     if not config.allow_arc_side_reverse:
-        side_reverse_limit = 2.0 * speed / max(1e-6, float(config.track_width_m))
+        inner_floor = min(speed, max(0.0, float(config.arc_inner_min_mps)))
+        side_reverse_limit = max(0.0, (speed - inner_floor) / (0.5 * max(1e-6, float(config.track_width_m))))
     omega_abs = min(
         abs(float(requested_omega_radps)),
         abs(float(config.max_arc_turn_radps)),
@@ -631,7 +636,9 @@ def print_help(config: TeleopConfig) -> None:
         f"arc={config.arc_turn_radps:.3f} rad/s, pivot={config.pivot_turn_radps:.3f} rad/s\n"
         f"Limits: forward<={config.max_forward_mps:.3f}, reverse<={config.max_reverse_mps:.3f}, "
         f"arc<={config.max_arc_turn_radps:.3f}, pivot<={config.max_pivot_turn_radps:.3f}; "
-        f"arc_min_radius={config.arc_min_turn_radius_m:.2f}m; track={config.track_width_m:.3f}m; "
+        f"arc_min_radius={config.arc_min_turn_radius_m:.2f}m; "
+        f"arc_inner_min={config.arc_inner_min_mps:.3f}m/s; "
+        f"track={config.track_width_m:.3f}m; "
         f"terminal deadman={config.deadman_timeout_s:.2f}s\n",
         preview_line,
         flush=True,
@@ -655,6 +662,15 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--speed-step-mps", type=float, default=DEFAULT_SPEED_STEP_MPS)
     parser.add_argument("--turn-step-radps", type=float, default=DEFAULT_TURN_STEP_RADPS)
     parser.add_argument("--arc-min-turn-radius-m", type=float, default=DEFAULT_ARC_MIN_TURN_RADIUS_M)
+    parser.add_argument(
+        "--arc-inner-min-mps",
+        type=float,
+        default=DEFAULT_ARC_INNER_MIN_MPS,
+        help=(
+            "Minimum forward speed kept on the inside side of a rolling arc. "
+            "This prevents heavy-load turns from degenerating into one stationary side."
+        ),
+    )
     parser.add_argument("--track-width-m", type=float, default=DEFAULT_TRACK_WIDTH_M)
     parser.add_argument(
         "--allow-arc-side-reverse",
@@ -726,6 +742,7 @@ def config_from_args(args: argparse.Namespace) -> TeleopConfig:
             speed_step_mps=float(args.speed_step_mps),
             turn_step_radps=float(args.turn_step_radps),
             arc_min_turn_radius_m=float(args.arc_min_turn_radius_m),
+            arc_inner_min_mps=float(args.arc_inner_min_mps),
             track_width_m=float(args.track_width_m),
             terminal_single_key_arcs=bool(args.terminal_single_key_arcs),
             allow_arc_side_reverse=bool(args.allow_arc_side_reverse),

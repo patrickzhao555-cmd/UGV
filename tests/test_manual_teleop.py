@@ -28,7 +28,13 @@ from ugv_manual_teleop import (  # noqa: E402
 
 
 def test_wasd_velocity_mapping_uses_tank_drive_sign_convention():
-    config = TeleopConfig(forward_mps=0.15, reverse_mps=0.1, arc_turn_radps=0.35, pivot_turn_radps=0.75)
+    config = TeleopConfig(
+        forward_mps=0.15,
+        reverse_mps=0.1,
+        arc_turn_radps=0.35,
+        pivot_turn_radps=0.75,
+        arc_inner_min_mps=0.0,
+    )
     assert velocity_for_key("w", config)[:2] == pytest.approx((0.15, 0.0))
     assert velocity_for_key("w", config)[2] == "manual_forward"
     assert velocity_for_key("s", config)[:2] == pytest.approx((-0.1, 0.0))
@@ -156,6 +162,7 @@ def test_terminal_backend_does_not_keep_stale_reverse_key_for_single_arc():
         forward_mps=0.30,
         reverse_mps=0.10,
         arc_turn_radps=2.20,
+        max_arc_turn_radps=2.80,
         arc_min_turn_radius_m=0.12,
         terminal_single_key_arcs=True,
     )
@@ -166,8 +173,8 @@ def test_terminal_backend_does_not_keep_stale_reverse_key_for_single_arc():
     assert payload["command_type"] == "velocity"
     assert payload["v_mps"] == pytest.approx(0.30)
     assert payload["omega_radps"] > 0.0
-    assert payload["target_left_mps"] >= -1e-9
-    assert payload["target_right_mps"] > 0.0
+    assert payload["target_left_mps"] == pytest.approx(0.08)
+    assert payload["target_right_mps"] == pytest.approx(0.52)
     assert payload["arc_side_reverse"] is False
     assert payload["reason"] == "manual_terminal_arc_left"
     assert state.pressed_motion_keys == ["a"]
@@ -177,6 +184,7 @@ def test_terminal_backend_does_not_keep_stale_forward_key_for_single_arc():
     config = TeleopConfig(
         forward_mps=0.30,
         arc_turn_radps=2.20,
+        max_arc_turn_radps=2.80,
         arc_min_turn_radius_m=0.12,
         terminal_single_key_arcs=True,
     )
@@ -187,8 +195,8 @@ def test_terminal_backend_does_not_keep_stale_forward_key_for_single_arc():
     assert payload["command_type"] == "velocity"
     assert payload["v_mps"] == pytest.approx(0.30)
     assert payload["omega_radps"] < 0.0
-    assert payload["target_left_mps"] > 0.0
-    assert payload["target_right_mps"] >= -1e-9
+    assert payload["target_left_mps"] == pytest.approx(0.52)
+    assert payload["target_right_mps"] == pytest.approx(0.08)
     assert payload["arc_side_reverse"] is False
     assert payload["reason"] == "manual_terminal_arc_right"
     assert state.pressed_motion_keys == ["d"]
@@ -232,7 +240,7 @@ def test_manual_arc_omega_blocks_side_reverse_by_default():
             track_width_m=0.416,
         )
     )
-    limited = 2.0 * 0.30 / 0.416
+    limited = (0.30 - 0.08) / (0.416 / 2.0)
     assert arc_omega_for_speed(0.30, 2.20, config) == pytest.approx(limited)
     assert arc_omega_for_speed(0.30, -2.20, config) == pytest.approx(-limited)
 
@@ -351,6 +359,8 @@ def test_parse_args_builds_config_without_importing_ros():
             "0.5",
             "--track-width-m",
             "0.42",
+            "--arc-inner-min-mps",
+            "0.06",
             "--max-pivot-turn-radps",
             "1.0",
             "--publish-hz",
@@ -368,6 +378,7 @@ def test_parse_args_builds_config_without_importing_ros():
     assert config.max_reverse_mps == pytest.approx(0.14)
     assert config.max_arc_turn_radps == pytest.approx(0.5)
     assert config.track_width_m == pytest.approx(0.42)
+    assert config.arc_inner_min_mps == pytest.approx(0.06)
     assert config.allow_arc_side_reverse is False
     assert config.max_pivot_turn_radps == pytest.approx(1.0)
     assert config.publish_hz == pytest.approx(25.0)

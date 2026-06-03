@@ -66,6 +66,9 @@ def test_payload_for_state_keeps_velocity_while_key_is_fresh():
     assert payload["command_type"] == "velocity"
     assert payload["v_mps"] == pytest.approx(0.2)
     assert payload["omega_radps"] == pytest.approx(0.0)
+    assert payload["target_left_mps"] == pytest.approx(0.2)
+    assert payload["target_right_mps"] == pytest.approx(0.2)
+    assert payload["turn_radius_m"] is None
     assert payload["reason"] == "manual_forward"
 
 
@@ -115,6 +118,9 @@ def test_payload_for_state_combines_held_forward_and_turn_keys_into_arc():
     assert payload["command_type"] == "velocity"
     assert payload["v_mps"] == pytest.approx(0.2)
     assert payload["omega_radps"] == pytest.approx(0.2 / 0.75)
+    assert payload["turn_radius_m"] == pytest.approx(0.75)
+    assert payload["target_left_mps"] == pytest.approx(0.2 - (0.2 / 0.75) * 0.416 / 2.0)
+    assert payload["target_right_mps"] == pytest.approx(0.2 + (0.2 / 0.75) * 0.416 / 2.0)
     assert payload["reason"] == "manual_arc_left"
 
 
@@ -271,6 +277,8 @@ def test_parse_args_builds_config_without_importing_ros():
             "0.14",
             "--max-turn-radps",
             "0.5",
+            "--track-width-m",
+            "0.42",
             "--max-pivot-turn-radps",
             "1.0",
             "--publish-hz",
@@ -287,6 +295,7 @@ def test_parse_args_builds_config_without_importing_ros():
     assert config.max_forward_mps == pytest.approx(0.25)
     assert config.max_reverse_mps == pytest.approx(0.14)
     assert config.max_arc_turn_radps == pytest.approx(0.5)
+    assert config.track_width_m == pytest.approx(0.42)
     assert config.max_pivot_turn_radps == pytest.approx(1.0)
     assert config.publish_hz == pytest.approx(25.0)
     assert args.input_backend == "terminal"

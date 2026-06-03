@@ -42,6 +42,7 @@ DEFAULT_SPEED_STEP_MPS = 0.02
 DEFAULT_TURN_STEP_RADPS = 0.10
 DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
 DEFAULT_TERMINAL_SINGLE_KEY_ARCS = False
+DEFAULT_TRACK_WIDTH_M = 0.416
 MIN_PUBLISH_HZ = 1.0
 MAX_PUBLISH_HZ = 50.0
 MIN_DEADMAN_TIMEOUT_S = 0.05
@@ -86,6 +87,7 @@ class TeleopConfig:
     speed_step_mps: float = DEFAULT_SPEED_STEP_MPS
     turn_step_radps: float = DEFAULT_TURN_STEP_RADPS
     arc_min_turn_radius_m: float = DEFAULT_ARC_MIN_TURN_RADIUS_M
+    track_width_m: float = DEFAULT_TRACK_WIDTH_M
     terminal_single_key_arcs: bool = DEFAULT_TERMINAL_SINGLE_KEY_ARCS
     allow_pivot_keys: bool = True
     adjust_pivot_turn: bool = False
@@ -157,6 +159,7 @@ def normalized_config(config: TeleopConfig) -> TeleopConfig:
     speed_step = max(0.0, finite_float(config.speed_step_mps, name="speed_step_mps"))
     turn_step = max(0.0, finite_float(config.turn_step_radps, name="turn_step_radps"))
     arc_radius = max(1e-6, finite_float(config.arc_min_turn_radius_m, name="arc_min_turn_radius_m"))
+    track_width = max(1e-6, finite_float(config.track_width_m, name="track_width_m"))
     return replace(
         config,
         forward_mps=forward,
@@ -173,6 +176,7 @@ def normalized_config(config: TeleopConfig) -> TeleopConfig:
         speed_step_mps=speed_step,
         turn_step_radps=turn_step,
         arc_min_turn_radius_m=arc_radius,
+        track_width_m=track_width,
         turn_radps=arc_turn,
         max_turn_radps=max_arc_turn,
     )
@@ -254,12 +258,22 @@ def build_velocity_payload(
     sequence: int,
     config: TeleopConfig,
 ) -> Dict[str, Any]:
+    half_track = 0.5 * max(1e-6, float(config.track_width_m))
+    left_mps = float(v_mps) - float(omega_radps) * half_track
+    right_mps = float(v_mps) + float(omega_radps) * half_track
+    turn_radius_m = None
+    if abs(float(v_mps)) > 1e-9 and abs(float(omega_radps)) > 1e-9:
+        turn_radius_m = abs(float(v_mps) / float(omega_radps))
     return {
         "command_type": "velocity",
         "controller": config.controller,
         "mode": "VELOCITY",
         "v_mps": float(v_mps),
         "omega_radps": float(omega_radps),
+        "target_left_mps": left_mps,
+        "target_right_mps": right_mps,
+        "turn_radius_m": turn_radius_m,
+        "track_width_m": float(config.track_width_m),
         "reason": reason,
         "manual_sequence": int(sequence),
     }
@@ -563,6 +577,19 @@ class _LinuxEvdevKeyboardInput:
 
 
 def print_help(config: TeleopConfig) -> None:
+    preview = velocity_for_pressed_keys(["a"], config, terminal_single_key_arcs=True)
+    preview_line = ""
+    if preview is not None:
+        preview_v, preview_omega, _ = preview
+        half_track = 0.5 * config.track_width_m
+        left_mps = preview_v - preview_omega * half_track
+        right_mps = preview_v + preview_omega * half_track
+        radius_m = abs(preview_v / preview_omega) if abs(preview_omega) > 1e-9 else float("inf")
+        preview_line = (
+            "  Effective single-key arc preview: "
+            f"omega={preview_omega:.3f} rad/s, R={radius_m:.2f}m, "
+            f"left={left_mps:.3f} m/s, right={right_mps:.3f} m/s\n"
+        )
     terminal_line = (
         "  Terminal/SSH fallback: A / D alone sends forward rolling arc\n"
         if config.terminal_single_key_arcs
@@ -584,8 +611,9 @@ def print_help(config: TeleopConfig) -> None:
         f"arc={config.arc_turn_radps:.3f} rad/s, pivot={config.pivot_turn_radps:.3f} rad/s\n"
         f"Limits: forward<={config.max_forward_mps:.3f}, reverse<={config.max_reverse_mps:.3f}, "
         f"arc<={config.max_arc_turn_radps:.3f}, pivot<={config.max_pivot_turn_radps:.3f}; "
-        f"arc_min_radius={config.arc_min_turn_radius_m:.2f}m; "
+        f"arc_min_radius={config.arc_min_turn_radius_m:.2f}m; track={config.track_width_m:.3f}m; "
         f"terminal deadman={config.deadman_timeout_s:.2f}s\n",
+        preview_line,
         flush=True,
     )
 
@@ -607,6 +635,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--speed-step-mps", type=float, default=DEFAULT_SPEED_STEP_MPS)
     parser.add_argument("--turn-step-radps", type=float, default=DEFAULT_TURN_STEP_RADPS)
     parser.add_argument("--arc-min-turn-radius-m", type=float, default=DEFAULT_ARC_MIN_TURN_RADIUS_M)
+    parser.add_argument("--track-width-m", type=float, default=DEFAULT_TRACK_WIDTH_M)
     parser.add_argument(
         "--terminal-single-key-arcs",
         action=argparse.BooleanOptionalAction,
@@ -668,6 +697,7 @@ def config_from_args(args: argparse.Namespace) -> TeleopConfig:
             speed_step_mps=float(args.speed_step_mps),
             turn_step_radps=float(args.turn_step_radps),
             arc_min_turn_radius_m=float(args.arc_min_turn_radius_m),
+            track_width_m=float(args.track_width_m),
             terminal_single_key_arcs=bool(args.terminal_single_key_arcs),
             allow_pivot_keys=bool(args.allow_pivot_keys),
             adjust_pivot_turn=bool(args.adjust_pivot_turn),

@@ -66,6 +66,9 @@ def generate_launch_description():
     initial_y_m = LaunchConfiguration("initial_y_m")
     initial_yaw_deg = LaunchConfiguration("initial_yaw_deg")
     competition_min_speed_mps = LaunchConfiguration("competition_min_speed_mps")
+    competition_moving_target_speed_mps = LaunchConfiguration("competition_moving_target_speed_mps")
+    competition_continuous_motion_enabled = LaunchConfiguration("competition_continuous_motion_enabled")
+    competition_motion_phase_topic = LaunchConfiguration("competition_motion_phase_topic")
     allow_reverse = LaunchConfiguration("allow_reverse")
     track_width_m = LaunchConfiguration("track_width_m")
     arc_min_turn_radius_m = LaunchConfiguration("arc_min_turn_radius_m")
@@ -89,8 +92,6 @@ def generate_launch_description():
     terminal_stop_distance_m = LaunchConfiguration("terminal_stop_distance_m")
     terminal_forward_speed_mps = LaunchConfiguration("terminal_forward_speed_mps")
     marker_target_gate_radius_m = LaunchConfiguration("marker_target_gate_radius_m")
-    coordinate_arrival_marker_search_s = LaunchConfiguration("coordinate_arrival_marker_search_s")
-    terminal_replan_max_attempts = LaunchConfiguration("terminal_replan_max_attempts")
     lidar_x_m = LaunchConfiguration("lidar_x_m")
     lidar_y_m = LaunchConfiguration("lidar_y_m")
     lidar_z_m = LaunchConfiguration("lidar_z_m")
@@ -211,6 +212,14 @@ def generate_launch_description():
             "-p",
             ["competition_min_speed_mps:=", competition_min_speed_mps],
             "-p",
+            ["competition_moving_target_speed_mps:=", competition_moving_target_speed_mps],
+            "-p",
+            ["competition_continuous_motion_enabled:=", competition_continuous_motion_enabled],
+            "-p",
+            ["competition_motion_phase_topic:=", competition_motion_phase_topic],
+            "-p",
+            ["raw_cmd_vel_topic:=/cmd_vel_raw"],
+            "-p",
             ["allow_reverse:=", allow_reverse],
             "-p",
             ["track_width_m:=", track_width_m],
@@ -309,11 +318,11 @@ def generate_launch_description():
             "-p",
             ["terminal_forward_speed_mps:=", terminal_forward_speed_mps],
             "-p",
+            ["competition_moving_target_speed_mps:=", competition_moving_target_speed_mps],
+            "-p",
+            ["competition_motion_phase_topic:=", competition_motion_phase_topic],
+            "-p",
             ["marker_target_gate_radius_m:=", marker_target_gate_radius_m],
-            "-p",
-            ["coordinate_arrival_marker_search_s:=", coordinate_arrival_marker_search_s],
-            "-p",
-            ["terminal_replan_max_attempts:=", terminal_replan_max_attempts],
             "-p",
             ["cmd_vel_topic:=", mission_cmd_vel_topic],
         ],
@@ -490,7 +499,10 @@ def generate_launch_description():
             DeclareLaunchArgument("initial_x_m", default_value="0.0"),
             DeclareLaunchArgument("initial_y_m", default_value="0.0"),
             DeclareLaunchArgument("initial_yaw_deg", default_value="0.0"),
-            DeclareLaunchArgument("competition_min_speed_mps", default_value="0.089408"),
+            DeclareLaunchArgument("competition_min_speed_mps", default_value="0.0894"),
+            DeclareLaunchArgument("competition_moving_target_speed_mps", default_value="0.12"),
+            DeclareLaunchArgument("competition_continuous_motion_enabled", default_value="true"),
+            DeclareLaunchArgument("competition_motion_phase_topic", default_value="/ugv/competition_motion_phase"),
             DeclareLaunchArgument("allow_reverse", default_value="false"),
             DeclareLaunchArgument("track_width_m", default_value="0.416"),
             DeclareLaunchArgument("arc_min_turn_radius_m", default_value="0.75"),
@@ -512,10 +524,8 @@ def generate_launch_description():
             DeclareLaunchArgument("aruco_marker_size_m", default_value="0.3048"),
             DeclareLaunchArgument("destination_radius_m", default_value="1.524"),
             DeclareLaunchArgument("terminal_stop_distance_m", default_value="1.0"),
-            DeclareLaunchArgument("terminal_forward_speed_mps", default_value="0.10"),
+            DeclareLaunchArgument("terminal_forward_speed_mps", default_value="0.12"),
             DeclareLaunchArgument("marker_target_gate_radius_m", default_value="2.274"),
-            DeclareLaunchArgument("coordinate_arrival_marker_search_s", default_value="2.0"),
-            DeclareLaunchArgument("terminal_replan_max_attempts", default_value="2"),
             DeclareLaunchArgument("lidar_x_m", default_value="0.0"),
             DeclareLaunchArgument("lidar_y_m", default_value="0.0"),
             DeclareLaunchArgument("lidar_z_m", default_value="0.18"),

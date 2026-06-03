@@ -35,7 +35,7 @@ BAG_TOPICS = (
 )
 LAUNCH_PACKAGE = "ugv_sensor_sync"
 LAUNCH_FILE = "competition_bringup.launch.py"
-DEFAULT_COMPETITION_MIN_SPEED_MPS = 0.089408
+DEFAULT_COMPETITION_MIN_SPEED_MPS = 0.0894
 DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
 DEFAULT_ARC_MAX_OMEGA_RADPS = 0.45
 DEFAULT_TRACK_WIDTH_M = 0.416
@@ -633,6 +633,10 @@ def case_launch_args(case: MotionTestCase, *, case_dir: Optional[Path] = None) -
         args.setdefault("nav_curve_timeout_s", _fmt_float(watchdog_s))
         args.setdefault("nav_max_test_duration_s", _fmt_float(watchdog_s))
     elif case.mode == "mission_sequence":
+        # The runner is a calibration/debug tool.  It may intentionally test
+        # stop/pivot/wait primitives that are invalid during formal continuous
+        # competition travel, so keep that rule disabled unless overridden.
+        args.setdefault("nav_competition_continuous_motion_enabled", "false")
         if case_dir is not None:
             mission_path = write_case_mission_file(case, case_dir)
             args["nav_mission_file"] = str(mission_path)
@@ -706,7 +710,7 @@ def estimate_mission_duration_s(mission: Mapping[str, Any]) -> float:
             continue
         segment_type = str(segment.get("type", ""))
         if segment_type == "straight":
-            speed = max(0.089408, abs(float(segment.get("speed_mps", 0.15) or 0.15)))
+            speed = max(DEFAULT_COMPETITION_MIN_SPEED_MPS, abs(float(segment.get("speed_mps", 0.15) or 0.15)))
             total += float(segment.get("distance_m", 0.0) or 0.0) / speed + 2.0
         elif segment_type == "pivot":
             total += float(segment.get("timeout_s", 4.0) or 4.0) + 2.0

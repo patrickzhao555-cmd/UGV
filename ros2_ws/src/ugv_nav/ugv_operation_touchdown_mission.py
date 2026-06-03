@@ -22,6 +22,7 @@ from rclpy.node import Node
 from std_msgs.msg import Bool, String
 
 from ugv_nav_core.nav2_bridge import FieldBounds, OccupancyGridSpec, Transform2D, target_units_scale
+from ugv_nav_core.mission_controller import MOVING_TARGET_SPEED_MPS
 from ugv_nav_core.operation_touchdown import (
     DESTINATION_RADIUS_M,
     choose_marker_staging_pose,
@@ -50,6 +51,7 @@ class OperationTouchdownMissionNode(Node):
         self.declare_parameter("cmd_vel_topic", "/cmd_vel_raw")
         self.declare_parameter("status_topic", "/ugv/operation_touchdown/status")
         self.declare_parameter("kill_switch_topic", "/ugv/kill_switch")
+        self.declare_parameter("competition_motion_phase_topic", "/ugv/competition_motion_phase")
         self.declare_parameter("navigate_action_name", "navigate_to_pose")
         self.declare_parameter("map_frame", "map")
         self.declare_parameter("field_width_m", 13.716)
@@ -65,13 +67,12 @@ class OperationTouchdownMissionNode(Node):
         self.declare_parameter("terminal_stop_distance_m", 1.0)
         self.declare_parameter("terminal_arrival_buffer_m", 0.20)
         self.declare_parameter("terminal_forward_speed_mps", 0.10)
+        self.declare_parameter("competition_moving_target_speed_mps", MOVING_TARGET_SPEED_MPS)
         self.declare_parameter("terminal_heading_kp", 0.8)
         self.declare_parameter("terminal_max_omega_radps", 0.20)
         self.declare_parameter("marker_target_gate_radius_m", 2.274)
         self.declare_parameter("marker_lost_timeout_s", 0.75)
         self.declare_parameter("marker_search_timeout_s", 6.0)
-        self.declare_parameter("coordinate_arrival_marker_search_s", 2.0)
-        self.declare_parameter("terminal_replan_max_attempts", 2)
         self.declare_parameter("status_period_s", 0.25)
         self.declare_parameter("terminal_control_period_s", 0.05)
 
@@ -82,6 +83,7 @@ class OperationTouchdownMissionNode(Node):
         self.cmd_vel_topic = str(self.get_parameter("cmd_vel_topic").value)
         self.status_topic = str(self.get_parameter("status_topic").value)
         self.kill_switch_topic = str(self.get_parameter("kill_switch_topic").value)
+        self.competition_motion_phase_topic = str(self.get_parameter("competition_motion_phase_topic").value)
         self.action_name = str(self.get_parameter("navigate_action_name").value)
         self.map_frame = str(self.get_parameter("map_frame").value)
         self.bounds = FieldBounds(
@@ -100,16 +102,15 @@ class OperationTouchdownMissionNode(Node):
         self.terminal_stop_distance_m = max(0.05, float(self.get_parameter("terminal_stop_distance_m").value))
         self.terminal_arrival_buffer_m = max(0.0, float(self.get_parameter("terminal_arrival_buffer_m").value))
         self.terminal_forward_speed_mps = float(self.get_parameter("terminal_forward_speed_mps").value)
+        self.competition_moving_target_speed_mps = max(
+            MOVING_TARGET_SPEED_MPS,
+            float(self.get_parameter("competition_moving_target_speed_mps").value),
+        )
         self.terminal_heading_kp = float(self.get_parameter("terminal_heading_kp").value)
         self.terminal_max_omega_radps = max(0.0, float(self.get_parameter("terminal_max_omega_radps").value))
         self.marker_target_gate_radius_m = max(0.0, float(self.get_parameter("marker_target_gate_radius_m").value))
         self.marker_lost_timeout_s = max(0.0, float(self.get_parameter("marker_lost_timeout_s").value))
         self.marker_search_timeout_s = max(0.0, float(self.get_parameter("marker_search_timeout_s").value))
-        self.coordinate_arrival_marker_search_s = max(
-            0.0,
-            float(self.get_parameter("coordinate_arrival_marker_search_s").value),
-        )
-        self.terminal_replan_max_attempts = max(0, int(self.get_parameter("terminal_replan_max_attempts").value))
         self.status_period_s = max(0.05, float(self.get_parameter("status_period_s").value))
         self.terminal_control_period_s = max(0.02, float(self.get_parameter("terminal_control_period_s").value))
 
@@ -132,14 +133,17 @@ class OperationTouchdownMissionNode(Node):
         self.goal_handle = None
         self.goal_sequence = 0
         self.nav2_goal_cancel_requested = False
-        self.terminal_replan_count = 0
         self.kill_switch_active = False
         self.last_status_publish_s = 0.0
         self.last_terminal_command = {"v_mps": 0.0, "omega_radps": 0.0, "reason": "startup"}
+        self.ugv_start_time_s: Optional[float] = None
+        self.destination_reached_s: Optional[float] = None
+        self.competition_motion_phase = "waiting_to_start"
 
         self.goal_client = ActionClient(self, NavigateToPose, self.action_name)
         self.cmd_pub = self.create_publisher(Twist, self.cmd_vel_topic, 10)
         self.status_pub = self.create_publisher(String, self.status_topic, 10)
+        self.phase_pub = self.create_publisher(String, self.competition_motion_phase_topic, 10)
         self.create_subscription(PointStamped, self.uav_target_topic, self.target_callback, 10)
         self.create_subscription(PointStamped, self.aruco_marker_topic, self.marker_callback, 10)
         self.create_subscription(String, self.localization_status_topic, self.localization_status_callback, 10)
@@ -165,6 +169,7 @@ class OperationTouchdownMissionNode(Node):
                 self._cancel_active_goal(reason)
             self.state = state
             self.state_start_s = self._now_s()
+            self._update_motion_phase_for_state(reason)
         self.reason = reason
 
     def target_callback(self, msg: PointStamped) -> None:
@@ -195,7 +200,6 @@ class OperationTouchdownMissionNode(Node):
         self.nav2_goal_sent = False
         self.goal_handle = None
         self.nav2_goal_cancel_requested = False
-        self.terminal_replan_count = 0
         self._set_state("plan_to_staging", "uav_target_received")
 
     def marker_callback(self, msg: PointStamped) -> None:
@@ -252,15 +256,18 @@ class OperationTouchdownMissionNode(Node):
         self.kill_switch_active = bool(msg.data)
         if self.kill_switch_active:
             self._set_state("abort", "kill_switch")
+            self._set_motion_phase("kill_switch")
 
     def timer_callback(self) -> None:
         now_s = self._now_s()
         if self.kill_switch_active:
             self._publish_stop("kill_switch")
+            self._publish_motion_phase()
             self._publish_status(now_s, force=True)
             return
 
         if self._coordinate_terminal_gate(now_s):
+            self._publish_motion_phase()
             self._publish_status(now_s, force=True)
             return
 
@@ -273,6 +280,7 @@ class OperationTouchdownMissionNode(Node):
         elif self.state in {"destination_stop", "mission_complete", "abort", "wait_for_uav_target"}:
             self._publish_stop(self.reason)
 
+        self._publish_motion_phase()
         self._publish_status(now_s)
 
     def _coordinate_terminal_gate(self, now_s: float) -> bool:
@@ -285,7 +293,7 @@ class OperationTouchdownMissionNode(Node):
         success condition is satisfied.
         """
 
-        if self.state not in {"plan_to_staging", "nav2_to_staging", "marker_search", "terminal_approach"}:
+        if self.state not in {"plan_to_staging", "nav2_goal_pending", "nav2_to_staging", "marker_search", "terminal_approach"}:
             return False
         if self.target_xy_m is None or self.latest_pose is None:
             return False
@@ -300,7 +308,7 @@ class OperationTouchdownMissionNode(Node):
         )
         if not decision.destination_reached:
             return False
-        if self.state == "nav2_to_staging":
+        if self.state in {"nav2_goal_pending", "nav2_to_staging"}:
             self._cancel_active_goal(decision.reason)
         self._set_state("destination_stop", decision.reason)
         self._publish_stop(decision.reason)
@@ -311,16 +319,28 @@ class OperationTouchdownMissionNode(Node):
             self._set_state("wait_for_uav_target", "missing_target")
             return
         if self.latest_pose is None:
-            self.reason = "waiting_for_localization"
-            self._publish_stop(self.reason)
+            if self.ugv_start_time_s is not None:
+                self._set_state("abort", "active_replan_localization_missing")
+                self._publish_stop(self.reason)
+            else:
+                self.reason = "waiting_for_localization"
+                self._publish_stop(self.reason)
             return
         if self.require_costmap_for_goal and self.latest_grid is None:
-            self.reason = "waiting_for_costmap"
-            self._publish_stop(self.reason)
+            if self.ugv_start_time_s is not None:
+                self._set_state("abort", "active_replan_costmap_missing")
+                self._publish_stop(self.reason)
+            else:
+                self.reason = "waiting_for_costmap"
+                self._publish_stop(self.reason)
             return
         if not self.goal_client.server_is_ready():
-            self.reason = "waiting_for_nav2_action_server"
-            self._publish_stop(self.reason)
+            if self.ugv_start_time_s is not None:
+                self._set_state("abort", "active_replan_nav2_action_server_missing")
+                self._publish_stop(self.reason)
+            else:
+                self.reason = "waiting_for_nav2_action_server"
+                self._publish_stop(self.reason)
             return
 
         target_x, target_y = self.target_xy_m
@@ -355,17 +375,17 @@ class OperationTouchdownMissionNode(Node):
         future = self.goal_client.send_goal_async(goal)
         future.add_done_callback(lambda result_future, seq=sequence: self._goal_response_callback(result_future, seq))
         self.nav2_goal_sent = True
-        self._set_state("nav2_to_staging", "nav2_goal_sent")
+        self._set_state("nav2_goal_pending", "nav2_goal_sent")
 
     def _goal_response_callback(self, future, sequence: int) -> None:
         try:
             handle = future.result()
         except Exception as exc:
-            if sequence != self.goal_sequence or self.state != "nav2_to_staging":
+            if sequence != self.goal_sequence or self.state != "nav2_goal_pending":
                 return
             self._set_state("abort", f"nav2_goal_send_failed:{exc}")
             return
-        if sequence != self.goal_sequence or self.state != "nav2_to_staging":
+        if sequence != self.goal_sequence or self.state != "nav2_goal_pending":
             if getattr(handle, "accepted", False):
                 try:
                     handle.cancel_goal_async()
@@ -378,6 +398,7 @@ class OperationTouchdownMissionNode(Node):
         self.goal_handle = handle
         result_future = handle.get_result_async()
         result_future.add_done_callback(lambda done_future, seq=sequence: self._goal_result_callback(done_future, seq))
+        self._mark_run_started()
         self._set_state("nav2_to_staging", "nav2_goal_accepted")
 
     def _goal_result_callback(self, future, sequence: int) -> None:
@@ -414,17 +435,17 @@ class OperationTouchdownMissionNode(Node):
         target_x, target_y = self.target_xy_m
         marker_fresh = self._marker_fresh(now_s)
         if self._recent_marker_disagreement(now_s):
-            self.reason = "marker_target_disagreement"
-            self._publish_stop(self.reason)
+            self.reason = "marker_target_disagreement_coordinate_crawl"
+            self._publish_coordinate_crawl(self.reason)
             return
         if marker_fresh:
             self._set_state("terminal_approach", "marker_confirmed")
             return
         if self.marker_search_timeout_s > 0.0 and now_s - self.state_start_s > self.marker_search_timeout_s:
-            self._set_state("abort", "marker_lost")
-            self._publish_stop(self.reason)
+            self._set_state("terminal_approach", "marker_search_timeout_coordinate_fallback")
+            self._publish_coordinate_crawl("marker_search_timeout_coordinate_fallback")
             return
-        self._publish_stop("marker_search")
+        self._publish_coordinate_crawl("marker_search_coordinate_crawl")
 
     def _terminal_step(self, now_s: float) -> None:
         if self.latest_pose is None or self.target_xy_m is None:
@@ -445,8 +466,8 @@ class OperationTouchdownMissionNode(Node):
             self._publish_stop(coordinate_decision.reason)
             return
         if self._recent_marker_disagreement(now_s):
-            self._publish_stop("marker_target_disagreement")
-            self.reason = "marker_target_disagreement"
+            self.reason = "marker_target_disagreement_coordinate_crawl"
+            self._publish_coordinate_crawl(self.reason)
             return
         marker_xy = self.latest_marker_xy_m if marker_fresh and self.latest_marker_xy_m is not None else self.target_xy_m
         decision = terminal_approach_command(
@@ -460,33 +481,72 @@ class OperationTouchdownMissionNode(Node):
             forward_speed_mps=self.terminal_forward_speed_mps,
             heading_kp=self.terminal_heading_kp,
             max_omega_radps=self.terminal_max_omega_radps,
+            moving_target_speed_mps=self.competition_moving_target_speed_mps,
         )
         if decision.destination_reached:
             self._set_state("destination_stop", decision.reason)
             self._publish_stop(decision.reason)
             return
-        if decision.command.command_type == "stop" and decision.reason == "marker_lost":
-            self._set_state("abort", "marker_lost")
-            self._publish_stop("marker_lost")
-            return
-        if decision.command.command_type == "stop" and decision.reason == "terminal_heading_error_requires_replan":
-            self._request_terminal_replan(decision.reason)
-            return
         self.visual_marker_used_for_motion = marker_fresh and decision.command.command_type == "velocity"
         self._publish_velocity(decision.command.v_mps, decision.command.omega_radps, decision.reason)
 
-    def _request_terminal_replan(self, reason: str) -> None:
-        self.visual_marker_used_for_motion = False
-        self._publish_velocity(0.0, 0.0, reason)
-        if self.terminal_replan_count >= self.terminal_replan_max_attempts:
-            self._set_state("abort", "terminal_replan_limit_exceeded")
+    def _mark_run_started(self) -> None:
+        if self.ugv_start_time_s is None:
+            self.ugv_start_time_s = self._now_s()
+        self._set_motion_phase("active_movement")
+
+    def _set_motion_phase(self, phase: str) -> None:
+        self.competition_motion_phase = str(phase)
+
+    def _update_motion_phase_for_state(self, reason: str) -> None:
+        if self.state in {"wait_for_uav_target", "plan_to_staging", "nav2_goal_pending"} and self.ugv_start_time_s is None:
+            self._set_motion_phase("waiting_to_start")
+        elif self.state == "nav2_to_staging":
+            self._set_motion_phase("path_following")
+        elif self.state == "marker_search":
+            self._set_motion_phase("marker_search")
+        elif self.state == "terminal_approach":
+            self._set_motion_phase("terminal_approach")
+        elif self.state in {"destination_stop", "mission_complete"}:
+            self.destination_reached_s = self.destination_reached_s or self._now_s()
+            self._set_motion_phase("destination_reached")
+        elif self.state == "abort":
+            if reason == "kill_switch":
+                self._set_motion_phase("kill_switch")
+            else:
+                self._set_motion_phase("fault")
+        elif self.ugv_start_time_s is not None:
+            self._set_motion_phase("replanning")
+
+    def _publish_motion_phase(self) -> None:
+        self.phase_pub.publish(String(data=str(self.competition_motion_phase)))
+
+    def _publish_coordinate_crawl(self, reason: str) -> None:
+        if self.latest_pose is None or self.target_xy_m is None:
+            self._set_state("abort", "coordinate_crawl_pose_or_target_missing")
+            self._publish_stop(self.reason)
             return
-        self.terminal_replan_count += 1
-        self.staging_pose = None
-        self.nav2_goal_sent = False
-        self.goal_handle = None
-        self.nav2_goal_cancel_requested = False
-        self._set_state("plan_to_staging", reason)
+        decision = terminal_approach_command(
+            robot_pose=self.latest_pose,
+            marker_x_m=self.target_xy_m[0],
+            marker_y_m=self.target_xy_m[1],
+            marker_fresh=False,
+            destination_radius_m=self.destination_radius_m,
+            terminal_stop_distance_m=self.terminal_stop_distance_m,
+            terminal_arrival_buffer_m=self.terminal_arrival_buffer_m,
+            forward_speed_mps=self.competition_moving_target_speed_mps,
+            heading_kp=self.terminal_heading_kp,
+            max_omega_radps=self.terminal_max_omega_radps,
+            moving_target_speed_mps=self.competition_moving_target_speed_mps,
+        )
+        if decision.destination_reached:
+            self._set_state("destination_stop", decision.reason)
+            self._publish_stop(decision.reason)
+            return
+        if decision.command.command_type == "velocity":
+            self._publish_velocity(decision.command.v_mps, decision.command.omega_radps, reason)
+        else:
+            self._publish_velocity(self.competition_moving_target_speed_mps, 0.0, reason)
 
     def _marker_fresh(self, now_s: float) -> bool:
         return self.last_marker_s is not None and now_s - self.last_marker_s <= self.marker_lost_timeout_s
@@ -549,12 +609,14 @@ class OperationTouchdownMissionNode(Node):
             "marker_distance_m": self.latest_marker_distance_m,
             "marker_target_disagreement_m": self.marker_target_disagreement_m,
             "marker_target_gate_radius_m": self.marker_target_gate_radius_m,
-            "coordinate_arrival_marker_search_s": self.coordinate_arrival_marker_search_s,
             "last_marker_reject_reason": self.last_marker_reject_reason,
             "visual_marker_used_for_motion": self.visual_marker_used_for_motion,
-            "terminal_replan_count": self.terminal_replan_count,
-            "terminal_replan_max_attempts": self.terminal_replan_max_attempts,
             "last_terminal_command": self.last_terminal_command,
+            "ugv_start_time_s": self.ugv_start_time_s,
+            "destination_reached_s": self.destination_reached_s,
+            "competition_motion_phase": self.competition_motion_phase,
+            "moving_target_speed_mps": self.competition_moving_target_speed_mps,
+            "commanded_speed_mps": abs(float(self.last_terminal_command.get("v_mps", 0.0))),
             "kill_switch_active": self.kill_switch_active,
             "costmap_available": self.latest_grid is not None,
             "localization_available": self.latest_pose is not None,

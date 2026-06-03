@@ -116,6 +116,8 @@ def generate_launch_description():
     nav_slip_disagreement_rad = LaunchConfiguration("nav_slip_disagreement_rad")
     nav_mission_file = LaunchConfiguration("nav_mission_file")
     nav_competition_min_speed_mps = LaunchConfiguration("nav_competition_min_speed_mps")
+    nav_competition_moving_target_speed_mps = LaunchConfiguration("nav_competition_moving_target_speed_mps")
+    nav_competition_continuous_motion_enabled = LaunchConfiguration("nav_competition_continuous_motion_enabled")
     nav_mission_default_speed_mps = LaunchConfiguration("nav_mission_default_speed_mps")
     nav_mission_reliable_speed_mps = LaunchConfiguration("nav_mission_reliable_speed_mps")
     nav_mission_slow_speed_mps = LaunchConfiguration("nav_mission_slow_speed_mps")
@@ -310,6 +312,10 @@ def generate_launch_description():
             nav_mission_file,
             "--competition-min-speed-mps",
             nav_competition_min_speed_mps,
+            "--competition-moving-target-speed-mps",
+            nav_competition_moving_target_speed_mps,
+            "--competition-continuous-motion-enabled",
+            nav_competition_continuous_motion_enabled,
             "--mission-default-speed-mps",
             nav_mission_default_speed_mps,
             "--mission-reliable-speed-mps",
@@ -459,7 +465,9 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_pivot_clearance_m", default_value="0.35"),
             DeclareLaunchArgument("nav_slip_disagreement_rad", default_value="0.35"),
             DeclareLaunchArgument("nav_mission_file", default_value=""),
-            DeclareLaunchArgument("nav_competition_min_speed_mps", default_value="0.089408"),
+            DeclareLaunchArgument("nav_competition_min_speed_mps", default_value="0.0894"),
+            DeclareLaunchArgument("nav_competition_moving_target_speed_mps", default_value="0.12"),
+            DeclareLaunchArgument("nav_competition_continuous_motion_enabled", default_value="true"),
             DeclareLaunchArgument("nav_mission_default_speed_mps", default_value="0.15"),
             DeclareLaunchArgument("nav_mission_reliable_speed_mps", default_value="0.15"),
             DeclareLaunchArgument("nav_mission_slow_speed_mps", default_value="0.09"),

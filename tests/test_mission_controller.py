@@ -13,10 +13,14 @@ sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 from ugv_nav_core.chassis_controller import ChassisControllerConfig  # noqa: E402
 from ugv_nav_core.mission_controller import (  # noqa: E402
     COMPETITION_MIN_SPEED_MPS,
+    MIN_RULE_SPEED_MPH,
+    MIN_RULE_SPEED_MPS,
+    MOVING_TARGET_SPEED_MPS,
     MissionTelemetryRecorder,
     StuckMonitorState,
     apply_competition_speed_rule,
     classify_mission_safety,
+    enforce_continuous_movement_speed,
     encoder_average_distance_m,
     load_mission_plan,
     mission_segment_start_hold_reason,
@@ -63,20 +67,46 @@ def _ready_motor_status():
 
 
 def test_competition_min_speed_is_0_2_mph_in_mps():
-    assert COMPETITION_MIN_SPEED_MPS == pytest.approx(0.089408)
+    assert MIN_RULE_SPEED_MPH == pytest.approx(0.2)
+    assert MIN_RULE_SPEED_MPS == pytest.approx(0.0894)
+    assert COMPETITION_MIN_SPEED_MPS == pytest.approx(MIN_RULE_SPEED_MPS)
+    assert MOVING_TARGET_SPEED_MPS == pytest.approx(0.12)
 
 
 def test_apply_competition_speed_rule_allows_stop_and_clamps_translation():
     assert apply_competition_speed_rule(0.0) == pytest.approx(0.0)
-    assert apply_competition_speed_rule(0.01) == pytest.approx(0.089408)
-    assert apply_competition_speed_rule(-0.01) == pytest.approx(-0.089408)
+    assert apply_competition_speed_rule(0.01) == pytest.approx(0.12)
+    assert apply_competition_speed_rule(-0.01) == pytest.approx(-0.12)
     assert apply_competition_speed_rule(0.15) == pytest.approx(0.15)
 
 
 def test_motion_rule_accepts_stop_min_speed_and_pivot_translation_zero():
     assert motion_rule_ok(0.0)
-    assert motion_rule_ok(0.089408)
+    assert motion_rule_ok(0.0894)
     assert not motion_rule_ok(0.01)
+
+
+def test_continuous_motion_enforcement_replaces_active_zero_and_sub_min_only():
+    zero = enforce_continuous_movement_speed(0.0, phase="active_movement")
+    assert zero.v_mps == pytest.approx(0.12)
+    assert zero.zero_replaced
+    assert zero.active_violation
+
+    slow = enforce_continuous_movement_speed(0.02, phase="marker_search")
+    assert slow.v_mps == pytest.approx(0.12)
+    assert slow.sub_min_clamped
+
+    waiting = enforce_continuous_movement_speed(0.0, phase="waiting_to_start")
+    assert waiting.v_mps == pytest.approx(0.0)
+    assert not waiting.changed
+
+    arrived = enforce_continuous_movement_speed(0.0, phase="destination_reached")
+    assert arrived.v_mps == pytest.approx(0.0)
+    assert not arrived.changed
+
+    fault = enforce_continuous_movement_speed(0.0, phase="fault")
+    assert fault.v_mps == pytest.approx(0.0)
+    assert not fault.changed
 
 
 def test_normalized_imu_qos_defaults_to_sensor_data():
@@ -123,8 +153,8 @@ def test_parse_mission_plan_validates_segments():
 def test_segment_speed_never_returns_zero_for_straight_default():
     plan = parse_mission_plan({"segments": [{"type": "straight", "distance_m": 1.0}]})
     config = ChassisControllerConfig(mission_default_speed_mps=0.0)
-    assert segment_speed_mps(plan.segments[0], config) == pytest.approx(0.089408)
-    assert segment_timeout_s(plan.segments[0], config) > 1.0 / 0.089408
+    assert segment_speed_mps(plan.segments[0], config) == pytest.approx(0.12)
+    assert segment_timeout_s(plan.segments[0], config) > 1.0 / 0.12
 
 
 def test_explicit_segment_timeout_is_preserved():

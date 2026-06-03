@@ -21,9 +21,15 @@ from ugv_nav_core.nav2_bridge import (
     RollingArcLimitResult,
     VelocityCommand,
     build_stop_command,
+    enforce_continuous_motion_command,
     field_boundary_decision,
     limit_rolling_arc_command,
     nav_command_from_twist,
+)
+from ugv_nav_core.mission_controller import (
+    MOVING_TARGET_SPEED_MPS,
+    normalized_competition_motion_phase,
+    phase_requires_continuous_motion,
 )
 from ugv_nav_core.safety_status import motor_fault_reason
 
@@ -33,6 +39,7 @@ class Nav2AdapterNode(Node):
         super().__init__("ugv_nav2_adapter")
 
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
+        self.declare_parameter("raw_cmd_vel_topic", "/cmd_vel_raw")
         self.declare_parameter("command_topic", "/ugv_nav_cmd")
         self.declare_parameter("status_topic", "/ugv_nav2_adapter/status")
         self.declare_parameter("nav_frame_topic", "/sensors/nav_frame")
@@ -40,6 +47,7 @@ class Nav2AdapterNode(Node):
         self.declare_parameter("motor_status_topic", "/motor_controller/status")
         self.declare_parameter("localization_status_topic", "/ugv_localization/status")
         self.declare_parameter("kill_switch_topic", "/ugv/kill_switch")
+        self.declare_parameter("competition_motion_phase_topic", "/ugv/competition_motion_phase")
         self.declare_parameter("publish_period_s", 0.05)
         self.declare_parameter("cmd_vel_timeout_s", 0.35)
         self.declare_parameter("sensor_timeout_s", 0.40)
@@ -51,7 +59,9 @@ class Nav2AdapterNode(Node):
         self.declare_parameter("require_localization_ready", True)
         self.declare_parameter("stop_on_near_obstacle", True)
         self.declare_parameter("emergency_stop_clearance_m", 0.18)
-        self.declare_parameter("competition_min_speed_mps", 0.089408)
+        self.declare_parameter("competition_min_speed_mps", 0.0894)
+        self.declare_parameter("competition_moving_target_speed_mps", MOVING_TARGET_SPEED_MPS)
+        self.declare_parameter("competition_continuous_motion_enabled", True)
         self.declare_parameter("allow_reverse", False)
         self.declare_parameter("field_width_m", 13.716)
         self.declare_parameter("field_height_m", 13.716)
@@ -64,6 +74,7 @@ class Nav2AdapterNode(Node):
         self.declare_parameter("allow_side_reverse", False)
 
         self.cmd_vel_topic = str(self.get_parameter("cmd_vel_topic").value)
+        self.raw_cmd_vel_topic = str(self.get_parameter("raw_cmd_vel_topic").value)
         self.command_topic = str(self.get_parameter("command_topic").value)
         self.status_topic = str(self.get_parameter("status_topic").value)
         self.nav_frame_topic = str(self.get_parameter("nav_frame_topic").value)
@@ -71,6 +82,7 @@ class Nav2AdapterNode(Node):
         self.motor_status_topic = str(self.get_parameter("motor_status_topic").value)
         self.localization_status_topic = str(self.get_parameter("localization_status_topic").value)
         self.kill_switch_topic = str(self.get_parameter("kill_switch_topic").value)
+        self.competition_motion_phase_topic = str(self.get_parameter("competition_motion_phase_topic").value)
         self.publish_period_s = max(0.01, float(self.get_parameter("publish_period_s").value))
         self.cmd_vel_timeout_s = max(0.0, float(self.get_parameter("cmd_vel_timeout_s").value))
         self.sensor_timeout_s = max(0.0, float(self.get_parameter("sensor_timeout_s").value))
@@ -83,6 +95,12 @@ class Nav2AdapterNode(Node):
         self.stop_on_near_obstacle = bool(self.get_parameter("stop_on_near_obstacle").value)
         self.emergency_stop_clearance_m = float(self.get_parameter("emergency_stop_clearance_m").value)
         self.competition_min_speed_mps = float(self.get_parameter("competition_min_speed_mps").value)
+        self.competition_moving_target_speed_mps = float(
+            self.get_parameter("competition_moving_target_speed_mps").value
+        )
+        self.competition_continuous_motion_enabled = bool(
+            self.get_parameter("competition_continuous_motion_enabled").value
+        )
         self.allow_reverse = bool(self.get_parameter("allow_reverse").value)
         self.field_bounds = FieldBounds(
             width_m=float(self.get_parameter("field_width_m").value),
@@ -103,6 +121,10 @@ class Nav2AdapterNode(Node):
         self.latest_cmd: VelocityCommand = build_stop_command("startup")
         self.latest_arc_result: RollingArcLimitResult = RollingArcLimitResult(command=self.latest_cmd)
         self.last_cmd_vel_s: Optional[float] = None
+        self.last_raw_cmd_vel_s: Optional[float] = None
+        self.last_raw_cmd_vel_nonzero = False
+        self.active_cmd_vel_seen = False
+        self.first_active_cmd_vel_s: Optional[float] = None
         self.last_nav_frame_s: Optional[float] = None
         self.last_imu_s: Optional[float] = None
         self.last_motor_status_s: Optional[float] = None
@@ -113,25 +135,34 @@ class Nav2AdapterNode(Node):
         self.near_obstacle = False
         self.last_published_payload: dict[str, Any] = self.latest_cmd.to_payload()
         self.sub_min_speed_command_blocked = 0
+        self.active_zero_speed_replaced_count = 0
+        self.active_sub_min_speed_clamped_count = 0
+        self.active_speed_violation_count = 0
         self.arc_omega_clamped_count = 0
         self.side_reverse_blocked_count = 0
         self.kill_switch_active = False
         self.last_kill_switch_s: Optional[float] = None
+        self.competition_motion_phase = "waiting_to_start"
+        self.run_started_s: Optional[float] = None
 
         self.command_pub = self.create_publisher(String, self.command_topic, 10)
         self.status_pub = self.create_publisher(String, self.status_topic, 10)
         self.create_subscription(Twist, self.cmd_vel_topic, self.cmd_vel_callback, 10)
+        self.create_subscription(Twist, self.raw_cmd_vel_topic, self.raw_cmd_vel_callback, 10)
         self.create_subscription(NavSensorFrame, self.nav_frame_topic, self.nav_frame_callback, qos_profile_sensor_data)
         self.create_subscription(Imu, self.imu_topic, self.imu_callback, qos_profile_sensor_data)
         self.create_subscription(String, self.motor_status_topic, self.motor_status_callback, 10)
         self.create_subscription(String, self.localization_status_topic, self.localization_status_callback, 10)
         self.create_subscription(Bool, self.kill_switch_topic, self.kill_switch_callback, 10)
+        self.create_subscription(String, self.competition_motion_phase_topic, self.competition_phase_callback, 10)
         self.create_timer(self.publish_period_s, self.timer_callback)
 
         self.get_logger().info(
             "Nav2 adapter started: /cmd_vel -> /ugv_nav_cmd "
             f"(cmd_vel={self.cmd_vel_topic}, command={self.command_topic}, "
             f"min_speed={self.competition_min_speed_mps:.6f} m/s, "
+            f"moving_target={self.competition_moving_target_speed_mps:.3f} m/s, "
+            f"continuous_motion={self.competition_continuous_motion_enabled}, "
             f"allow_reverse={self.allow_reverse}, allow_side_reverse={self.allow_side_reverse}, "
             f"arc_radius>={self.arc_min_turn_radius_m:.2f} m, boundary_gate={self.require_field_bounds})"
         )
@@ -145,10 +176,30 @@ class Nav2AdapterNode(Node):
             linear_y_mps=msg.linear.y,
             angular_z_radps=msg.angular.z,
             competition_min_speed_mps=self.competition_min_speed_mps,
+            competition_moving_target_speed_mps=self.competition_moving_target_speed_mps,
             allow_reverse=self.allow_reverse,
         )
         if command.reason == "nav2_cmd_vel_speed_clamped":
             self.sub_min_speed_command_blocked += 1
+        if (
+            self.competition_continuous_motion_enabled
+            and command.command_type == "velocity"
+            and phase_requires_continuous_motion(self.competition_motion_phase)
+        ):
+            enforced = enforce_continuous_motion_command(
+                command,
+                phase=self.competition_motion_phase,
+                min_speed_mps=self.competition_min_speed_mps,
+                moving_target_speed_mps=self.competition_moving_target_speed_mps,
+            )
+            if enforced is not command:
+                if "active_zero_speed_replaced" in enforced.reason:
+                    self.active_zero_speed_replaced_count += 1
+                    self.active_speed_violation_count += 1
+                if "active_sub_min_speed_clamped" in enforced.reason:
+                    self.active_sub_min_speed_clamped_count += 1
+                    self.active_speed_violation_count += 1
+                command = enforced
         arc_result = limit_rolling_arc_command(
             command,
             track_width_m=self.track_width_m,
@@ -163,6 +214,20 @@ class Nav2AdapterNode(Node):
         self.latest_arc_result = arc_result
         self.latest_cmd = arc_result.command
         self.last_cmd_vel_s = self._now_s()
+        if phase_requires_continuous_motion(self.competition_motion_phase):
+            self.active_cmd_vel_seen = True
+            if self.first_active_cmd_vel_s is None:
+                self.first_active_cmd_vel_s = self.last_cmd_vel_s
+
+    def raw_cmd_vel_callback(self, msg: Twist) -> None:
+        self.last_raw_cmd_vel_s = self._now_s()
+        try:
+            linear_x = float(msg.linear.x)
+            angular_z = float(msg.angular.z)
+        except (TypeError, ValueError):
+            self.last_raw_cmd_vel_nonzero = False
+            return
+        self.last_raw_cmd_vel_nonzero = abs(linear_x) > 1e-6 or abs(angular_z) > 1e-5
 
     def nav_frame_callback(self, msg: NavSensorFrame) -> None:
         self.last_nav_frame_s = self._now_s()
@@ -191,6 +256,17 @@ class Nav2AdapterNode(Node):
     def kill_switch_callback(self, msg: Bool) -> None:
         self.kill_switch_active = bool(msg.data)
         self.last_kill_switch_s = self._now_s()
+        if self.kill_switch_active:
+            self.competition_motion_phase = "kill_switch"
+
+    def competition_phase_callback(self, msg: String) -> None:
+        phase = normalized_competition_motion_phase(msg.data)
+        self.competition_motion_phase = phase
+        if not phase_requires_continuous_motion(phase):
+            self.active_cmd_vel_seen = False
+            self.first_active_cmd_vel_s = None
+        if phase_requires_continuous_motion(phase) and self.run_started_s is None:
+            self.run_started_s = self._now_s()
 
     def _motor_stop_reason(self, now_s: float) -> Optional[str]:
         if self.last_motor_status_s is None or now_s - self.last_motor_status_s > self.motor_status_timeout_s:
@@ -265,6 +341,26 @@ class Nav2AdapterNode(Node):
             command = build_stop_command("cmd_vel_timeout")
         else:
             command = self.latest_cmd
+            if self._collision_monitor_stop_detected(now_s, command):
+                safety_reason = "collision_monitor_stop"
+                command = build_stop_command(safety_reason)
+            elif (
+                self.competition_continuous_motion_enabled
+                and self.competition_motion_phase in {"init", "idle", "waiting_to_start"}
+                and command.command_type == "velocity"
+            ):
+                command = build_stop_command("waiting_to_start")
+            boundary_reason = self._field_boundary_stop_reason(command)
+            if boundary_reason is not None:
+                safety_reason = boundary_reason
+                command = build_stop_command(boundary_reason)
+        if (
+            safety_reason is None
+            and self.competition_continuous_motion_enabled
+            and phase_requires_continuous_motion(self.competition_motion_phase)
+            and self.active_cmd_vel_seen
+        ):
+            command = self._enforce_active_continuous_motion(command)
             boundary_reason = self._field_boundary_stop_reason(command)
             if boundary_reason is not None:
                 safety_reason = boundary_reason
@@ -279,7 +375,18 @@ class Nav2AdapterNode(Node):
             "last_command": self.last_published_payload,
             "motion_rule_ok": command.motion_rule_ok,
             "competition_min_speed_mps": self.competition_min_speed_mps,
+            "moving_target_speed_mps": self.competition_moving_target_speed_mps,
+            "competition_continuous_motion_enabled": self.competition_continuous_motion_enabled,
+            "competition_motion_phase": self.competition_motion_phase,
+            "run_started_s": self.run_started_s,
             "sub_min_speed_command_blocked": self.sub_min_speed_command_blocked,
+            "active_zero_speed_replaced_count": self.active_zero_speed_replaced_count,
+            "active_sub_min_speed_clamped_count": self.active_sub_min_speed_clamped_count,
+            "active_speed_violation_count": self.active_speed_violation_count,
+            "commanded_speed_mps": abs(float(command.v_mps)),
+            "measured_speed_mps": self._measured_speed_mps(),
+            "measured_left_mps": self.motor_status.get("measured_left_mps"),
+            "measured_right_mps": self.motor_status.get("measured_right_mps"),
             "arc_min_turn_radius_m": self.arc_min_turn_radius_m,
             "arc_max_omega_radps": self.arc_max_omega_radps,
             "track_width_m": self.track_width_m,
@@ -291,7 +398,13 @@ class Nav2AdapterNode(Node):
             "last_arc_omega_limit_radps": self.latest_arc_result.omega_limit_radps,
             "last_arc_reason": self.latest_arc_result.reason,
             "safety_reason": safety_reason or "ok",
+            "safety_stop_reason": safety_reason,
+            "fault_reason": safety_reason if safety_reason and "fault" in safety_reason else None,
             "cmd_vel_age_s": None if self.last_cmd_vel_s is None else now_s - self.last_cmd_vel_s,
+            "raw_cmd_vel_age_s": None if self.last_raw_cmd_vel_s is None else now_s - self.last_raw_cmd_vel_s,
+            "raw_cmd_vel_nonzero": self.last_raw_cmd_vel_nonzero,
+            "active_cmd_vel_seen": self.active_cmd_vel_seen,
+            "first_active_cmd_vel_s": self.first_active_cmd_vel_s,
             "nav_frame_age_s": None if self.last_nav_frame_s is None else now_s - self.last_nav_frame_s,
             "imu_age_s": None if self.last_imu_s is None else now_s - self.last_imu_s,
             "motor_status_age_s": None
@@ -314,6 +427,50 @@ class Nav2AdapterNode(Node):
             else now_s - self.last_kill_switch_s,
         }
         self.status_pub.publish(String(data=json.dumps(status, sort_keys=True)))
+
+    def _measured_speed_mps(self) -> float:
+        try:
+            left = abs(float(self.motor_status.get("measured_left_mps", 0.0) or 0.0))
+            right = abs(float(self.motor_status.get("measured_right_mps", 0.0) or 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+        return 0.5 * (left + right)
+
+    def _collision_monitor_stop_detected(self, now_s: float, command: VelocityCommand) -> bool:
+        if command.command_type != "stop" or command.reason != "cmd_vel_stop":
+            return False
+        if self.last_raw_cmd_vel_s is None or now_s - self.last_raw_cmd_vel_s > self.cmd_vel_timeout_s:
+            return False
+        return bool(self.last_raw_cmd_vel_nonzero)
+
+    def _enforce_active_continuous_motion(self, command: VelocityCommand) -> VelocityCommand:
+        enforced = enforce_continuous_motion_command(
+            command,
+            phase=self.competition_motion_phase,
+            min_speed_mps=self.competition_min_speed_mps,
+            moving_target_speed_mps=self.competition_moving_target_speed_mps,
+        )
+        if enforced is command:
+            return command
+        if "active_zero_speed_replaced" in enforced.reason:
+            self.active_zero_speed_replaced_count += 1
+            self.active_speed_violation_count += 1
+        if "active_sub_min_speed_clamped" in enforced.reason:
+            self.active_sub_min_speed_clamped_count += 1
+            self.active_speed_violation_count += 1
+        arc_result = limit_rolling_arc_command(
+            enforced,
+            track_width_m=self.track_width_m,
+            min_turn_radius_m=self.arc_min_turn_radius_m,
+            max_omega_radps=self.arc_max_omega_radps,
+            allow_side_reverse=self.allow_side_reverse,
+        )
+        if arc_result.omega_clamped:
+            self.arc_omega_clamped_count += 1
+        if arc_result.side_reverse_blocked:
+            self.side_reverse_blocked_count += 1
+        self.latest_arc_result = arc_result
+        return arc_result.command
 
 
 def main() -> None:

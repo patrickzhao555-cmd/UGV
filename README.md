@@ -67,17 +67,18 @@ keeps `idle`, `straight_test`, and `pivot_test` for bringup, and adds
 `mission_sequence` for relative straight/pivot/wait missions. Navigation still
 publishes only velocity/STOP JSON; raw PWM stays out of Jetson navigation.
 
-Mission mode enforces the competition translational-speed rule:
+Formal competition autonomous travel enforces the corrected minimum moving
+speed rule:
 
 ```text
-v_mps == 0.0
-or
-abs(v_mps) >= 0.089408
+before official movement: STOP allowed
+active travel: abs(v_mps) >= 0.0894, target crawl 0.12 m/s
+destination reached or safety/fault/kill: STOP allowed
 ```
 
-So STOP is legal, pivot-in-place is legal as `v_mps=0.0, omega_radps!=0.0`, and
-any forward segment is clamped to at least 0.2 mph unless explicit debug
-sub-min crawl is enabled.
+Manual teleop and calibration tests remain debug exceptions.  During formal
+competition autonomous movement, normal waiting/replanning/alignment does not
+intentionally command zero speed; safety exceptions are logged explicitly.
 
 ## Start Clean Runtime
 

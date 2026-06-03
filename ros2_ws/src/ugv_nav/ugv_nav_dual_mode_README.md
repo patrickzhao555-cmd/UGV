@@ -22,17 +22,20 @@ not run motor PID.
 
 ## Competition Motion Rule
 
-Mission mode enforces:
+Formal competition autonomous travel uses the corrected continuous-movement
+rule:
 
 ```text
-v_mps == 0.0
-or
-abs(v_mps) >= 0.089408
+before official movement: STOP allowed
+active competition travel: abs(v_mps) >= 0.0894, target crawl 0.12 m/s
+destination reached or safety/fault/kill: STOP allowed
 ```
 
-This means STOP is allowed, pivot-in-place is allowed as `v_mps=0.0`, and
-straight motion is never commanded below 0.2 mph unless explicit debug sub-min
-crawl is enabled.
+Manual teleop plus `straight_test`, `pivot_test`, `curve_test`, and motion-test
+calibration remain debug exceptions.  Formal autonomous competition movement
+does not use normal STOP/hold for waiting, replanning, marker search, or
+terminal alignment; those cases crawl unless the system enters an explicit
+safety/fault/kill state.
 
 Before the high-level obstacle avoidance layer is mature, mission straight
 segments default to STOP/hold on `near_obstacle` or low front clearance instead
@@ -146,8 +149,8 @@ then adds:
 - `ugv_field_odom_node.py`: publishes `map -> odom -> base_link`, `/odom`, and
   localization status from manual field pose plus encoder/gyro odometry.
 - `ugv_nav2_adapter.py`: converts Nav2 `/cmd_vel` to `/ugv_nav_cmd` velocity
-  JSON, clamps translational motion to the 0-or-0.2MPH rule, and independently
-  STOPs on stale localization/sensors or motor faults.
+  JSON, enforces the continuous active-travel minimum speed rule, and
+  independently STOPs on stale localization/sensors or motor faults.
 - `ugv_posearray_to_cloud.py`: converts fused ZED/semantic obstacle PoseArrays
   into `/sensors/zed_obstacle_cloud` for Nav2 costmaps.
 - `ugv_field_map_node.py`: publishes the static `/map` occupancy grid used by

@@ -13,8 +13,10 @@ from typing import Any, Iterable, Optional, Sequence, Tuple
 
 from .mission_controller import (
     COMPETITION_MIN_SPEED_MPS,
+    MOVING_TARGET_SPEED_MPS,
     MOTION_EPSILON,
     apply_competition_speed_rule,
+    enforce_continuous_movement_speed,
     motion_rule_ok,
 )
 
@@ -148,6 +150,7 @@ def nav_command_from_twist(
     angular_z_radps: float,
     linear_y_mps: float = 0.0,
     competition_min_speed_mps: float = COMPETITION_MIN_SPEED_MPS,
+    competition_moving_target_speed_mps: float = MOVING_TARGET_SPEED_MPS,
     allow_reverse: bool = False,
     lateral_epsilon_mps: float = 1e-4,
     angular_epsilon_radps: float = 1e-5,
@@ -158,15 +161,16 @@ def nav_command_from_twist(
     raw_y = float(linear_y_mps)
     raw_omega = float(angular_z_radps)
     min_speed = float(competition_min_speed_mps)
+    moving_target = float(competition_moving_target_speed_mps)
     lateral_epsilon = float(lateral_epsilon_mps)
     angular_epsilon = float(angular_epsilon_radps)
     if not all(
         math.isfinite(value)
-        for value in (raw_v, raw_y, raw_omega, min_speed, lateral_epsilon, angular_epsilon)
+        for value in (raw_v, raw_y, raw_omega, min_speed, moving_target, lateral_epsilon, angular_epsilon)
     ):
         return build_stop_command("invalid_cmd_vel", controller=controller)
 
-    if min_speed < 0.0 or lateral_epsilon < 0.0 or angular_epsilon < 0.0:
+    if min_speed < 0.0 or moving_target < 0.0 or lateral_epsilon < 0.0 or angular_epsilon < 0.0:
         return build_stop_command("invalid_cmd_vel", controller=controller)
 
     if abs(raw_y) > lateral_epsilon:
@@ -185,9 +189,49 @@ def nav_command_from_twist(
             raw_v,
             allow_stop=True,
             min_speed_mps=min_speed,
+            moving_target_speed_mps=moving_target,
         )
     reason = "nav2_cmd_vel" if abs(v_cmd - raw_v) < 1e-9 else "nav2_cmd_vel_speed_clamped"
     return build_velocity_command(v_cmd, raw_omega, reason, controller=controller)
+
+
+def enforce_continuous_motion_command(
+    command: VelocityCommand,
+    *,
+    phase: str,
+    min_speed_mps: float = COMPETITION_MIN_SPEED_MPS,
+    moving_target_speed_mps: float = MOVING_TARGET_SPEED_MPS,
+    normal_stop_reasons: Iterable[str] = ("cmd_vel_stop", "cmd_vel_timeout", "startup"),
+) -> VelocityCommand:
+    """Replace normal active-phase zero/sub-min commands with legal crawl.
+
+    Safety and policy STOP reasons are intentionally left untouched.  This
+    function is for formal autonomous competition phases only; debug/manual
+    tools may still command STOP directly.
+    """
+
+    normal_reasons = {str(reason) for reason in normal_stop_reasons}
+    if command.command_type == "stop" and command.reason not in normal_reasons:
+        return command
+    decision = enforce_continuous_movement_speed(
+        command.v_mps,
+        phase=phase,
+        min_speed_mps=min_speed_mps,
+        moving_target_speed_mps=moving_target_speed_mps,
+    )
+    if decision.reason == "invalid_speed_rule_input":
+        return build_stop_command(decision.reason, controller=command.controller)
+    if not decision.changed:
+        return command
+    reason = decision.reason
+    if command.reason and command.reason not in {"ok", reason}:
+        reason = f"{reason}:{command.reason}"
+    return build_velocity_command(
+        decision.v_mps,
+        command.omega_radps,
+        reason,
+        controller=command.controller,
+    )
 
 
 def side_speeds_for_chassis(v_mps: float, omega_radps: float, *, track_width_m: float) -> tuple[float, float]:

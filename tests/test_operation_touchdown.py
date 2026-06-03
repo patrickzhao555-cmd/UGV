@@ -149,21 +149,21 @@ def test_terminal_approach_command_never_emits_sub_min_forward_speed():
         forward_speed_mps=0.01,
     )
     assert decision.command.command_type == "velocity"
-    assert decision.command.v_mps == pytest.approx(0.089408)
+    assert decision.command.v_mps == pytest.approx(0.12)
     assert decision.command.motion_rule_ok
 
 
-def test_terminal_approach_holds_for_large_heading_error_and_stops_when_lost():
+def test_terminal_approach_uses_arc_crawl_for_large_heading_error_and_coordinate_fallback_when_lost():
     hold = terminal_approach_command(
         robot_pose=Transform2D(0.0, 0.0, 0.0),
         marker_x_m=0.0,
         marker_y_m=2.0,
         marker_fresh=True,
     )
-    assert hold.command.command_type == "stop"
-    assert hold.command.v_mps == pytest.approx(0.0)
-    assert hold.command.omega_radps == pytest.approx(0.0)
-    assert hold.reason == "terminal_heading_error_requires_replan"
+    assert hold.command.command_type == "velocity"
+    assert hold.command.v_mps == pytest.approx(0.12)
+    assert abs(hold.command.omega_radps) > 0.0
+    assert hold.reason == "terminal_heading_arc_crawl"
 
     lost = terminal_approach_command(
         robot_pose=Transform2D(0.0, 0.0, 0.0),
@@ -171,8 +171,9 @@ def test_terminal_approach_holds_for_large_heading_error_and_stops_when_lost():
         marker_y_m=0.0,
         marker_fresh=False,
     )
-    assert lost.command.command_type == "stop"
-    assert lost.reason == "marker_lost"
+    assert lost.command.command_type == "velocity"
+    assert lost.command.v_mps == pytest.approx(0.12)
+    assert lost.reason == "terminal_approach_coordinate_fallback"
 
 
 def test_terminal_approach_stops_inside_destination_radius():
@@ -198,14 +199,19 @@ def test_nav2_launch_defaults_to_mission_supervisor_and_aruco_not_direct_goal_br
     assert "aruco_marker_node.py" in launch_text
     assert 'DeclareLaunchArgument("zed_publish_image", default_value="true")' in launch_text
     assert 'DeclareLaunchArgument("marker_target_gate_radius_m", default_value="2.274")' in launch_text
-    assert 'DeclareLaunchArgument("coordinate_arrival_marker_search_s", default_value="2.0")' in launch_text
-    assert 'DeclareLaunchArgument("terminal_replan_max_attempts", default_value="2")' in launch_text
+    assert "coordinate_arrival_marker_search_s" not in launch_text
+    assert "terminal_replan_max_attempts" not in launch_text
+    assert 'DeclareLaunchArgument("competition_motion_phase_topic", default_value="/ugv/competition_motion_phase")' in launch_text
+    assert 'DeclareLaunchArgument("competition_moving_target_speed_mps", default_value="0.12")' in launch_text
 
 
 def test_mission_supervisor_does_not_publish_stop_while_nav2_owns_cmd_vel_raw():
     mission_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_operation_touchdown_mission.py").read_text()
-    assert 'elif self.state in {"destination_stop", "mission_complete", "abort", "wait_for_uav_target"}' in mission_text
-    assert '"nav2_to_staging"}:' not in mission_text
+    timer_text = mission_text[mission_text.index("    def timer_callback") : mission_text.index("    def _coordinate_terminal_gate")]
+
+    assert 'elif self.state in {"destination_stop", "mission_complete", "abort", "wait_for_uav_target"}' in timer_text
+    assert '"nav2_goal_pending"' not in timer_text
+    assert '"nav2_to_staging"' not in timer_text
     assert "cancel_goal_async" in mission_text
     assert "goal_sequence" in mission_text
 
@@ -287,12 +293,53 @@ def test_mission_supervisor_makes_coordinate_radius_a_hard_terminal_stop():
     assert terminal_step.index("if coordinate_decision.destination_reached:") < terminal_step.index(
         "terminal_approach_command("
     )
-    assert "_request_terminal_replan(decision.reason)" in terminal_step
-    assert "terminal_replan_limit_exceeded" in mission_text
+    assert "_request_terminal_replan" not in mission_text
+    assert "terminal_replan_limit_exceeded" not in mission_text
     assert '"coordinate_distance_to_target_m"' in mission_text
     assert '"coordinate_destination_reached"' in mission_text
     assert '"visual_marker_used_for_motion"' in mission_text
     assert '"marker_target_disagreement_m"' in mission_text
+
+
+def test_mission_supervisor_publishes_motion_phase_and_crawls_during_active_terminal_states():
+    mission_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_operation_touchdown_mission.py").read_text()
+
+    assert 'self.declare_parameter("competition_motion_phase_topic", "/ugv/competition_motion_phase")' in mission_text
+    assert "self.phase_pub = self.create_publisher" in mission_text
+    assert '"path_following"' in mission_text
+    assert '"marker_search"' in mission_text
+    assert '"terminal_approach"' in mission_text
+    assert "_publish_coordinate_crawl" in mission_text
+    assert "marker_search_coordinate_crawl" in mission_text
+    assert "marker_search_timeout_coordinate_fallback" in mission_text
+    assert '"destination_reached"' in mission_text
+
+
+def test_mission_supervisor_does_not_start_active_motion_until_nav2_goal_is_accepted():
+    mission_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_operation_touchdown_mission.py").read_text()
+    send_goal = mission_text[mission_text.index("    def _send_nav2_goal") : mission_text.index("    def _goal_response_callback")]
+    goal_response = mission_text[
+        mission_text.index("    def _goal_response_callback") : mission_text.index("    def _goal_result_callback")
+    ]
+    phase_update = mission_text[
+        mission_text.index("    def _update_motion_phase_for_state") : mission_text.index("    def _publish_motion_phase")
+    ]
+
+    assert 'self._set_state("nav2_goal_pending", "nav2_goal_sent")' in send_goal
+    assert "_mark_run_started()" not in send_goal
+    assert "if not handle.accepted:" in goal_response
+    assert goal_response.index("if not handle.accepted:") < goal_response.index("self._mark_run_started()")
+    assert goal_response.index("self._mark_run_started()") < goal_response.index('self._set_state("nav2_to_staging", "nav2_goal_accepted")')
+    assert '"nav2_goal_pending"} and self.ugv_start_time_s is None' in phase_update
+
+
+def test_nav2_adapter_waits_for_first_active_cmd_vel_before_timeout_crawl():
+    adapter_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav2_adapter.py").read_text()
+    timer_text = adapter_text[adapter_text.index("    def timer_callback") : adapter_text.index("    def _measured_speed_mps")]
+
+    assert "self.active_cmd_vel_seen = False" in adapter_text
+    assert "self.first_active_cmd_vel_s" in adapter_text
+    assert "and self.active_cmd_vel_seen" in timer_text
 
 
 def test_nav2_adapter_has_explicit_kill_switch_hard_stop():

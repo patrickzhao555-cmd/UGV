@@ -156,6 +156,7 @@ def test_mission_case_writes_mission_file_and_launch_arg(tmp_path):
     args = case_launch_args(case, case_dir=tmp_path)
     assert args["nav_controller_mode"] == "mission_sequence"
     assert args["nav_mission_file"] == str(mission_path)
+    assert args["nav_competition_continuous_motion_enabled"] == "false"
 
 
 def test_custom_distance_straight_case_uses_distance_based_mission(tmp_path):
@@ -175,6 +176,7 @@ def test_custom_distance_straight_case_uses_distance_based_mission(tmp_path):
     assert args["nav_heading_kp"] == "0.4"
     assert args["nav_heading_kd"] == "0.06"
     assert args["nav_mission_straight_max_omega_radps"] == "0.16"
+    assert args["nav_competition_continuous_motion_enabled"] == "false"
     assert "nav_mission_file" in args
 
 

@@ -18,8 +18,26 @@ from .chassis_controller import (
 )
 
 
-COMPETITION_MIN_SPEED_MPS = 0.2 * 0.44704
+MIN_RULE_SPEED_MPH = 0.2
+MIN_RULE_SPEED_MPS = 0.0894
+MOVING_TARGET_SPEED_MPS = 0.12
+COMPETITION_MIN_SPEED_MPS = MIN_RULE_SPEED_MPS
 MOTION_EPSILON = 1e-6
+
+WAITING_TO_START_PHASES = frozenset({"init", "idle", "waiting_to_start"})
+ACTIVE_MOVEMENT_PHASES = frozenset(
+    {
+        "active_movement",
+        "path_following",
+        "replanning",
+        "marker_search",
+        "terminal_approach",
+        "uav_landing_support",
+    }
+)
+STOP_ALLOWED_PHASES = WAITING_TO_START_PHASES | frozenset(
+    {"arrived", "destination_reached", "kill_switch", "e_stop", "fault", "safety_stop"}
+)
 
 
 @dataclass(frozen=True)
@@ -73,17 +91,112 @@ class StuckMonitorResult:
     recovery_count: int
 
 
+@dataclass(frozen=True)
+class ContinuousMotionDecision:
+    v_mps: float
+    phase: str
+    changed: bool = False
+    zero_replaced: bool = False
+    sub_min_clamped: bool = False
+    active_violation: bool = False
+    reason: str = "ok"
+
+
+def normalized_competition_motion_phase(value: str) -> str:
+    phase = str(value or "").strip().lower()
+    if not phase:
+        return "waiting_to_start"
+    aliases = {
+        "wait": "waiting_to_start",
+        "waiting": "waiting_to_start",
+        "preflight": "waiting_to_start",
+        "started": "active_movement",
+        "moving": "active_movement",
+        "nav2_to_staging": "path_following",
+        "destination_stop": "destination_reached",
+        "mission_complete": "destination_reached",
+        "abort": "fault",
+        "estop": "e_stop",
+        "emergency_stop": "e_stop",
+    }
+    return aliases.get(phase, phase)
+
+
+def phase_requires_continuous_motion(phase: str) -> bool:
+    return normalized_competition_motion_phase(phase) in ACTIVE_MOVEMENT_PHASES
+
+
+def phase_allows_zero_speed(phase: str) -> bool:
+    normalized = normalized_competition_motion_phase(phase)
+    return normalized in STOP_ALLOWED_PHASES or normalized not in ACTIVE_MOVEMENT_PHASES
+
+
 def apply_competition_speed_rule(
     v_mps: float,
     *,
     allow_stop: bool = True,
     min_speed_mps: float = COMPETITION_MIN_SPEED_MPS,
+    moving_target_speed_mps: float = MOVING_TARGET_SPEED_MPS,
 ) -> float:
     value = float(v_mps)
+    raw_min_speed = float(min_speed_mps)
+    raw_moving_target = float(moving_target_speed_mps)
+    if not math.isfinite(value) or not math.isfinite(raw_min_speed):
+        return 0.0
+    min_speed = max(0.0, raw_min_speed)
+    moving_target = max(0.0, raw_moving_target) if math.isfinite(raw_moving_target) else min_speed
     if allow_stop and abs(value) < MOTION_EPSILON:
         return 0.0
     sign = 1.0 if value >= 0.0 else -1.0
-    return sign * max(abs(value), max(0.0, float(min_speed_mps)))
+    target = max(min_speed, moving_target)
+    return sign * max(abs(value), target)
+
+
+def enforce_continuous_movement_speed(
+    v_mps: float,
+    *,
+    phase: str,
+    min_speed_mps: float = MIN_RULE_SPEED_MPS,
+    moving_target_speed_mps: float = MOVING_TARGET_SPEED_MPS,
+) -> ContinuousMotionDecision:
+    """Enforce the competition active-movement speed rule for autonomous modes.
+
+    Once the UGV is in an active travel phase, normal zero-speed or sub-minimum
+    translational commands are replaced by a crawl above the 0.2 mph minimum.
+    Safety/fault/arrival phases are intentionally allowed to command STOP.
+    """
+
+    normalized = normalized_competition_motion_phase(phase)
+    value = float(v_mps)
+    raw_min_speed = float(min_speed_mps)
+    raw_moving_target = float(moving_target_speed_mps)
+    if not math.isfinite(value) or not math.isfinite(raw_min_speed):
+        return ContinuousMotionDecision(0.0, normalized, changed=True, reason="invalid_speed_rule_input")
+    min_speed = max(0.0, raw_min_speed)
+    moving_target = max(0.0, raw_moving_target) if math.isfinite(raw_moving_target) else min_speed
+    target = max(min_speed, moving_target)
+    if not phase_requires_continuous_motion(normalized):
+        return ContinuousMotionDecision(value, normalized, reason="stop_allowed" if abs(value) < MOTION_EPSILON else "ok")
+    if abs(value) < MOTION_EPSILON:
+        return ContinuousMotionDecision(
+            target,
+            normalized,
+            changed=True,
+            zero_replaced=True,
+            active_violation=True,
+            reason="active_zero_speed_replaced",
+        )
+    if abs(value) + 1e-9 < min_speed:
+        sign = 1.0 if value >= 0.0 else -1.0
+        return ContinuousMotionDecision(
+            sign * target,
+            normalized,
+            changed=True,
+            sub_min_clamped=True,
+            active_violation=True,
+            reason="active_sub_min_speed_clamped",
+        )
+    return ContinuousMotionDecision(value, normalized, reason="ok")
 
 
 def motion_rule_ok(v_mps: float, *, min_speed_mps: float = COMPETITION_MIN_SPEED_MPS) -> bool:
@@ -252,6 +365,7 @@ def segment_speed_mps(segment: MissionSegment, config: ChassisControllerConfig) 
         requested,
         allow_stop=False,
         min_speed_mps=float(config.competition_min_speed_mps),
+        moving_target_speed_mps=float(config.competition_moving_target_speed_mps),
     )
 
 

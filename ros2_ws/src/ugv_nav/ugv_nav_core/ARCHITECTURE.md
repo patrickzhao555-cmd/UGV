@@ -45,18 +45,19 @@ STOP and restarts calibration.
 
 ## Competition Motion Rule
 
-Mission mode applies the 0-or-at-least-0.2 MPH rule to translational commands:
+Formal competition autonomous travel applies the corrected continuous-movement
+minimum speed rule:
 
 ```text
-v_mps == 0.0
-or
-abs(v_mps) >= 0.089408
+before official movement: STOP allowed
+active competition travel: abs(v_mps) >= 0.0894, target crawl 0.12 m/s
+destination reached or safety/fault/kill: STOP allowed
 ```
 
-Pivot-in-place is allowed as `v_mps=0.0` with nonzero `omega_radps`. STOP is
-allowed before a mission, between segments, after completion, and for safety.
-The default reliable straight speed is `0.15 m/s`, while the rule floor is
-`0.089408 m/s`.
+Manual teleop and primitive calibration modes are debug exceptions.  During
+formal autonomous movement, normal waits, replans, marker search, and terminal
+alignment crawl instead of intentionally commanding zero speed.  STOP is still
+used for destination reached, kill switch, safety stop, or fault.
 
 Mission files use relative segments:
 

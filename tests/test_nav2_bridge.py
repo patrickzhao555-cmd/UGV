@@ -15,10 +15,12 @@ from ugv_nav_core.nav2_bridge import (  # noqa: E402
     Transform2D,
     build_stop_command,
     compose_transform_2d,
+    enforce_continuous_motion_command,
     find_nearest_free_target,
     finite_xyz_points,
     evaluate_gyro_bias_samples,
     angle_within_centered_fov,
+    build_velocity_command,
     field_boundary_decision,
     integrate_planar_odometry,
     inverse_transform_2d,
@@ -48,7 +50,7 @@ def test_nav2_cmd_vel_to_ugv_nav_cmd_preserves_velocity_contract_without_raw_pwm
 def test_nav2_cmd_vel_clamps_sub_min_translation_but_allows_pivot_in_place():
     slow = nav_command_from_twist(linear_x_mps=0.01, angular_z_radps=0.0)
     assert slow.command_type == "velocity"
-    assert slow.v_mps == pytest.approx(0.089408)
+    assert slow.v_mps == pytest.approx(0.12)
     assert slow.reason == "nav2_cmd_vel_speed_clamped"
     assert slow.motion_rule_ok
 
@@ -57,13 +59,46 @@ def test_nav2_cmd_vel_clamps_sub_min_translation_but_allows_pivot_in_place():
     assert reverse.reason == "reverse_cmd_blocked"
 
     debug_reverse = nav_command_from_twist(linear_x_mps=-0.01, angular_z_radps=0.0, allow_reverse=True)
-    assert debug_reverse.v_mps == pytest.approx(-0.089408)
+    assert debug_reverse.v_mps == pytest.approx(-0.12)
 
     pivot = nav_command_from_twist(linear_x_mps=0.0, angular_z_radps=0.2)
     assert pivot.command_type == "velocity"
     assert pivot.v_mps == pytest.approx(0.0)
     assert pivot.omega_radps == pytest.approx(0.2)
     assert pivot.motion_rule_ok
+
+
+def test_continuous_motion_command_replaces_normal_active_stop_but_keeps_safety_stop():
+    active_stop = enforce_continuous_motion_command(build_stop_command("cmd_vel_stop"), phase="active_movement")
+    assert active_stop.command_type == "velocity"
+    assert active_stop.v_mps == pytest.approx(0.12)
+    assert active_stop.reason == "active_zero_speed_replaced:cmd_vel_stop"
+
+    timeout = enforce_continuous_motion_command(build_stop_command("cmd_vel_timeout"), phase="replanning")
+    assert timeout.command_type == "velocity"
+    assert timeout.v_mps == pytest.approx(0.12)
+
+    safety = enforce_continuous_motion_command(build_stop_command("front_clearance_emergency"), phase="path_following")
+    assert safety.command_type == "stop"
+    assert safety.reason == "front_clearance_emergency"
+
+    waiting = enforce_continuous_motion_command(build_stop_command("cmd_vel_stop"), phase="waiting_to_start")
+    assert waiting.command_type == "stop"
+    assert waiting.reason == "cmd_vel_stop"
+
+    slow = build_velocity_command(0.05, 0.0, "nav2_cmd_vel")
+    clamped = enforce_continuous_motion_command(slow, phase="uav_landing_support")
+    assert clamped.command_type == "velocity"
+    assert clamped.v_mps == pytest.approx(0.12)
+    assert clamped.reason.startswith("active_sub_min_speed_clamped")
+
+    invalid = enforce_continuous_motion_command(
+        build_stop_command("cmd_vel_stop"),
+        phase="active_movement",
+        min_speed_mps=math.inf,
+    )
+    assert invalid.command_type == "stop"
+    assert invalid.reason == "invalid_speed_rule_input"
 
 
 def test_rolling_arc_gate_blocks_autonomous_pivot_and_side_reverse():
@@ -116,6 +151,8 @@ def test_nav2_cmd_vel_rejects_non_finite_values_before_json_output():
         {"linear_x_mps": 0.0, "angular_z_radps": math.inf},
         {"linear_x_mps": 0.0, "linear_y_mps": math.nan, "angular_z_radps": 0.0},
         {"linear_x_mps": 0.1, "angular_z_radps": 0.0, "competition_min_speed_mps": math.inf},
+        {"linear_x_mps": 0.1, "angular_z_radps": 0.0, "competition_moving_target_speed_mps": math.inf},
+        {"linear_x_mps": 0.1, "angular_z_radps": 0.0, "competition_moving_target_speed_mps": -0.1},
     ):
         command = nav_command_from_twist(**kwargs)
         payload = command.to_payload()
@@ -449,7 +486,12 @@ def test_nav2_launch_passes_strict_uav_goal_and_adapter_safety_parameters():
     assert 'DeclareLaunchArgument("uav_require_costmap_for_goal", default_value="true")' in launch_text
     assert 'DeclareLaunchArgument("uav_unknown_cost_is_blocked", default_value="true")' in launch_text
     assert 'DeclareLaunchArgument("uav_allow_boundary_projection", default_value="false")' in launch_text
+    assert 'DeclareLaunchArgument("competition_min_speed_mps", default_value="0.0894")' in launch_text
+    assert 'DeclareLaunchArgument("competition_moving_target_speed_mps", default_value="0.12")' in launch_text
+    assert 'DeclareLaunchArgument("competition_continuous_motion_enabled", default_value="true")' in launch_text
+    assert '["competition_motion_phase_topic:=", competition_motion_phase_topic]' in launch_text
     assert 'self.declare_parameter("allow_reverse", False)' in adapter_text
+    assert 'self.declare_parameter("competition_continuous_motion_enabled", True)' in adapter_text
     assert 'self.declare_parameter("require_costmap_for_goal", True)' in goal_bridge_text
     assert 'self.declare_parameter("unknown_cost_is_blocked", True)' in goal_bridge_text
     assert 'self.declare_parameter("require_target_frame", True)' in goal_bridge_text

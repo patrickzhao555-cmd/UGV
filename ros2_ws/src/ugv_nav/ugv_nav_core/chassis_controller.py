@@ -59,7 +59,9 @@ class ChassisControllerConfig:
     pivot_max_correction_retries: int = 1
     pivot_clearance_m: float = 0.35
     slip_disagreement_rad: float = 0.35
-    competition_min_speed_mps: float = 0.089408
+    competition_min_speed_mps: float = 0.0894
+    competition_moving_target_speed_mps: float = 0.12
+    competition_continuous_motion_enabled: bool = True
     mission_default_speed_mps: float = 0.15
     mission_reliable_speed_mps: float = 0.15
     mission_slow_speed_mps: float = 0.09

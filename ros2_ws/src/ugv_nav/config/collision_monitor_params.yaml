@@ -3,8 +3,8 @@
 # Nav2 is remapped to publish raw velocity on /cmd_vel_raw.
 # Collision Monitor is then the only publisher to /cmd_vel, and
 # ugv_nav2_adapter is the only bridge from /cmd_vel to /ugv_nav_cmd.
-# This file is stop-only by default. Do not add slowdown polygons until the
-# slowdown policy is made aware of the 0-or-0.2MPH translational speed rule.
+# This file is stop-only by default. Collision Monitor STOP is a safety
+# exception to the continuous active-travel minimum speed rule.
 
 collision_monitor:
   ros__parameters:

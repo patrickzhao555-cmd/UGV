@@ -41,11 +41,13 @@ from ugv_nav_core.chassis_controller import (
     update_gyro_heading,
 )
 from ugv_nav_core.mission_controller import (
+    MOVING_TARGET_SPEED_MPS,
     MissionPlan,
     MissionSegment,
     MissionTelemetryRecorder,
     StuckMonitorState,
     apply_competition_speed_rule,
+    average_abs_measured_speed_mps,
     classify_mission_safety,
     encoder_average_distance_m,
     heading_error_rms,
@@ -176,7 +178,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--pivot-clearance-m", type=float, default=0.35)
     parser.add_argument("--slip-disagreement-rad", type=float, default=0.35)
     parser.add_argument("--mission-file", default="")
-    parser.add_argument("--competition-min-speed-mps", type=float, default=0.089408)
+    parser.add_argument("--competition-min-speed-mps", type=float, default=0.0894)
+    parser.add_argument("--competition-moving-target-speed-mps", type=float, default=MOVING_TARGET_SPEED_MPS)
+    parser.add_argument("--competition-continuous-motion-enabled", type=parse_bool, default=True)
     parser.add_argument("--mission-default-speed-mps", type=float, default=0.15)
     parser.add_argument("--mission-reliable-speed-mps", type=float, default=0.15)
     parser.add_argument("--mission-slow-speed-mps", type=float, default=0.09)
@@ -270,6 +274,8 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         pivot_clearance_m=float(args.pivot_clearance_m),
         slip_disagreement_rad=float(args.slip_disagreement_rad),
         competition_min_speed_mps=float(args.competition_min_speed_mps),
+        competition_moving_target_speed_mps=float(args.competition_moving_target_speed_mps),
+        competition_continuous_motion_enabled=bool(args.competition_continuous_motion_enabled),
         mission_default_speed_mps=float(args.mission_default_speed_mps),
         mission_reliable_speed_mps=float(args.mission_reliable_speed_mps),
         mission_slow_speed_mps=float(args.mission_slow_speed_mps),
@@ -678,6 +684,12 @@ def run_real(args: argparse.Namespace) -> None:
                 self.mission_state = "mission_complete"
                 return build_stop_command("mission_complete")
             self.mission_state = "segment_complete"
+            if self.config.competition_continuous_motion_enabled:
+                return build_velocity_command(
+                    self.config.competition_moving_target_speed_mps,
+                    0.0,
+                    f"continuous_segment_transition:{reason}",
+                )
             return build_stop_command(reason)
 
         def _mission_segment_distance(self) -> float:
@@ -708,6 +720,9 @@ def run_real(args: argparse.Namespace) -> None:
         def _segment_key(self) -> str:
             segment_type = None if self._current_segment() is None else self._current_segment().segment_type
             return f"{self.segment_index}:{segment_type}:{self.segment_start_s}"
+
+        def _measured_speed_mps(self) -> float:
+            return average_abs_measured_speed_mps(self.motor_status)
 
         def _stuck_stop_or_abort(
             self,
@@ -817,8 +832,16 @@ def run_real(args: argparse.Namespace) -> None:
                     self.mission_safety_reason = hold_reason
                     self._log_safety_stop(hold_reason, now_s)
                     return build_stop_command(hold_reason), heading, heading_error, hold_reason
+                if self.config.competition_continuous_motion_enabled and segment.segment_type in {"pivot", "wait"}:
+                    reason = f"active_{segment.segment_type}_segment_invalid"
+                    self.mission_state = "abort"
+                    self.mission_safety_level = "critical"
+                    self.mission_safety_reason = reason
+                    self._log_safety_stop(reason, now_s)
+                    return build_stop_command(reason), heading, heading_error, reason
                 self._start_mission_segment(now_s)
-                return build_stop_command("segment_start"), heading, heading_error, "ok"
+                if not self.config.competition_continuous_motion_enabled:
+                    return build_stop_command("segment_start"), heading, heading_error, "ok"
             segment = self._current_segment()
             if segment is None:
                 self.mission_state = "mission_complete"
@@ -882,6 +905,7 @@ def run_real(args: argparse.Namespace) -> None:
                         requested_v,
                         allow_stop=False,
                         min_speed_mps=self.config.competition_min_speed_mps,
+                        moving_target_speed_mps=self.config.competition_moving_target_speed_mps,
                     )
                 self.sub_min_speed_command_blocked = (
                     abs(raw_requested_v) >= 1e-6
@@ -1184,6 +1208,10 @@ def run_real(args: argparse.Namespace) -> None:
                 "segment_distance_m": self.segment_distance_m,
                 "target_distance_m": self.target_distance_m,
                 "competition_min_speed_mps": self.config.competition_min_speed_mps,
+                "moving_target_speed_mps": self.config.competition_moving_target_speed_mps,
+                "competition_continuous_motion_enabled": self.config.competition_continuous_motion_enabled,
+                "commanded_speed_mps": abs(last_v),
+                "measured_speed_mps": self._measured_speed_mps(),
                 "motion_rule_ok": motion_rule_ok(
                     last_v,
                     min_speed_mps=self.config.competition_min_speed_mps,

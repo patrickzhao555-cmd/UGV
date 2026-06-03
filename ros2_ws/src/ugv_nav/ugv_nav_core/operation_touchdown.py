@@ -11,7 +11,12 @@ import math
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from .mission_controller import COMPETITION_MIN_SPEED_MPS, MOTION_EPSILON, apply_competition_speed_rule
+from .mission_controller import (
+    COMPETITION_MIN_SPEED_MPS,
+    MOTION_EPSILON,
+    MOVING_TARGET_SPEED_MPS,
+    apply_competition_speed_rule,
+)
 from .nav2_bridge import (
     FieldBounds,
     OccupancyGridSpec,
@@ -261,12 +266,13 @@ def terminal_approach_command(
     pivot_heading_error_rad: float = 0.35,
     min_turn_radius_m: float = 0.75,
     min_speed_mps: float = COMPETITION_MIN_SPEED_MPS,
+    moving_target_speed_mps: float = MOVING_TARGET_SPEED_MPS,
 ) -> TerminalCommandDecision:
     """Return a legal command for final marker approach.
 
-    The controller never emits a sub-minimum nonzero translational speed.  If
-    the marker is not fresh, it either stops because coordinate-based arrival is
-    already satisfied or holds STOP with marker_lost.
+    The controller never emits a sub-minimum nonzero translational speed.  In
+    active competition travel a missing marker falls back to the UAV coordinate
+    direction instead of intentionally stopping.
     """
     if not all(
         math.isfinite(float(value))
@@ -285,6 +291,7 @@ def terminal_approach_command(
             pivot_heading_error_rad,
             min_turn_radius_m,
             min_speed_mps,
+            moving_target_speed_mps,
         )
     ):
         return TerminalCommandDecision(
@@ -301,24 +308,15 @@ def terminal_approach_command(
     if distance <= max(0.0, float(destination_radius_m) - max(0.0, float(terminal_arrival_buffer_m))):
         reason = "destination_reached"
         return TerminalCommandDecision(build_stop_command(reason), True, distance, heading_error, reason)
-    if not bool(marker_fresh):
-        reason = "marker_lost"
-        return TerminalCommandDecision(build_stop_command(reason), False, distance, heading_error, reason)
     if distance <= max(0.0, float(terminal_stop_distance_m)):
         reason = "destination_reached"
         return TerminalCommandDecision(build_stop_command(reason), True, distance, heading_error, reason)
 
-    if abs(heading_error) > max(0.0, float(pivot_heading_error_rad)):
-        reason = "terminal_heading_error_requires_replan"
-        return TerminalCommandDecision(
-            build_stop_command(reason),
-            False,
-            distance,
-            heading_error,
-            reason,
-        )
-
-    v_cmd = apply_competition_speed_rule(float(forward_speed_mps), min_speed_mps=float(min_speed_mps))
+    v_cmd = apply_competition_speed_rule(
+        float(forward_speed_mps),
+        min_speed_mps=float(min_speed_mps),
+        moving_target_speed_mps=float(moving_target_speed_mps),
+    )
     if abs(v_cmd) < MOTION_EPSILON:
         reason = "terminal_forward_speed_invalid"
         return TerminalCommandDecision(build_stop_command(reason), False, distance, heading_error, reason)
@@ -327,7 +325,12 @@ def terminal_approach_command(
         abs(v_cmd) / max(1e-6, float(min_turn_radius_m)),
     )
     omega = max(-omega_limit, min(omega_limit, float(heading_kp) * heading_error))
-    reason = "terminal_approach_marker"
+    if not bool(marker_fresh):
+        reason = "terminal_approach_coordinate_fallback"
+    elif abs(heading_error) > max(0.0, float(pivot_heading_error_rad)):
+        reason = "terminal_heading_arc_crawl"
+    else:
+        reason = "terminal_approach_marker"
     return TerminalCommandDecision(
         build_velocity_command(v_cmd, omega, reason),
         False,

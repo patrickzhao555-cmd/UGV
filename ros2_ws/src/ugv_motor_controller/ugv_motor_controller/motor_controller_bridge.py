@@ -332,6 +332,14 @@ class MotorControllerBridge(Node):
         )
         return (self.commanded_v_mps, self.commanded_omega_radps)
 
+    def _velocity_log_payload(self, *, requested_velocity: Tuple[float, float]) -> str:
+        return (
+            f"CMD V {self.commanded_v_mps:.4f} {self.commanded_omega_radps:.4f} "
+            f"(requested {requested_velocity[0]:.4f} {requested_velocity[1]:.4f}; "
+            f"requested_sides L={self.requested_left_mps:.4f} R={self.requested_right_mps:.4f}; "
+            f"target_sides L={self.target_left_mps:.4f} R={self.target_right_mps:.4f})"
+        )
+
     def command_callback(self, msg: String) -> None:
         try:
             obj = json.loads(msg.data)
@@ -363,10 +371,7 @@ class MotorControllerBridge(Node):
             self._write_command(
                 build_teensy_velocity_command(*self.active_velocity_command),
                 reason="nav velocity command",
-                log_payload=(
-                    f"CMD V {self.active_velocity_command[0]:.4f} {self.active_velocity_command[1]:.4f}"
-                    f" (requested {velocity[0]:.4f} {velocity[1]:.4f})"
-                ),
+                log_payload=self._velocity_log_payload(requested_velocity=velocity),
             )
         self._publish_status(event="nav velocity received")
 
@@ -410,7 +415,9 @@ class MotorControllerBridge(Node):
         self._write_command(
             build_teensy_velocity_command(*self.active_velocity_command),
             reason="velocity refresh",
-            log_payload=f"CMD V {self.active_velocity_command[0]:.4f} {self.active_velocity_command[1]:.4f}",
+            log_payload=self._velocity_log_payload(
+                requested_velocity=(self.requested_v_mps, self.requested_omega_radps),
+            ),
         )
 
     def _handle_command_timeout(self) -> None:

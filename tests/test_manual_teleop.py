@@ -117,6 +117,39 @@ def test_payload_for_state_combines_held_forward_and_turn_keys_into_arc():
     assert payload["reason"] == "manual_arc_left"
 
 
+def test_terminal_backend_maps_single_turn_key_to_forward_arc():
+    config = TeleopConfig(forward_mps=0.18, arc_turn_radps=0.45, arc_min_turn_radius_m=0.75)
+    state = TeleopState()
+    set_motion_key_pressed(state, "a", 10.0, release_events_supported=False)
+    payload = payload_for_state(state, config, 10.1)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.18)
+    assert payload["omega_radps"] == pytest.approx(0.18 / 0.75)
+    assert payload["reason"] == "manual_terminal_arc_left"
+
+
+def test_release_event_backend_keeps_single_turn_key_as_pivot_fallback():
+    config = TeleopConfig(pivot_turn_radps=0.75)
+    state = TeleopState()
+    set_motion_key_pressed(state, "a", 10.0, release_events_supported=True)
+    payload = payload_for_state(state, config, 10.1)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.0)
+    assert payload["omega_radps"] == pytest.approx(0.75)
+    assert payload["reason"] == "manual_pivot_left"
+
+
+def test_terminal_single_key_arc_fallback_can_be_disabled():
+    config = TeleopConfig(terminal_single_key_arcs=False, pivot_turn_radps=0.75)
+    state = TeleopState()
+    set_motion_key_pressed(state, "d", 10.0, release_events_supported=False)
+    payload = payload_for_state(state, config, 10.1)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.0)
+    assert payload["omega_radps"] == pytest.approx(-0.75)
+    assert payload["reason"] == "manual_pivot_right"
+
+
 def test_manual_arc_omega_respects_min_turn_radius():
     config = normalized_config(TeleopConfig(forward_mps=0.15, arc_turn_radps=4.0, max_arc_turn_radps=4.0))
     assert arc_omega_for_speed(0.15, 4.0, config) == pytest.approx(0.2)
@@ -241,6 +274,12 @@ def test_parse_args_builds_config_without_importing_ros():
     assert config.publish_hz == pytest.approx(25.0)
     assert args.input_backend == "terminal"
     assert args.publish_on_change_only is False
+    assert config.terminal_single_key_arcs is True
+
+
+def test_parse_args_can_disable_terminal_single_key_arcs():
+    config = config_from_args(parse_args(["--no-terminal-single-key-arcs"]))
+    assert config.terminal_single_key_arcs is False
 
 
 def test_publish_on_change_only_flag_is_explicit_debug_mode():

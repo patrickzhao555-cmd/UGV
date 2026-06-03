@@ -41,6 +41,7 @@ DEFAULT_KEY_STATE_STALE_TIMEOUT_S = 2.0
 DEFAULT_SPEED_STEP_MPS = 0.02
 DEFAULT_TURN_STEP_RADPS = 0.10
 DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
+DEFAULT_TERMINAL_SINGLE_KEY_ARCS = True
 MIN_PUBLISH_HZ = 1.0
 MAX_PUBLISH_HZ = 50.0
 MIN_DEADMAN_TIMEOUT_S = 0.05
@@ -85,6 +86,7 @@ class TeleopConfig:
     speed_step_mps: float = DEFAULT_SPEED_STEP_MPS
     turn_step_radps: float = DEFAULT_TURN_STEP_RADPS
     arc_min_turn_radius_m: float = DEFAULT_ARC_MIN_TURN_RADIUS_M
+    terminal_single_key_arcs: bool = DEFAULT_TERMINAL_SINGLE_KEY_ARCS
     allow_pivot_keys: bool = True
     adjust_pivot_turn: bool = False
     # Backwards-compatible CLI/test aliases.  If provided, they configure arc turns.
@@ -211,7 +213,12 @@ def arc_omega_for_speed(v_mps: float, requested_omega_radps: float, config: Tele
     return math.copysign(omega_abs, float(requested_omega_radps))
 
 
-def velocity_for_pressed_keys(keys: Iterable[str], config: TeleopConfig) -> Optional[Tuple[float, float, str]]:
+def velocity_for_pressed_keys(
+    keys: Iterable[str],
+    config: TeleopConfig,
+    *,
+    terminal_single_key_arcs: bool = False,
+) -> Optional[Tuple[float, float, str]]:
     ordered = [str(key).lower() for key in keys if str(key).lower() in MOTION_KEYS]
     if not ordered:
         return None
@@ -227,6 +234,12 @@ def velocity_for_pressed_keys(keys: Iterable[str], config: TeleopConfig) -> Opti
             reason = "manual_arc_left" if turn_key == "a" else "manual_arc_right"
         else:
             reason = "manual_reverse_arc_left" if turn_key == "a" else "manual_reverse_arc_right"
+        return v_mps, omega, reason
+    if turn_key is not None and terminal_single_key_arcs:
+        v_mps = config.forward_mps
+        requested_omega = config.arc_turn_radps if turn_key == "a" else -config.arc_turn_radps
+        omega = arc_omega_for_speed(v_mps, requested_omega, config)
+        reason = "manual_terminal_arc_left" if turn_key == "a" else "manual_terminal_arc_right"
         return v_mps, omega, reason
     if turn_key is not None and config.allow_pivot_keys:
         return velocity_for_key(turn_key, config)
@@ -269,7 +282,11 @@ def payload_for_state(state: TeleopState, config: TeleopConfig, now_s: float) ->
     if state.active_key and state.last_motion_time_s is not None:
         age = max(0.0, float(now_s) - float(state.last_motion_time_s))
         keys = state.pressed_motion_keys if state.pressed_motion_keys else [state.active_key]
-        velocity = velocity_for_pressed_keys(keys, config)
+        velocity = velocity_for_pressed_keys(
+            keys,
+            config,
+            terminal_single_key_arcs=(not state.release_events_supported and bool(config.terminal_single_key_arcs)),
+        )
         if velocity is not None and state.release_events_supported and age <= config.key_state_stale_timeout_s:
             v_mps, omega_radps, reason = velocity
             return build_velocity_payload(
@@ -546,13 +563,19 @@ class _LinuxEvdevKeyboardInput:
 
 
 def print_help(config: TeleopConfig) -> None:
+    terminal_line = (
+        "  Terminal/SSH fallback: A / D alone sends forward rolling arc\n"
+        if config.terminal_single_key_arcs
+        else "  Terminal/SSH fallback disabled: A / D alone uses pivot fallback\n"
+    )
     print(
         "\nUGV manual teleop controls\n"
         "  W: forward while held\n"
         "  S: reverse while held\n"
         "  W+A / W+D: forward rolling arc left/right\n"
         "  S+A / S+D: reverse rolling arc left/right\n"
-        "  A / D: low-speed pivot fallback while held\n"
+        "  A / D: low-speed pivot fallback with real key-release keyboard input\n"
+        f"{terminal_line}"
         "  Space or X: stop\n"
         "  +/-: adjust forward/reverse speed\n"
         "  [/]: adjust arc turn rate by default\n"
@@ -584,6 +607,12 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--speed-step-mps", type=float, default=DEFAULT_SPEED_STEP_MPS)
     parser.add_argument("--turn-step-radps", type=float, default=DEFAULT_TURN_STEP_RADPS)
     parser.add_argument("--arc-min-turn-radius-m", type=float, default=DEFAULT_ARC_MIN_TURN_RADIUS_M)
+    parser.add_argument(
+        "--terminal-single-key-arcs",
+        action=argparse.BooleanOptionalAction,
+        default=DEFAULT_TERMINAL_SINGLE_KEY_ARCS,
+        help="For terminal/SSH input without key-release events, make A/D alone command forward arcs.",
+    )
     parser.add_argument("--allow-pivot-keys", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
         "--adjust-pivot-turn",
@@ -639,6 +668,7 @@ def config_from_args(args: argparse.Namespace) -> TeleopConfig:
             speed_step_mps=float(args.speed_step_mps),
             turn_step_radps=float(args.turn_step_radps),
             arc_min_turn_radius_m=float(args.arc_min_turn_radius_m),
+            terminal_single_key_arcs=bool(args.terminal_single_key_arcs),
             allow_pivot_keys=bool(args.allow_pivot_keys),
             adjust_pivot_turn=bool(args.adjust_pivot_turn),
         )
@@ -657,9 +687,15 @@ def run_teleop(args: argparse.Namespace) -> None:
     last_peer_check_s = 0.0
 
     def publish(payload: Dict[str, Any], *, force: bool = False) -> None:
+        if not rclpy.ok():
+            return
         repeated_velocity = payload.get("command_type") == "velocity" and not bool(args.publish_on_change_only)
         if should_publish(state.last_payload, payload, always_publish=repeated_velocity or force):
-            publisher.publish(String(data=payload_json(payload)))
+            try:
+                publisher.publish(String(data=payload_json(payload)))
+            except Exception as exc:  # pragma: no cover - depends on ROS shutdown timing.
+                print(f"\nManual teleop publish skipped during shutdown: {exc}", file=sys.stderr, flush=True)
+                return
             state.last_payload = dict(payload)
 
     def command_topic_peers() -> List[str]:

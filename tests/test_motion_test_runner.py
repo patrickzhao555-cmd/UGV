@@ -1,4 +1,5 @@
 import json
+import math
 import pathlib
 import sys
 
@@ -14,11 +15,14 @@ from ugv_motion_test_runner import (  # noqa: E402
     build_bag_command,
     build_launch_command,
     builtin_suite,
+    case_run_duration_s,
     case_launch_args,
     compensation_table_draft,
     compute_case_metrics,
+    custom_curve_case,
     custom_pivot_case,
     custom_straight_case,
+    estimate_curve_watchdog_s,
     expected_distance_for_case,
     expand_repeats,
     load_requested_suite,
@@ -41,6 +45,10 @@ def test_builtin_basic_suite_contains_expected_cases():
     assert "straight_hold_015_2s" in ids
     assert "pivot_left_45" in ids
     assert "pivot_right_90" in ids
+    curve_suite = builtin_suite("curve_calibration")
+    curve_ids = {case.id for case in curve_suite.cases}
+    assert "curve_left_R1_90" in curve_ids
+    assert "curve_right_R0p75_90" in curve_ids
 
 
 def test_select_cases_and_expand_repeats():
@@ -81,6 +89,32 @@ def test_custom_suite_file_parsing(tmp_path):
     assert suite.cases[0].expected_angle_deg == pytest.approx(45.0)
 
 
+def test_curve_suite_file_runtime_uses_computed_watchdog(tmp_path):
+    path = tmp_path / "curve_suite.json"
+    path.write_text(
+        json.dumps(
+            {
+                "suite_id": "curve_suite",
+                "cases": [
+                    {
+                        "id": "curve_left_90",
+                        "mode": "curve_test",
+                        "angle_deg": 90,
+                        "expected_angle_deg": 90,
+                        "radius_m": 1.0,
+                        "speed_mps": 0.15,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    case = load_suite_file(path).cases[0]
+    launch_args = case_launch_args(case)
+    assert float(launch_args["nav_curve_timeout_s"]) > 10.0
+    assert case_run_duration_s(case, startup_wait_s=0.0, post_stop_wait_s=0.0) > 11.0
+
+
 def test_launch_command_generation_for_pivot_case():
     case = next(case for case in builtin_suite("basic").cases if case.id == "pivot_right_45")
     args = case_launch_args(case)
@@ -88,6 +122,16 @@ def test_launch_command_generation_for_pivot_case():
     assert command[:4] == ["ros2", "launch", "ugv_sensor_sync", "competition_bringup.launch.py"]
     assert "nav_controller_mode:=pivot_test" in command
     assert "nav_pivot_angle_deg:=-45" in command
+
+
+def test_launch_command_generation_for_curve_case():
+    case = next(case for case in builtin_suite("curve_calibration").cases if case.id == "curve_right_R1_90")
+    args = case_launch_args(case)
+    command = build_launch_command(args)
+    assert "nav_controller_mode:=curve_test" in command
+    assert "nav_curve_direction:=right" in command
+    assert "nav_curve_angle_deg:=90" in command
+    assert "nav_curve_radius_m:=1" in command
 
 
 def test_straight_expected_distance_calculation():
@@ -163,6 +207,29 @@ def test_custom_pivot_case_uses_requested_angle_and_timeout():
     assert case.launch_args["nav_pivot_timeout_s"] == "5.5"
 
 
+def test_custom_curve_case_uses_requested_radius_angle_and_speed():
+    case = custom_curve_case(angle_deg=-90.0, radius_m=0.75, speed_mps=0.16, repeat=2)
+    assert case.mode == "curve_test"
+    assert case.repeat == 2
+    assert case.expected_angle_deg == pytest.approx(-90.0)
+    assert case.expected_distance_m == pytest.approx(0.75 * math.pi / 2.0)
+    assert case.launch_args["nav_curve_direction"] == "right"
+    assert case.launch_args["nav_curve_angle_deg"] == "90"
+    assert case.launch_args["nav_curve_radius_m"] == "0.75"
+    assert case.launch_args["nav_curve_speed_mps"] == "0.16"
+    assert float(case.launch_args["nav_curve_timeout_s"]) > 7.0
+
+
+def test_custom_curve_rejects_invalid_timeout_override():
+    with pytest.raises(ValueError):
+        custom_curve_case(angle_deg=45.0, radius_m=1.0, speed_mps=0.15, max_test_duration_s=-1.0)
+
+
+def test_curve_watchdog_is_computed_from_angle_radius_and_speed():
+    timeout = estimate_curve_watchdog_s(angle_deg=90.0, radius_m=1.0, speed_mps=0.15)
+    assert timeout == pytest.approx((math.pi / 2.0 / 0.15) * 1.6 + 1.5)
+
+
 def test_custom_pivot_case_rejects_angles_outside_supported_shortest_path_range():
     with pytest.raises(ValueError):
         custom_pivot_case(angle_deg=181.0)
@@ -179,6 +246,12 @@ def test_load_requested_suite_builds_custom_cases_from_cli_args():
     assert pivot_suite.suite_id == "custom_pivot"
     assert pivot_suite.cases[0].expected_angle_deg == pytest.approx(45.0)
     assert pivot_suite.cases[0].repeat == 2
+
+    curve_args = parse_args(["--curve-angle-deg", "-90", "--curve-radius-m", "0.75", "--curve-speed-mps", "0.16"])
+    curve_suite = load_requested_suite(curve_args)
+    assert curve_suite.suite_id == "custom_curve"
+    assert curve_suite.cases[0].mode == "curve_test"
+    assert curve_suite.cases[0].expected_angle_deg == pytest.approx(-90.0)
 
     with pytest.raises(ValueError):
         load_requested_suite(parse_args(["--pivot-angle-deg", "45", "--straight-speed-mps", "0.15", "--straight-distance-m", "1.0"]))

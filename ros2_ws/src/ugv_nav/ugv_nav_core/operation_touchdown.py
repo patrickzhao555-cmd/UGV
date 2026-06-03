@@ -259,6 +259,7 @@ def terminal_approach_command(
     heading_kp: float = 0.8,
     max_omega_radps: float = 0.20,
     pivot_heading_error_rad: float = 0.35,
+    min_turn_radius_m: float = 0.75,
     min_speed_mps: float = COMPETITION_MIN_SPEED_MPS,
 ) -> TerminalCommandDecision:
     """Return a legal command for final marker approach.
@@ -282,6 +283,7 @@ def terminal_approach_command(
             heading_kp,
             max_omega_radps,
             pivot_heading_error_rad,
+            min_turn_radius_m,
             min_speed_mps,
         )
     ):
@@ -306,11 +308,10 @@ def terminal_approach_command(
         reason = "destination_reached"
         return TerminalCommandDecision(build_stop_command(reason), True, distance, heading_error, reason)
 
-    omega = max(-float(max_omega_radps), min(float(max_omega_radps), float(heading_kp) * heading_error))
     if abs(heading_error) > max(0.0, float(pivot_heading_error_rad)):
-        reason = "terminal_align_to_marker"
+        reason = "terminal_heading_error_requires_replan"
         return TerminalCommandDecision(
-            build_velocity_command(0.0, omega, reason),
+            build_stop_command(reason),
             False,
             distance,
             heading_error,
@@ -321,6 +322,11 @@ def terminal_approach_command(
     if abs(v_cmd) < MOTION_EPSILON:
         reason = "terminal_forward_speed_invalid"
         return TerminalCommandDecision(build_stop_command(reason), False, distance, heading_error, reason)
+    omega_limit = min(
+        abs(float(max_omega_radps)),
+        abs(v_cmd) / max(1e-6, float(min_turn_radius_m)),
+    )
+    omega = max(-omega_limit, min(omega_limit, float(heading_kp) * heading_error))
     reason = "terminal_approach_marker"
     return TerminalCommandDecision(
         build_velocity_command(v_cmd, omega, reason),

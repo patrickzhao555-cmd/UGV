@@ -20,6 +20,7 @@ from typing import Any, Deque, Dict, Optional, Sequence
 from ugv_nav_core.chassis_controller import (
     ChassisControllerConfig,
     ChassisEstimatorState,
+    CurveControllerState,
     GyroBiasCalibrationState,
     PivotControllerState,
     bounded_duration,
@@ -28,9 +29,12 @@ from ugv_nav_core.chassis_controller import (
     evaluate_safety,
     min_finite_range,
     pivot_encoder_gyro_disagreement,
+    reset_curve,
     reset_gyro_bias_calibration,
     reset_pivot,
+    start_curve,
     start_pivot,
+    step_curve,
     step_profiled_pivot,
     update_encoder_heading,
     update_gyro_bias_calibration,
@@ -110,7 +114,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--mode", choices=["sim", "real"], default="sim")
     parser.add_argument(
         "--controller-mode",
-        choices=["idle", "straight_test", "pivot_test", "mission_sequence"],
+        choices=["idle", "straight_test", "pivot_test", "curve_test", "mission_sequence"],
         default="idle",
     )
     parser.add_argument("--command-topic", default="/ugv_nav_cmd")
@@ -126,6 +130,19 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--straight-speed-mps", type=float, default=0.20)
     parser.add_argument("--straight-duration-s", type=float, default=2.0)
     parser.add_argument("--pivot-angle-deg", type=float, default=90.0)
+    parser.add_argument("--curve-angle-deg", type=float, default=90.0)
+    parser.add_argument("--curve-speed-mps", type=float, default=0.15)
+    parser.add_argument("--curve-radius-m", type=float, default=1.0)
+    parser.add_argument("--curve-omega-radps", type=float, default=0.0)
+    parser.add_argument("--curve-direction", choices=["left", "right"], default="left")
+    parser.add_argument("--arc-min-turn-radius-m", type=float, default=0.75)
+    parser.add_argument("--arc-max-omega-radps", type=float, default=0.45)
+    parser.add_argument("--curve-omega-slew-radps2", type=float, default=0.80)
+    parser.add_argument("--curve-timeout-s", type=float, default=0.0)
+    parser.add_argument("--curve-approach-error-rad", type=float, default=0.25)
+    parser.add_argument("--curve-kp-approach", type=float, default=0.90)
+    parser.add_argument("--curve-kd-yaw-rate", type=float, default=0.08)
+    parser.add_argument("--allow-side-reverse", type=parse_bool, default=False)
     parser.add_argument("--max-omega-radps", type=float, default=0.45)
     parser.add_argument("--heading-kp", type=float, default=0.6)
     parser.add_argument("--heading-kd", type=float, default=0.08)
@@ -197,6 +214,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
             parser.error(f"unsupported navigation arguments: {' '.join(unknown)}")
     if abs(float(args.pivot_angle_deg)) > 180.0:
         parser.error("--pivot-angle-deg supports -180..180 degrees; split larger rotations into multiple pivots")
+    if abs(float(args.curve_angle_deg)) > 180.0:
+        parser.error("--curve-angle-deg supports -180..180 degrees; split larger curves into multiple segments")
     return args
 
 
@@ -205,6 +224,19 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         straight_speed_mps=float(args.straight_speed_mps),
         straight_duration_s=float(args.straight_duration_s),
         pivot_angle_deg=float(args.pivot_angle_deg),
+        curve_angle_deg=float(args.curve_angle_deg),
+        curve_speed_mps=float(args.curve_speed_mps),
+        curve_radius_m=float(args.curve_radius_m),
+        curve_omega_radps=float(args.curve_omega_radps),
+        curve_direction=str(args.curve_direction),
+        arc_min_turn_radius_m=float(args.arc_min_turn_radius_m),
+        arc_max_omega_radps=float(args.arc_max_omega_radps),
+        curve_omega_slew_radps2=float(args.curve_omega_slew_radps2),
+        curve_timeout_s=float(args.curve_timeout_s),
+        curve_approach_error_rad=float(args.curve_approach_error_rad),
+        curve_kp_approach=float(args.curve_kp_approach),
+        curve_kd_yaw_rate=float(args.curve_kd_yaw_rate),
+        allow_side_reverse=bool(args.allow_side_reverse),
         max_omega_radps=float(args.max_omega_radps),
         heading_kp=float(args.heading_kp),
         heading_kd=float(args.heading_kd),
@@ -295,6 +327,7 @@ def run_real(args: argparse.Namespace) -> None:
             self.estimator = ChassisEstimatorState()
             self.gyro_bias = GyroBiasCalibrationState()
             self.pivot = PivotControllerState()
+            self.curve = CurveControllerState()
             self.last_sensor_s: Optional[float] = None
             self.last_imu_s: Optional[float] = None
             self.last_motor_status_s: Optional[float] = None
@@ -476,10 +509,24 @@ def run_real(args: argparse.Namespace) -> None:
             )
             self.target_heading_rad = self.pivot.target_heading_rad
 
+        def _start_curve_if_needed(self, now_s: float) -> None:
+            if self.curve.state != "idle":
+                return
+            self.mode_start_s = now_s
+            start_curve(
+                self.curve,
+                now_s=now_s,
+                current_heading_rad=self.estimator.heading_rad,
+                encoder_heading_rad=self.estimator.encoder_heading_rad,
+                config=self.config,
+            )
+            self.target_heading_rad = self.curve.target_heading_rad
+
         def _reset_test_state(self) -> None:
             self.mode_start_s = None
             self.target_heading_rad = None
             reset_pivot(self.pivot)
+            reset_curve(self.curve)
             self.encoder_gyro_disagreement_rad = 0.0
             self.slip_detected = False
             self.previous_straight_omega_radps = 0.0
@@ -1005,6 +1052,30 @@ def run_real(args: argparse.Namespace) -> None:
                                 cmd = build_velocity_command(0.0, step.omega_radps, step.reason)
                             else:
                                 cmd = build_stop_command(step.reason)
+                        elif self.mode == "curve_test":
+                            self._start_curve_if_needed(now_s)
+                            step = step_curve(
+                                self.curve,
+                                now_s=now_s,
+                                heading_rad=heading,
+                                yaw_rate_radps=self.yaw_rate_radps,
+                                config=self.config,
+                            )
+                            heading_error = step.heading_error_rad
+                            self.target_heading_rad = self.curve.target_heading_rad
+                            self.encoder_gyro_disagreement_rad = pivot_encoder_gyro_disagreement(
+                                pivot_start_gyro_heading_rad=self.curve.start_heading_rad,
+                                pivot_start_encoder_heading_rad=self.curve.start_encoder_heading_rad,
+                                current_gyro_heading_rad=self.estimator.gyro_heading_rad,
+                                current_encoder_heading_rad=self.estimator.encoder_heading_rad,
+                            )
+                            self.slip_detected = (
+                                self.encoder_gyro_disagreement_rad > self.config.slip_disagreement_rad
+                            )
+                            if step.command_type == "velocity":
+                                cmd = build_velocity_command(step.v_mps, step.omega_radps, step.reason)
+                            else:
+                                cmd = build_stop_command(step.reason)
 
             self._publish_command(cmd)
             self._publish_status_if_needed(now_s, heading, heading_error, safety_state)
@@ -1095,6 +1166,13 @@ def run_real(args: argparse.Namespace) -> None:
                 None if self.pivot.state_start_s is None else round(max(0.0, now_s - self.pivot.state_start_s), 3)
             )
             pivot_clearance_known = self.last_scan_ranges is not None and self.pivot_clearance_m is not None
+            curve_state = self.curve.state
+            if self.mode == "curve_test" and safety_state in {
+                "gyro_bias_calibration",
+                "gyro_bias_unstable",
+                "gyro_bias_encoder_motion",
+            }:
+                curve_state = "gyro_bias_calibration"
             return {
                 "nav_runtime": "chassis_controller",
                 "controller_mode": self.mode,
@@ -1136,6 +1214,13 @@ def run_real(args: argparse.Namespace) -> None:
                 "pivot_retry_reason": self.pivot.retry_reason,
                 "pivot_overshoot_rad": self.pivot.overshoot_rad,
                 "pivot_final_error_rad": self.pivot.final_error_rad,
+                "curve_state": curve_state,
+                "curve_target_angle_rad": self.curve.target_angle_rad,
+                "curve_heading_error_rad": self.curve.last_error_rad,
+                "curve_radius_m": self.curve.radius_m,
+                "curve_arc_length_m": self.curve.arc_length_m,
+                "curve_direction": self.curve.direction,
+                "curve_side_reverse_blocked": self.curve.side_reverse_blocked,
                 "v_mps": last_v,
                 "omega_radps": last_omega,
                 "omega_saturated": abs(last_omega) >= max(0.0, omega_limit - 1e-6) and abs(last_omega) > 1e-6,

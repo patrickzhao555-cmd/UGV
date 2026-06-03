@@ -39,16 +39,16 @@
 #include <QuickPID.h>
 #include <Servo.h>
 
-#define ENC_REAR_LEFT_A    24
-#define ENC_REAR_LEFT_B    25
-#define ENC_REAR_RIGHT_A   26
-#define ENC_REAR_RIGHT_B   27
-#define ENC_FRONT_LEFT_A   38
-#define ENC_FRONT_LEFT_B   39
-#define ENC_FRONT_RIGHT_A  36
-#define ENC_FRONT_RIGHT_B  37
-#define PWM_L              34
-#define PWM_R              35
+#define ENC_REAR_LEFT_A    27
+#define ENC_REAR_LEFT_B    26
+#define ENC_REAR_RIGHT_A   31
+#define ENC_REAR_RIGHT_B   30
+#define ENC_FRONT_LEFT_A   25
+#define ENC_FRONT_LEFT_B   24
+#define ENC_FRONT_RIGHT_A  29
+#define ENC_FRONT_RIGHT_B  28
+#define PWM_L              2
+#define PWM_R              3
 
 const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 20;  // 50 Hz
 const unsigned long STATUS_INTERVAL_MS = 50;   // 20 Hz

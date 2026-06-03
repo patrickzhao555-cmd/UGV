@@ -105,6 +105,17 @@ class FieldBoundaryDecision:
     reason: str = "ok"
 
 
+@dataclass(frozen=True)
+class RollingArcLimitResult:
+    command: VelocityCommand
+    side_reverse_blocked: bool = False
+    omega_clamped: bool = False
+    left_mps: float = 0.0
+    right_mps: float = 0.0
+    omega_limit_radps: float = 0.0
+    reason: str = "ok"
+
+
 def build_stop_command(reason: str, *, controller: str = "ugv_nav2_adapter") -> VelocityCommand:
     return VelocityCommand(
         command_type="stop",
@@ -177,6 +188,105 @@ def nav_command_from_twist(
         )
     reason = "nav2_cmd_vel" if abs(v_cmd - raw_v) < 1e-9 else "nav2_cmd_vel_speed_clamped"
     return build_velocity_command(v_cmd, raw_omega, reason, controller=controller)
+
+
+def side_speeds_for_chassis(v_mps: float, omega_radps: float, *, track_width_m: float) -> tuple[float, float]:
+    """Return left/right side speeds for the project's differential velocity convention."""
+    half_track = 0.5 * max(1e-9, float(track_width_m))
+    v = float(v_mps)
+    omega = float(omega_radps)
+    return v - omega * half_track, v + omega * half_track
+
+
+def limit_rolling_arc_command(
+    command: VelocityCommand,
+    *,
+    track_width_m: float,
+    min_turn_radius_m: float,
+    max_omega_radps: Optional[float] = None,
+    allow_side_reverse: bool = False,
+    controller: str = "ugv_nav2_adapter",
+) -> RollingArcLimitResult:
+    """Constrain velocity commands to rolling arcs before autonomous motor output.
+
+    With ``allow_side_reverse=False`` the command must keep both sides rolling in
+    the same translational direction.  Pure pivot commands are therefore blocked
+    in autonomous Nav2, while normal forward arcs are allowed or gently angular-
+    rate limited to the configured minimum turn radius.
+    """
+    if command.command_type != "velocity":
+        left, right = side_speeds_for_chassis(command.v_mps, command.omega_radps, track_width_m=max(1e-9, float(track_width_m)))
+        return RollingArcLimitResult(command=command, left_mps=left, right_mps=right)
+
+    v = float(command.v_mps)
+    omega = float(command.omega_radps)
+    track = float(track_width_m)
+    radius = float(min_turn_radius_m)
+    max_omega = None if max_omega_radps is None else float(max_omega_radps)
+    finite_values = [v, omega, track, radius]
+    if max_omega is not None:
+        finite_values.append(max_omega)
+    if not all(math.isfinite(value) for value in finite_values) or track <= 0.0 or radius <= 0.0:
+        stop = build_stop_command("invalid_arc_params", controller=controller)
+        return RollingArcLimitResult(command=stop, side_reverse_blocked=True, reason="invalid_arc_params")
+
+    left, right = side_speeds_for_chassis(v, omega, track_width_m=track)
+    if abs(omega) < MOTION_EPSILON:
+        return RollingArcLimitResult(command=command, left_mps=left, right_mps=right, reason="ok")
+
+    if allow_side_reverse:
+        omega_limit = abs(max_omega) if max_omega is not None else abs(omega)
+    else:
+        if abs(v) < MOTION_EPSILON:
+            stop = build_stop_command("side_reverse_blocked", controller=controller)
+            return RollingArcLimitResult(
+                command=stop,
+                side_reverse_blocked=True,
+                left_mps=left,
+                right_mps=right,
+                reason="side_reverse_blocked",
+            )
+        omega_limit = min(abs(v) / radius, 2.0 * abs(v) / track)
+        if max_omega is not None:
+            omega_limit = min(omega_limit, abs(max_omega))
+
+    if omega_limit < MOTION_EPSILON:
+        stop = build_stop_command("side_reverse_blocked", controller=controller)
+        return RollingArcLimitResult(
+            command=stop,
+            side_reverse_blocked=True,
+            left_mps=left,
+            right_mps=right,
+            omega_limit_radps=omega_limit,
+            reason="side_reverse_blocked",
+        )
+
+    clamped_omega = max(-omega_limit, min(omega_limit, omega))
+    clamped = abs(clamped_omega - omega) > 1e-9
+    out = command
+    if clamped:
+        out = build_velocity_command(v, clamped_omega, "rolling_arc_omega_clamped", controller=command.controller)
+        left, right = side_speeds_for_chassis(v, clamped_omega, track_width_m=track)
+
+    if not allow_side_reverse and left * right < -1e-9:
+        stop = build_stop_command("side_reverse_blocked", controller=controller)
+        return RollingArcLimitResult(
+            command=stop,
+            side_reverse_blocked=True,
+            left_mps=left,
+            right_mps=right,
+            omega_limit_radps=omega_limit,
+            reason="side_reverse_blocked",
+        )
+
+    return RollingArcLimitResult(
+        command=out,
+        omega_clamped=clamped,
+        left_mps=left,
+        right_mps=right,
+        omega_limit_radps=omega_limit,
+        reason="rolling_arc_omega_clamped" if clamped else "ok",
+    )
 
 
 def evaluate_gyro_bias_samples(

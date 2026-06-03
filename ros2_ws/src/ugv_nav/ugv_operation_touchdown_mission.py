@@ -71,6 +71,7 @@ class OperationTouchdownMissionNode(Node):
         self.declare_parameter("marker_lost_timeout_s", 0.75)
         self.declare_parameter("marker_search_timeout_s", 6.0)
         self.declare_parameter("coordinate_arrival_marker_search_s", 2.0)
+        self.declare_parameter("terminal_replan_max_attempts", 2)
         self.declare_parameter("status_period_s", 0.25)
         self.declare_parameter("terminal_control_period_s", 0.05)
 
@@ -108,6 +109,7 @@ class OperationTouchdownMissionNode(Node):
             0.0,
             float(self.get_parameter("coordinate_arrival_marker_search_s").value),
         )
+        self.terminal_replan_max_attempts = max(0, int(self.get_parameter("terminal_replan_max_attempts").value))
         self.status_period_s = max(0.05, float(self.get_parameter("status_period_s").value))
         self.terminal_control_period_s = max(0.02, float(self.get_parameter("terminal_control_period_s").value))
 
@@ -130,6 +132,7 @@ class OperationTouchdownMissionNode(Node):
         self.goal_handle = None
         self.goal_sequence = 0
         self.nav2_goal_cancel_requested = False
+        self.terminal_replan_count = 0
         self.kill_switch_active = False
         self.last_status_publish_s = 0.0
         self.last_terminal_command = {"v_mps": 0.0, "omega_radps": 0.0, "reason": "startup"}
@@ -192,6 +195,7 @@ class OperationTouchdownMissionNode(Node):
         self.nav2_goal_sent = False
         self.goal_handle = None
         self.nav2_goal_cancel_requested = False
+        self.terminal_replan_count = 0
         self._set_state("plan_to_staging", "uav_target_received")
 
     def marker_callback(self, msg: PointStamped) -> None:
@@ -465,8 +469,24 @@ class OperationTouchdownMissionNode(Node):
             self._set_state("abort", "marker_lost")
             self._publish_stop("marker_lost")
             return
+        if decision.command.command_type == "stop" and decision.reason == "terminal_heading_error_requires_replan":
+            self._request_terminal_replan(decision.reason)
+            return
         self.visual_marker_used_for_motion = marker_fresh and decision.command.command_type == "velocity"
         self._publish_velocity(decision.command.v_mps, decision.command.omega_radps, decision.reason)
+
+    def _request_terminal_replan(self, reason: str) -> None:
+        self.visual_marker_used_for_motion = False
+        self._publish_velocity(0.0, 0.0, reason)
+        if self.terminal_replan_count >= self.terminal_replan_max_attempts:
+            self._set_state("abort", "terminal_replan_limit_exceeded")
+            return
+        self.terminal_replan_count += 1
+        self.staging_pose = None
+        self.nav2_goal_sent = False
+        self.goal_handle = None
+        self.nav2_goal_cancel_requested = False
+        self._set_state("plan_to_staging", reason)
 
     def _marker_fresh(self, now_s: float) -> bool:
         return self.last_marker_s is not None and now_s - self.last_marker_s <= self.marker_lost_timeout_s
@@ -532,6 +552,8 @@ class OperationTouchdownMissionNode(Node):
             "coordinate_arrival_marker_search_s": self.coordinate_arrival_marker_search_s,
             "last_marker_reject_reason": self.last_marker_reject_reason,
             "visual_marker_used_for_motion": self.visual_marker_used_for_motion,
+            "terminal_replan_count": self.terminal_replan_count,
+            "terminal_replan_max_attempts": self.terminal_replan_max_attempts,
             "last_terminal_command": self.last_terminal_command,
             "kill_switch_active": self.kill_switch_active,
             "costmap_available": self.latest_grid is not None,

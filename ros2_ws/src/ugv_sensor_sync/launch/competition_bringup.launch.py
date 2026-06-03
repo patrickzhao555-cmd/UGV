@@ -70,6 +70,19 @@ def generate_launch_description():
     nav_straight_speed_mps = LaunchConfiguration("nav_straight_speed_mps")
     nav_straight_duration_s = LaunchConfiguration("nav_straight_duration_s")
     nav_pivot_angle_deg = LaunchConfiguration("nav_pivot_angle_deg")
+    nav_curve_angle_deg = LaunchConfiguration("nav_curve_angle_deg")
+    nav_curve_speed_mps = LaunchConfiguration("nav_curve_speed_mps")
+    nav_curve_radius_m = LaunchConfiguration("nav_curve_radius_m")
+    nav_curve_omega_radps = LaunchConfiguration("nav_curve_omega_radps")
+    nav_curve_direction = LaunchConfiguration("nav_curve_direction")
+    nav_arc_min_turn_radius_m = LaunchConfiguration("nav_arc_min_turn_radius_m")
+    nav_arc_max_omega_radps = LaunchConfiguration("nav_arc_max_omega_radps")
+    nav_curve_omega_slew_radps2 = LaunchConfiguration("nav_curve_omega_slew_radps2")
+    nav_curve_timeout_s = LaunchConfiguration("nav_curve_timeout_s")
+    nav_curve_approach_error_rad = LaunchConfiguration("nav_curve_approach_error_rad")
+    nav_curve_kp_approach = LaunchConfiguration("nav_curve_kp_approach")
+    nav_curve_kd_yaw_rate = LaunchConfiguration("nav_curve_kd_yaw_rate")
+    nav_allow_side_reverse = LaunchConfiguration("nav_allow_side_reverse")
     nav_max_omega_radps = LaunchConfiguration("nav_max_omega_radps")
     nav_heading_kp = LaunchConfiguration("nav_heading_kp")
     nav_heading_kd = LaunchConfiguration("nav_heading_kd")
@@ -205,6 +218,32 @@ def generate_launch_description():
             nav_straight_duration_s,
             "--pivot-angle-deg",
             nav_pivot_angle_deg,
+            "--curve-angle-deg",
+            nav_curve_angle_deg,
+            "--curve-speed-mps",
+            nav_curve_speed_mps,
+            "--curve-radius-m",
+            nav_curve_radius_m,
+            "--curve-omega-radps",
+            nav_curve_omega_radps,
+            "--curve-direction",
+            nav_curve_direction,
+            "--arc-min-turn-radius-m",
+            nav_arc_min_turn_radius_m,
+            "--arc-max-omega-radps",
+            nav_arc_max_omega_radps,
+            "--curve-omega-slew-radps2",
+            nav_curve_omega_slew_radps2,
+            "--curve-timeout-s",
+            nav_curve_timeout_s,
+            "--curve-approach-error-rad",
+            nav_curve_approach_error_rad,
+            "--curve-kp-approach",
+            nav_curve_kp_approach,
+            "--curve-kd-yaw-rate",
+            nav_curve_kd_yaw_rate,
+            "--allow-side-reverse",
+            nav_allow_side_reverse,
             "--max-omega-radps",
             nav_max_omega_radps,
             "--heading-kp",
@@ -375,6 +414,19 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_straight_speed_mps", default_value="0.20"),
             DeclareLaunchArgument("nav_straight_duration_s", default_value="2.0"),
             DeclareLaunchArgument("nav_pivot_angle_deg", default_value="90.0"),
+            DeclareLaunchArgument("nav_curve_angle_deg", default_value="90.0"),
+            DeclareLaunchArgument("nav_curve_speed_mps", default_value="0.15"),
+            DeclareLaunchArgument("nav_curve_radius_m", default_value="1.0"),
+            DeclareLaunchArgument("nav_curve_omega_radps", default_value="0.0"),
+            DeclareLaunchArgument("nav_curve_direction", default_value="left"),
+            DeclareLaunchArgument("nav_arc_min_turn_radius_m", default_value="0.75"),
+            DeclareLaunchArgument("nav_arc_max_omega_radps", default_value="0.45"),
+            DeclareLaunchArgument("nav_curve_omega_slew_radps2", default_value="0.80"),
+            DeclareLaunchArgument("nav_curve_timeout_s", default_value="0.0"),
+            DeclareLaunchArgument("nav_curve_approach_error_rad", default_value="0.25"),
+            DeclareLaunchArgument("nav_curve_kp_approach", default_value="0.90"),
+            DeclareLaunchArgument("nav_curve_kd_yaw_rate", default_value="0.08"),
+            DeclareLaunchArgument("nav_allow_side_reverse", default_value="false"),
             DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
             DeclareLaunchArgument("nav_heading_kp", default_value="0.6"),
             DeclareLaunchArgument("nav_heading_kd", default_value="0.08"),

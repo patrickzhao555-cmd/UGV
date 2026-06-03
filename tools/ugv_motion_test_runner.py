@@ -35,6 +35,10 @@ BAG_TOPICS = (
 )
 LAUNCH_PACKAGE = "ugv_sensor_sync"
 LAUNCH_FILE = "competition_bringup.launch.py"
+DEFAULT_COMPETITION_MIN_SPEED_MPS = 0.089408
+DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
+DEFAULT_ARC_MAX_OMEGA_RADPS = 0.45
+DEFAULT_TRACK_WIDTH_M = 0.416
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,32 @@ def _fmt_float(value: float) -> str:
     return f"{float(value):.6g}"
 
 
+def estimate_curve_watchdog_s(
+    *,
+    angle_deg: float,
+    radius_m: float,
+    speed_mps: float,
+    min_turn_radius_m: float = DEFAULT_ARC_MIN_TURN_RADIUS_M,
+    max_omega_radps: float = DEFAULT_ARC_MAX_OMEGA_RADPS,
+    track_width_m: float = DEFAULT_TRACK_WIDTH_M,
+    competition_min_speed_mps: float = DEFAULT_COMPETITION_MIN_SPEED_MPS,
+) -> float:
+    angle_rad = abs(math.radians(float(angle_deg)))
+    if angle_rad <= 1e-9:
+        return 3.0
+    speed = max(abs(float(speed_mps)), max(0.0, float(competition_min_speed_mps)))
+    radius = max(abs(float(radius_m)), max(1e-6, float(min_turn_radius_m)))
+    omega_abs = min(
+        speed / radius,
+        max(0.0, float(max_omega_radps)),
+        2.0 * speed / max(1e-6, float(track_width_m)),
+    )
+    if omega_abs <= 1e-9:
+        return 3.0
+    nominal_s = angle_rad / omega_abs
+    return max(4.0, nominal_s * 1.6 + 1.5)
+
+
 def parse_optional_float(text: str) -> Optional[float]:
     value = str(text).strip()
     if not value or value.lower() in {"skip", "n/a", "na", "none"}:
@@ -97,7 +127,7 @@ def parse_launch_arg_list(values: Sequence[str]) -> dict[str, str]:
 def validate_case(case: MotionTestCase) -> None:
     if not case.id or any(ch.isspace() for ch in case.id):
         raise ValueError(f"invalid case id {case.id!r}")
-    if case.mode not in {"idle", "straight_test", "pivot_test", "mission_sequence"}:
+    if case.mode not in {"idle", "straight_test", "pivot_test", "curve_test", "mission_sequence"}:
         raise ValueError(f"case {case.id}: unsupported mode {case.mode!r}")
     if case.repeat < 1:
         raise ValueError(f"case {case.id}: repeat must be >= 1")
@@ -109,6 +139,12 @@ def validate_case(case: MotionTestCase) -> None:
     if case.mode == "pivot_test":
         if case.expected_angle_deg is None or abs(case.expected_angle_deg) < 1e-9:
             raise ValueError(f"case {case.id}: pivot_test requires non-zero expected_angle_deg")
+    if case.mode == "curve_test":
+        if case.expected_angle_deg is None or abs(case.expected_angle_deg) < 1e-9:
+            raise ValueError(f"case {case.id}: curve_test requires non-zero expected_angle_deg")
+        radius = float(case.launch_args.get("nav_curve_radius_m", 0.0) or 0.0)
+        if radius <= 0.0:
+            raise ValueError(f"case {case.id}: curve_test requires positive nav_curve_radius_m")
     if case.mode == "mission_sequence":
         if not isinstance(case.mission, dict):
             raise ValueError(f"case {case.id}: mission_sequence requires mission")
@@ -160,6 +196,35 @@ def _pivot_test_case(angle_deg: float) -> MotionTestCase:
             "nav_pivot_angle_deg": _fmt_float(angle_deg),
             "nav_max_test_duration_s": "6.0",
             "nav_pivot_timeout_s": "4.0",
+        },
+    )
+
+
+def _curve_test_case(*, angle_deg: float, radius_m: float, speed_mps: float = 0.15) -> MotionTestCase:
+    side = "left" if angle_deg > 0.0 else "right"
+    abs_angle = int(abs(angle_deg))
+    radius_token = _sanitize_case_token(radius_m, "")
+    case_id = f"curve_{side}_R{radius_token}_{abs_angle}"
+    arc_length_m = abs(float(radius_m) * math.radians(float(angle_deg)))
+    watchdog_s = estimate_curve_watchdog_s(angle_deg=angle_deg, radius_m=radius_m, speed_mps=speed_mps)
+    return MotionTestCase(
+        id=case_id,
+        mode="curve_test",
+        description=(
+            f"Rolling arc {side} {abs_angle} deg at R={radius_m:.2f} m; "
+            "preferred heavy-load turn calibration."
+        ),
+        expected_distance_m=arc_length_m,
+        expected_angle_deg=float(angle_deg),
+        speed_mps=float(speed_mps),
+        max_case_duration_s=watchdog_s + 1.0,
+        launch_args={
+            "nav_curve_angle_deg": _fmt_float(abs(angle_deg)),
+            "nav_curve_direction": side,
+            "nav_curve_radius_m": _fmt_float(radius_m),
+            "nav_curve_speed_mps": _fmt_float(speed_mps),
+            "nav_curve_timeout_s": _fmt_float(watchdog_s),
+            "nav_max_test_duration_s": _fmt_float(watchdog_s),
         },
     )
 
@@ -298,6 +363,54 @@ def custom_pivot_case(
     )
 
 
+def custom_curve_case(
+    *,
+    angle_deg: float,
+    radius_m: float,
+    speed_mps: float,
+    case_id: Optional[str] = None,
+    repeat: int = 1,
+    max_test_duration_s: Optional[float] = None,
+) -> MotionTestCase:
+    angle = float(angle_deg)
+    radius = float(radius_m)
+    speed = float(speed_mps)
+    if not math.isfinite(angle) or abs(angle) < 1e-9:
+        raise ValueError("--curve-angle-deg must be a non-zero finite angle")
+    if abs(angle) > 180.0:
+        raise ValueError("--curve-angle-deg supports -180..180; split larger curves into multiple tests")
+    if not math.isfinite(radius) or radius <= 0.0:
+        raise ValueError("--curve-radius-m must be > 0")
+    if not math.isfinite(speed) or speed <= 0.0:
+        raise ValueError("--curve-speed-mps must be > 0")
+    if max_test_duration_s is not None and (
+        not math.isfinite(float(max_test_duration_s)) or float(max_test_duration_s) <= 0.0
+    ):
+        raise ValueError("--custom-curve-max-test-duration-s must be > 0 when provided")
+    if repeat < 1:
+        raise ValueError("--custom-repeat must be >= 1")
+    base = _curve_test_case(angle_deg=angle, radius_m=radius, speed_mps=speed)
+    if case_id is None:
+        side = "left" if angle > 0.0 else "right"
+        case_id = "custom_curve_" + side + "_R" + _sanitize_case_token(radius, "") + "_" + _sanitize_case_token(abs(angle), "deg")
+    launch_args = dict(base.launch_args)
+    watchdog_s = (
+        float(max_test_duration_s)
+        if max_test_duration_s is not None
+        else estimate_curve_watchdog_s(angle_deg=angle, radius_m=radius, speed_mps=speed)
+    )
+    launch_args["nav_curve_timeout_s"] = _fmt_float(watchdog_s)
+    launch_args["nav_max_test_duration_s"] = _fmt_float(watchdog_s)
+    return replace(
+        base,
+        id=case_id,
+        repeat=int(repeat),
+        max_case_duration_s=watchdog_s + 1.0,
+        launch_args=launch_args,
+        description=f"Custom rolling arc: {angle:.3f} deg at R={radius:.3f} m and {speed:.3f} m/s.",
+    )
+
+
 def builtin_suite(name: str) -> MotionTestSuite:
     suite_id = str(name).strip().lower()
     if suite_id == "basic":
@@ -347,6 +460,17 @@ def builtin_suite(name: str) -> MotionTestSuite:
         cases.append(replace(_pivot_test_case(-45.0), id="pivot_right_45_repeat_3", repeat=3))
         return MotionTestSuite(suite_id="pivot_calibration", cases=tuple(cases))
 
+    if suite_id == "curve_calibration":
+        cases = [
+            _curve_test_case(angle_deg=45.0, radius_m=1.0),
+            _curve_test_case(angle_deg=-45.0, radius_m=1.0),
+            _curve_test_case(angle_deg=90.0, radius_m=1.0),
+            _curve_test_case(angle_deg=-90.0, radius_m=1.0),
+            _curve_test_case(angle_deg=90.0, radius_m=0.75),
+            _curve_test_case(angle_deg=-90.0, radius_m=0.75),
+        ]
+        return MotionTestSuite(suite_id="curve_calibration", cases=tuple(cases))
+
     if suite_id == "mission_smoke":
         cases = [
             _mission_case(
@@ -391,7 +515,7 @@ def builtin_suite(name: str) -> MotionTestSuite:
 
 
 def load_suite_file(path: Path) -> MotionTestSuite:
-    data = json.loads(path.expanduser().read_text(encoding="utf-8"))
+    data = json.loads(path.expanduser().read_text(encoding="utf-8-sig"))
     if not isinstance(data, dict):
         raise ValueError("suite file root must be an object")
     suite_id = str(data.get("suite_id") or path.stem).strip() or path.stem
@@ -407,6 +531,17 @@ def load_suite_file(path: Path) -> MotionTestSuite:
         if not case_id or not mode:
             raise ValueError(f"case {index} requires id and mode")
         launch_args = {str(k): str(v) for k, v in dict(item.get("launch_args") or {}).items()}
+        if mode == "curve_test":
+            angle = _maybe_float(item.get("expected_angle_deg", item.get("angle_deg")))
+            radius = _maybe_float(item.get("radius_m"))
+            speed = _maybe_float(item.get("speed_mps"))
+            if angle is not None:
+                launch_args.setdefault("nav_curve_angle_deg", _fmt_float(abs(angle)))
+                launch_args.setdefault("nav_curve_direction", "left" if angle >= 0.0 else "right")
+            if radius is not None:
+                launch_args.setdefault("nav_curve_radius_m", _fmt_float(radius))
+            if speed is not None:
+                launch_args.setdefault("nav_curve_speed_mps", _fmt_float(speed))
         case = MotionTestCase(
             id=case_id,
             mode=mode,
@@ -486,11 +621,38 @@ def case_launch_args(case: MotionTestCase, *, case_dir: Optional[Path] = None) -
         args.setdefault("nav_pivot_angle_deg", _fmt_float(case.expected_angle_deg or 90.0))
         args.setdefault("nav_max_test_duration_s", "6.0")
         args.setdefault("nav_pivot_timeout_s", "4.0")
+    elif case.mode == "curve_test":
+        angle = float(case.expected_angle_deg or 90.0)
+        args.setdefault("nav_curve_angle_deg", _fmt_float(abs(angle)))
+        args.setdefault("nav_curve_direction", "left" if angle >= 0.0 else "right")
+        args.setdefault("nav_curve_radius_m", "1.0")
+        args.setdefault("nav_curve_speed_mps", _fmt_float(case.speed_mps or 0.15))
+        radius = float(args.get("nav_curve_radius_m", 1.0))
+        speed = float(args.get("nav_curve_speed_mps", case.speed_mps or 0.15))
+        watchdog_s = estimate_curve_watchdog_s(angle_deg=angle, radius_m=radius, speed_mps=speed)
+        args.setdefault("nav_curve_timeout_s", _fmt_float(watchdog_s))
+        args.setdefault("nav_max_test_duration_s", _fmt_float(watchdog_s))
     elif case.mode == "mission_sequence":
         if case_dir is not None:
             mission_path = write_case_mission_file(case, case_dir)
             args["nav_mission_file"] = str(mission_path)
     return args
+
+
+def estimated_curve_case_duration_s(case: MotionTestCase) -> float:
+    if case.mode != "curve_test":
+        return 8.0
+    args = case_launch_args(case)
+    angle = float(case.expected_angle_deg or args.get("nav_curve_angle_deg", 90.0))
+    radius = float(args.get("nav_curve_radius_m", 1.0))
+    speed = float(args.get("nav_curve_speed_mps", case.speed_mps or 0.15))
+    raw_timeout = float(args.get("nav_curve_timeout_s", 0.0) or 0.0)
+    watchdog_s = (
+        raw_timeout
+        if raw_timeout > 0.0
+        else estimate_curve_watchdog_s(angle_deg=angle, radius_m=radius, speed_mps=speed)
+    )
+    return watchdog_s + 1.0
 
 
 def write_case_mission_file(case: MotionTestCase, case_dir: Path) -> Path:
@@ -528,6 +690,8 @@ def case_run_duration_s(case: MotionTestCase, *, startup_wait_s: float, post_sto
             active_s = (case.duration_s or 2.0) + 2.0
         elif case.mode == "pivot_test":
             active_s = 6.5
+        elif case.mode == "curve_test":
+            active_s = estimated_curve_case_duration_s(case)
         elif case.mode == "mission_sequence" and case.mission:
             active_s = estimate_mission_duration_s(case.mission)
         else:
@@ -619,6 +783,9 @@ def compute_case_metrics(
     pivot_final_error_rad = _last_float(status_records, "pivot_final_error_rad")
     pivot_overshoot_rad = _last_float(status_records, "pivot_overshoot_rad")
     pivot_retry_count = _last_float(status_records, "pivot_retry_count")
+    curve_heading_error_rad = _last_float(status_records, "curve_heading_error_rad")
+    curve_radius_m = _last_float(status_records, "curve_radius_m")
+    curve_arc_length_m = _last_float(status_records, "curve_arc_length_m")
     omega_limit = _last_float(status_records, "max_omega_radps")
     omega_max_abs = max(_max_abs(status_records, "omega_cmd_radps"), _max_abs(cmd_records, "omega_radps"))
     omega_saturated_samples = sum(1 for record in status_records if bool(record.get("omega_saturated", False)))
@@ -628,6 +795,8 @@ def compute_case_metrics(
     estimated_angle_deg = None
     if expected_angle_deg is not None and pivot_final_error_rad is not None:
         estimated_angle_deg = float(expected_angle_deg) - math.degrees(float(pivot_final_error_rad))
+    elif expected_angle_deg is not None and curve_heading_error_rad is not None:
+        estimated_angle_deg = float(expected_angle_deg) - math.degrees(float(curve_heading_error_rad))
     metrics: dict[str, Any] = {
         "expected_distance_m": expected_distance_m,
         "encoder_distance_m": encoder_distance_m,
@@ -661,6 +830,12 @@ def compute_case_metrics(
         if pivot_overshoot_rad is None
         else math.degrees(float(pivot_overshoot_rad)),
         "pivot_retry_count": pivot_retry_count,
+        "curve_heading_error_rad": curve_heading_error_rad,
+        "curve_heading_error_deg": None
+        if curve_heading_error_rad is None
+        else math.degrees(float(curve_heading_error_rad)),
+        "curve_radius_m": curve_radius_m,
+        "curve_arc_length_m": curve_arc_length_m,
         "omega_max_abs_radps": omega_max_abs,
         "omega_saturation_percent": 0.0
         if not status_records
@@ -738,6 +913,9 @@ def write_summary_files(suite_dir: Path, suite_id: str, case_results: Sequence[d
         "estimated_angle_deg",
         "pivot_final_error_deg",
         "pivot_overshoot_deg",
+        "curve_radius_m",
+        "curve_arc_length_m",
+        "curve_heading_error_deg",
         "omega_saturation_percent",
         "motion_rule_violation_count",
         "critical_status_count",
@@ -974,7 +1152,7 @@ def run_case(
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--suite", default="basic", help="Built-in suite: basic, pivot_calibration, mission_smoke")
+    parser.add_argument("--suite", default="basic", help="Built-in suite: basic, pivot_calibration, curve_calibration, mission_smoke")
     parser.add_argument("--suite-file", help="Path to a custom JSON suite")
     parser.add_argument("--case", action="append", default=[], help="Run only this case id; can be repeated")
     parser.add_argument("--straight-speed-mps", type=float, help="Create a one-off custom straight test at this speed")
@@ -985,10 +1163,19 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--straight-max-omega-radps", type=float, default=0.15)
     parser.add_argument("--straight-open-loop", action="store_true", help="Disable heading correction for a custom straight test")
     parser.add_argument("--pivot-angle-deg", type=float, help="Create a one-off custom pivot_test; CCW/left is positive")
-    parser.add_argument("--custom-case-id", help="Optional id for a custom straight/pivot case")
-    parser.add_argument("--custom-repeat", type=int, default=1, help="Repeat count for a custom straight/pivot case")
+    parser.add_argument("--curve-angle-deg", type=float, help="Create a one-off custom curve_test; CCW/left is positive")
+    parser.add_argument("--curve-radius-m", type=float, default=1.0)
+    parser.add_argument("--curve-speed-mps", type=float, default=0.15)
+    parser.add_argument("--custom-case-id", help="Optional id for a custom straight/pivot/curve case")
+    parser.add_argument("--custom-repeat", type=int, default=1, help="Repeat count for a custom straight/pivot/curve case")
     parser.add_argument("--custom-pivot-max-test-duration-s", type=float, default=6.0)
     parser.add_argument("--custom-pivot-timeout-s", type=float, default=4.0)
+    parser.add_argument(
+        "--custom-curve-max-test-duration-s",
+        type=float,
+        default=None,
+        help="Optional curve watchdog override; default is computed from angle/radius/speed.",
+    )
     parser.add_argument("--yes", action="store_true", help="Run without interactive pre-case prompts or manual measurements")
     parser.add_argument("--record-bag", action="store_true", help="Also run ros2 bag record for key topics")
     parser.add_argument("--output-dir", default="~/.ros/ugv_motion_tests")
@@ -1011,13 +1198,15 @@ def _has_custom_straight_args(args: argparse.Namespace) -> bool:
 def load_requested_suite(args: argparse.Namespace) -> MotionTestSuite:
     has_custom_straight = _has_custom_straight_args(args)
     has_custom_pivot = args.pivot_angle_deg is not None
-    if has_custom_straight or has_custom_pivot:
-        if has_custom_straight and has_custom_pivot:
-            raise ValueError("custom straight and custom pivot options cannot be used together")
+    has_custom_curve = args.curve_angle_deg is not None
+    if has_custom_straight or has_custom_pivot or has_custom_curve:
+        custom_count = sum(1 for enabled in (has_custom_straight, has_custom_pivot, has_custom_curve) if enabled)
+        if custom_count > 1:
+            raise ValueError("custom straight, pivot, and curve options cannot be combined")
         if args.suite_file:
-            raise ValueError("--suite-file cannot be combined with custom straight/pivot options")
+            raise ValueError("--suite-file cannot be combined with custom straight/pivot/curve options")
         if args.case:
-            raise ValueError("--case cannot be combined with custom straight/pivot options")
+            raise ValueError("--case cannot be combined with custom straight/pivot/curve options")
         if has_custom_straight:
             case = custom_straight_case(
                 speed_mps=float(args.straight_speed_mps) if args.straight_speed_mps is not None else 0.0,
@@ -1031,14 +1220,28 @@ def load_requested_suite(args: argparse.Namespace) -> MotionTestSuite:
                 repeat=int(args.custom_repeat),
             )
             return MotionTestSuite(suite_id="custom_straight", cases=(case,))
-        case = custom_pivot_case(
-            angle_deg=float(args.pivot_angle_deg),
+        if has_custom_pivot:
+            case = custom_pivot_case(
+                angle_deg=float(args.pivot_angle_deg),
+                case_id=args.custom_case_id,
+                repeat=int(args.custom_repeat),
+                max_test_duration_s=float(args.custom_pivot_max_test_duration_s),
+                pivot_timeout_s=float(args.custom_pivot_timeout_s),
+            )
+            return MotionTestSuite(suite_id="custom_pivot", cases=(case,))
+        case = custom_curve_case(
+            angle_deg=float(args.curve_angle_deg),
+            radius_m=float(args.curve_radius_m),
+            speed_mps=float(args.curve_speed_mps),
             case_id=args.custom_case_id,
             repeat=int(args.custom_repeat),
-            max_test_duration_s=float(args.custom_pivot_max_test_duration_s),
-            pivot_timeout_s=float(args.custom_pivot_timeout_s),
+            max_test_duration_s=(
+                None
+                if args.custom_curve_max_test_duration_s is None
+                else float(args.custom_curve_max_test_duration_s)
+            ),
         )
-        return MotionTestSuite(suite_id="custom_pivot", cases=(case,))
+        return MotionTestSuite(suite_id="custom_curve", cases=(case,))
     if args.suite_file:
         return load_suite_file(Path(args.suite_file))
     return builtin_suite(args.suite)

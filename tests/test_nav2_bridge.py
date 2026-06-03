@@ -22,8 +22,10 @@ from ugv_nav_core.nav2_bridge import (  # noqa: E402
     field_boundary_decision,
     integrate_planar_odometry,
     inverse_transform_2d,
+    limit_rolling_arc_command,
     map_to_odom_from_pose,
     nav_command_from_twist,
+    side_speeds_for_chassis,
     target_units_scale,
     select_imu_timing_step,
     validate_field_target,
@@ -62,6 +64,41 @@ def test_nav2_cmd_vel_clamps_sub_min_translation_but_allows_pivot_in_place():
     assert pivot.v_mps == pytest.approx(0.0)
     assert pivot.omega_radps == pytest.approx(0.2)
     assert pivot.motion_rule_ok
+
+
+def test_rolling_arc_gate_blocks_autonomous_pivot_and_side_reverse():
+    pivot = nav_command_from_twist(linear_x_mps=0.0, angular_z_radps=0.2)
+    result = limit_rolling_arc_command(
+        pivot,
+        track_width_m=0.416,
+        min_turn_radius_m=0.75,
+        max_omega_radps=0.45,
+        allow_side_reverse=False,
+    )
+    assert result.command.command_type == "stop"
+    assert result.command.reason == "side_reverse_blocked"
+    assert result.side_reverse_blocked
+
+    aggressive = nav_command_from_twist(linear_x_mps=0.15, angular_z_radps=2.0)
+    limited = limit_rolling_arc_command(
+        aggressive,
+        track_width_m=0.416,
+        min_turn_radius_m=0.75,
+        max_omega_radps=0.45,
+        allow_side_reverse=False,
+    )
+    assert limited.command.command_type == "velocity"
+    assert limited.command.reason == "rolling_arc_omega_clamped"
+    assert limited.omega_clamped
+    assert limited.command.omega_radps == pytest.approx(0.15 / 0.75)
+    assert limited.left_mps > 0.0
+    assert limited.right_mps > 0.0
+
+
+def test_side_speed_helper_uses_project_chassis_convention():
+    left, right = side_speeds_for_chassis(0.15, 0.2, track_width_m=0.416)
+    assert left == pytest.approx(0.15 - 0.2 * 0.416 / 2.0)
+    assert right == pytest.approx(0.15 + 0.2 * 0.416 / 2.0)
 
 
 def test_nav2_cmd_vel_rejects_unsupported_lateral_motion_and_allows_stop():

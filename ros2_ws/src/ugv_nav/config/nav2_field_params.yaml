@@ -70,7 +70,7 @@ controller_server:
       approach_velocity_scaling_dist: 0.6
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 1.0
-      use_rotate_to_heading: true
+      use_rotate_to_heading: false
       allow_reversing: false
       max_angular_accel: 0.8
 

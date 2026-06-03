@@ -29,15 +29,18 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 DEFAULT_COMMAND_TOPIC = "/ugv_nav_cmd"
 DEFAULT_FORWARD_MPS = 0.15
 DEFAULT_REVERSE_MPS = 0.10
-DEFAULT_TURN_RADPS = 0.35
+DEFAULT_ARC_TURN_RADPS = 0.45
+DEFAULT_PIVOT_TURN_RADPS = 0.75
 DEFAULT_MAX_FORWARD_MPS = 0.30
 DEFAULT_MAX_REVERSE_MPS = 0.15
-DEFAULT_MAX_TURN_RADPS = 0.60
+DEFAULT_MAX_ARC_TURN_RADPS = 0.90
+DEFAULT_MAX_PIVOT_TURN_RADPS = 1.20
 DEFAULT_PUBLISH_HZ = 20.0
 DEFAULT_DEADMAN_TIMEOUT_S = 0.75
 DEFAULT_KEY_STATE_STALE_TIMEOUT_S = 2.0
 DEFAULT_SPEED_STEP_MPS = 0.02
-DEFAULT_TURN_STEP_RADPS = 0.05
+DEFAULT_TURN_STEP_RADPS = 0.10
+DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
 MIN_PUBLISH_HZ = 1.0
 MAX_PUBLISH_HZ = 50.0
 MIN_DEADMAN_TIMEOUT_S = 0.05
@@ -70,15 +73,23 @@ class TeleopConfig:
     command_topic: str = DEFAULT_COMMAND_TOPIC
     forward_mps: float = DEFAULT_FORWARD_MPS
     reverse_mps: float = DEFAULT_REVERSE_MPS
-    turn_radps: float = DEFAULT_TURN_RADPS
+    arc_turn_radps: float = DEFAULT_ARC_TURN_RADPS
+    pivot_turn_radps: float = DEFAULT_PIVOT_TURN_RADPS
     max_forward_mps: float = DEFAULT_MAX_FORWARD_MPS
     max_reverse_mps: float = DEFAULT_MAX_REVERSE_MPS
-    max_turn_radps: float = DEFAULT_MAX_TURN_RADPS
+    max_arc_turn_radps: float = DEFAULT_MAX_ARC_TURN_RADPS
+    max_pivot_turn_radps: float = DEFAULT_MAX_PIVOT_TURN_RADPS
     publish_hz: float = DEFAULT_PUBLISH_HZ
     deadman_timeout_s: float = DEFAULT_DEADMAN_TIMEOUT_S
     key_state_stale_timeout_s: float = DEFAULT_KEY_STATE_STALE_TIMEOUT_S
     speed_step_mps: float = DEFAULT_SPEED_STEP_MPS
     turn_step_radps: float = DEFAULT_TURN_STEP_RADPS
+    arc_min_turn_radius_m: float = DEFAULT_ARC_MIN_TURN_RADIUS_M
+    allow_pivot_keys: bool = True
+    adjust_pivot_turn: bool = False
+    # Backwards-compatible CLI/test aliases.  If provided, they configure arc turns.
+    turn_radps: Optional[float] = None
+    max_turn_radps: Optional[float] = None
     controller: str = "ugv_manual_teleop"
 
 
@@ -127,10 +138,14 @@ def clamp(value: float, low: float, high: float) -> float:
 def normalized_config(config: TeleopConfig) -> TeleopConfig:
     max_forward = abs(finite_float(config.max_forward_mps, name="max_forward_mps"))
     max_reverse = abs(finite_float(config.max_reverse_mps, name="max_reverse_mps"))
-    max_turn = abs(finite_float(config.max_turn_radps, name="max_turn_radps"))
+    raw_max_arc = config.max_turn_radps if config.max_turn_radps is not None else config.max_arc_turn_radps
+    max_arc_turn = abs(finite_float(raw_max_arc, name="max_arc_turn_radps"))
+    max_pivot_turn = abs(finite_float(config.max_pivot_turn_radps, name="max_pivot_turn_radps"))
+    raw_arc_turn = config.turn_radps if config.turn_radps is not None else config.arc_turn_radps
     forward = min(abs(finite_float(config.forward_mps, name="forward_mps")), max_forward)
     reverse = min(abs(finite_float(config.reverse_mps, name="reverse_mps")), max_reverse)
-    turn = min(abs(finite_float(config.turn_radps, name="turn_radps")), max_turn)
+    arc_turn = min(abs(finite_float(raw_arc_turn, name="arc_turn_radps")), max_arc_turn)
+    pivot_turn = min(abs(finite_float(config.pivot_turn_radps, name="pivot_turn_radps")), max_pivot_turn)
     publish_hz = clamp(finite_float(config.publish_hz, name="publish_hz"), MIN_PUBLISH_HZ, MAX_PUBLISH_HZ)
     timeout = max(MIN_DEADMAN_TIMEOUT_S, finite_float(config.deadman_timeout_s, name="deadman_timeout_s"))
     stale_timeout = max(
@@ -139,19 +154,25 @@ def normalized_config(config: TeleopConfig) -> TeleopConfig:
     )
     speed_step = max(0.0, finite_float(config.speed_step_mps, name="speed_step_mps"))
     turn_step = max(0.0, finite_float(config.turn_step_radps, name="turn_step_radps"))
+    arc_radius = max(1e-6, finite_float(config.arc_min_turn_radius_m, name="arc_min_turn_radius_m"))
     return replace(
         config,
         forward_mps=forward,
         reverse_mps=reverse,
-        turn_radps=turn,
+        arc_turn_radps=arc_turn,
+        pivot_turn_radps=pivot_turn,
         max_forward_mps=max_forward,
         max_reverse_mps=max_reverse,
-        max_turn_radps=max_turn,
+        max_arc_turn_radps=max_arc_turn,
+        max_pivot_turn_radps=max_pivot_turn,
         publish_hz=publish_hz,
         deadman_timeout_s=timeout,
         key_state_stale_timeout_s=stale_timeout,
         speed_step_mps=speed_step,
         turn_step_radps=turn_step,
+        arc_min_turn_radius_m=arc_radius,
+        turn_radps=arc_turn,
+        max_turn_radps=max_arc_turn,
     )
 
 
@@ -162,9 +183,53 @@ def velocity_for_key(key: str, config: TeleopConfig) -> Optional[Tuple[float, fl
     if key == "s":
         return -config.reverse_mps, 0.0, "manual_reverse"
     if key == "a":
-        return 0.0, config.turn_radps, "manual_pivot_left"
+        if not config.allow_pivot_keys:
+            return None
+        return 0.0, config.pivot_turn_radps, "manual_pivot_left"
     if key == "d":
-        return 0.0, -config.turn_radps, "manual_pivot_right"
+        if not config.allow_pivot_keys:
+            return None
+        return 0.0, -config.pivot_turn_radps, "manual_pivot_right"
+    return None
+
+
+def _last_matching(keys: Iterable[str], candidates: set[str]) -> Optional[str]:
+    selected: Optional[str] = None
+    for key in keys:
+        lower = str(key).lower()
+        if lower in candidates:
+            selected = lower
+    return selected
+
+
+def arc_omega_for_speed(v_mps: float, requested_omega_radps: float, config: TeleopConfig) -> float:
+    speed = abs(float(v_mps))
+    if speed <= 1e-9:
+        return 0.0
+    radius_limit = speed / max(1e-6, float(config.arc_min_turn_radius_m))
+    omega_abs = min(abs(float(requested_omega_radps)), abs(float(config.max_arc_turn_radps)), radius_limit)
+    return math.copysign(omega_abs, float(requested_omega_radps))
+
+
+def velocity_for_pressed_keys(keys: Iterable[str], config: TeleopConfig) -> Optional[Tuple[float, float, str]]:
+    ordered = [str(key).lower() for key in keys if str(key).lower() in MOTION_KEYS]
+    if not ordered:
+        return None
+    linear_key = _last_matching(ordered, {"w", "s"})
+    turn_key = _last_matching(ordered, {"a", "d"})
+    if linear_key is not None:
+        v_mps = config.forward_mps if linear_key == "w" else -config.reverse_mps
+        if turn_key is None:
+            return (v_mps, 0.0, "manual_forward" if linear_key == "w" else "manual_reverse")
+        requested_omega = config.arc_turn_radps if turn_key == "a" else -config.arc_turn_radps
+        omega = arc_omega_for_speed(v_mps, requested_omega, config)
+        if linear_key == "w":
+            reason = "manual_arc_left" if turn_key == "a" else "manual_arc_right"
+        else:
+            reason = "manual_reverse_arc_left" if turn_key == "a" else "manual_reverse_arc_right"
+        return v_mps, omega, reason
+    if turn_key is not None and config.allow_pivot_keys:
+        return velocity_for_key(turn_key, config)
     return None
 
 
@@ -203,7 +268,8 @@ def payload_for_state(state: TeleopState, config: TeleopConfig, now_s: float) ->
     state.sequence += 1
     if state.active_key and state.last_motion_time_s is not None:
         age = max(0.0, float(now_s) - float(state.last_motion_time_s))
-        velocity = velocity_for_key(state.active_key, config)
+        keys = state.pressed_motion_keys if state.pressed_motion_keys else [state.active_key]
+        velocity = velocity_for_pressed_keys(keys, config)
         if velocity is not None and state.release_events_supported and age <= config.key_state_stale_timeout_s:
             v_mps, omega_radps, reason = velocity
             return build_velocity_payload(
@@ -257,11 +323,24 @@ def apply_key_action(key: str, config: TeleopConfig) -> KeyAction:
         )
         return KeyAction("config", "speed_down", normalized_config(updated))
     if lower == "]":
-        updated = replace(config, turn_radps=min(config.max_turn_radps, config.turn_radps + config.turn_step_radps))
-        return KeyAction("config", "turn_up", normalized_config(updated))
+        if config.adjust_pivot_turn:
+            updated = replace(
+                config,
+                pivot_turn_radps=min(config.max_pivot_turn_radps, config.pivot_turn_radps + config.turn_step_radps),
+            )
+            return KeyAction("config", "pivot_turn_up", normalized_config(updated))
+        updated = replace(
+            config,
+            arc_turn_radps=min(config.max_arc_turn_radps, config.arc_turn_radps + config.turn_step_radps),
+            turn_radps=None,
+        )
+        return KeyAction("config", "arc_turn_up", normalized_config(updated))
     if lower == "[":
-        updated = replace(config, turn_radps=max(0.0, config.turn_radps - config.turn_step_radps))
-        return KeyAction("config", "turn_down", normalized_config(updated))
+        if config.adjust_pivot_turn:
+            updated = replace(config, pivot_turn_radps=max(0.0, config.pivot_turn_radps - config.turn_step_radps))
+            return KeyAction("config", "pivot_turn_down", normalized_config(updated))
+        updated = replace(config, arc_turn_radps=max(0.0, config.arc_turn_radps - config.turn_step_radps), turn_radps=None)
+        return KeyAction("config", "arc_turn_down", normalized_config(updated))
     if lower in QUIT_KEYS:
         return KeyAction("quit", "quit", config)
     if lower in STOP_KEYS:
@@ -471,16 +550,19 @@ def print_help(config: TeleopConfig) -> None:
         "\nUGV manual teleop controls\n"
         "  W: forward while held\n"
         "  S: reverse while held\n"
-        "  A: pivot left while held\n"
-        "  D: pivot right while held\n"
+        "  W+A / W+D: forward rolling arc left/right\n"
+        "  S+A / S+D: reverse rolling arc left/right\n"
+        "  A / D: low-speed pivot fallback while held\n"
         "  Space or X: stop\n"
         "  +/-: adjust forward/reverse speed\n"
-        "  [/]: adjust turn rate\n"
+        "  [/]: adjust arc turn rate by default\n"
         "  Q or Esc: quit, sending STOP\n"
         f"\nCurrent: forward={config.forward_mps:.3f} m/s, reverse={config.reverse_mps:.3f} m/s, "
-        f"turn={config.turn_radps:.3f} rad/s\n"
+        f"arc={config.arc_turn_radps:.3f} rad/s, pivot={config.pivot_turn_radps:.3f} rad/s\n"
         f"Limits: forward<={config.max_forward_mps:.3f}, reverse<={config.max_reverse_mps:.3f}, "
-        f"turn<={config.max_turn_radps:.3f}; terminal deadman={config.deadman_timeout_s:.2f}s\n",
+        f"arc<={config.max_arc_turn_radps:.3f}, pivot<={config.max_pivot_turn_radps:.3f}; "
+        f"arc_min_radius={config.arc_min_turn_radius_m:.2f}m; "
+        f"terminal deadman={config.deadman_timeout_s:.2f}s\n",
         flush=True,
     )
 
@@ -490,15 +572,24 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--command-topic", default=DEFAULT_COMMAND_TOPIC)
     parser.add_argument("--forward-mps", type=float, default=DEFAULT_FORWARD_MPS)
     parser.add_argument("--reverse-mps", type=float, default=DEFAULT_REVERSE_MPS)
-    parser.add_argument("--turn-radps", type=float, default=DEFAULT_TURN_RADPS)
+    parser.add_argument("--arc-turn-radps", "--turn-radps", dest="arc_turn_radps", type=float, default=DEFAULT_ARC_TURN_RADPS)
+    parser.add_argument("--pivot-turn-radps", type=float, default=DEFAULT_PIVOT_TURN_RADPS)
     parser.add_argument("--max-forward-mps", type=float, default=DEFAULT_MAX_FORWARD_MPS)
     parser.add_argument("--max-reverse-mps", type=float, default=DEFAULT_MAX_REVERSE_MPS)
-    parser.add_argument("--max-turn-radps", type=float, default=DEFAULT_MAX_TURN_RADPS)
+    parser.add_argument("--max-arc-turn-radps", "--max-turn-radps", dest="max_arc_turn_radps", type=float, default=DEFAULT_MAX_ARC_TURN_RADPS)
+    parser.add_argument("--max-pivot-turn-radps", type=float, default=DEFAULT_MAX_PIVOT_TURN_RADPS)
     parser.add_argument("--publish-hz", type=float, default=DEFAULT_PUBLISH_HZ)
     parser.add_argument("--deadman-timeout-s", type=float, default=DEFAULT_DEADMAN_TIMEOUT_S)
     parser.add_argument("--key-state-stale-timeout-s", type=float, default=DEFAULT_KEY_STATE_STALE_TIMEOUT_S)
     parser.add_argument("--speed-step-mps", type=float, default=DEFAULT_SPEED_STEP_MPS)
     parser.add_argument("--turn-step-radps", type=float, default=DEFAULT_TURN_STEP_RADPS)
+    parser.add_argument("--arc-min-turn-radius-m", type=float, default=DEFAULT_ARC_MIN_TURN_RADIUS_M)
+    parser.add_argument("--allow-pivot-keys", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--adjust-pivot-turn",
+        action="store_true",
+        help="Debug mode: make [/ ] adjust pivot fallback rate instead of arc rate.",
+    )
     parser.add_argument(
         "--input-backend",
         choices=sorted(INPUT_BACKENDS),
@@ -536,15 +627,20 @@ def config_from_args(args: argparse.Namespace) -> TeleopConfig:
             command_topic=str(args.command_topic),
             forward_mps=float(args.forward_mps),
             reverse_mps=float(args.reverse_mps),
-            turn_radps=float(args.turn_radps),
+            arc_turn_radps=float(args.arc_turn_radps),
+            pivot_turn_radps=float(args.pivot_turn_radps),
             max_forward_mps=float(args.max_forward_mps),
             max_reverse_mps=float(args.max_reverse_mps),
-            max_turn_radps=float(args.max_turn_radps),
+            max_arc_turn_radps=float(args.max_arc_turn_radps),
+            max_pivot_turn_radps=float(args.max_pivot_turn_radps),
             publish_hz=float(args.publish_hz),
             deadman_timeout_s=float(args.deadman_timeout_s),
             key_state_stale_timeout_s=float(args.key_state_stale_timeout_s),
             speed_step_mps=float(args.speed_step_mps),
             turn_step_radps=float(args.turn_step_radps),
+            arc_min_turn_radius_m=float(args.arc_min_turn_radius_m),
+            allow_pivot_keys=bool(args.allow_pivot_keys),
+            adjust_pivot_turn=bool(args.adjust_pivot_turn),
         )
     )
 
@@ -628,8 +724,9 @@ def run_teleop(args: argparse.Namespace) -> None:
                     elif action.action_type == "config":
                         print(
                             f"\rforward={config.forward_mps:.3f} m/s reverse={config.reverse_mps:.3f} m/s "
-                            f"turn={config.turn_radps:.3f} rad/s "
-                            f"(limits {config.max_forward_mps:.2f}/{config.max_reverse_mps:.2f}/{config.max_turn_radps:.2f})   ",
+                            f"arc={config.arc_turn_radps:.3f} rad/s pivot={config.pivot_turn_radps:.3f} rad/s "
+                            f"(limits {config.max_forward_mps:.2f}/{config.max_reverse_mps:.2f}/"
+                            f"{config.max_arc_turn_radps:.2f}/{config.max_pivot_turn_radps:.2f})   ",
                             end="",
                             flush=True,
                         )

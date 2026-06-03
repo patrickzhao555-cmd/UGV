@@ -14,6 +14,19 @@ class ChassisControllerConfig:
     straight_speed_mps: float = 0.20
     straight_duration_s: float = 2.0
     pivot_angle_deg: float = 90.0
+    curve_angle_deg: float = 90.0
+    curve_speed_mps: float = 0.15
+    curve_radius_m: float = 1.0
+    curve_omega_radps: float = 0.0
+    curve_direction: str = "left"
+    arc_min_turn_radius_m: float = 0.75
+    arc_max_omega_radps: float = 0.45
+    curve_omega_slew_radps2: float = 0.80
+    curve_timeout_s: float = 0.0
+    curve_approach_error_rad: float = 0.25
+    curve_kp_approach: float = 0.90
+    curve_kd_yaw_rate: float = 0.08
+    allow_side_reverse: bool = False
     max_omega_radps: float = 0.45
     heading_kp: float = 0.6
     heading_kd: float = 0.08
@@ -140,6 +153,36 @@ class PivotControllerState:
 @dataclass(frozen=True)
 class PivotStepResult:
     command_type: str
+    omega_radps: float
+    reason: str
+    state: str
+    heading_error_rad: float
+    complete: bool = False
+
+
+@dataclass
+class CurveControllerState:
+    state: str = "idle"
+    state_start_s: Optional[float] = None
+    motion_start_s: Optional[float] = None
+    target_heading_rad: Optional[float] = None
+    start_heading_rad: float = 0.0
+    start_encoder_heading_rad: float = 0.0
+    last_update_s: Optional[float] = None
+    previous_omega_radps: float = 0.0
+    last_error_rad: float = 0.0
+    direction: str = "none"
+    target_angle_rad: float = 0.0
+    radius_m: float = 0.0
+    arc_length_m: float = 0.0
+    side_reverse_blocked: bool = False
+    complete: bool = False
+
+
+@dataclass(frozen=True)
+class CurveStepResult:
+    command_type: str
+    v_mps: float
     omega_radps: float
     reason: str
     state: str
@@ -611,6 +654,147 @@ def step_profiled_pivot(
     reason = f"pivot_{state.state}"
     state.last_command_reason = reason
     return PivotStepResult("velocity", omega, reason, state.state, error)
+
+
+def reset_curve(state: CurveControllerState) -> None:
+    state.state = "idle"
+    state.state_start_s = None
+    state.motion_start_s = None
+    state.target_heading_rad = None
+    state.start_heading_rad = 0.0
+    state.start_encoder_heading_rad = 0.0
+    state.last_update_s = None
+    state.previous_omega_radps = 0.0
+    state.last_error_rad = 0.0
+    state.direction = "none"
+    state.target_angle_rad = 0.0
+    state.radius_m = 0.0
+    state.arc_length_m = 0.0
+    state.side_reverse_blocked = False
+    state.complete = False
+
+
+def curve_speed_radius_omega(config: ChassisControllerConfig) -> Tuple[float, float, float]:
+    speed = max(abs(float(config.curve_speed_mps)), max(0.0, float(config.competition_min_speed_mps)))
+    radius = max(float(config.arc_min_turn_radius_m), abs(float(config.curve_radius_m)), 1e-6)
+    requested_omega_abs = (
+        abs(float(config.curve_omega_radps))
+        if abs(float(config.curve_omega_radps)) > 1e-9
+        else speed / radius
+    )
+    omega_limit = min(
+        max(0.0, float(config.max_omega_radps)),
+        max(0.0, float(config.arc_max_omega_radps)),
+        speed / radius,
+    )
+    if not bool(config.allow_side_reverse):
+        omega_limit = min(omega_limit, 2.0 * speed / max(1e-6, float(config.track_width_m)))
+    return speed, radius, min(requested_omega_abs, omega_limit)
+
+
+def estimate_curve_timeout_s(config: ChassisControllerConfig) -> float:
+    target_angle = abs(_curve_target_angle_rad(config))
+    if target_angle <= 1e-9:
+        return 1.0
+    _, _, omega_abs = curve_speed_radius_omega(config)
+    if omega_abs <= 1e-9:
+        return 1.0
+    nominal_s = target_angle / omega_abs
+    return max(3.0, nominal_s * 1.6 + 1.5)
+
+
+def _curve_target_angle_rad(config: ChassisControllerConfig) -> float:
+    requested = math.radians(float(config.curve_angle_deg))
+    if abs(requested) < 1e-9:
+        return 0.0
+    direction = str(config.curve_direction).strip().lower()
+    sign = -1.0 if direction in {"right", "cw", "negative"} else 1.0
+    if direction in {"left", "ccw", "positive", "right", "cw", "negative"}:
+        return sign * abs(requested)
+    return requested
+
+
+def start_curve(
+    state: CurveControllerState,
+    *,
+    now_s: float,
+    current_heading_rad: float,
+    encoder_heading_rad: float,
+    config: ChassisControllerConfig,
+) -> None:
+    target_angle = _curve_target_angle_rad(config)
+    state.state = "arc"
+    state.state_start_s = float(now_s)
+    state.motion_start_s = float(now_s)
+    state.start_heading_rad = float(current_heading_rad)
+    state.start_encoder_heading_rad = float(encoder_heading_rad)
+    state.target_angle_rad = target_angle
+    state.target_heading_rad = wrap_pi(float(current_heading_rad) + target_angle)
+    state.last_update_s = float(now_s)
+    state.previous_omega_radps = 0.0
+    state.last_error_rad = target_angle
+    state.direction = "left" if target_angle >= 0.0 else "right"
+    radius = max(float(config.arc_min_turn_radius_m), abs(float(config.curve_radius_m)))
+    state.radius_m = radius
+    state.arc_length_m = radius * abs(target_angle)
+    state.side_reverse_blocked = False
+    state.complete = False
+
+
+def step_curve(
+    state: CurveControllerState,
+    *,
+    now_s: float,
+    heading_rad: float,
+    yaw_rate_radps: float = 0.0,
+    config: ChassisControllerConfig,
+) -> CurveStepResult:
+    if state.target_heading_rad is None or state.state in {"idle", "complete", "abort"}:
+        return CurveStepResult("stop", 0.0, 0.0, "curve_idle", state.state, state.last_error_rad, state.complete)
+
+    error = wrap_pi(float(state.target_heading_rad) - float(heading_rad))
+    state.last_error_rad = error
+    sign = 1.0 if state.target_angle_rad >= 0.0 else -1.0
+    if abs(error) <= max(0.0, float(config.heading_deadband_rad)) or error * sign < 0.0:
+        state.state = "complete"
+        state.complete = True
+        state.previous_omega_radps = 0.0
+        return CurveStepResult("stop", 0.0, 0.0, "curve_test_complete", state.state, error, True)
+
+    motion_start_s = float(state.motion_start_s) if state.motion_start_s is not None else float(now_s)
+    timeout_s = float(config.curve_timeout_s) if float(config.curve_timeout_s) > 0.0 else estimate_curve_timeout_s(config)
+    if float(now_s) - motion_start_s > max(0.0, timeout_s):
+        state.state = "abort"
+        state.previous_omega_radps = 0.0
+        return CurveStepResult("stop", 0.0, 0.0, "curve_timeout", state.state, error, False)
+
+    speed, radius, omega_limit = curve_speed_radius_omega(config)
+    state.radius_m = radius
+    state.arc_length_m = radius * abs(state.target_angle_rad)
+    if omega_limit <= 1e-9:
+        state.state = "abort"
+        state.side_reverse_blocked = True
+        state.previous_omega_radps = 0.0
+        return CurveStepResult("stop", 0.0, 0.0, "curve_side_reverse_blocked", state.state, error, False)
+
+    if abs(error) <= max(0.0, float(config.curve_approach_error_rad)):
+        state.state = "approach"
+        omega_target = (
+            float(config.curve_kp_approach) * error
+            - float(config.curve_kd_yaw_rate) * float(yaw_rate_radps)
+        )
+        omega_target = clamp(omega_target, -omega_limit, omega_limit)
+        reason = "curve_approach"
+    else:
+        state.state = "arc"
+        omega_target = sign * omega_limit
+        reason = "curve_arc"
+    dt_s = 0.0 if state.last_update_s is None else clamp(float(now_s) - state.last_update_s, 0.0, 0.1)
+    state.last_update_s = float(now_s)
+    max_delta = max(0.0, float(config.curve_omega_slew_radps2)) * max(0.0, dt_s)
+    omega = slew_limit(state.previous_omega_radps, omega_target, max_delta)
+    state.previous_omega_radps = omega
+    return CurveStepResult("velocity", speed, omega, reason, state.state, error, False)
 
 
 def min_finite_range(ranges: Iterable[float]) -> Optional[float]:

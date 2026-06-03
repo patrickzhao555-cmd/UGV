@@ -67,6 +67,10 @@ def generate_launch_description():
     initial_yaw_deg = LaunchConfiguration("initial_yaw_deg")
     competition_min_speed_mps = LaunchConfiguration("competition_min_speed_mps")
     allow_reverse = LaunchConfiguration("allow_reverse")
+    track_width_m = LaunchConfiguration("track_width_m")
+    arc_min_turn_radius_m = LaunchConfiguration("arc_min_turn_radius_m")
+    arc_max_omega_radps = LaunchConfiguration("arc_max_omega_radps")
+    allow_side_reverse = LaunchConfiguration("allow_side_reverse")
     field_boundary_prediction_time_s = LaunchConfiguration("field_boundary_prediction_time_s")
     uav_target_input_mode = LaunchConfiguration("uav_target_input_mode")
     uav_esp_serial_port = LaunchConfiguration("uav_esp_serial_port")
@@ -86,6 +90,7 @@ def generate_launch_description():
     terminal_forward_speed_mps = LaunchConfiguration("terminal_forward_speed_mps")
     marker_target_gate_radius_m = LaunchConfiguration("marker_target_gate_radius_m")
     coordinate_arrival_marker_search_s = LaunchConfiguration("coordinate_arrival_marker_search_s")
+    terminal_replan_max_attempts = LaunchConfiguration("terminal_replan_max_attempts")
     lidar_x_m = LaunchConfiguration("lidar_x_m")
     lidar_y_m = LaunchConfiguration("lidar_y_m")
     lidar_z_m = LaunchConfiguration("lidar_z_m")
@@ -208,6 +213,14 @@ def generate_launch_description():
             "-p",
             ["allow_reverse:=", allow_reverse],
             "-p",
+            ["track_width_m:=", track_width_m],
+            "-p",
+            ["arc_min_turn_radius_m:=", arc_min_turn_radius_m],
+            "-p",
+            ["arc_max_omega_radps:=", arc_max_omega_radps],
+            "-p",
+            ["allow_side_reverse:=", allow_side_reverse],
+            "-p",
             ["field_width_m:=", field_width_m],
             "-p",
             ["field_height_m:=", field_height_m],
@@ -299,6 +312,8 @@ def generate_launch_description():
             ["marker_target_gate_radius_m:=", marker_target_gate_radius_m],
             "-p",
             ["coordinate_arrival_marker_search_s:=", coordinate_arrival_marker_search_s],
+            "-p",
+            ["terminal_replan_max_attempts:=", terminal_replan_max_attempts],
             "-p",
             ["cmd_vel_topic:=", mission_cmd_vel_topic],
         ],
@@ -477,6 +492,10 @@ def generate_launch_description():
             DeclareLaunchArgument("initial_yaw_deg", default_value="0.0"),
             DeclareLaunchArgument("competition_min_speed_mps", default_value="0.089408"),
             DeclareLaunchArgument("allow_reverse", default_value="false"),
+            DeclareLaunchArgument("track_width_m", default_value="0.416"),
+            DeclareLaunchArgument("arc_min_turn_radius_m", default_value="0.75"),
+            DeclareLaunchArgument("arc_max_omega_radps", default_value="0.45"),
+            DeclareLaunchArgument("allow_side_reverse", default_value="false"),
             DeclareLaunchArgument("field_boundary_prediction_time_s", default_value="0.75"),
             DeclareLaunchArgument("uav_target_input_mode", default_value="serial"),
             DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1"),
@@ -496,6 +515,7 @@ def generate_launch_description():
             DeclareLaunchArgument("terminal_forward_speed_mps", default_value="0.10"),
             DeclareLaunchArgument("marker_target_gate_radius_m", default_value="2.274"),
             DeclareLaunchArgument("coordinate_arrival_marker_search_s", default_value="2.0"),
+            DeclareLaunchArgument("terminal_replan_max_attempts", default_value="2"),
             DeclareLaunchArgument("lidar_x_m", default_value="0.0"),
             DeclareLaunchArgument("lidar_y_m", default_value="0.0"),
             DeclareLaunchArgument("lidar_z_m", default_value="0.18"),

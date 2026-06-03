@@ -153,17 +153,17 @@ def test_terminal_approach_command_never_emits_sub_min_forward_speed():
     assert decision.command.motion_rule_ok
 
 
-def test_terminal_approach_pivots_for_large_heading_error_and_stops_when_lost():
-    pivot = terminal_approach_command(
+def test_terminal_approach_holds_for_large_heading_error_and_stops_when_lost():
+    hold = terminal_approach_command(
         robot_pose=Transform2D(0.0, 0.0, 0.0),
         marker_x_m=0.0,
         marker_y_m=2.0,
         marker_fresh=True,
     )
-    assert pivot.command.command_type == "velocity"
-    assert pivot.command.v_mps == pytest.approx(0.0)
-    assert abs(pivot.command.omega_radps) > 0.0
-    assert pivot.reason == "terminal_align_to_marker"
+    assert hold.command.command_type == "stop"
+    assert hold.command.v_mps == pytest.approx(0.0)
+    assert hold.command.omega_radps == pytest.approx(0.0)
+    assert hold.reason == "terminal_heading_error_requires_replan"
 
     lost = terminal_approach_command(
         robot_pose=Transform2D(0.0, 0.0, 0.0),
@@ -199,6 +199,7 @@ def test_nav2_launch_defaults_to_mission_supervisor_and_aruco_not_direct_goal_br
     assert 'DeclareLaunchArgument("zed_publish_image", default_value="true")' in launch_text
     assert 'DeclareLaunchArgument("marker_target_gate_radius_m", default_value="2.274")' in launch_text
     assert 'DeclareLaunchArgument("coordinate_arrival_marker_search_s", default_value="2.0")' in launch_text
+    assert 'DeclareLaunchArgument("terminal_replan_max_attempts", default_value="2")' in launch_text
 
 
 def test_mission_supervisor_does_not_publish_stop_while_nav2_owns_cmd_vel_raw():
@@ -286,6 +287,8 @@ def test_mission_supervisor_makes_coordinate_radius_a_hard_terminal_stop():
     assert terminal_step.index("if coordinate_decision.destination_reached:") < terminal_step.index(
         "terminal_approach_command("
     )
+    assert "_request_terminal_replan(decision.reason)" in terminal_step
+    assert "terminal_replan_limit_exceeded" in mission_text
     assert '"coordinate_distance_to_target_m"' in mission_text
     assert '"coordinate_destination_reached"' in mission_text
     assert '"visual_marker_used_for_motion"' in mission_text

@@ -18,9 +18,11 @@ from ugv_sensor_sync.msg import NavSensorFrame
 
 from ugv_nav_core.nav2_bridge import (
     FieldBounds,
+    RollingArcLimitResult,
     VelocityCommand,
     build_stop_command,
     field_boundary_decision,
+    limit_rolling_arc_command,
     nav_command_from_twist,
 )
 from ugv_nav_core.safety_status import motor_fault_reason
@@ -56,6 +58,10 @@ class Nav2AdapterNode(Node):
         self.declare_parameter("field_boundary_margin_m", 0.45)
         self.declare_parameter("field_boundary_prediction_time_s", 0.75)
         self.declare_parameter("require_field_bounds", True)
+        self.declare_parameter("track_width_m", 0.416)
+        self.declare_parameter("arc_min_turn_radius_m", 0.75)
+        self.declare_parameter("arc_max_omega_radps", 0.45)
+        self.declare_parameter("allow_side_reverse", False)
 
         self.cmd_vel_topic = str(self.get_parameter("cmd_vel_topic").value)
         self.command_topic = str(self.get_parameter("command_topic").value)
@@ -89,8 +95,13 @@ class Nav2AdapterNode(Node):
             float(self.get_parameter("field_boundary_prediction_time_s").value),
         )
         self.require_field_bounds = bool(self.get_parameter("require_field_bounds").value)
+        self.track_width_m = max(1e-6, float(self.get_parameter("track_width_m").value))
+        self.arc_min_turn_radius_m = max(1e-6, float(self.get_parameter("arc_min_turn_radius_m").value))
+        self.arc_max_omega_radps = max(0.0, float(self.get_parameter("arc_max_omega_radps").value))
+        self.allow_side_reverse = bool(self.get_parameter("allow_side_reverse").value)
 
         self.latest_cmd: VelocityCommand = build_stop_command("startup")
+        self.latest_arc_result: RollingArcLimitResult = RollingArcLimitResult(command=self.latest_cmd)
         self.last_cmd_vel_s: Optional[float] = None
         self.last_nav_frame_s: Optional[float] = None
         self.last_imu_s: Optional[float] = None
@@ -102,6 +113,8 @@ class Nav2AdapterNode(Node):
         self.near_obstacle = False
         self.last_published_payload: dict[str, Any] = self.latest_cmd.to_payload()
         self.sub_min_speed_command_blocked = 0
+        self.arc_omega_clamped_count = 0
+        self.side_reverse_blocked_count = 0
         self.kill_switch_active = False
         self.last_kill_switch_s: Optional[float] = None
 
@@ -119,7 +132,8 @@ class Nav2AdapterNode(Node):
             "Nav2 adapter started: /cmd_vel -> /ugv_nav_cmd "
             f"(cmd_vel={self.cmd_vel_topic}, command={self.command_topic}, "
             f"min_speed={self.competition_min_speed_mps:.6f} m/s, "
-            f"allow_reverse={self.allow_reverse}, boundary_gate={self.require_field_bounds})"
+            f"allow_reverse={self.allow_reverse}, allow_side_reverse={self.allow_side_reverse}, "
+            f"arc_radius>={self.arc_min_turn_radius_m:.2f} m, boundary_gate={self.require_field_bounds})"
         )
 
     def _now_s(self) -> float:
@@ -135,7 +149,19 @@ class Nav2AdapterNode(Node):
         )
         if command.reason == "nav2_cmd_vel_speed_clamped":
             self.sub_min_speed_command_blocked += 1
-        self.latest_cmd = command
+        arc_result = limit_rolling_arc_command(
+            command,
+            track_width_m=self.track_width_m,
+            min_turn_radius_m=self.arc_min_turn_radius_m,
+            max_omega_radps=self.arc_max_omega_radps,
+            allow_side_reverse=self.allow_side_reverse,
+        )
+        if arc_result.omega_clamped:
+            self.arc_omega_clamped_count += 1
+        if arc_result.side_reverse_blocked:
+            self.side_reverse_blocked_count += 1
+        self.latest_arc_result = arc_result
+        self.latest_cmd = arc_result.command
         self.last_cmd_vel_s = self._now_s()
 
     def nav_frame_callback(self, msg: NavSensorFrame) -> None:
@@ -254,6 +280,16 @@ class Nav2AdapterNode(Node):
             "motion_rule_ok": command.motion_rule_ok,
             "competition_min_speed_mps": self.competition_min_speed_mps,
             "sub_min_speed_command_blocked": self.sub_min_speed_command_blocked,
+            "arc_min_turn_radius_m": self.arc_min_turn_radius_m,
+            "arc_max_omega_radps": self.arc_max_omega_radps,
+            "track_width_m": self.track_width_m,
+            "allow_side_reverse": self.allow_side_reverse,
+            "arc_omega_clamped_count": self.arc_omega_clamped_count,
+            "side_reverse_blocked_count": self.side_reverse_blocked_count,
+            "last_arc_left_mps": self.latest_arc_result.left_mps,
+            "last_arc_right_mps": self.latest_arc_result.right_mps,
+            "last_arc_omega_limit_radps": self.latest_arc_result.omega_limit_radps,
+            "last_arc_reason": self.latest_arc_result.reason,
             "safety_reason": safety_reason or "ok",
             "cmd_vel_age_s": None if self.last_cmd_vel_s is None else now_s - self.last_cmd_vel_s,
             "nav_frame_age_s": None if self.last_nav_frame_s is None else now_s - self.last_nav_frame_s,

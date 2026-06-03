@@ -11,18 +11,22 @@ sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 
 from ugv_nav_core.chassis_controller import (  # noqa: E402
     ChassisControllerConfig,
+    CurveControllerState,
     ChassisEstimatorState,
     GyroBiasCalibrationState,
     PivotControllerState,
     compute_pivot_omega,
     compute_profiled_pivot_omega,
     compute_straight_omega,
+    estimate_curve_timeout_s,
     encoder_yaw_delta,
     evaluate_pivot_clearance,
     evaluate_safety,
     reset_pivot,
+    start_curve,
     slew_limit,
     start_pivot,
+    step_curve,
     step_profiled_pivot,
     update_gyro_bias_calibration,
     update_estimator,
@@ -316,6 +320,84 @@ def test_profiled_pivot_state_machine_reaches_complete():
 
     reset_pivot(state)
     assert state.state == "idle"
+
+
+def test_curve_test_uses_forward_arc_and_completes_on_target_yaw():
+    config = ChassisControllerConfig(
+        curve_angle_deg=90.0,
+        curve_direction="left",
+        curve_speed_mps=0.15,
+        curve_radius_m=1.0,
+        arc_min_turn_radius_m=0.75,
+        max_test_duration_s=10.0,
+        curve_omega_slew_radps2=100.0,
+    )
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+    assert state.target_heading_rad == pytest.approx(math.pi / 2.0)
+    assert state.arc_length_m == pytest.approx(math.pi / 2.0)
+
+    step = step_curve(state, now_s=0.02, heading_rad=0.0, config=config)
+    assert step.command_type == "velocity"
+    assert step.v_mps == pytest.approx(0.15)
+    assert step.omega_radps > 0.0
+    left_mps = step.v_mps - step.omega_radps * config.track_width_m / 2.0
+    right_mps = step.v_mps + step.omega_radps * config.track_width_m / 2.0
+    assert left_mps > 0.0
+    assert right_mps > 0.0
+
+    done = step_curve(state, now_s=1.0, heading_rad=math.radians(90.0), config=config)
+    assert done.command_type == "stop"
+    assert done.complete
+    assert done.reason == "curve_test_complete"
+
+
+def test_curve_timeout_is_derived_from_motion_when_generic_test_duration_is_short():
+    config = ChassisControllerConfig(
+        curve_angle_deg=90.0,
+        curve_direction="left",
+        curve_speed_mps=0.15,
+        curve_radius_m=1.0,
+        max_test_duration_s=3.0,
+        curve_omega_slew_radps2=100.0,
+    )
+    assert estimate_curve_timeout_s(config) > 10.0
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+    still_running = step_curve(state, now_s=3.5, heading_rad=0.2, yaw_rate_radps=0.0, config=config)
+    assert still_running.command_type == "velocity"
+    assert still_running.reason in {"curve_arc", "curve_approach"}
+
+
+def test_curve_approach_reduces_omega_near_target():
+    config = ChassisControllerConfig(
+        curve_angle_deg=90.0,
+        curve_direction="left",
+        curve_speed_mps=0.15,
+        curve_radius_m=1.0,
+        curve_approach_error_rad=0.3,
+        curve_omega_slew_radps2=100.0,
+    )
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+    approach = step_curve(state, now_s=0.1, heading_rad=math.radians(85.0), yaw_rate_radps=0.0, config=config)
+    assert approach.reason == "curve_approach"
+    assert 0.0 < approach.omega_radps < 0.15
+
+
+def test_curve_test_right_turn_has_negative_omega():
+    config = ChassisControllerConfig(
+        curve_angle_deg=45.0,
+        curve_direction="right",
+        curve_speed_mps=0.15,
+        curve_radius_m=1.0,
+        curve_omega_slew_radps2=100.0,
+    )
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+    step = step_curve(state, now_s=0.02, heading_rad=0.0, config=config)
+    assert step.command_type == "velocity"
+    assert step.omega_radps < 0.0
 
 
 def test_profiled_pivot_waits_for_settle_and_aborts_if_final_error_persists():

@@ -231,6 +231,31 @@ def arc_omega_for_speed(v_mps: float, requested_omega_radps: float, config: Tele
     return math.copysign(omega_abs, float(requested_omega_radps))
 
 
+def chassis_velocity_for_side_speeds(left_mps: float, right_mps: float, config: TeleopConfig) -> Tuple[float, float]:
+    track = max(1e-6, float(config.track_width_m))
+    left = float(left_mps)
+    right = float(right_mps)
+    return 0.5 * (left + right), (right - left) / track
+
+
+def terminal_single_key_arc_velocity(turn_key: str, config: TeleopConfig) -> Tuple[float, float]:
+    key = str(turn_key).lower()
+    requested_omega = config.arc_turn_radps if key == "a" else -config.arc_turn_radps
+    if config.allow_arc_side_reverse:
+        v_mps = config.forward_mps
+        return v_mps, arc_omega_for_speed(v_mps, requested_omega, config)
+
+    outer_mps = max(0.0, float(config.forward_mps))
+    inner_floor_mps = min(outer_mps, max(0.0, float(config.arc_inner_min_mps)))
+    requested_side_delta_mps = abs(float(config.arc_turn_radps)) * max(1e-6, float(config.track_width_m))
+    max_side_delta_mps = outer_mps - inner_floor_mps
+    side_delta_mps = min(requested_side_delta_mps, max_side_delta_mps)
+    inner_mps = outer_mps - side_delta_mps
+    if key == "a":
+        return chassis_velocity_for_side_speeds(inner_mps, outer_mps, config)
+    return chassis_velocity_for_side_speeds(outer_mps, inner_mps, config)
+
+
 def velocity_for_pressed_keys(
     keys: Iterable[str],
     config: TeleopConfig,
@@ -254,9 +279,7 @@ def velocity_for_pressed_keys(
             reason = "manual_reverse_arc_left" if turn_key == "a" else "manual_reverse_arc_right"
         return v_mps, omega, reason
     if turn_key is not None and terminal_single_key_arcs:
-        v_mps = config.forward_mps
-        requested_omega = config.arc_turn_radps if turn_key == "a" else -config.arc_turn_radps
-        omega = arc_omega_for_speed(v_mps, requested_omega, config)
+        v_mps, omega = terminal_single_key_arc_velocity(turn_key, config)
         reason = "manual_terminal_arc_left" if turn_key == "a" else "manual_terminal_arc_right"
         return v_mps, omega, reason
     if turn_key is not None and config.allow_pivot_keys:

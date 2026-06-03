@@ -141,7 +141,7 @@ def test_terminal_backend_defaults_single_turn_key_to_pivot_fallback():
     assert payload["reason"] == "manual_pivot_left"
 
 
-def test_terminal_backend_can_explicitly_map_single_turn_key_to_forward_arc():
+def test_terminal_backend_maps_single_turn_key_to_outer_speed_forward_arc():
     config = TeleopConfig(
         forward_mps=0.18,
         arc_turn_radps=0.45,
@@ -152,8 +152,10 @@ def test_terminal_backend_can_explicitly_map_single_turn_key_to_forward_arc():
     set_motion_key_pressed(state, "a", 10.0, release_events_supported=False)
     payload = payload_for_state(state, config, 10.1)
     assert payload["command_type"] == "velocity"
-    assert payload["v_mps"] == pytest.approx(0.18)
-    assert payload["omega_radps"] == pytest.approx(0.18 / 0.75)
+    assert payload["v_mps"] == pytest.approx(0.13)
+    assert payload["omega_radps"] == pytest.approx((0.18 - 0.08) / 0.416)
+    assert payload["target_left_mps"] == pytest.approx(0.08)
+    assert payload["target_right_mps"] == pytest.approx(0.18)
     assert payload["reason"] == "manual_terminal_arc_left"
 
 
@@ -171,10 +173,10 @@ def test_terminal_backend_does_not_keep_stale_reverse_key_for_single_arc():
     set_motion_key_pressed(state, "a", 10.1, release_events_supported=False)
     payload = payload_for_state(state, config, 10.2)
     assert payload["command_type"] == "velocity"
-    assert payload["v_mps"] == pytest.approx(0.30)
+    assert payload["v_mps"] == pytest.approx(0.19)
     assert payload["omega_radps"] > 0.0
     assert payload["target_left_mps"] == pytest.approx(0.08)
-    assert payload["target_right_mps"] == pytest.approx(0.52)
+    assert payload["target_right_mps"] == pytest.approx(0.30)
     assert payload["arc_side_reverse"] is False
     assert payload["reason"] == "manual_terminal_arc_left"
     assert state.pressed_motion_keys == ["a"]
@@ -193,9 +195,9 @@ def test_terminal_backend_does_not_keep_stale_forward_key_for_single_arc():
     set_motion_key_pressed(state, "d", 10.1, release_events_supported=False)
     payload = payload_for_state(state, config, 10.2)
     assert payload["command_type"] == "velocity"
-    assert payload["v_mps"] == pytest.approx(0.30)
+    assert payload["v_mps"] == pytest.approx(0.19)
     assert payload["omega_radps"] < 0.0
-    assert payload["target_left_mps"] == pytest.approx(0.52)
+    assert payload["target_left_mps"] == pytest.approx(0.30)
     assert payload["target_right_mps"] == pytest.approx(0.08)
     assert payload["arc_side_reverse"] is False
     assert payload["reason"] == "manual_terminal_arc_right"
@@ -257,6 +259,24 @@ def test_manual_arc_side_reverse_is_explicit_debug_only():
         )
     )
     assert arc_omega_for_speed(0.30, 2.20, config) == pytest.approx(2.20)
+
+
+def test_terminal_single_key_arc_uses_forward_speed_as_outer_side_speed():
+    config = normalized_config(
+        TeleopConfig(
+            forward_mps=0.30,
+            arc_turn_radps=2.20,
+            max_arc_turn_radps=2.80,
+            arc_inner_min_mps=0.08,
+            track_width_m=0.416,
+        )
+    )
+    left = velocity_for_pressed_keys(["a"], config, terminal_single_key_arcs=True)
+    right = velocity_for_pressed_keys(["d"], config, terminal_single_key_arcs=True)
+    assert left is not None
+    assert right is not None
+    assert left[:2] == pytest.approx((0.19, (0.30 - 0.08) / 0.416))
+    assert right[:2] == pytest.approx((0.19, -(0.30 - 0.08) / 0.416))
 
 
 def test_release_event_backend_stale_timeout_is_still_a_safety_stop():

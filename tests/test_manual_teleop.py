@@ -22,6 +22,7 @@ from ugv_manual_teleop import (  # noqa: E402
     set_motion_key_pressed,
     set_motion_key_released,
     should_publish,
+    terminal_single_key_arc_side_speeds,
     velocity_for_key,
     velocity_for_pressed_keys,
 )
@@ -277,6 +278,55 @@ def test_terminal_single_key_arc_uses_forward_speed_as_outer_side_speed():
     assert right is not None
     assert left[:2] == pytest.approx((0.19, (0.30 - 0.08) / 0.416))
     assert right[:2] == pytest.approx((0.19, -(0.30 - 0.08) / 0.416))
+
+
+def test_terminal_single_key_left_and_right_arcs_are_exact_mirrors():
+    config = normalized_config(
+        TeleopConfig(
+            forward_mps=0.30,
+            arc_turn_radps=2.20,
+            max_arc_turn_radps=2.80,
+            arc_inner_min_mps=0.08,
+            track_width_m=0.416,
+            terminal_single_key_arcs=True,
+        )
+    )
+    left_turn_sides = terminal_single_key_arc_side_speeds("a", config)
+    right_turn_sides = terminal_single_key_arc_side_speeds("d", config)
+    assert left_turn_sides == pytest.approx((right_turn_sides[1], right_turn_sides[0]))
+
+    left_turn = velocity_for_pressed_keys(["a"], config, terminal_single_key_arcs=True)
+    right_turn = velocity_for_pressed_keys(["d"], config, terminal_single_key_arcs=True)
+    assert left_turn is not None
+    assert right_turn is not None
+    assert left_turn[0] == pytest.approx(right_turn[0])
+    assert left_turn[1] == pytest.approx(-right_turn[1])
+
+
+def test_forward_combo_left_and_right_arcs_are_exact_mirrors():
+    config = normalized_config(
+        TeleopConfig(
+            forward_mps=0.30,
+            arc_turn_radps=2.20,
+            max_arc_turn_radps=2.80,
+            arc_inner_min_mps=0.08,
+            track_width_m=0.416,
+        )
+    )
+    state_left = TeleopState()
+    set_motion_key_pressed(state_left, "w", 10.0, release_events_supported=True)
+    set_motion_key_pressed(state_left, "a", 10.1, release_events_supported=True)
+    left_payload = payload_for_state(state_left, config, 10.2)
+
+    state_right = TeleopState()
+    set_motion_key_pressed(state_right, "w", 10.0, release_events_supported=True)
+    set_motion_key_pressed(state_right, "d", 10.1, release_events_supported=True)
+    right_payload = payload_for_state(state_right, config, 10.2)
+
+    assert left_payload["v_mps"] == pytest.approx(right_payload["v_mps"])
+    assert left_payload["omega_radps"] == pytest.approx(-right_payload["omega_radps"])
+    assert left_payload["target_left_mps"] == pytest.approx(right_payload["target_right_mps"])
+    assert left_payload["target_right_mps"] == pytest.approx(right_payload["target_left_mps"])
 
 
 def test_release_event_backend_stale_timeout_is_still_a_safety_stop():

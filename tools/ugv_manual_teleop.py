@@ -238,6 +238,23 @@ def chassis_velocity_for_side_speeds(left_mps: float, right_mps: float, config: 
     return 0.5 * (left + right), (right - left) / track
 
 
+def terminal_single_key_arc_side_speeds(turn_key: str, config: TeleopConfig) -> Tuple[float, float]:
+    key = str(turn_key).lower()
+    outer_mps = max(0.0, float(config.forward_mps))
+    inner_floor_mps = min(outer_mps, max(0.0, float(config.arc_inner_min_mps)))
+    requested_side_delta_mps = abs(float(config.arc_turn_radps)) * max(1e-6, float(config.track_width_m))
+    side_delta_mps = min(requested_side_delta_mps, outer_mps - inner_floor_mps)
+    inner_mps = outer_mps - side_delta_mps
+
+    right_turn_left_mps = outer_mps
+    right_turn_right_mps = inner_mps
+    if key == "d":
+        return right_turn_left_mps, right_turn_right_mps
+    if key == "a":
+        return right_turn_right_mps, right_turn_left_mps
+    raise ValueError(f"unsupported terminal arc key: {turn_key!r}")
+
+
 def terminal_single_key_arc_velocity(turn_key: str, config: TeleopConfig) -> Tuple[float, float]:
     key = str(turn_key).lower()
     requested_omega = config.arc_turn_radps if key == "a" else -config.arc_turn_radps
@@ -245,15 +262,7 @@ def terminal_single_key_arc_velocity(turn_key: str, config: TeleopConfig) -> Tup
         v_mps = config.forward_mps
         return v_mps, arc_omega_for_speed(v_mps, requested_omega, config)
 
-    outer_mps = max(0.0, float(config.forward_mps))
-    inner_floor_mps = min(outer_mps, max(0.0, float(config.arc_inner_min_mps)))
-    requested_side_delta_mps = abs(float(config.arc_turn_radps)) * max(1e-6, float(config.track_width_m))
-    max_side_delta_mps = outer_mps - inner_floor_mps
-    side_delta_mps = min(requested_side_delta_mps, max_side_delta_mps)
-    inner_mps = outer_mps - side_delta_mps
-    if key == "a":
-        return chassis_velocity_for_side_speeds(inner_mps, outer_mps, config)
-    return chassis_velocity_for_side_speeds(outer_mps, inner_mps, config)
+    return chassis_velocity_for_side_speeds(*terminal_single_key_arc_side_speeds(key, config), config)
 
 
 def velocity_for_pressed_keys(
@@ -624,19 +633,26 @@ class _LinuxEvdevKeyboardInput:
 
 
 def print_help(config: TeleopConfig) -> None:
-    preview = velocity_for_pressed_keys(["a"], config, terminal_single_key_arcs=True)
+    preview_left = velocity_for_pressed_keys(["a"], config, terminal_single_key_arcs=True)
+    preview_right = velocity_for_pressed_keys(["d"], config, terminal_single_key_arcs=True)
     preview_line = ""
-    if preview is not None:
-        preview_v, preview_omega, _ = preview
+    if preview_left is not None and preview_right is not None:
         half_track = 0.5 * config.track_width_m
-        left_mps = preview_v - preview_omega * half_track
-        right_mps = preview_v + preview_omega * half_track
-        radius_m = abs(preview_v / preview_omega) if abs(preview_omega) > 1e-9 else float("inf")
+        left_v, left_omega, _ = preview_left
+        left_arc_left_mps = left_v - left_omega * half_track
+        left_arc_right_mps = left_v + left_omega * half_track
+        left_radius_m = abs(left_v / left_omega) if abs(left_omega) > 1e-9 else float("inf")
+        right_v, right_omega, _ = preview_right
+        right_arc_left_mps = right_v - right_omega * half_track
+        right_arc_right_mps = right_v + right_omega * half_track
+        right_radius_m = abs(right_v / right_omega) if abs(right_omega) > 1e-9 else float("inf")
         preview_line = (
-            "  Effective single-key arc preview: "
-            f"omega={preview_omega:.3f} rad/s, R={radius_m:.2f}m, "
-            f"left={left_mps:.3f} m/s, right={right_mps:.3f} m/s, "
-            f"side_reverse={'allowed' if config.allow_arc_side_reverse else 'blocked'}\n"
+            "  Effective single-key arc preview:\n"
+            f"    A: omega={left_omega:.3f} rad/s, R={left_radius_m:.2f}m, "
+            f"left={left_arc_left_mps:.3f} m/s, right={left_arc_right_mps:.3f} m/s\n"
+            f"    D: omega={right_omega:.3f} rad/s, R={right_radius_m:.2f}m, "
+            f"left={right_arc_left_mps:.3f} m/s, right={right_arc_right_mps:.3f} m/s\n"
+            f"    side_reverse={'allowed' if config.allow_arc_side_reverse else 'blocked'}\n"
         )
     terminal_line = (
         "  Terminal/SSH fallback: A / D alone sends forward rolling arc; combos require evdev\n"

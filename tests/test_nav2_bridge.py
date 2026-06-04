@@ -47,7 +47,7 @@ def test_nav2_cmd_vel_to_ugv_nav_cmd_preserves_velocity_contract_without_raw_pwm
     assert "pwm" not in json.dumps(payload).lower()
 
 
-def test_nav2_cmd_vel_clamps_sub_min_translation_but_allows_pivot_in_place():
+def test_nav2_cmd_vel_clamps_sub_min_translation_but_preserves_spin_before_arc_gate():
     slow = nav_command_from_twist(linear_x_mps=0.01, angular_z_radps=0.0)
     assert slow.command_type == "velocity"
     assert slow.v_mps == pytest.approx(0.12)
@@ -128,6 +128,49 @@ def test_rolling_arc_gate_blocks_autonomous_pivot_and_side_reverse():
     assert limited.command.omega_radps == pytest.approx(0.15 / 0.75)
     assert limited.left_mps > 0.0
     assert limited.right_mps > 0.0
+
+
+def test_active_nav2_spin_becomes_forward_rolling_arc_before_motor_output():
+    spin = nav_command_from_twist(linear_x_mps=0.0, angular_z_radps=0.35)
+    active = enforce_continuous_motion_command(spin, phase="path_following")
+    assert active.command_type == "velocity"
+    assert active.v_mps == pytest.approx(0.12)
+    assert active.reason.startswith("active_zero_speed_replaced")
+
+    limited = limit_rolling_arc_command(
+        active,
+        track_width_m=0.416,
+        min_turn_radius_m=0.75,
+        max_omega_radps=0.45,
+        allow_side_reverse=False,
+    )
+    assert limited.command.command_type == "velocity"
+    assert limited.command.v_mps == pytest.approx(0.12)
+    assert limited.command.omega_radps == pytest.approx(0.12 / 0.75)
+    assert limited.left_mps > 0.0
+    assert limited.right_mps > 0.0
+    assert limited.omega_clamped
+
+
+def test_rolling_arc_limit_keeps_left_and_right_turns_as_mirrors():
+    left_turn = limit_rolling_arc_command(
+        build_velocity_command(0.30, 0.45, "left"),
+        track_width_m=0.416,
+        min_turn_radius_m=0.75,
+        max_omega_radps=0.45,
+        allow_side_reverse=False,
+    )
+    right_turn = limit_rolling_arc_command(
+        build_velocity_command(0.30, -0.45, "right"),
+        track_width_m=0.416,
+        min_turn_radius_m=0.75,
+        max_omega_radps=0.45,
+        allow_side_reverse=False,
+    )
+    assert left_turn.command.v_mps == pytest.approx(right_turn.command.v_mps)
+    assert left_turn.command.omega_radps == pytest.approx(-right_turn.command.omega_radps)
+    assert left_turn.left_mps == pytest.approx(right_turn.right_mps)
+    assert left_turn.right_mps == pytest.approx(right_turn.left_mps)
 
 
 def test_side_speed_helper_uses_project_chassis_convention():

@@ -1,8 +1,10 @@
 # Jetson Chassis Control Architecture
 
-`ugv_nav_dual_mode.py` is now the safe Jetson chassis control entrypoint. It
+`ugv_nav_dual_mode.py` is the safe Jetson chassis calibration entrypoint. It
 keeps the calibration test modes, and adds a first mission-sequence mode for
-relative straight/pivot/wait segments.
+relative straight/pivot/wait segments. Formal competition target navigation is
+handled by the Nav2 field launch, the Operation Touchdown mission supervisor,
+and the Nav2 adapter.
 
 The active command contract remains:
 
@@ -21,6 +23,8 @@ The split is intentional:
 - Jetson motor bridge: thin protocol bridge and motor health/status.
 - Jetson chassis controller: heading/yaw tests and mission sequencing that
   publish `v_mps` and `omega_radps`.
+- Nav2 adapter and mission supervisor: formal target navigation, collision
+  monitor handoff, continuous-motion policy, and rolling-arc steering limits.
 
 ## Chassis Test Modes
 
@@ -58,6 +62,9 @@ Manual teleop and primitive calibration modes are debug exceptions.  During
 formal autonomous movement, normal waits, replans, marker search, and terminal
 alignment crawl instead of intentionally commanding zero speed.  STOP is still
 used for destination reached, kill switch, safety stop, or fault.
+Formal autonomous steering is rolling-arc constrained by `ugv_nav2_adapter.py`;
+with `allow_side_reverse:=false`, pure opposite-side-speed pivots are not passed
+to the motor bridge.
 
 Mission files use relative segments:
 
@@ -156,11 +163,16 @@ The first obstacle-avoidance policy is deliberately conservative:
   `ugv_nav2_adapter`.
 - If the adapter sees stale localization/sensors, motor faults, near-obstacle
   flags, or emergency front clearance, it publishes STOP regardless of Nav2.
-- UAV field targets arrive on `/ugv/uav_target` as `PointStamped` in `map`;
-  `ugv_uav_goal_bridge.py` validates frame, units, field bounds, and costmap
-  occupancy before sending `NavigateToPose`.
+- UAV field targets arrive on `/ugv/uav_target` as `PointStamped` in `map`.
+  `ugv_operation_touchdown_mission.py` is enabled by default, validates the
+  target, chooses a staging pose inside the destination circle, sends Nav2 to
+  staging, and then performs terminal ArUco/coordinate stopping. The direct
+  `ugv_uav_goal_bridge.py` remains a debug-only direct Nav2 goal bridge.
 - Autonomous Nav2 reverse is blocked by default because the rear LiDAR sector
   is physically obstructed.
+- Pure Nav2 spin commands are converted to active forward crawl and then
+  rolling-arc limited during formal movement, or blocked before motor output
+  when side reversal would be required.
 
 Launch the experimental Nav2 stack with:
 

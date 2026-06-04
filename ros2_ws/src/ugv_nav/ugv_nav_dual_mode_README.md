@@ -1,7 +1,9 @@
 # Jetson Chassis Controller
 
-`ugv_nav_dual_mode.py` is a safe high-level chassis test node. It defaults to
-`idle`, which publishes STOP only.
+`ugv_nav_dual_mode.py` is a safe high-level chassis calibration/test node. It
+defaults to `idle`, which publishes STOP only. Formal target navigation for the
+competition path runs through `nav2_field_navigation.launch.py`,
+`ugv_operation_touchdown_mission.py`, and `ugv_nav2_adapter.py`.
 
 When a test mode is explicitly selected, it still uses one command contract:
 
@@ -13,7 +15,8 @@ When a test mode is explicitly selected, it still uses one command contract:
 
 - `idle`: STOP only.
 - `straight_test`: drive forward while holding the start heading.
-- `pivot_test`: profiled tank-drive turn to a bounded relative angle.
+- `pivot_test`: profiled tank-drive turn to a bounded relative angle for bench
+  and calibration work.
 - `mission_sequence`: run relative straight/pivot/wait mission segments.
 
 The Teensy remains the only motor velocity PID layer. Jetson heading correction
@@ -32,10 +35,12 @@ destination reached or safety/fault/kill: STOP allowed
 ```
 
 Manual teleop plus `straight_test`, `pivot_test`, `curve_test`, and motion-test
-calibration remain debug exceptions.  Formal autonomous competition movement
+calibration remain debug exceptions. Formal autonomous competition movement
 does not use normal STOP/hold for waiting, replanning, marker search, or
 terminal alignment; those cases crawl unless the system enters an explicit
-safety/fault/kill state.
+safety/fault/kill state. Formal autonomous steering is rolling-arc constrained:
+with `allow_side_reverse:=false`, the Nav2 adapter will not pass pure opposite
+side-speed pivots to the motor bridge.
 
 Before the high-level obstacle avoidance layer is mature, mission straight
 segments default to STOP/hold on `near_obstacle` or low front clearance instead
@@ -150,7 +155,9 @@ then adds:
   localization status from manual field pose plus encoder/gyro odometry.
 - `ugv_nav2_adapter.py`: converts Nav2 `/cmd_vel` to `/ugv_nav_cmd` velocity
   JSON, enforces the continuous active-travel minimum speed rule, and
-  independently STOPs on stale localization/sensors or motor faults.
+  independently STOPs on stale localization/sensors or motor faults. It also
+  limits autonomous steering to rolling arcs using `arc_min_turn_radius_m`,
+  `arc_max_omega_radps`, `track_width_m`, and `allow_side_reverse:=false`.
 - `ugv_posearray_to_cloud.py`: converts fused ZED/semantic obstacle PoseArrays
   into `/sensors/zed_obstacle_cloud` for Nav2 costmaps.
 - `ugv_field_map_node.py`: publishes the static `/map` occupancy grid used by
@@ -190,7 +197,9 @@ the static field map publisher to match the same field coordinates used by the
 UAV goal bridge. The default field is `15 yd x 15 yd`, i.e.
 `13.716 m x 13.716 m`. The Nav2 adapter also blocks autonomous translational
 commands inside the boundary margin and predicted near-future exits while still
-allowing STOP and in-place turns. Do not use an initial pose at `(0,0)` for
+allowing STOP. Pure Nav2 spin commands are converted to active forward crawl and
+then rolling-arc limited during formal movement, or blocked before motor output
+when side reversal would be required. Do not use an initial pose at `(0,0)` for
 ground Nav2; that pose is in the boundary margin and should correctly hold
 STOP.
 
@@ -296,8 +305,16 @@ Controls:
 
 - `W`: forward while held.
 - `S`: reverse while held.
-- `A`: pivot left in place while held.
-- `D`: pivot right in place while held.
+- `W+A` / `W+D`: forward rolling arc left/right when the backend can see real
+  key press/release events.
+- `S+A` / `S+D`: reverse rolling arc left/right when the backend can see real
+  key press/release events.
+- `A` / `D` with `--input-backend terminal --terminal-single-key-arcs`: forward
+  rolling arc left/right. The two commands are exact mirrors: left uses the
+  left side as the inner side and right side as the outer side; right swaps
+  those side targets.
+- `A` / `D` with evdev key-release input: low-speed pivot fallback for bench
+  debugging, not the formal competition steering policy.
 - `Space` or `X`: STOP.
 - `Q` or `Esc`: quit after sending STOP.
 
@@ -315,4 +332,4 @@ While a motion key is active, velocity commands are republished at
 `--publish-hz` so the motor bridge command timeout stays refreshed. If another
 publisher is detected on `/ugv_nav_cmd`, the teleop tool sends STOP and exits to
 avoid command fights. Runtime speed changes are clamped by
-`--max-forward-mps`, `--max-reverse-mps`, and `--max-turn-radps`.
+`--max-forward-mps`, `--max-reverse-mps`, and `--max-arc-turn-radps`.

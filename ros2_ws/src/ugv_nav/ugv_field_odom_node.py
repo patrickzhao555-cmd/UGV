@@ -76,7 +76,7 @@ class FieldOdometryNode(Node):
         self.declare_parameter("gyro_bias_max_stddev_radps", 0.03)
         self.declare_parameter("gyro_bias_max_encoder_delta_ticks", 2)
         self.declare_parameter("imu_yaw_axis", "z")
-        self.declare_parameter("imu_yaw_sign", 1.0)
+        self.declare_parameter("imu_yaw_sign", -1.0)
         self.declare_parameter("status_period_s", 0.25)
         self.declare_parameter("min_imu_dt_s", 0.001)
         self.declare_parameter("max_imu_dt_s", 0.05)

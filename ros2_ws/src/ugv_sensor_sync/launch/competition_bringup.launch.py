@@ -495,7 +495,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_imu_topic", default_value="/zed/imu"),
             DeclareLaunchArgument("nav_imu_qos", default_value="sensor_data"),
             DeclareLaunchArgument("nav_imu_yaw_axis", default_value="z"),
-            DeclareLaunchArgument("nav_imu_yaw_sign", default_value="1.0"),
+            DeclareLaunchArgument("nav_imu_yaw_sign", default_value="-1.0"),
             DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.30"),
             DeclareLaunchArgument("nav_imu_min_rate_hz", default_value="20.0"),
             DeclareLaunchArgument("nav_motor_status_topic", default_value="/motor_controller/status"),

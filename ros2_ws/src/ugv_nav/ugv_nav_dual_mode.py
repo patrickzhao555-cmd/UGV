@@ -108,6 +108,23 @@ def parse_bool(value: str) -> bool:
     raise argparse.ArgumentTypeError(f"invalid boolean value: {value!r}")
 
 
+def encoder_ticks_from_motor_status(payload: Any) -> Optional[tuple[int, int]]:
+    if not isinstance(payload, dict):
+        return None
+    ticks = payload.get("encoder_ticks")
+    if isinstance(ticks, (list, tuple)) and len(ticks) >= 2:
+        try:
+            return int(ticks[0]), int(ticks[1])
+        except (TypeError, ValueError):
+            return None
+    if "left_ticks" in payload and "right_ticks" in payload:
+        try:
+            return int(payload["left_ticks"]), int(payload["right_ticks"])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Safe UGV chassis controller. Default mode publishes STOP.",
@@ -424,16 +441,11 @@ def run_real(args: argparse.Namespace) -> None:
             self.front_clearance_m = float(msg.front_clearance_m)
             self.last_scan_ranges = [float(value) for value in getattr(msg.scan, "ranges", [])]
             self.pivot_clearance_m = min_finite_range(self.last_scan_ranges)
-            self.current_left_ticks = int(msg.left_encoder_ticks)
-            self.current_right_ticks = int(msg.right_encoder_ticks)
-            self.encoder_available = bool(msg.encoder_available)
-            self.estimator = update_encoder_heading(
-                self.estimator,
-                left_ticks=self.current_left_ticks,
-                right_ticks=self.current_right_ticks,
-                encoder_available=self.encoder_available,
-                config=self.config,
-            )
+            if bool(msg.encoder_available):
+                self._update_encoder_feedback(
+                    left_ticks=int(msg.left_encoder_ticks),
+                    right_ticks=int(msg.right_encoder_ticks),
+                )
 
         def imu_callback(self, msg: Any) -> None:
             now_s = time.monotonic()
@@ -469,6 +481,9 @@ def run_real(args: argparse.Namespace) -> None:
             if isinstance(payload, dict):
                 self.motor_status = payload
                 self.last_motor_status_s = time.monotonic()
+                ticks = encoder_ticks_from_motor_status(payload)
+                if ticks is not None:
+                    self._update_encoder_feedback(left_ticks=ticks[0], right_ticks=ticks[1])
 
         @staticmethod
         def _stamp_to_seconds(stamp: Any) -> Optional[float]:
@@ -498,11 +513,43 @@ def run_real(args: argparse.Namespace) -> None:
                 return 0.0
             return float(len(self.imu_arrival_times_s) - 1) / elapsed_s
 
+        def _imu_fresh(self, now_s: float) -> bool:
+            return self.last_imu_s is not None and now_s - self.last_imu_s <= self.config.imu_timeout_s
+
+        def _encoder_feedback_available(self) -> bool:
+            return self.encoder_available and self.current_left_ticks is not None and self.current_right_ticks is not None
+
+        def _heading_source(self, now_s: float) -> str:
+            if self._imu_fresh(now_s) and self.estimator.gyro_available:
+                return "imu"
+            if self._encoder_feedback_available():
+                return "encoder"
+            return "none"
+
+        def _heading_rad(self, now_s: float) -> float:
+            if self._imu_fresh(now_s) and self.estimator.gyro_available:
+                return self.estimator.gyro_heading_rad
+            if self._encoder_feedback_available():
+                return self.estimator.encoder_heading_rad
+            return self.estimator.heading_rad
+
+        def _update_encoder_feedback(self, *, left_ticks: int, right_ticks: int) -> None:
+            self.current_left_ticks = int(left_ticks)
+            self.current_right_ticks = int(right_ticks)
+            self.encoder_available = True
+            self.estimator = update_encoder_heading(
+                self.estimator,
+                left_ticks=self.current_left_ticks,
+                right_ticks=self.current_right_ticks,
+                encoder_available=True,
+                config=self.config,
+            )
+
         def _start_straight_if_needed(self, now_s: float) -> None:
             if self.mode_start_s is not None:
                 return
             self.mode_start_s = now_s
-            self.target_heading_rad = self.estimator.heading_rad
+            self.target_heading_rad = self._heading_rad(now_s)
             self.previous_straight_omega_radps = 0.0
             self.last_mission_update_s = now_s
 
@@ -513,7 +560,7 @@ def run_real(args: argparse.Namespace) -> None:
             start_pivot(
                 self.pivot,
                 now_s=now_s,
-                current_heading_rad=self.estimator.heading_rad,
+                current_heading_rad=self._heading_rad(now_s),
                 encoder_heading_rad=self.estimator.encoder_heading_rad,
                 target_angle_rad=math.radians(self.config.pivot_angle_deg),
             )
@@ -526,7 +573,7 @@ def run_real(args: argparse.Namespace) -> None:
             start_curve(
                 self.curve,
                 now_s=now_s,
-                current_heading_rad=self.estimator.heading_rad,
+                current_heading_rad=self._heading_rad(now_s),
                 encoder_heading_rad=self.estimator.encoder_heading_rad,
                 config=self.config,
             )
@@ -549,6 +596,11 @@ def run_real(args: argparse.Namespace) -> None:
             self.estimator.gyro_available = False
 
         def _calibrate_gyro_bias_if_needed(self, now_s: float) -> tuple[bool, str]:
+            if not self._imu_fresh(now_s):
+                if self._encoder_feedback_available():
+                    self.estimator.gyro_available = False
+                    return True, "encoder_heading_ready"
+                return False, "heading_feedback_stale"
             if self.gyro_bias.ready:
                 return True, "gyro_bias_ready"
             result = update_gyro_bias_calibration(
@@ -592,7 +644,7 @@ def run_real(args: argparse.Namespace) -> None:
                 near_obstacle=self.near_obstacle,
                 front_clearance_m=self.front_clearance_m,
                 config=self.config,
-                require_imu=True,
+                require_imu=not self._encoder_feedback_available(),
             )
             if not safety.safe:
                 return safety.reason
@@ -649,7 +701,7 @@ def run_real(args: argparse.Namespace) -> None:
             reset_stuck_monitor(self.stuck_monitor)
             self.pivot_breakaway_scale = 1.0
             if segment.segment_type == "straight":
-                self.target_heading_rad = self.estimator.heading_rad
+                self.target_heading_rad = self._heading_rad(now_s)
                 self.target_distance_m = segment.distance_m
                 self.mission_state = "straight_active"
             elif segment.segment_type == "pivot":
@@ -657,7 +709,7 @@ def run_real(args: argparse.Namespace) -> None:
                 start_pivot(
                     self.pivot,
                     now_s=now_s,
-                    current_heading_rad=self.estimator.heading_rad,
+                    current_heading_rad=self._heading_rad(now_s),
                     encoder_heading_rad=self.estimator.encoder_heading_rad,
                     target_angle_rad=math.radians(segment.angle_deg),
                 )
@@ -665,7 +717,7 @@ def run_real(args: argparse.Namespace) -> None:
                 self.target_distance_m = None
                 self.mission_state = "pivot_active"
             else:
-                self.target_heading_rad = self.estimator.heading_rad
+                self.target_heading_rad = self._heading_rad(now_s)
                 self.target_distance_m = None
                 self.mission_state = "wait_active"
 
@@ -716,7 +768,7 @@ def run_real(args: argparse.Namespace) -> None:
                 near_obstacle=self.near_obstacle,
                 front_clearance_m=self.front_clearance_m,
                 config=self.config,
-                require_imu=True,
+                require_imu=not self._encoder_feedback_available(),
             )
             self.mission_safety_level = decision.level
             self.mission_safety_reason = decision.reason
@@ -774,7 +826,7 @@ def run_real(args: argparse.Namespace) -> None:
             return build_stop_command(result.reason)
 
         def _tick_mission(self, now_s: float) -> tuple[ControlCommand, float, float, str]:
-            heading = self.estimator.heading_rad
+            heading = self._heading_rad(now_s)
             heading_error = 0.0
             self.sub_min_speed_command_blocked = False
             if self.mission_plan is None:
@@ -994,7 +1046,7 @@ def run_real(args: argparse.Namespace) -> None:
 
         def tick(self) -> None:
             now_s = time.monotonic()
-            heading = self.estimator.heading_rad
+            heading = self._heading_rad(now_s)
             heading_error = 0.0
             safety_state = "idle"
             cmd = build_stop_command("idle")
@@ -1018,7 +1070,7 @@ def run_real(args: argparse.Namespace) -> None:
                         self._reset_test_state()
                         cmd = build_stop_command(calibration_reason)
                     else:
-                        heading = self.estimator.heading_rad
+                        heading = self._heading_rad(now_s)
                         if self.mode == "straight_test":
                             self._start_straight_if_needed(now_s)
                             mode_start_s = (
@@ -1229,6 +1281,7 @@ def run_real(args: argparse.Namespace) -> None:
                 "pivot_state_elapsed_s": pivot_state_elapsed_s,
                 "target_heading_rad": self.target_heading_rad,
                 "estimated_heading_rad": heading,
+                "heading_source": self._heading_source(now_s),
                 "gyro_heading_rad": self.estimator.gyro_heading_rad,
                 "encoder_heading_rad": self.estimator.encoder_heading_rad,
                 "encoder_gyro_disagreement_rad": self.encoder_gyro_disagreement_rad,

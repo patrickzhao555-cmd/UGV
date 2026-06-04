@@ -475,6 +475,25 @@ def test_debug_ignore_nav_frame_allows_imu_closed_loop_test_without_fusion_frame
     assert decision.reason == "ok"
 
 
+def test_encoder_heading_fallback_does_not_require_imu():
+    decision = evaluate_safety(
+        now_s=10.0,
+        last_sensor_s=None,
+        last_imu_s=None,
+        last_motor_status_s=9.99,
+        motor_status=_ready_motor_status(),
+        near_obstacle=False,
+        front_clearance_m=None,
+        config=ChassisControllerConfig(
+            debug_ignore_nav_frame=True,
+            debug_ignore_obstacles=True,
+        ),
+        require_imu=False,
+    )
+    assert decision.safe
+    assert decision.reason == "ok"
+
+
 def test_stale_imu_stops_active_chassis_test_when_required():
     decision = evaluate_safety(
         now_s=10.0,

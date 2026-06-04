@@ -34,7 +34,7 @@ from ugv_nav_core.mission_controller import (  # noqa: E402
     telemetry_force_flush_key,
     update_stuck_monitor,
 )
-from ugv_nav_dual_mode import parse_args  # noqa: E402
+from ugv_nav_dual_mode import encoder_ticks_from_motor_status, parse_args  # noqa: E402
 
 
 class _FakeTelemetryFile:
@@ -132,6 +132,13 @@ def test_debug_hard_run_test_flags_parse():
     args = parse_args(["--debug-ignore-nav-frame", "true", "--debug-ignore-obstacles", "true"])
     assert args.debug_ignore_nav_frame
     assert args.debug_ignore_obstacles
+
+
+def test_motor_status_encoder_ticks_parse_for_heading_fallback():
+    assert encoder_ticks_from_motor_status({"encoder_ticks": [123, -456]}) == (123, -456)
+    assert encoder_ticks_from_motor_status({"left_ticks": "12", "right_ticks": "34"}) == (12, 34)
+    assert encoder_ticks_from_motor_status({"encoder_ticks": ["bad", 34]}) is None
+    assert encoder_ticks_from_motor_status({"encoder_ticks": [12]}) is None
 
 
 def test_pivot_test_angle_fails_fast_above_shortest_path_range():

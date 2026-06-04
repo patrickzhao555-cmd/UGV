@@ -63,6 +63,9 @@ class ZedSyncNode(Node):
         self.status_pub = self.create_publisher(String, status_topic, 10)
         self.frame_count = 0
         self.imu_count = 0
+        self.imu_publish_failures = 0
+        self.last_imu_error = None
+        self.last_imu_failure_log_s = 0.0
         self.last_status_s = 0.0
 
         self.zed = sl.Camera()
@@ -129,8 +132,16 @@ class ZedSyncNode(Node):
 
     def publish_imu(self):
         stamp = self.get_clock().now().to_msg()
-        if self.zed.get_sensors_data(self.sensor_data, sl.TIME_REFERENCE.CURRENT) != sl.ERROR_CODE.SUCCESS:
+        status = self.zed.get_sensors_data(self.sensor_data, sl.TIME_REFERENCE.CURRENT)
+        if status != sl.ERROR_CODE.SUCCESS:
+            self.imu_publish_failures += 1
+            self.last_imu_error = str(status)
+            now_s = self.get_clock().now().nanoseconds / 1e9
+            if now_s - self.last_imu_failure_log_s >= 2.0:
+                self.last_imu_failure_log_s = now_s
+                self.get_logger().warn(f'ZED IMU publish skipped: get_sensors_data returned {status}')
             return
+        self.last_imu_error = None
         imu = self.sensor_data.get_imu_data()
         lin = imu.get_linear_acceleration()
         ang = imu.get_angular_velocity()
@@ -167,6 +178,8 @@ class ZedSyncNode(Node):
             'stamp_sec': float(stamp.sec) + float(stamp.nanosec) / 1e9,
             'frame_count': self.frame_count,
             'imu_count': self.imu_count,
+            'imu_publish_failures': self.imu_publish_failures,
+            'last_imu_error': self.last_imu_error,
             'depth_shape': [int(depth_np.shape[0]), int(depth_np.shape[1])],
             'valid_depth_samples': int(valid.size),
             'depth_min_m': self._finite_or_none(depth_min),

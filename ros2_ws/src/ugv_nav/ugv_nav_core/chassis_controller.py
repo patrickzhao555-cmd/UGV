@@ -71,6 +71,8 @@ class ChassisControllerConfig:
     mission_straight_omega_slew_radps2: float = 0.80
     debug_allow_sub_min_crawl: bool = False
     debug_allow_unknown_pivot_clearance: bool = False
+    debug_ignore_nav_frame: bool = False
+    debug_ignore_obstacles: bool = False
     mission_stop_on_degraded_obstacle: bool = True
     mission_telemetry_active_hz: float = 50.0
     mission_telemetry_flush_period_s: float = 0.50
@@ -846,7 +848,9 @@ def evaluate_safety(
     last_imu_s: Optional[float] = None,
     require_imu: bool = False,
 ) -> SafetyDecision:
-    if last_sensor_s is None or now_s - last_sensor_s > config.sensor_timeout_s:
+    if not config.debug_ignore_nav_frame and (
+        last_sensor_s is None or now_s - last_sensor_s > config.sensor_timeout_s
+    ):
         return SafetyDecision(False, "sensor_stale")
     if require_imu and (last_imu_s is None or now_s - last_imu_s > config.imu_timeout_s):
         return SafetyDecision(False, "imu_stale")
@@ -856,6 +860,8 @@ def evaluate_safety(
     motor = motor_status_ready(motor_status)
     if not motor.safe:
         return motor
+    if config.debug_ignore_obstacles:
+        return SafetyDecision(True, "ok")
     if near_obstacle:
         return SafetyDecision(False, "near_obstacle")
     if front_clearance_m is None or math.isnan(front_clearance_m):

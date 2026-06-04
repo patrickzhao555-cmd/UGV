@@ -456,6 +456,25 @@ def test_stale_sensor_stops_chassis_test():
     assert decision.reason == "sensor_stale"
 
 
+def test_debug_ignore_nav_frame_allows_imu_closed_loop_test_without_fusion_frame():
+    decision = evaluate_safety(
+        now_s=10.0,
+        last_sensor_s=None,
+        last_imu_s=9.99,
+        last_motor_status_s=9.99,
+        motor_status=_ready_motor_status(),
+        near_obstacle=False,
+        front_clearance_m=None,
+        config=ChassisControllerConfig(
+            debug_ignore_nav_frame=True,
+            debug_ignore_obstacles=True,
+        ),
+        require_imu=True,
+    )
+    assert decision.safe
+    assert decision.reason == "ok"
+
+
 def test_stale_imu_stops_active_chassis_test_when_required():
     decision = evaluate_safety(
         now_s=10.0,
@@ -537,6 +556,34 @@ def test_obstacle_and_low_clearance_stop_chassis_test():
     assert obstacle.reason == "near_obstacle"
     assert not low_clearance.safe
     assert low_clearance.reason == "front_clearance_low"
+
+
+def test_debug_ignore_obstacles_bypasses_clearance_only_after_motor_is_ready():
+    decision = evaluate_safety(
+        now_s=10.0,
+        last_sensor_s=9.9,
+        last_motor_status_s=9.9,
+        motor_status=_ready_motor_status(),
+        near_obstacle=True,
+        front_clearance_m=0.0,
+        config=ChassisControllerConfig(debug_ignore_obstacles=True),
+    )
+    assert decision.safe
+    assert decision.reason == "ok"
+
+    motor_fault = _ready_motor_status()
+    motor_fault["fault_reason"] = "right_stall"
+    blocked = evaluate_safety(
+        now_s=10.0,
+        last_sensor_s=9.9,
+        last_motor_status_s=9.9,
+        motor_status=motor_fault,
+        near_obstacle=True,
+        front_clearance_m=0.0,
+        config=ChassisControllerConfig(debug_ignore_obstacles=True),
+    )
+    assert not blocked.safe
+    assert blocked.reason == "motor_fault:right_stall"
 
 
 def test_low_pivot_clearance_stops_pivot_test():

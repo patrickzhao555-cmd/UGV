@@ -191,6 +191,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--debug-allow-sub-min-crawl", type=parse_bool, default=False)
     parser.add_argument("--debug-allow-unknown-args", type=parse_bool, default=False)
     parser.add_argument("--debug-allow-unknown-pivot-clearance", type=parse_bool, default=False)
+    parser.add_argument("--debug-ignore-nav-frame", type=parse_bool, default=False)
+    parser.add_argument("--debug-ignore-obstacles", type=parse_bool, default=False)
     parser.add_argument("--mission-stop-on-degraded-obstacle", type=parse_bool, default=True)
     parser.add_argument("--mission-telemetry-active-hz", type=float, default=50.0)
     parser.add_argument("--mission-telemetry-flush-period-s", type=float, default=0.50)
@@ -285,6 +287,8 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         mission_straight_omega_slew_radps2=float(args.mission_straight_omega_slew_radps2),
         debug_allow_sub_min_crawl=bool(args.debug_allow_sub_min_crawl),
         debug_allow_unknown_pivot_clearance=bool(args.debug_allow_unknown_pivot_clearance),
+        debug_ignore_nav_frame=bool(args.debug_ignore_nav_frame),
+        debug_ignore_obstacles=bool(args.debug_ignore_obstacles),
         mission_stop_on_degraded_obstacle=bool(args.mission_stop_on_degraded_obstacle),
         mission_telemetry_active_hz=float(args.mission_telemetry_active_hz),
         mission_telemetry_flush_period_s=float(args.mission_telemetry_flush_period_s),

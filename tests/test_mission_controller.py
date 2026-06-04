@@ -128,6 +128,12 @@ def test_unknown_cli_args_fail_fast_unless_debug_enabled():
     assert args.debug_allow_unknown_args
 
 
+def test_debug_hard_run_test_flags_parse():
+    args = parse_args(["--debug-ignore-nav-frame", "true", "--debug-ignore-obstacles", "true"])
+    assert args.debug_ignore_nav_frame
+    assert args.debug_ignore_obstacles
+
+
 def test_pivot_test_angle_fails_fast_above_shortest_path_range():
     with pytest.raises(SystemExit):
         parse_args(["--controller-mode", "pivot_test", "--pivot-angle-deg", "181"])

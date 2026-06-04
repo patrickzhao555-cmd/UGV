@@ -145,6 +145,8 @@ def generate_launch_description():
     nav_debug_allow_sub_min_crawl = LaunchConfiguration("nav_debug_allow_sub_min_crawl")
     nav_debug_allow_unknown_args = LaunchConfiguration("nav_debug_allow_unknown_args")
     nav_debug_allow_unknown_pivot_clearance = LaunchConfiguration("nav_debug_allow_unknown_pivot_clearance")
+    nav_debug_ignore_nav_frame = LaunchConfiguration("nav_debug_ignore_nav_frame")
+    nav_debug_ignore_obstacles = LaunchConfiguration("nav_debug_ignore_obstacles")
     nav_mission_stop_on_degraded_obstacle = LaunchConfiguration("nav_mission_stop_on_degraded_obstacle")
     nav_mission_telemetry_active_hz = LaunchConfiguration("nav_mission_telemetry_active_hz")
     nav_mission_telemetry_flush_period_s = LaunchConfiguration("nav_mission_telemetry_flush_period_s")
@@ -370,6 +372,10 @@ def generate_launch_description():
             nav_debug_allow_unknown_args,
             "--debug-allow-unknown-pivot-clearance",
             nav_debug_allow_unknown_pivot_clearance,
+            "--debug-ignore-nav-frame",
+            nav_debug_ignore_nav_frame,
+            "--debug-ignore-obstacles",
+            nav_debug_ignore_obstacles,
             "--mission-stop-on-degraded-obstacle",
             nav_mission_stop_on_degraded_obstacle,
             "--mission-telemetry-active-hz",
@@ -529,6 +535,8 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_debug_allow_sub_min_crawl", default_value="false"),
             DeclareLaunchArgument("nav_debug_allow_unknown_args", default_value="false"),
             DeclareLaunchArgument("nav_debug_allow_unknown_pivot_clearance", default_value="false"),
+            DeclareLaunchArgument("nav_debug_ignore_nav_frame", default_value="false"),
+            DeclareLaunchArgument("nav_debug_ignore_obstacles", default_value="false"),
             DeclareLaunchArgument("nav_mission_stop_on_degraded_obstacle", default_value="true"),
             DeclareLaunchArgument("nav_mission_telemetry_active_hz", default_value="50.0"),
             DeclareLaunchArgument("nav_mission_telemetry_flush_period_s", default_value="0.50"),

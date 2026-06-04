@@ -39,6 +39,7 @@ class ZedSyncNode(Node):
         self.declare_parameter('status_topic', '/zed/status')
         self.declare_parameter('status_period_s', 1.0)
         self.declare_parameter('imu_rate_window_s', 2.0)
+        self.declare_parameter('publish_depth_without_subscribers', False)
 
         image_topic = self.get_parameter('image_topic').value
         camera_info_topic = self.get_parameter('camera_info_topic').value
@@ -55,6 +56,9 @@ class ZedSyncNode(Node):
         status_topic = self.get_parameter('status_topic').value
         self.status_period_s = max(0.2, float(self.get_parameter('status_period_s').value))
         self.imu_rate_window_s = max(0.1, float(self.get_parameter('imu_rate_window_s').value))
+        self.publish_depth_without_subscribers = bool(
+            self.get_parameter('publish_depth_without_subscribers').value
+        )
         self.depth_period_s = 1.0 / max(publish_rate_hz, 0.1)
         self.poll_period_s = 1.0 / max(publish_rate_hz, imu_publish_rate_hz, 1.0)
         self.bridge = CvBridge() if CvBridge is not None else None
@@ -68,6 +72,7 @@ class ZedSyncNode(Node):
         self.imu_pub = self.create_publisher(Imu, imu_topic, qos_profile_sensor_data)
         self.status_pub = self.create_publisher(String, status_topic, 10)
         self.frame_count = 0
+        self.camera_grab_count = 0
         self.imu_count = 0
         self.imu_publish_failures = 0
         self.last_imu_error = None
@@ -79,6 +84,7 @@ class ZedSyncNode(Node):
         self.last_imu_timestamp_ns = None
         self.imu_duplicate_samples = 0
         self.imu_publish_times_s = deque()
+        self.camera_grab_times_s = deque()
         self.last_imu_failure_log_s = 0.0
         self.next_depth_publish_s = 0.0
         self.latest_depth_stamp_s = None
@@ -125,15 +131,22 @@ class ZedSyncNode(Node):
         )
 
     def poll_camera(self):
+        if self.zed.grab(self.runtime) != sl.ERROR_CODE.SUCCESS:
+            return
+
         now_s = self._clock_now_s()
+        self.camera_grab_count += 1
+        self.camera_grab_times_s.append(now_s)
+        self._trim_camera_grab_times_locked(now_s)
         self.publish_imu()
+
         if now_s + 1e-9 < self.next_depth_publish_s:
             return
         self.next_depth_publish_s = now_s + self.depth_period_s
         self.grab_frame()
 
     def grab_frame(self):
-        if self.zed.grab(self.runtime) != sl.ERROR_CODE.SUCCESS:
+        if not self._should_publish_depth_or_image():
             return
 
         stamp = self.get_clock().now().to_msg()
@@ -167,6 +180,16 @@ class ZedSyncNode(Node):
         )
 
         self._update_depth_status(depth_np, stamp)
+
+    def _should_publish_depth_or_image(self) -> bool:
+        if self.publish_image and self.image_pub is not None:
+            if self.image_pub.get_subscription_count() > 0:
+                return True
+            if self.camera_info_pub is not None and self.camera_info_pub.get_subscription_count() > 0:
+                return True
+        if self.depth_pub.get_subscription_count() > 0:
+            return True
+        return self.publish_depth_without_subscribers
 
     def publish_imu(self):
         status = self.zed.get_sensors_data(self.sensor_data, sl.TIME_REFERENCE.CURRENT)
@@ -261,6 +284,8 @@ class ZedSyncNode(Node):
         status = {
             'stamp_sec': self.latest_depth_stamp_s,
             'frame_count': self.frame_count,
+            'camera_grab_count': self.camera_grab_count,
+            'camera_grab_rate_hz': self._camera_grab_rate_hz_locked(),
             'imu_count': self.imu_count,
             'imu_rate_hz': self._imu_rate_hz_locked(),
             'imu_age_s': self._finite_or_none(imu_age_s),
@@ -282,6 +307,7 @@ class ZedSyncNode(Node):
             'depth_p10_m': self.latest_depth_p10_m,
             'depth_mean_m': self.latest_depth_mean_m,
             'publish_image': self.publish_image,
+            'publish_depth_without_subscribers': self.publish_depth_without_subscribers,
             'depth_downsample_factor': self.depth_downsample_factor,
             'image_downsample_factor': self.image_downsample_factor,
         }
@@ -291,6 +317,10 @@ class ZedSyncNode(Node):
         while self.imu_publish_times_s and now_s - self.imu_publish_times_s[0] > self.imu_rate_window_s:
             self.imu_publish_times_s.popleft()
 
+    def _trim_camera_grab_times_locked(self, now_s: float) -> None:
+        while self.camera_grab_times_s and now_s - self.camera_grab_times_s[0] > self.imu_rate_window_s:
+            self.camera_grab_times_s.popleft()
+
     def _imu_rate_hz_locked(self) -> float:
         if len(self.imu_publish_times_s) < 2:
             return 0.0
@@ -298,6 +328,14 @@ class ZedSyncNode(Node):
         if elapsed_s <= 0.0:
             return 0.0
         return float(len(self.imu_publish_times_s) - 1) / elapsed_s
+
+    def _camera_grab_rate_hz_locked(self) -> float:
+        if len(self.camera_grab_times_s) < 2:
+            return 0.0
+        elapsed_s = self.camera_grab_times_s[-1] - self.camera_grab_times_s[0]
+        if elapsed_s <= 0.0:
+            return 0.0
+        return float(len(self.camera_grab_times_s) - 1) / elapsed_s
 
     def _clock_now_s(self) -> float:
         return self.get_clock().now().nanoseconds / 1e9

@@ -246,8 +246,13 @@ def test_zed_sync_publishes_camera_info_for_aruco_pnp():
     assert "if depth_np.ndim == 3:\n            depth_np = depth_np[:, :, 0]\n        if self.depth_downsample_factor > 1:" in zed_text
     assert "left_np[::self.image_downsample_factor, ::self.image_downsample_factor]" in zed_text
     assert "def poll_camera" in zed_text
+    assert "self.zed.grab(self.runtime)" in zed_text
+    assert zed_text.index("self.zed.grab(self.runtime)") < zed_text.index("self.publish_imu()")
     assert "self.publish_imu()" in zed_text
     assert "self.grab_frame()" in zed_text
+    assert "_should_publish_depth_or_image" in zed_text
+    assert "publish_depth_without_subscribers" in zed_text
+    assert "camera_grab_rate_hz" in zed_text
     assert "MultiThreadedExecutor" not in zed_text
     assert "MutuallyExclusiveCallbackGroup" not in zed_text
     assert "acquire(blocking=False)" not in zed_text

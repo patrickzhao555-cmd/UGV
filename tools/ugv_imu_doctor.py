@@ -122,6 +122,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         print(
             f"  zed_status_topic={args.zed_status_topic} "
             f"camera_model={zed_status.get('camera_model')} "
+            f"camera_grab_count={zed_status.get('camera_grab_count')} "
+            f"camera_grab_rate_hz={zed_status.get('camera_grab_rate_hz')} "
             f"zed_imu_count={zed_status.get('imu_count')} "
             f"zed_imu_rate_hz={zed_status.get('imu_rate_hz')} "
             f"zed_imu_age_s={zed_status.get('imu_age_s')} "

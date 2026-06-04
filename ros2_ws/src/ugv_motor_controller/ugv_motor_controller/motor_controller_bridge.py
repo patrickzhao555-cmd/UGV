@@ -785,6 +785,9 @@ def main() -> None:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
+    except RuntimeError as exc:
+        if "Unable to convert call argument" not in str(exc) and rclpy.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

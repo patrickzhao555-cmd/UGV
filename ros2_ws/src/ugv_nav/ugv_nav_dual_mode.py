@@ -143,7 +143,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--imu-qos", default="sensor_data")
     parser.add_argument("--imu-yaw-axis", choices=["x", "y", "z"], default="z")
     parser.add_argument("--imu-yaw-sign", type=float, default=1.0)
+    parser.add_argument("--imu-min-rate-hz", type=float, default=20.0)
     parser.add_argument("--motor-status-topic", default="/motor_controller/status")
+    parser.add_argument("--encoder-stamped-topic", default="/encoder_ticks_stamped")
+    parser.add_argument("--zed-status-topic", default="/zed/status")
+    parser.add_argument("--allow-encoder-heading-fallback", type=parse_bool, default=False)
     parser.add_argument("--nav-status-period-s", type=float, default=0.25)
     parser.add_argument("--control-period-s", type=float, default=0.02)
     parser.add_argument("--straight-speed-mps", type=float, default=0.20)
@@ -169,7 +173,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--heading-deadband-rad", type=float, default=0.025)
     parser.add_argument("--stop-clearance-m", type=float, default=0.45)
     parser.add_argument("--sensor-timeout-s", type=float, default=0.30)
-    parser.add_argument("--imu-timeout-s", type=float, default=0.12)
+    parser.add_argument("--imu-timeout-s", type=float, default=0.30)
     parser.add_argument("--motor-status-timeout-s", type=float, default=0.50)
     parser.add_argument("--max-test-duration-s", type=float, default=3.0)
     parser.add_argument("--gyro-bias-calibration-s", type=float, default=1.5)
@@ -268,6 +272,7 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         stop_clearance_m=float(args.stop_clearance_m),
         sensor_timeout_s=float(args.sensor_timeout_s),
         imu_timeout_s=float(args.imu_timeout_s),
+        imu_min_rate_hz=float(args.imu_min_rate_hz),
         motor_status_timeout_s=float(args.motor_status_timeout_s),
         max_test_duration_s=float(args.max_test_duration_s),
         gyro_bias_calibration_s=float(args.gyro_bias_calibration_s),
@@ -332,7 +337,7 @@ def run_real(args: argparse.Namespace) -> None:
         from rclpy.qos import qos_profile_sensor_data
         from sensor_msgs.msg import Imu
         from std_msgs.msg import String
-        from ugv_sensor_sync.msg import NavSensorFrame
+        from ugv_sensor_sync.msg import EncoderTicksStamped, NavSensorFrame
     except ImportError as exc:
         raise SystemExit(f"ROS 2 Python packages are required for real mode: {exc}") from exc
 
@@ -358,7 +363,10 @@ def run_real(args: argparse.Namespace) -> None:
             self.last_sensor_s: Optional[float] = None
             self.last_imu_s: Optional[float] = None
             self.last_motor_status_s: Optional[float] = None
+            self.last_encoder_feedback_s: Optional[float] = None
+            self.last_zed_status_s: Optional[float] = None
             self.motor_status: Optional[Dict[str, Any]] = None
+            self.zed_status: Optional[Dict[str, Any]] = None
             self.near_obstacle = False
             self.front_clearance_m: Optional[float] = None
             self.pivot_clearance_m: Optional[float] = None
@@ -419,6 +427,13 @@ def run_real(args: argparse.Namespace) -> None:
             self.create_subscription(NavSensorFrame, args.nav_frame_topic, self.nav_frame_callback, 10)
             self.create_subscription(Imu, args.imu_topic, self.imu_callback, imu_qos)
             self.create_subscription(String, args.motor_status_topic, self.motor_status_callback, 10)
+            self.create_subscription(
+                EncoderTicksStamped,
+                args.encoder_stamped_topic,
+                self.encoder_stamped_callback,
+                qos_profile_sensor_data,
+            )
+            self.create_subscription(String, args.zed_status_topic, self.zed_status_callback, 10)
             self.timer = self.create_timer(max(0.01, float(args.control_period_s)), self.tick)
             self.get_logger().warn(
                 f"Chassis controller started in {self.mode}; only velocity/STOP JSON is published."
@@ -427,6 +442,9 @@ def run_real(args: argparse.Namespace) -> None:
                 "Chassis sanity: "
                 f"control_hz={1.0 / max(0.01, float(args.control_period_s)):.1f}, "
                 f"imu_topic={args.imu_topic}, imu_qos={self.imu_qos_name}, "
+                f"imu_timeout={self.config.imu_timeout_s:.3f}s, imu_min_rate={self.config.imu_min_rate_hz:.1f}Hz, "
+                f"encoder_topic={args.encoder_stamped_topic}, "
+                f"zed_status_topic={args.zed_status_topic}, "
                 f"competition_min_speed={self.config.competition_min_speed_mps:.6f}m/s, "
                 f"heading_kp={self.config.heading_kp:.3f}, heading_kd={self.config.heading_kd:.3f}, "
                 f"pivot_max_omega={self.config.pivot_max_omega_radps:.3f}, "
@@ -445,6 +463,7 @@ def run_real(args: argparse.Namespace) -> None:
                 self._update_encoder_feedback(
                     left_ticks=int(msg.left_encoder_ticks),
                     right_ticks=int(msg.right_encoder_ticks),
+                    now_s=now_s,
                 )
 
         def imu_callback(self, msg: Any) -> None:
@@ -483,7 +502,24 @@ def run_real(args: argparse.Namespace) -> None:
                 self.last_motor_status_s = time.monotonic()
                 ticks = encoder_ticks_from_motor_status(payload)
                 if ticks is not None:
-                    self._update_encoder_feedback(left_ticks=ticks[0], right_ticks=ticks[1])
+                    self._update_encoder_feedback(left_ticks=ticks[0], right_ticks=ticks[1], now_s=self.last_motor_status_s)
+
+        def encoder_stamped_callback(self, msg: Any) -> None:
+            self._update_encoder_feedback(
+                left_ticks=int(msg.left_ticks),
+                right_ticks=int(msg.right_ticks),
+                now_s=time.monotonic(),
+            )
+
+        def zed_status_callback(self, msg: Any) -> None:
+            try:
+                payload = json.loads(msg.data)
+            except json.JSONDecodeError as exc:
+                self.get_logger().warn(f"Ignoring invalid ZED status JSON: {exc}")
+                return
+            if isinstance(payload, dict):
+                self.zed_status = payload
+                self.last_zed_status_s = time.monotonic()
 
         @staticmethod
         def _stamp_to_seconds(stamp: Any) -> Optional[float]:
@@ -516,27 +552,104 @@ def run_real(args: argparse.Namespace) -> None:
         def _imu_fresh(self, now_s: float) -> bool:
             return self.last_imu_s is not None and now_s - self.last_imu_s <= self.config.imu_timeout_s
 
+        def _imu_rate_ok(self) -> bool:
+            min_rate_hz = max(0.0, float(self.config.imu_min_rate_hz))
+            return min_rate_hz <= 0.0 or self._imu_rate_hz() >= min_rate_hz
+
+        def _imu_health(self, now_s: float) -> Dict[str, Any]:
+            age_s = None if self.last_imu_s is None else max(0.0, now_s - self.last_imu_s)
+            rate_hz = self._imu_rate_hz()
+            min_rate_hz = max(0.0, float(self.config.imu_min_rate_hz))
+            return {
+                "topic": str(args.imu_topic),
+                "qos": self.imu_qos_name,
+                "age_s": None if age_s is None else round(age_s, 3),
+                "timeout_s": round(float(self.config.imu_timeout_s), 3),
+                "fresh": age_s is not None and age_s <= float(self.config.imu_timeout_s),
+                "rate_hz": round(rate_hz, 3),
+                "min_rate_hz": round(min_rate_hz, 3),
+                "rate_ok": min_rate_hz <= 0.0 or rate_hz >= min_rate_hz,
+                "max_dt_s": round(self.imu_max_dt_s, 4),
+                "skipped_integrations": self.imu_skipped_integrations,
+                "arrival_samples": len(self.imu_arrival_times_s),
+            }
+
+        def _zed_imu_status(self, now_s: float) -> Dict[str, Any]:
+            if self.zed_status is None:
+                return {
+                    "topic": str(args.zed_status_topic),
+                    "age_s": None,
+                    "available": False,
+                    "imu_count": None,
+                    "imu_rate_hz": None,
+                    "imu_age_s": None,
+                    "imu_publish_failures": None,
+                    "last_imu_error": None,
+                    "imu_busy_skips": None,
+                    "last_imu_publish_s": None,
+                }
+            return {
+                "topic": str(args.zed_status_topic),
+                "age_s": None if self.last_zed_status_s is None else round(max(0.0, now_s - self.last_zed_status_s), 3),
+                "available": True,
+                "imu_count": self.zed_status.get("imu_count"),
+                "imu_rate_hz": self.zed_status.get("imu_rate_hz"),
+                "imu_age_s": self.zed_status.get("imu_age_s"),
+                "imu_publish_failures": self.zed_status.get("imu_publish_failures"),
+                "last_imu_error": self.zed_status.get("last_imu_error"),
+                "imu_busy_skips": self.zed_status.get("imu_busy_skips"),
+                "last_imu_publish_s": self.zed_status.get("last_imu_publish_s"),
+            }
+
+        def _encoder_health(self, now_s: float) -> Dict[str, Any]:
+            age_s = None if self.last_encoder_feedback_s is None else max(0.0, now_s - self.last_encoder_feedback_s)
+            return {
+                "topic": str(args.encoder_stamped_topic),
+                "available": self._encoder_feedback_available(),
+                "fresh": self._encoder_feedback_fresh(now_s),
+                "age_s": None if age_s is None else round(age_s, 3),
+                "left_ticks": self.current_left_ticks,
+                "right_ticks": self.current_right_ticks,
+                "fallback_allowed": self._encoder_fallback_allowed(now_s),
+            }
+
         def _encoder_feedback_available(self) -> bool:
             return self.encoder_available and self.current_left_ticks is not None and self.current_right_ticks is not None
 
+        def _encoder_feedback_fresh(self, now_s: float) -> bool:
+            return (
+                self._encoder_feedback_available()
+                and self.last_encoder_feedback_s is not None
+                and now_s - self.last_encoder_feedback_s <= max(0.05, self.config.motor_status_timeout_s)
+            )
+
+        def _imu_control_ready(self, now_s: float) -> bool:
+            return self._imu_fresh(now_s) and self._imu_rate_ok()
+
+        def _encoder_fallback_allowed(self, now_s: float) -> bool:
+            return bool(args.allow_encoder_heading_fallback) and self._encoder_feedback_fresh(now_s)
+
         def _heading_source(self, now_s: float) -> str:
-            if self._imu_fresh(now_s) and self.estimator.gyro_available:
+            if self._imu_control_ready(now_s) and self.estimator.gyro_available:
                 return "imu"
-            if self._encoder_feedback_available():
-                return "encoder"
+            if self._encoder_fallback_allowed(now_s):
+                return "encoder_fallback"
+            if self._encoder_feedback_fresh(now_s):
+                return "encoder_observer"
             return "none"
 
         def _heading_rad(self, now_s: float) -> float:
-            if self._imu_fresh(now_s) and self.estimator.gyro_available:
+            if self._imu_control_ready(now_s) and self.estimator.gyro_available:
                 return self.estimator.gyro_heading_rad
-            if self._encoder_feedback_available():
+            if self._encoder_fallback_allowed(now_s):
                 return self.estimator.encoder_heading_rad
             return self.estimator.heading_rad
 
-        def _update_encoder_feedback(self, *, left_ticks: int, right_ticks: int) -> None:
+        def _update_encoder_feedback(self, *, left_ticks: int, right_ticks: int, now_s: Optional[float] = None) -> None:
             self.current_left_ticks = int(left_ticks)
             self.current_right_ticks = int(right_ticks)
             self.encoder_available = True
+            self.last_encoder_feedback_s = time.monotonic() if now_s is None else float(now_s)
             self.estimator = update_encoder_heading(
                 self.estimator,
                 left_ticks=self.current_left_ticks,
@@ -597,10 +710,15 @@ def run_real(args: argparse.Namespace) -> None:
 
         def _calibrate_gyro_bias_if_needed(self, now_s: float) -> tuple[bool, str]:
             if not self._imu_fresh(now_s):
-                if self._encoder_feedback_available():
+                if self._encoder_fallback_allowed(now_s):
                     self.estimator.gyro_available = False
-                    return True, "encoder_heading_ready"
+                    return True, "encoder_heading_fallback"
                 return False, "heading_feedback_stale"
+            if not self._imu_rate_ok():
+                if self._encoder_fallback_allowed(now_s):
+                    self.estimator.gyro_available = False
+                    return True, "encoder_heading_fallback"
+                return False, "imu_rate_low"
             if self.gyro_bias.ready:
                 return True, "gyro_bias_ready"
             result = update_gyro_bias_calibration(
@@ -635,6 +753,7 @@ def run_real(args: argparse.Namespace) -> None:
             return False, result.reason
 
         def _evaluate_active_safety(self, now_s: float) -> str:
+            require_imu = not self._encoder_fallback_allowed(now_s)
             safety = evaluate_safety(
                 now_s=now_s,
                 last_sensor_s=self.last_sensor_s,
@@ -644,7 +763,8 @@ def run_real(args: argparse.Namespace) -> None:
                 near_obstacle=self.near_obstacle,
                 front_clearance_m=self.front_clearance_m,
                 config=self.config,
-                require_imu=not self._encoder_feedback_available(),
+                require_imu=require_imu,
+                imu_rate_hz=self._imu_rate_hz(),
             )
             if not safety.safe:
                 return safety.reason
@@ -759,6 +879,7 @@ def run_real(args: argparse.Namespace) -> None:
             return self.segment_distance_m
 
         def _evaluate_mission_safety(self, now_s: float) -> None:
+            require_imu = not self._encoder_fallback_allowed(now_s)
             decision = classify_mission_safety(
                 now_s=now_s,
                 last_sensor_s=self.last_sensor_s,
@@ -768,7 +889,8 @@ def run_real(args: argparse.Namespace) -> None:
                 near_obstacle=self.near_obstacle,
                 front_clearance_m=self.front_clearance_m,
                 config=self.config,
-                require_imu=not self._encoder_feedback_available(),
+                require_imu=require_imu,
+                imu_rate_hz=self._imu_rate_hz(),
             )
             self.mission_safety_level = decision.level
             self.mission_safety_reason = decision.reason
@@ -1171,9 +1293,40 @@ def run_real(args: argparse.Namespace) -> None:
         def _log_safety_stop(self, reason: str, now_s: float) -> None:
             if reason == self.last_safety_reason and now_s - self.last_safety_log_s < 1.0:
                 return
-            self.get_logger().warn(f"Chassis test holding STOP: {reason}")
+            self.get_logger().warn(f"Chassis test holding STOP: {self._safety_log_detail(reason, now_s)}")
             self.last_safety_reason = reason
             self.last_safety_log_s = now_s
+
+        @staticmethod
+        def _status_value_text(value: Any, suffix: str = "") -> str:
+            if value is None:
+                return "-"
+            if isinstance(value, float):
+                return f"{value:.3f}{suffix}"
+            return f"{value}{suffix}"
+
+        def _safety_log_detail(self, reason: str, now_s: float) -> str:
+            if reason not in {"imu_stale", "imu_rate_low", "heading_feedback_stale"}:
+                return reason
+            imu = self._imu_health(now_s)
+            zed = self._zed_imu_status(now_s)
+            encoder = self._encoder_health(now_s)
+            return (
+                f"{reason} "
+                f"(imu_topic={imu['topic']} qos={imu['qos']} "
+                f"age={self._status_value_text(imu['age_s'], 's')} "
+                f"rate={self._status_value_text(imu['rate_hz'], 'Hz')} "
+                f"min={self._status_value_text(imu['min_rate_hz'], 'Hz')} "
+                f"zed_age={self._status_value_text(zed.get('age_s'), 's')} "
+                f"zed_rate={self._status_value_text(zed.get('imu_rate_hz'), 'Hz')} "
+                f"zed_count={self._status_value_text(zed.get('imu_count'))} "
+                f"zed_failures={self._status_value_text(zed.get('imu_publish_failures'))} "
+                f"zed_error={zed.get('last_imu_error') or '-'} "
+                f"zed_busy_skips={self._status_value_text(zed.get('imu_busy_skips'))} "
+                f"encoder_age={self._status_value_text(encoder.get('age_s'), 's')} "
+                f"encoder_fresh={encoder.get('fresh')} "
+                f"encoder_fallback={encoder.get('fallback_allowed')})"
+            )
 
         def _publish_status_if_needed(
             self,
@@ -1284,6 +1437,7 @@ def run_real(args: argparse.Namespace) -> None:
                 "heading_source": self._heading_source(now_s),
                 "gyro_heading_rad": self.estimator.gyro_heading_rad,
                 "encoder_heading_rad": self.estimator.encoder_heading_rad,
+                "encoder_health": self._encoder_health(now_s),
                 "encoder_gyro_disagreement_rad": self.encoder_gyro_disagreement_rad,
                 "slip_detected": self.slip_detected,
                 "heading_error_rad": heading_error,
@@ -1322,6 +1476,9 @@ def run_real(args: argparse.Namespace) -> None:
                 "sensor_age_s": None if self.last_sensor_s is None else round(now_s - self.last_sensor_s, 3),
                 "imu_age_s": None if self.last_imu_s is None else round(now_s - self.last_imu_s, 3),
                 "imu_rate_hz": round(self._imu_rate_hz(), 3),
+                "imu_min_rate_hz": round(max(0.0, float(self.config.imu_min_rate_hz)), 3),
+                "imu_health": self._imu_health(now_s),
+                "zed_imu_status": self._zed_imu_status(now_s),
                 "imu_max_dt_s": round(self.imu_max_dt_s, 4),
                 "imu_skipped_integrations": self.imu_skipped_integrations,
                 "imu_qos": self.imu_qos_name,

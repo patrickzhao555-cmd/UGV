@@ -63,8 +63,12 @@ class DebugStatusNode(Node):
         self.get_logger().info(
             'debug '
             f"zed_valid={zed.get('valid_depth_samples')} "
-            f"imu_rate={nav.get('imu_rate_hz')} "
-            f"imu_age={nav.get('imu_age_s')} "
+            f"zed_imu_rate={zed.get('imu_rate_hz')} "
+            f"zed_imu_age={zed.get('imu_age_s')} "
+            f"zed_imu_failures={zed.get('imu_publish_failures')} "
+            f"zed_error={zed.get('last_imu_error')} "
+            f"nav_imu_rate={nav.get('imu_rate_hz')} "
+            f"nav_imu_age={nav.get('imu_age_s')} "
             f"depth_p10={zed.get('depth_p10_m')} "
             f"front_lidar={fusion.get('front_lidar_range_m')} "
             f"depth_roi={fusion.get('min_depth_range_m')} "
@@ -86,6 +90,7 @@ class DebugStatusNode(Node):
             f"v={nav.get('v_mps')} "
             f"omega={nav.get('omega_radps')} "
             f"heading_err={nav.get('heading_error_rad')} "
+            f"heading_src={nav.get('heading_source')} "
             f"yaw_rate={nav.get('yaw_rate_radps')} "
             f"gyro_bias={nav.get('gyro_bias_radps')} "
             f"safety={nav.get('safety_level')}:{nav.get('safety_reason')} "

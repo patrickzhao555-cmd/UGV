@@ -510,6 +510,56 @@ def test_stale_imu_stops_active_chassis_test_when_required():
     assert decision.reason == "imu_stale"
 
 
+def test_low_imu_rate_stops_active_chassis_test_when_required():
+    low_rate = evaluate_safety(
+        now_s=10.0,
+        last_sensor_s=9.9,
+        last_imu_s=9.99,
+        last_motor_status_s=9.9,
+        motor_status=_ready_motor_status(),
+        near_obstacle=False,
+        front_clearance_m=1.0,
+        config=ChassisControllerConfig(imu_timeout_s=0.30, imu_min_rate_hz=20.0),
+        require_imu=True,
+        imu_rate_hz=5.0,
+    )
+    assert not low_rate.safe
+    assert low_rate.reason == "imu_rate_low"
+
+    healthy = evaluate_safety(
+        now_s=10.0,
+        last_sensor_s=9.9,
+        last_imu_s=9.99,
+        last_motor_status_s=9.9,
+        motor_status=_ready_motor_status(),
+        near_obstacle=False,
+        front_clearance_m=1.0,
+        config=ChassisControllerConfig(imu_timeout_s=0.30, imu_min_rate_hz=20.0),
+        require_imu=True,
+        imu_rate_hz=100.0,
+    )
+    assert healthy.safe
+    assert healthy.reason == "ok"
+
+
+def test_encoder_feedback_does_not_bypass_mandatory_imu_health_gate():
+    status = _ready_motor_status()
+    status["encoder_ticks"] = [123, 456]
+    decision = evaluate_safety(
+        now_s=10.0,
+        last_sensor_s=9.9,
+        last_imu_s=None,
+        last_motor_status_s=9.9,
+        motor_status=status,
+        near_obstacle=False,
+        front_clearance_m=1.0,
+        config=ChassisControllerConfig(imu_timeout_s=0.30),
+        require_imu=True,
+    )
+    assert not decision.safe
+    assert decision.reason == "imu_stale"
+
+
 def test_motor_fault_stops_chassis_test():
     status = _ready_motor_status()
     status["fault_reason"] = "left_stall"

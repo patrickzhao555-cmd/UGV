@@ -419,6 +419,7 @@ def classify_mission_safety(
     front_clearance_m: Optional[float],
     config: ChassisControllerConfig,
     require_imu: bool = True,
+    imu_rate_hz: Optional[float] = None,
 ) -> MissionSafetyDecision:
     if last_motor_status_s is None or now_s - last_motor_status_s > config.motor_status_timeout_s:
         return MissionSafetyDecision("critical", "motor_status_stale")
@@ -427,6 +428,13 @@ def classify_mission_safety(
         return MissionSafetyDecision("critical", motor.reason)
     if require_imu and (last_imu_s is None or now_s - last_imu_s > config.imu_timeout_s):
         return MissionSafetyDecision("critical", "imu_stale")
+    if (
+        require_imu
+        and imu_rate_hz is not None
+        and float(config.imu_min_rate_hz) > 0.0
+        and float(imu_rate_hz) < float(config.imu_min_rate_hz)
+    ):
+        return MissionSafetyDecision("critical", "imu_rate_low")
 
     if last_sensor_s is None:
         return MissionSafetyDecision("degraded", "sensor_missing")

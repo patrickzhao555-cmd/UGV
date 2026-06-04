@@ -245,8 +245,34 @@ def test_zed_sync_publishes_camera_info_for_aruco_pnp():
     assert "self.depth_downsample_factor" in zed_text
     assert "if depth_np.ndim == 3:\n            depth_np = depth_np[:, :, 0]\n        if self.depth_downsample_factor > 1:" in zed_text
     assert "left_np[::self.image_downsample_factor, ::self.image_downsample_factor]" in zed_text
+    assert "def poll_camera" in zed_text
+    assert "self.publish_imu()" in zed_text
+    assert "self.grab_frame()" in zed_text
+    assert "MultiThreadedExecutor" not in zed_text
+    assert "MutuallyExclusiveCallbackGroup" not in zed_text
+    assert "acquire(blocking=False)" not in zed_text
+    assert "math.radians(value)" in zed_text
+    assert "last_imu_ang_degps" in zed_text
+    assert "imu_rate_hz" in zed_text
+    assert "imu_age_s" in zed_text
+    assert "imu_busy_skips" in zed_text
+    assert "last_imu_publish_s" in zed_text
     assert "zed_image_downsample_factor" in sensor_launch_text
+    assert "start_debug_status" in sensor_launch_text
+    assert "debug_status_node.py" in sensor_launch_text
     assert 'DeclareLaunchArgument("zed_image_downsample_factor", default_value="1")' in nav2_launch_text
+
+
+def test_fusion_depth_blind_hazard_does_not_override_clear_lidar():
+    fusion_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "fusion_node.py").read_text()
+    nav_frame_msg = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "msg" / "NavSensorFrame.msg").read_text()
+
+    assert "lidar_front_clear" in fusion_text
+    assert "depth_blind_hazard_active = depth_blind_hazard and not lidar_front_clear" in fusion_text
+    assert "near_obstacle = depth_blind_hazard_active or (" in fusion_text
+    assert "bool depth_blind_hazard" in nav_frame_msg
+    assert "string front_clearance_source" in nav_frame_msg
+    assert "float32 front_lidar_range_m" in nav_frame_msg
 
 
 def test_aruco_detector_uses_full_tf_projection_not_yaw_only_projection_by_default():

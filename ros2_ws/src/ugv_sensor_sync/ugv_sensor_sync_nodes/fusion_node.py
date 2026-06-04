@@ -297,7 +297,12 @@ class FusionNode(Node):
             )
         front_clearance_m = min(front_lidar_range_m, depth_min_range_m)
         front_clearance_source = self._clearance_source(front_lidar_range_m, depth_min_range_m)
-        near_obstacle = depth_blind_hazard or (
+        lidar_front_clear = (
+            math.isfinite(front_lidar_range_m)
+            and front_lidar_range_m >= self.depth_warning_threshold_m
+        )
+        depth_blind_hazard_active = depth_blind_hazard and not lidar_front_clear
+        near_obstacle = depth_blind_hazard_active or (
             math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
         )
         smoothed_imu_msg = self._smooth_imu(imu_msg)
@@ -335,6 +340,12 @@ class FusionNode(Node):
         nav_frame.min_depth_range_m = float(depth_min_range_m)
         nav_frame.front_clearance_m = float(front_clearance_m)
         nav_frame.near_obstacle = bool(near_obstacle)
+        if hasattr(nav_frame, 'depth_blind_hazard'):
+            nav_frame.depth_blind_hazard = bool(depth_blind_hazard)
+        if hasattr(nav_frame, 'front_clearance_source'):
+            nav_frame.front_clearance_source = str(front_clearance_source)
+        if hasattr(nav_frame, 'front_lidar_range_m'):
+            nav_frame.front_lidar_range_m = float(front_lidar_range_m)
         self.nav_frame_pub.publish(nav_frame)
 
         self.obstacle_points_pub.publish(zed_obstacle_points)
@@ -390,6 +401,7 @@ class FusionNode(Node):
             'front_clearance_source': front_clearance_source,
             'depth_warning': bool(depth_warning),
             'depth_blind_hazard': bool(depth_blind_hazard),
+            'depth_blind_hazard_active': bool(depth_blind_hazard_active),
             'near_obstacle': bool(near_obstacle),
         }
         self.summary_pub.publish(String(data=json.dumps(summary)))

@@ -28,10 +28,14 @@ def generate_launch_description():
     start_lidar = LaunchConfiguration("start_lidar")
     start_lidar_filter = LaunchConfiguration("start_lidar_filter")
     start_fusion = LaunchConfiguration("start_fusion")
+    start_debug_status = LaunchConfiguration("start_debug_status")
     lidar_port = LaunchConfiguration("lidar_port")
     lidar_baud = LaunchConfiguration("lidar_baud")
     lidar_filter_forward_fov_deg = LaunchConfiguration("lidar_filter_forward_fov_deg")
+    zed_publish_rate_hz = LaunchConfiguration("zed_publish_rate_hz")
     zed_imu_publish_rate_hz = LaunchConfiguration("zed_imu_publish_rate_hz")
+    zed_imu_rate_window_s = LaunchConfiguration("zed_imu_rate_window_s")
+    zed_depth_downsample_factor = LaunchConfiguration("zed_depth_downsample_factor")
     zed_image_downsample_factor = LaunchConfiguration("zed_image_downsample_factor")
     zed_publish_image = LaunchConfiguration("zed_publish_image")
     motor_port = LaunchConfiguration("motor_port")
@@ -83,7 +87,11 @@ def generate_launch_description():
     nav_imu_yaw_axis = LaunchConfiguration("nav_imu_yaw_axis")
     nav_imu_yaw_sign = LaunchConfiguration("nav_imu_yaw_sign")
     nav_imu_timeout_s = LaunchConfiguration("nav_imu_timeout_s")
+    nav_imu_min_rate_hz = LaunchConfiguration("nav_imu_min_rate_hz")
     nav_motor_status_topic = LaunchConfiguration("nav_motor_status_topic")
+    nav_encoder_stamped_topic = LaunchConfiguration("nav_encoder_stamped_topic")
+    nav_zed_status_topic = LaunchConfiguration("nav_zed_status_topic")
+    nav_allow_encoder_heading_fallback = LaunchConfiguration("nav_allow_encoder_heading_fallback")
     nav_straight_speed_mps = LaunchConfiguration("nav_straight_speed_mps")
     nav_straight_duration_s = LaunchConfiguration("nav_straight_duration_s")
     nav_pivot_angle_deg = LaunchConfiguration("nav_pivot_angle_deg")
@@ -213,11 +221,15 @@ def generate_launch_description():
             "start_lidar": start_lidar,
             "start_lidar_filter": start_lidar_filter,
             "start_fusion": start_fusion,
+            "start_debug_status": start_debug_status,
             "start_uwb": "false",
             "lidar_port": lidar_port,
             "lidar_baud": lidar_baud,
             "lidar_filter_forward_fov_deg": lidar_filter_forward_fov_deg,
+            "zed_publish_rate_hz": zed_publish_rate_hz,
             "zed_imu_publish_rate_hz": zed_imu_publish_rate_hz,
+            "zed_imu_rate_window_s": zed_imu_rate_window_s,
+            "zed_depth_downsample_factor": zed_depth_downsample_factor,
             "zed_image_downsample_factor": zed_image_downsample_factor,
             "zed_publish_image": zed_publish_image,
         }.items(),
@@ -246,10 +258,18 @@ def generate_launch_description():
             nav_imu_yaw_axis,
             "--imu-yaw-sign",
             nav_imu_yaw_sign,
+            "--imu-min-rate-hz",
+            nav_imu_min_rate_hz,
             "--imu-timeout-s",
             nav_imu_timeout_s,
             "--motor-status-topic",
             nav_motor_status_topic,
+            "--encoder-stamped-topic",
+            nav_encoder_stamped_topic,
+            "--zed-status-topic",
+            nav_zed_status_topic,
+            "--allow-encoder-heading-fallback",
+            nav_allow_encoder_heading_fallback,
             "--straight-speed-mps",
             nav_straight_speed_mps,
             "--straight-duration-s",
@@ -418,10 +438,14 @@ def generate_launch_description():
             DeclareLaunchArgument("start_lidar", default_value="true"),
             DeclareLaunchArgument("start_lidar_filter", default_value="true"),
             DeclareLaunchArgument("start_fusion", default_value="true"),
+            DeclareLaunchArgument("start_debug_status", default_value="true"),
             DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB0"),
             DeclareLaunchArgument("lidar_baud", default_value="115200"),
             DeclareLaunchArgument("lidar_filter_forward_fov_deg", default_value="250.0"),
+            DeclareLaunchArgument("zed_publish_rate_hz", default_value="10.0"),
             DeclareLaunchArgument("zed_imu_publish_rate_hz", default_value="100.0"),
+            DeclareLaunchArgument("zed_imu_rate_window_s", default_value="2.0"),
+            DeclareLaunchArgument("zed_depth_downsample_factor", default_value="2"),
             DeclareLaunchArgument("zed_image_downsample_factor", default_value="1"),
             DeclareLaunchArgument("zed_publish_image", default_value="false"),
             DeclareLaunchArgument("motor_port", default_value="/dev/ttyACM0"),
@@ -472,8 +496,12 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_imu_qos", default_value="sensor_data"),
             DeclareLaunchArgument("nav_imu_yaw_axis", default_value="z"),
             DeclareLaunchArgument("nav_imu_yaw_sign", default_value="1.0"),
-            DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.12"),
+            DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.30"),
+            DeclareLaunchArgument("nav_imu_min_rate_hz", default_value="20.0"),
             DeclareLaunchArgument("nav_motor_status_topic", default_value="/motor_controller/status"),
+            DeclareLaunchArgument("nav_encoder_stamped_topic", default_value="/encoder_ticks_stamped"),
+            DeclareLaunchArgument("nav_zed_status_topic", default_value="/zed/status"),
+            DeclareLaunchArgument("nav_allow_encoder_heading_fallback", default_value="false"),
             DeclareLaunchArgument("nav_straight_speed_mps", default_value="0.20"),
             DeclareLaunchArgument("nav_straight_duration_s", default_value="2.0"),
             DeclareLaunchArgument("nav_pivot_angle_deg", default_value="90.0"),

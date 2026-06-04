@@ -55,6 +55,24 @@ def test_clean_bringup_is_not_legacy_round_profile_launcher():
     assert "ugv_nav_dual_mode.py" in launch
 
 
+def test_competition_bringup_wires_imu_health_and_debug_status():
+    launch = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "competition_bringup.launch.py").read_text()
+
+    assert 'DeclareLaunchArgument("start_debug_status", default_value="true")' in launch
+    assert 'DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.30")' in launch
+    assert 'DeclareLaunchArgument("nav_imu_min_rate_hz", default_value="20.0")' in launch
+    assert 'DeclareLaunchArgument("nav_zed_status_topic", default_value="/zed/status")' in launch
+    assert 'DeclareLaunchArgument("nav_encoder_stamped_topic", default_value="/encoder_ticks_stamped")' in launch
+    assert 'DeclareLaunchArgument("nav_allow_encoder_heading_fallback", default_value="false")' in launch
+    assert 'DeclareLaunchArgument("zed_publish_rate_hz", default_value="10.0")' in launch
+    assert 'DeclareLaunchArgument("zed_depth_downsample_factor", default_value="2")' in launch
+    assert '"--imu-min-rate-hz"' in launch
+    assert '"--zed-status-topic"' in launch
+    assert '"--encoder-stamped-topic"' in launch
+    assert '"--allow-encoder-heading-fallback"' in launch
+    assert '"start_debug_status": start_debug_status' in launch
+
+
 def test_obsolete_runtime_packages_are_removed_from_source_tree():
     removed_paths = [
         "ros2_ws/start_nav_test.sh",

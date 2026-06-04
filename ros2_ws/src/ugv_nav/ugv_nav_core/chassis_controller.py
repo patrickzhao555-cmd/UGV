@@ -35,7 +35,8 @@ class ChassisControllerConfig:
     stop_clearance_m: float = 0.45
     sensor_timeout_s: float = 0.30
     motor_status_timeout_s: float = 0.50
-    imu_timeout_s: float = 0.12
+    imu_timeout_s: float = 0.30
+    imu_min_rate_hz: float = 20.0
     max_test_duration_s: float = 3.0
     gyro_bias_calibration_s: float = 1.5
     gyro_bias_max_std_radps: float = 0.03
@@ -847,6 +848,7 @@ def evaluate_safety(
     config: ChassisControllerConfig,
     last_imu_s: Optional[float] = None,
     require_imu: bool = False,
+    imu_rate_hz: Optional[float] = None,
 ) -> SafetyDecision:
     if not config.debug_ignore_nav_frame and (
         last_sensor_s is None or now_s - last_sensor_s > config.sensor_timeout_s
@@ -854,6 +856,13 @@ def evaluate_safety(
         return SafetyDecision(False, "sensor_stale")
     if require_imu and (last_imu_s is None or now_s - last_imu_s > config.imu_timeout_s):
         return SafetyDecision(False, "imu_stale")
+    if (
+        require_imu
+        and imu_rate_hz is not None
+        and float(config.imu_min_rate_hz) > 0.0
+        and float(imu_rate_hz) < float(config.imu_min_rate_hz)
+    ):
+        return SafetyDecision(False, "imu_rate_low")
     if last_motor_status_s is None or now_s - last_motor_status_s > config.motor_status_timeout_s:
         return SafetyDecision(False, "motor_status_stale")
 

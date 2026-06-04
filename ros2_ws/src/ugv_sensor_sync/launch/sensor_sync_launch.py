@@ -37,12 +37,14 @@ def generate_launch_description():
     lidar_filter_script = str(sensor_nodes_root / 'lidar_scan_filter_node.py')
     uwb_script = str(sensor_nodes_root / 'uwb_node.py')
     fusion_script = str(sensor_nodes_root / 'fusion_node.py')
+    debug_status_script = str(sensor_nodes_root / 'debug_status_node.py')
 
     start_uwb = LaunchConfiguration('start_uwb')
     start_zed = LaunchConfiguration('start_zed')
     start_lidar = LaunchConfiguration('start_lidar')
     start_lidar_filter = LaunchConfiguration('start_lidar_filter')
     start_fusion = LaunchConfiguration('start_fusion')
+    start_debug_status = LaunchConfiguration('start_debug_status')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
@@ -50,6 +52,7 @@ def generate_launch_description():
     lidar_filtered_topic = LaunchConfiguration('lidar_filtered_topic')
     zed_publish_rate_hz = LaunchConfiguration('zed_publish_rate_hz')
     zed_imu_publish_rate_hz = LaunchConfiguration('zed_imu_publish_rate_hz')
+    zed_imu_rate_window_s = LaunchConfiguration('zed_imu_rate_window_s')
     zed_depth_downsample_factor = LaunchConfiguration('zed_depth_downsample_factor')
     zed_image_downsample_factor = LaunchConfiguration('zed_image_downsample_factor')
     zed_publish_image = LaunchConfiguration('zed_publish_image')
@@ -95,6 +98,11 @@ def generate_launch_description():
             description='Launch the fused sensor frame node.',
         ),
         DeclareLaunchArgument(
+            'start_debug_status',
+            default_value='true',
+            description='Launch the compact debug status logger.',
+        ),
+        DeclareLaunchArgument(
             'lidar_port',
             default_value='/dev/ttyUSB0',
             description='Serial port used by the lidar driver.',
@@ -128,6 +136,11 @@ def generate_launch_description():
             'zed_imu_publish_rate_hz',
             default_value='100.0',
             description='Independent ZED IMU publish rate for chassis heading control.',
+        ),
+        DeclareLaunchArgument(
+            'zed_imu_rate_window_s',
+            default_value='2.0',
+            description='Window used to estimate /zed/imu publish rate in /zed/status.',
         ),
         DeclareLaunchArgument(
             'zed_depth_downsample_factor',
@@ -227,6 +240,8 @@ def generate_launch_description():
                 ros_param_arg('publish_rate_hz', zed_publish_rate_hz),
                 '-p',
                 ros_param_arg('imu_publish_rate_hz', zed_imu_publish_rate_hz),
+                '-p',
+                ros_param_arg('imu_rate_window_s', zed_imu_rate_window_s),
                 '-p',
                 ros_param_arg('depth_downsample_factor', zed_depth_downsample_factor),
                 '-p',
@@ -329,4 +344,16 @@ def generate_launch_description():
                 condition=IfCondition(start_fusion),
             ),
         ]),
+
+        ExecuteProcess(
+            cmd=[
+                FindExecutable(name='python3'),
+                debug_status_script,
+                '--ros-args',
+                '-r',
+                '__node:=ugv_debug_status_node',
+            ],
+            output='screen',
+            condition=IfCondition(start_debug_status),
+        ),
     ])

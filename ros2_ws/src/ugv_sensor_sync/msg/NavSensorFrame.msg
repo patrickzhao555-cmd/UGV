@@ -9,3 +9,6 @@ float32 min_lidar_range_m
 float32 min_depth_range_m
 float32 front_clearance_m
 bool near_obstacle
+bool depth_blind_hazard
+string front_clearance_source
+float32 front_lidar_range_m

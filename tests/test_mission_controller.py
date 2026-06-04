@@ -134,6 +134,23 @@ def test_debug_hard_run_test_flags_parse():
     assert args.debug_ignore_obstacles
 
 
+def test_imu_health_args_parse():
+    args = parse_args([
+        "--imu-min-rate-hz",
+        "25.0",
+        "--zed-status-topic",
+        "/zed/custom_status",
+        "--encoder-stamped-topic",
+        "/custom/encoder_ticks",
+        "--allow-encoder-heading-fallback",
+        "true",
+    ])
+    assert args.imu_min_rate_hz == pytest.approx(25.0)
+    assert args.zed_status_topic == "/zed/custom_status"
+    assert args.encoder_stamped_topic == "/custom/encoder_ticks"
+    assert args.allow_encoder_heading_fallback
+
+
 def test_motor_status_encoder_ticks_parse_for_heading_fallback():
     assert encoder_ticks_from_motor_status({"encoder_ticks": [123, -456]}) == (123, -456)
     assert encoder_ticks_from_motor_status({"left_ticks": "12", "right_ticks": "34"}) == (12, 34)
@@ -243,6 +260,23 @@ def test_mission_safety_classifies_degraded_and_critical():
     )
     assert critical.level == "critical"
     assert critical.reason == "front_clearance_emergency"
+
+
+def test_mission_safety_requires_healthy_imu_rate_when_requested():
+    decision = classify_mission_safety(
+        now_s=10.0,
+        last_sensor_s=9.99,
+        last_imu_s=9.99,
+        last_motor_status_s=9.99,
+        motor_status=_ready_motor_status(),
+        near_obstacle=False,
+        front_clearance_m=1.0,
+        config=ChassisControllerConfig(imu_min_rate_hz=20.0),
+        require_imu=True,
+        imu_rate_hz=5.0,
+    )
+    assert decision.level == "critical"
+    assert decision.reason == "imu_rate_low"
 
 
 def test_mission_segment_start_blocks_until_straight_encoder_start_is_valid():
@@ -547,6 +581,9 @@ def test_chassis_runtime_aborts_mission_on_pivot_controller_abort_and_slews_stra
     assert 'self.mission_safety_level = "critical"' in pivot_block
     assert "straight_omega_with_slew(" in straight_test_block
     assert "self.previous_straight_omega_radps = omega" in straight_test_block
+    assert "require_imu=not self._encoder_feedback_available()" not in controller_text
+    assert "require_imu = not self._encoder_fallback_allowed(now_s)" in controller_text
+    assert 'parser.add_argument("--allow-encoder-heading-fallback"' in controller_text
 
 
 def test_telemetry_recorder_does_not_flush_every_write():

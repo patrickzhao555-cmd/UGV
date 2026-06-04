@@ -86,6 +86,8 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
     node.create_subscription(String, str(args.topic), callback, 10)
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
         node.destroy_node()
         if rclpy.ok():

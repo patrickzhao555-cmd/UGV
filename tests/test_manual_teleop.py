@@ -205,6 +205,72 @@ def test_terminal_backend_does_not_keep_stale_forward_key_for_single_arc():
     assert state.pressed_motion_keys == ["d"]
 
 
+def test_terminal_car_mode_combines_forward_then_steering_without_release_events():
+    config = TeleopConfig(
+        forward_mps=0.30,
+        arc_turn_radps=0.80,
+        arc_min_turn_radius_m=0.50,
+        terminal_car_mode=True,
+    )
+    state = TeleopState()
+    set_motion_key_pressed(state, "w", 10.0, release_events_supported=False, terminal_car_mode=True)
+    set_motion_key_pressed(state, "a", 10.1, release_events_supported=False, terminal_car_mode=True)
+    payload = payload_for_state(state, config, 10.2)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.30)
+    assert payload["omega_radps"] == pytest.approx(0.30 / 0.50)
+    assert payload["target_left_mps"] == pytest.approx(0.30 - (0.30 / 0.50) * 0.416 / 2.0)
+    assert payload["target_right_mps"] == pytest.approx(0.30 + (0.30 / 0.50) * 0.416 / 2.0)
+    assert payload["reason"] == "manual_arc_left"
+    assert state.pressed_motion_keys == ["w", "a"]
+
+
+def test_terminal_car_mode_combines_steering_then_forward_without_release_events():
+    config = TeleopConfig(
+        forward_mps=0.30,
+        arc_turn_radps=0.80,
+        arc_min_turn_radius_m=0.50,
+        terminal_single_key_arcs=True,
+        terminal_car_mode=True,
+    )
+    state = TeleopState()
+    set_motion_key_pressed(state, "d", 10.0, release_events_supported=False, terminal_car_mode=True)
+    set_motion_key_pressed(state, "w", 10.1, release_events_supported=False, terminal_car_mode=True)
+    payload = payload_for_state(state, config, 10.2)
+    assert payload["command_type"] == "velocity"
+    assert payload["v_mps"] == pytest.approx(0.30)
+    assert payload["omega_radps"] == pytest.approx(-(0.30 / 0.50))
+    assert payload["target_left_mps"] == pytest.approx(0.30 + (0.30 / 0.50) * 0.416 / 2.0)
+    assert payload["target_right_mps"] == pytest.approx(0.30 - (0.30 / 0.50) * 0.416 / 2.0)
+    assert payload["reason"] == "manual_arc_right"
+    assert state.pressed_motion_keys == ["d", "w"]
+
+
+def test_terminal_car_mode_can_change_steering_direction_and_stop_clears_state():
+    config = TeleopConfig(
+        forward_mps=0.30,
+        arc_turn_radps=0.80,
+        arc_min_turn_radius_m=0.50,
+        terminal_car_mode=True,
+    )
+    state = TeleopState()
+    set_motion_key_pressed(state, "w", 10.0, release_events_supported=False, terminal_car_mode=True)
+    set_motion_key_pressed(state, "a", 10.1, release_events_supported=False, terminal_car_mode=True)
+    left_payload = payload_for_state(state, config, 10.2)
+    set_motion_key_pressed(state, "d", 10.3, release_events_supported=False, terminal_car_mode=True)
+    right_payload = payload_for_state(state, config, 10.4)
+    assert right_payload["v_mps"] == pytest.approx(left_payload["v_mps"])
+    assert right_payload["omega_radps"] == pytest.approx(-left_payload["omega_radps"])
+    assert right_payload["target_left_mps"] == pytest.approx(left_payload["target_right_mps"])
+    assert right_payload["target_right_mps"] == pytest.approx(left_payload["target_left_mps"])
+
+    from ugv_manual_teleop import clear_motion_state
+
+    clear_motion_state(state)
+    assert state.pressed_motion_keys == []
+    assert state.active_key is None
+
+
 def test_release_event_backend_keeps_single_turn_key_as_pivot_fallback():
     config = TeleopConfig(pivot_turn_radps=0.75)
     state = TeleopState()
@@ -455,11 +521,17 @@ def test_parse_args_builds_config_without_importing_ros():
     assert args.input_backend == "terminal"
     assert args.publish_on_change_only is False
     assert config.terminal_single_key_arcs is False
+    assert config.terminal_car_mode is False
 
 
 def test_parse_args_can_disable_terminal_single_key_arcs():
     config = config_from_args(parse_args(["--no-terminal-single-key-arcs"]))
     assert config.terminal_single_key_arcs is False
+
+
+def test_parse_args_can_enable_terminal_car_mode():
+    config = config_from_args(parse_args(["--terminal-car-mode"]))
+    assert config.terminal_car_mode is True
 
 
 def test_parse_args_can_enable_debug_arc_side_reverse():

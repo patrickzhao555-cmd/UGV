@@ -313,6 +313,10 @@ Controls:
   rolling arc left/right. The two commands are exact mirrors: left uses the
   left side as the inner side and right side as the outer side; right swaps
   those side targets.
+- `--terminal-car-mode`: for SSH/terminal testing, `W/S` latch the forward or
+  reverse throttle and `A/D` latch steering, so you can press `W` then `A`/`D`
+  or `A`/`D` then `W` and still get a driving arc. Use `Space` or `X` to clear
+  the latched motion state.
 - `A` / `D` with evdev key-release input: low-speed pivot fallback for bench
   debugging, not the formal competition steering policy.
 - `Space` or `X`: STOP.

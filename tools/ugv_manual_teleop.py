@@ -43,6 +43,7 @@ DEFAULT_TURN_STEP_RADPS = 0.10
 DEFAULT_ARC_MIN_TURN_RADIUS_M = 0.75
 DEFAULT_ARC_INNER_MIN_MPS = 0.08
 DEFAULT_TERMINAL_SINGLE_KEY_ARCS = False
+DEFAULT_TERMINAL_CAR_MODE = False
 DEFAULT_TRACK_WIDTH_M = 0.416
 MIN_PUBLISH_HZ = 1.0
 MAX_PUBLISH_HZ = 50.0
@@ -91,6 +92,7 @@ class TeleopConfig:
     arc_inner_min_mps: float = DEFAULT_ARC_INNER_MIN_MPS
     track_width_m: float = DEFAULT_TRACK_WIDTH_M
     terminal_single_key_arcs: bool = DEFAULT_TERMINAL_SINGLE_KEY_ARCS
+    terminal_car_mode: bool = DEFAULT_TERMINAL_CAR_MODE
     allow_arc_side_reverse: bool = False
     allow_pivot_keys: bool = True
     adjust_pivot_turn: bool = False
@@ -435,9 +437,25 @@ def clear_motion_state(state: TeleopState) -> None:
     state.pressed_motion_keys.clear()
 
 
-def set_motion_key_pressed(state: TeleopState, key: str, now_s: float, *, release_events_supported: bool) -> None:
+def set_motion_key_pressed(
+    state: TeleopState,
+    key: str,
+    now_s: float,
+    *,
+    release_events_supported: bool,
+    terminal_car_mode: bool = False,
+) -> None:
     state.release_events_supported = bool(release_events_supported)
     if not release_events_supported:
+        if terminal_car_mode:
+            linear_keys = {"w", "s"}
+            turn_keys = {"a", "d"}
+            group = linear_keys if key in linear_keys else turn_keys
+            state.pressed_motion_keys = [existing for existing in state.pressed_motion_keys if existing not in group]
+            state.pressed_motion_keys.append(key)
+            state.active_key = key
+            state.last_motion_time_s = float(now_s)
+            return
         # Terminal/SSH input reports key presses but not releases, so keeping a
         # held-key set would make old W/S/A/D keys stick and create fake combos.
         state.pressed_motion_keys.clear()
@@ -655,9 +673,14 @@ def print_help(config: TeleopConfig) -> None:
             f"    side_reverse={'allowed' if config.allow_arc_side_reverse else 'blocked'}\n"
         )
     terminal_line = (
-        "  Terminal/SSH fallback: A / D alone sends forward rolling arc; combos require evdev\n"
+        "  Terminal/SSH fallback: A / D alone sends forward rolling arc; combos require evdev unless car mode is enabled\n"
         if config.terminal_single_key_arcs
         else "  Terminal/SSH fallback disabled: A / D alone uses pivot fallback; combos require evdev\n"
+    )
+    car_mode_line = (
+        "  Terminal car mode: W/S latch throttle, A/D latch steering, Space/X clears both\n"
+        if config.terminal_car_mode
+        else ""
     )
     print(
         "\nUGV manual teleop controls\n"
@@ -667,6 +690,7 @@ def print_help(config: TeleopConfig) -> None:
         "  S+A / S+D: reverse rolling arc left/right\n"
         "  A / D: low-speed pivot fallback with real key-release keyboard input\n"
         f"{terminal_line}"
+        f"{car_mode_line}"
         "  Space or X: stop\n"
         "  +/-: adjust forward/reverse speed\n"
         "  [/]: adjust arc turn rate by default\n"
@@ -726,6 +750,16 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         default=DEFAULT_TERMINAL_SINGLE_KEY_ARCS,
         help="For terminal/SSH input without key-release events, make A/D alone command forward arcs. Disabled by default.",
     )
+    parser.add_argument(
+        "--terminal-car-mode",
+        action=argparse.BooleanOptionalAction,
+        default=DEFAULT_TERMINAL_CAR_MODE,
+        help=(
+            "For terminal/SSH input without key-release events, keep one W/S throttle "
+            "state and one A/D steering state so forward/reverse can be steered like a car. "
+            "Use Space/X to clear the latched motion state."
+        ),
+    )
     parser.add_argument("--allow-pivot-keys", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
         "--adjust-pivot-turn",
@@ -784,6 +818,7 @@ def config_from_args(args: argparse.Namespace) -> TeleopConfig:
             arc_inner_min_mps=float(args.arc_inner_min_mps),
             track_width_m=float(args.track_width_m),
             terminal_single_key_arcs=bool(args.terminal_single_key_arcs),
+            terminal_car_mode=bool(args.terminal_car_mode),
             allow_arc_side_reverse=bool(args.allow_arc_side_reverse),
             allow_pivot_keys=bool(args.allow_pivot_keys),
             adjust_pivot_turn=bool(args.adjust_pivot_turn),
@@ -872,6 +907,7 @@ def run_teleop(args: argparse.Namespace) -> None:
                             action.description,
                             now_s,
                             release_events_supported=keyboard.release_events_supported,
+                            terminal_car_mode=config.terminal_car_mode,
                         )
                     elif action.action_type == "config":
                         print(

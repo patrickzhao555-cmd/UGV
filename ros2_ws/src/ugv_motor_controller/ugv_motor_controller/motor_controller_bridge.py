@@ -86,17 +86,18 @@ class MotorControllerBridge(Node):
         self.declare_parameter("pwm_max_us", 1900)
         self.declare_parameter("pwm_slew_rate_us_per_s", 2400.0)
         self.declare_parameter("teensy_control_hz", 50.0)
-        self.declare_parameter("teensy_pid_kp", 0.05)
-        self.declare_parameter("teensy_pid_ki", 0.0)
+        self.declare_parameter("teensy_pid_kp", 0.10)
+        self.declare_parameter("teensy_pid_ki", 0.02)
         self.declare_parameter("teensy_pid_kd", 0.0)
         self.declare_parameter("teensy_pid_feedforward_us_per_tps", 0.04)
         self.declare_parameter("enable_teensy_side_specific_pid_params", True)
         self.declare_parameter("teensy_left_pid_feedforward_us_per_tps", -1.0)
         self.declare_parameter("teensy_right_pid_feedforward_us_per_tps", -1.0)
         self.declare_parameter("teensy_pid_static_ff_us", 170.0)
+        self.declare_parameter("teensy_pid_static_ff_full_target_tps", 2500.0)
         self.declare_parameter("teensy_left_pid_static_ff_us", -1.0)
         self.declare_parameter("teensy_right_pid_static_ff_us", -1.0)
-        self.declare_parameter("teensy_pid_output_limit_us", 350.0)
+        self.declare_parameter("teensy_pid_output_limit_us", 500.0)
         self.declare_parameter("teensy_left_pid_output_limit_us", -1.0)
         self.declare_parameter("teensy_right_pid_output_limit_us", -1.0)
         self.declare_parameter("teensy_pid_min_target_tps", 2.0)
@@ -181,6 +182,10 @@ class MotorControllerBridge(Node):
             name="teensy_right_pid_feedforward_us_per_tps",
         )
         self.teensy_pid_static_ff_us = max(0.0, float(self.get_parameter("teensy_pid_static_ff_us").value))
+        self.teensy_pid_static_ff_full_target_tps = max(
+            1.0,
+            float(self.get_parameter("teensy_pid_static_ff_full_target_tps").value),
+        )
         self.teensy_left_pid_static_ff_us = _side_param_or_global(
             self.get_parameter("teensy_left_pid_static_ff_us").value,
             self.teensy_pid_static_ff_us,
@@ -294,8 +299,9 @@ class MotorControllerBridge(Node):
             f"{self.teensy_left_motor_sign}/{self.teensy_right_motor_sign}, "
             f"side_speed_scales=LF{self.left_forward_speed_scale}/RF{self.right_forward_speed_scale}/"
             f"LR{self.left_reverse_speed_scale}/RR{self.right_reverse_speed_scale}, "
-            f"kp={self.teensy_pid_kp}, ff={self.teensy_pid_feedforward_us_per_tps}, "
-            f"static_ff={self.teensy_pid_static_ff_us})"
+            f"kp={self.teensy_pid_kp}, ki={self.teensy_pid_ki}, kd={self.teensy_pid_kd}, "
+            f"ff={self.teensy_pid_feedforward_us_per_tps}, static_ff={self.teensy_pid_static_ff_us}, "
+            f"static_ff_full_target_tps={self.teensy_pid_static_ff_full_target_tps})"
         )
 
     def _clear_velocity_targets(self) -> None:
@@ -569,6 +575,7 @@ class MotorControllerBridge(Node):
                 ("rr_encoder_sign", self.teensy_rr_encoder_sign),
                 ("ff_us_per_tps", self.teensy_pid_feedforward_us_per_tps),
                 ("static_ff_us", self.teensy_pid_static_ff_us),
+                ("static_ff_full_target_tps", self.teensy_pid_static_ff_full_target_tps),
                 ("pid_output_limit_us", self.teensy_pid_output_limit_us),
                 ("min_target_tps", self.teensy_pid_min_target_tps),
                 ("stall_fault_enabled", 1 if self.teensy_stall_fault_enabled else 0),
@@ -707,6 +714,7 @@ class MotorControllerBridge(Node):
             "teensy_left_pid_feedforward_us_per_tps": round(self.teensy_left_pid_feedforward_us_per_tps, 6),
             "teensy_right_pid_feedforward_us_per_tps": round(self.teensy_right_pid_feedforward_us_per_tps, 6),
             "teensy_pid_static_ff_us": round(self.teensy_pid_static_ff_us, 3),
+            "teensy_pid_static_ff_full_target_tps": round(self.teensy_pid_static_ff_full_target_tps, 3),
             "teensy_left_pid_static_ff_us": round(self.teensy_left_pid_static_ff_us, 3),
             "teensy_right_pid_static_ff_us": round(self.teensy_right_pid_static_ff_us, 3),
             "teensy_pid_output_limit_us": round(self.teensy_pid_output_limit_us, 3),

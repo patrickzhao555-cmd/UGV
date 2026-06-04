@@ -123,17 +123,18 @@ pwm_neutral_us = 1500
 pwm_min_us = 1100
 pwm_max_us = 1900
 control_hz = 50
-kp = 0.05
-ki = 0.0
+kp = 0.10
+ki = 0.02
 kd = 0.0
 ff_us_per_tps = 0.04
 static_ff_us = 170
+static_ff_full_target_tps = 2500
 left_ff_us_per_tps = 0.04
 right_ff_us_per_tps = 0.04
 left_static_ff_us = 170
 right_static_ff_us = 170
-left_pid_output_limit_us = 350
-right_pid_output_limit_us = 350
+left_pid_output_limit_us = 500
+right_pid_output_limit_us = 500
 left_motor_sign = 1
 right_motor_sign = -1
 fl_encoder_sign = -1
@@ -156,5 +157,11 @@ First run must be wheels off ground.
 3. Confirm `/motor_controller/status` reports `teensy_pid_params_synced=true`.
 4. Hand-check encoder signs by watching FL/FR/RL/RR ticks.
 5. Run `tools/teensy_side_pid_direction_test.py --yes` at low PWM.
-6. Run `tools/teensy_side_pid_step_test.py --yes`.
-7. Run `tools/teensy_side_pid_pivot_test.py --yes`.
+6. Run `tools/ugv_motor_closed_loop_calibrate.py --port <teensy-port> --yes`.
+7. Run `tools/teensy_side_pid_step_test.py --yes`.
+8. Run `tools/teensy_side_pid_pivot_test.py --yes`.
+
+Do not tune IMU heading hold until the closed-loop calibration passes mapping,
+straight speed tracking, and differential speed tracking. If commanded target
+side speeds change but measured side speeds do not follow, the failure is still
+below the navigation layer.

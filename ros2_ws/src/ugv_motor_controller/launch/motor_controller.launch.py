@@ -31,6 +31,7 @@ def generate_launch_description():
     teensy_left_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_left_pid_feedforward_us_per_tps")
     teensy_right_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_right_pid_feedforward_us_per_tps")
     teensy_pid_static_ff_us = LaunchConfiguration("teensy_pid_static_ff_us")
+    teensy_pid_static_ff_full_target_tps = LaunchConfiguration("teensy_pid_static_ff_full_target_tps")
     teensy_left_pid_static_ff_us = LaunchConfiguration("teensy_left_pid_static_ff_us")
     teensy_right_pid_static_ff_us = LaunchConfiguration("teensy_right_pid_static_ff_us")
     teensy_pid_output_limit_us = LaunchConfiguration("teensy_pid_output_limit_us")
@@ -116,11 +117,11 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kp",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.05"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.10"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_ki",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KI", default_value="0.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KI", default_value="0.02"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kd",
@@ -147,6 +148,10 @@ def generate_launch_description():
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="170.0"),
             ),
             DeclareLaunchArgument(
+                "teensy_pid_static_ff_full_target_tps",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_FULL_TARGET_TPS", default_value="2500.0"),
+            ),
+            DeclareLaunchArgument(
                 "teensy_left_pid_static_ff_us",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_LEFT_PID_STATIC_FF_US", default_value="-1.0"),
             ),
@@ -156,7 +161,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_output_limit_us",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_OUTPUT_LIMIT_US", default_value="350.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_OUTPUT_LIMIT_US", default_value="500.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_left_pid_output_limit_us",
@@ -298,6 +303,10 @@ def generate_launch_description():
                             value_type=float,
                         ),
                         "teensy_pid_static_ff_us": ParameterValue(teensy_pid_static_ff_us, value_type=float),
+                        "teensy_pid_static_ff_full_target_tps": ParameterValue(
+                            teensy_pid_static_ff_full_target_tps,
+                            value_type=float,
+                        ),
                         "teensy_left_pid_static_ff_us": ParameterValue(teensy_left_pid_static_ff_us, value_type=float),
                         "teensy_right_pid_static_ff_us": ParameterValue(teensy_right_pid_static_ff_us, value_type=float),
                         "teensy_pid_output_limit_us": ParameterValue(teensy_pid_output_limit_us, value_type=float),

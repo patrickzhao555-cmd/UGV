@@ -63,6 +63,7 @@ def generate_launch_description():
     motor_teensy_left_pid_feedforward_us_per_tps = LaunchConfiguration("motor_teensy_left_pid_feedforward_us_per_tps")
     motor_teensy_right_pid_feedforward_us_per_tps = LaunchConfiguration("motor_teensy_right_pid_feedforward_us_per_tps")
     motor_teensy_pid_static_ff_us = LaunchConfiguration("motor_teensy_pid_static_ff_us")
+    motor_teensy_pid_static_ff_full_target_tps = LaunchConfiguration("motor_teensy_pid_static_ff_full_target_tps")
     motor_teensy_left_pid_static_ff_us = LaunchConfiguration("motor_teensy_left_pid_static_ff_us")
     motor_teensy_right_pid_static_ff_us = LaunchConfiguration("motor_teensy_right_pid_static_ff_us")
     motor_teensy_pid_output_limit_us = LaunchConfiguration("motor_teensy_pid_output_limit_us")
@@ -195,6 +196,7 @@ def generate_launch_description():
             "teensy_left_pid_feedforward_us_per_tps": motor_teensy_left_pid_feedforward_us_per_tps,
             "teensy_right_pid_feedforward_us_per_tps": motor_teensy_right_pid_feedforward_us_per_tps,
             "teensy_pid_static_ff_us": motor_teensy_pid_static_ff_us,
+            "teensy_pid_static_ff_full_target_tps": motor_teensy_pid_static_ff_full_target_tps,
             "teensy_left_pid_static_ff_us": motor_teensy_left_pid_static_ff_us,
             "teensy_right_pid_static_ff_us": motor_teensy_right_pid_static_ff_us,
             "teensy_pid_output_limit_us": motor_teensy_pid_output_limit_us,
@@ -465,17 +467,18 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_pwm_max_us", default_value="1900"),
             DeclareLaunchArgument("motor_pwm_slew_rate_us_per_s", default_value="2400.0"),
             DeclareLaunchArgument("motor_teensy_control_hz", default_value="50.0"),
-            DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.05"),
-            DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.0"),
+            DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.10"),
+            DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.02"),
             DeclareLaunchArgument("motor_teensy_pid_kd", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.04"),
             DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="true"),
             DeclareLaunchArgument("motor_teensy_left_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="170.0"),
+            DeclareLaunchArgument("motor_teensy_pid_static_ff_full_target_tps", default_value="2500.0"),
             DeclareLaunchArgument("motor_teensy_left_pid_static_ff_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_static_ff_us", default_value="-1.0"),
-            DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="350.0"),
+            DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="500.0"),
             DeclareLaunchArgument("motor_teensy_left_pid_output_limit_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_output_limit_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_pid_min_target_tps", default_value="2.0"),

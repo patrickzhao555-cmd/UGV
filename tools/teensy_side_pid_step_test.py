@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ki", type=float)
     parser.add_argument("--kd", type=float)
     parser.add_argument("--ff-us-per-tps", type=float)
+    parser.add_argument("--pid-output-limit-us", type=float)
     parser.add_argument("--track-width-m", type=float, default=0.416)
     parser.add_argument("--wheel-radius-m", type=float, default=0.0825)
     parser.add_argument("--ticks-per-rev", type=int, default=3200)
@@ -68,6 +69,7 @@ def main() -> int:
             maybe_param(dev, args, "ki", args.ki)
             maybe_param(dev, args, "kd", args.kd)
             maybe_param(dev, args, "ff_us_per_tps", args.ff_us_per_tps)
+            maybe_param(dev, args, "pid_output_limit_us", args.pid_output_limit_us)
             quiet_status_stream(dev, True)
             stream_status_while_refreshing_command(
                 dev,

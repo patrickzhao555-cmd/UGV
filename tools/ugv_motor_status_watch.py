@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, Optional
 
 
 DEFAULT_STATUS_TOPIC = "/motor_controller/status"
+DEFAULT_NAV_STATUS_TOPIC = "/ugv_nav_status"
 
 
 def _float_field(data: Dict[str, Any], key: str) -> Optional[float]:
@@ -35,14 +36,23 @@ def _fmt_int(value: Any, width: int = 4) -> str:
         return " " * (width - 1) + "-"
 
 
-def summarize_status(data: Dict[str, Any]) -> str:
+def summarize_status(data: Dict[str, Any], nav: Optional[Dict[str, Any]] = None) -> str:
     target_l = _float_field(data, "target_left_mps")
     target_r = _float_field(data, "target_right_mps")
     measured_l = _float_field(data, "measured_left_mps")
     measured_r = _float_field(data, "measured_right_mps")
     err_l = None if target_l is None or measured_l is None else target_l - measured_l
     err_r = None if target_r is None or measured_r is None else target_r - measured_r
+    nav = nav or {}
+    nav_prefix = ""
+    if nav:
+        nav_prefix = (
+            f"nav err={_fmt(_float_field(nav, 'heading_error_rad'), 7, 3)} "
+            f"yaw_rate={_fmt(_float_field(nav, 'yaw_rate_radps'), 7, 3)} "
+            f"nav_w={_fmt(_float_field(nav, 'omega_radps'), 7, 3)} | "
+        )
     return (
+        nav_prefix +
         f"cmd v={_fmt(_float_field(data, 'commanded_v_mps'), 6, 3)} "
         f"w={_fmt(_float_field(data, 'commanded_omega_radps'), 7, 3)} | "
         f"target L/R={_fmt(target_l)}/{_fmt(target_r)} m/s | "
@@ -56,6 +66,8 @@ def summarize_status(data: Dict[str, Any]) -> str:
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Print compact /motor_controller/status side PID telemetry.")
     parser.add_argument("--topic", default=DEFAULT_STATUS_TOPIC)
+    parser.add_argument("--nav-topic", default=DEFAULT_NAV_STATUS_TOPIC)
+    parser.add_argument("--no-nav", action="store_true", help="do not merge /ugv_nav_status heading telemetry")
     parser.add_argument("--hz", type=float, default=5.0)
     return parser.parse_args(list(argv) if argv is not None else None)
 
@@ -67,9 +79,18 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
     args = parse_args(argv)
     min_period_s = 1.0 / max(0.2, float(args.hz))
     last_print_s = 0.0
+    latest_nav: Optional[Dict[str, Any]] = None
 
     rclpy.init()
     node = rclpy.create_node("ugv_motor_status_watch")
+
+    def nav_callback(msg: String) -> None:
+        nonlocal latest_nav
+        try:
+            data = json.loads(msg.data)
+        except json.JSONDecodeError:
+            return
+        latest_nav = data if isinstance(data, dict) else None
 
     def callback(msg: String) -> None:
         nonlocal last_print_s
@@ -80,9 +101,11 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
             data = json.loads(msg.data)
         except json.JSONDecodeError:
             return
-        print(summarize_status(data), flush=True)
+        print(summarize_status(data, latest_nav), flush=True)
         last_print_s = now_s
 
+    if not args.no_nav:
+        node.create_subscription(String, str(args.nav_topic), nav_callback, 10)
     node.create_subscription(String, str(args.topic), callback, 10)
     try:
         rclpy.spin(node)

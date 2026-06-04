@@ -140,16 +140,17 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "wheel_radius_m": 0.0825,
             "ticks_per_rev": 3200,
             "kp": 0.45,
-            "ki": 0.0,
+            "ki": 0.02,
             "kd": 0.0,
             "ff_us_per_tps": 0.04,
             "static_ff_us": 170.0,
+            "static_ff_full_target_tps": 2500.0,
             "left_ff_us_per_tps": 0.04,
             "right_ff_us_per_tps": 0.04,
             "left_static_ff_us": 170.0,
             "right_static_ff_us": 170.0,
-            "left_pid_output_limit_us": 350.0,
-            "right_pid_output_limit_us": 350.0,
+            "left_pid_output_limit_us": 500.0,
+            "right_pid_output_limit_us": 500.0,
             "control_hz": 50.0,
             "side_mismatch_fault_tps": 180.0,
             "sign_mismatch_target_tps": 100.0,
@@ -164,14 +165,16 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
     assert "CMD PARAM wheel_radius_m 0.0825\n" in commands
     assert "CMD PARAM ticks_per_rev 3200\n" in commands
     assert "CMD PARAM kp 0.45\n" in commands
+    assert "CMD PARAM ki 0.02\n" in commands
     assert "CMD PARAM ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM static_ff_us 170\n" in commands
+    assert "CMD PARAM static_ff_full_target_tps 2500\n" in commands
     assert "CMD PARAM left_ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM right_ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM left_static_ff_us 170\n" in commands
     assert "CMD PARAM right_static_ff_us 170\n" in commands
-    assert "CMD PARAM left_pid_output_limit_us 350\n" in commands
-    assert "CMD PARAM right_pid_output_limit_us 350\n" in commands
+    assert "CMD PARAM left_pid_output_limit_us 500\n" in commands
+    assert "CMD PARAM right_pid_output_limit_us 500\n" in commands
     assert "CMD PARAM control_hz 50\n" in commands
     assert "CMD PARAM side_mismatch_fault_tps 180\n" in commands
     assert "CMD PARAM sign_mismatch_target_tps 100\n" in commands
@@ -181,6 +184,31 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
     assert "CMD PARAM fl_encoder_sign -1\n" in commands
     assert "CMD PARAM rl_encoder_sign -1\n" in commands
     assert "CMD PARAM ticks_per_rev 2151\n" not in commands
+
+
+def test_teensy_firmware_uses_float_abs_for_speed_math():
+    firmware = (
+        ROOT
+        / "ros2_ws"
+        / "src"
+        / "ugv_motor_controller"
+        / "firmware"
+        / "teensy_4_1_side_pid_controller"
+        / "teensy_4_1_side_pid_controller.ino"
+    )
+    source = firmware.read_text(encoding="utf-8")
+    assert "float target_abs = fabsf(target_tps);" in source
+    assert "bool left_active = fabsf(left_target_tps)" in source
+    assert "abs(left_target_tps)" not in source
+    assert "abs(right_target_tps)" not in source
+
+
+def test_motor_controller_readme_rejects_stale_one_sided_right_boost_example():
+    readme = ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    assert "ugv_motor_closed_loop_calibrate.py" in text
+    assert "making the right side faster will normally increase the left drift" in text
+    assert "motor_teensy_right_pid_static_ff_us:=210.0" not in text
 
 
 def test_teensy_param_ack_parser_and_sync_tracker():
@@ -275,9 +303,14 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "DEFAULT_TRACK_WIDTH_M = 0.416f" in firmware
     assert "DEFAULT_WHEEL_RADIUS_M = 0.0825f" in firmware
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
-    assert "DEFAULT_KP = 0.05f" in firmware
+    assert "DEFAULT_KP = 0.10f" in firmware
+    assert "DEFAULT_KI = 0.02f" in firmware
     assert "DEFAULT_FF_US_PER_TPS = 0.04f" in firmware
     assert "DEFAULT_STATIC_FF_US = 170.0f" in firmware
+    assert "DEFAULT_STATIC_FF_FULL_TARGET_TPS = 2500.0f" in firmware
+    assert "static_ff_full_target_tps" in firmware
+    assert "setPidOutputLimitsForBase" in firmware
+    assert "resetLeftPidState" in firmware
     assert "left_feedforward_us_per_tps" in firmware
     assert "right_feedforward_us_per_tps" in firmware
     assert "left_static_ff_us" in firmware

@@ -1216,6 +1216,7 @@ def run_real(args: argparse.Namespace) -> None:
                                     math.sin(float(self.target_heading_rad) - heading),
                                     math.cos(float(self.target_heading_rad) - heading),
                                 )
+                                self.straight_heading_error_samples.append(heading_error)
                                 omega = straight_omega_with_slew(
                                     heading_error_rad=heading_error,
                                     yaw_rate_radps=self.yaw_rate_radps,
@@ -1463,6 +1464,11 @@ def run_real(args: argparse.Namespace) -> None:
                 "v_mps": last_v,
                 "omega_radps": last_omega,
                 "omega_saturated": abs(last_omega) >= max(0.0, omega_limit - 1e-6) and abs(last_omega) > 1e-6,
+                "straight_omega_limit_radps": straight_limit,
+                "straight_omega_slew_radps2": self.config.mission_straight_omega_slew_radps2,
+                "heading_kp": self.config.heading_kp,
+                "heading_kd": self.config.heading_kd,
+                "heading_deadband_rad": self.config.heading_deadband_rad,
                 "safety_state": safety_state,
                 "safety_level": self.mission_safety_level if self.mode == "mission_sequence" else (
                     "ok" if safety_state in {"idle", "ok"} else "critical"
@@ -1502,8 +1508,15 @@ def run_real(args: argparse.Namespace) -> None:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
+    except RuntimeError as exc:
+        if "Unable to convert call argument to Python object" not in str(exc):
+            raise
     finally:
         if node is not None:
+            try:
+                node._publish_command(build_stop_command("shutdown"))
+            except Exception:
+                pass
             node.telemetry.close()
             node.destroy_node()
         if rclpy.ok():

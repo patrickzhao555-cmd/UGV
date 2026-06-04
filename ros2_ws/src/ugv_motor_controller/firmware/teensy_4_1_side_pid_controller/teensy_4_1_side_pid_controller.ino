@@ -53,7 +53,7 @@ const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 20;  // 50 Hz
 const unsigned long STATUS_INTERVAL_MS = 50;   // 20 Hz
 const unsigned long DEFAULT_COMMAND_TIMEOUT_MS = 500;
 const unsigned long HEARTBEAT_LED_INTERVAL_MS = 500;
-const char FIRMWARE_ID[] = "teensy_4_1_side_pid_v2026_06_03";
+const char FIRMWARE_ID[] = "teensy_4_1_side_pid_v2026_06_04";
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 13
@@ -72,11 +72,12 @@ const int MIN_PWM_SPAN_US = 20;
 const float DEFAULT_TRACK_WIDTH_M = 0.416f;
 const float DEFAULT_WHEEL_RADIUS_M = 0.0825f;
 const float DEFAULT_TICKS_PER_REV = 3200.0f;
-const float DEFAULT_KP = 0.05f;
-const float DEFAULT_KI = 0.0f;
+const float DEFAULT_KP = 0.10f;
+const float DEFAULT_KI = 0.02f;
 const float DEFAULT_KD = 0.0f;
 const float DEFAULT_FF_US_PER_TPS = 0.04f;
 const float DEFAULT_STATIC_FF_US = 170.0f;
+const float DEFAULT_STATIC_FF_FULL_TARGET_TPS = 2500.0f;
 
 enum ControllerMode {
   MODE_STOPPED,
@@ -144,9 +145,10 @@ float right_feedforward_us_per_tps = DEFAULT_FF_US_PER_TPS;
 float static_ff_us = DEFAULT_STATIC_FF_US;
 float left_static_ff_us = DEFAULT_STATIC_FF_US;
 float right_static_ff_us = DEFAULT_STATIC_FF_US;
-float pid_output_limit_us = 350.0f;
-float left_pid_output_limit_us = 350.0f;
-float right_pid_output_limit_us = 350.0f;
+float static_ff_full_target_tps = DEFAULT_STATIC_FF_FULL_TARGET_TPS;
+float pid_output_limit_us = 500.0f;
+float left_pid_output_limit_us = 500.0f;
+float right_pid_output_limit_us = 500.0f;
 float pwm_slew_us_per_s = 2400.0f;
 float min_target_tps = 2.0f;
 float deadband_tps = 1.0f;
@@ -327,7 +329,17 @@ float staticFeedforwardForTarget(float target_tps, float side_static_ff_us) {
   if (target_sign == 0) {
     return 0.0f;
   }
-  return (float)target_sign * max(0.0f, side_static_ff_us);
+  float full_target = max(min_target_tps + 1.0f, static_ff_full_target_tps);
+  float target_abs = fabsf(target_tps);
+  float ramp = clampFloat((target_abs - min_target_tps) / (full_target - min_target_tps), 0.0f, 1.0f);
+  return (float)target_sign * max(0.0f, side_static_ff_us) * ramp;
+}
+
+float feedforwardForTarget(float target_tps, float side_static_ff_us, float side_ff_us_per_tps) {
+  if (signOf(target_tps, min_target_tps) == 0) {
+    return 0.0f;
+  }
+  return staticFeedforwardForTarget(target_tps, side_static_ff_us) + side_ff_us_per_tps * target_tps;
 }
 
 void clearFault() {
@@ -400,6 +412,36 @@ void resetPidState() {
   right_p_term = 0.0f;
   right_i_term = 0.0f;
   right_d_term = 0.0f;
+}
+
+void resetLeftPidState() {
+  left_pid.Reset();
+  left_pid_output_us = 0.0f;
+  left_p_term = 0.0f;
+  left_i_term = 0.0f;
+  left_d_term = 0.0f;
+}
+
+void resetRightPidState() {
+  right_pid.Reset();
+  right_pid_output_us = 0.0f;
+  right_p_term = 0.0f;
+  right_i_term = 0.0f;
+  right_d_term = 0.0f;
+}
+
+void setPidOutputLimitsForBase(QuickPID& pid, float base_delta_us, float side_output_limit_us) {
+  float positive_range_us = max(1.0f, (float)(pwm_max_us - pwm_neutral_us));
+  float negative_range_us = max(1.0f, (float)(pwm_neutral_us - pwm_min_us));
+  float limit_us = max(1.0f, side_output_limit_us);
+  float lo = max(-limit_us, -negative_range_us - base_delta_us);
+  float hi = min(limit_us, positive_range_us - base_delta_us);
+  if (lo > hi) {
+    float forced = clampFloat(-base_delta_us, -limit_us, limit_us);
+    lo = forced - 0.001f;
+    hi = forced + 0.001f;
+  }
+  pid.SetOutputLimits(lo, hi);
 }
 
 void resetEncoderBaselines() {
@@ -475,19 +517,19 @@ bool shouldFaultForWheel(
     start_ms = 0;
     return false;
   }
-  if (abs(side_target_tps) < stall_target_tps) {
+  if (fabsf(side_target_tps) < stall_target_tps) {
     start_ms = 0;
     return false;
   }
-  if (abs(side_pwm - pwm_neutral_us) < stall_pwm_delta_us) {
+  if (fabsf((float)(side_pwm - pwm_neutral_us)) < stall_pwm_delta_us) {
     start_ms = 0;
     return false;
   }
-  if (abs(wheel_tps) > stall_near_zero_tps) {
+  if (fabsf(wheel_tps) > stall_near_zero_tps) {
     start_ms = 0;
     return false;
   }
-  if (abs(peer_tps) < stall_moving_peer_tps) {
+  if (fabsf(peer_tps) < stall_moving_peer_tps) {
     start_ms = 0;
     return false;
   }
@@ -514,15 +556,15 @@ bool shouldFaultForSideStall(
     start_ms = 0;
     return false;
   }
-  if (abs(side_target_tps) < stall_target_tps) {
+  if (fabsf(side_target_tps) < stall_target_tps) {
     start_ms = 0;
     return false;
   }
-  if (abs(side_pwm - pwm_neutral_us) < stall_pwm_delta_us) {
+  if (fabsf((float)(side_pwm - pwm_neutral_us)) < stall_pwm_delta_us) {
     start_ms = 0;
     return false;
   }
-  if (abs(first_tps) > stall_near_zero_tps || abs(second_tps) > stall_near_zero_tps) {
+  if (fabsf(first_tps) > stall_near_zero_tps || fabsf(second_tps) > stall_near_zero_tps) {
     start_ms = 0;
     return false;
   }
@@ -549,15 +591,15 @@ bool shouldFaultForSideMismatch(
     start_ms = 0;
     return false;
   }
-  if (abs(side_target_tps) < stall_target_tps) {
+  if (fabsf(side_target_tps) < stall_target_tps) {
     start_ms = 0;
     return false;
   }
-  if (abs(side_pwm - pwm_neutral_us) < stall_pwm_delta_us) {
+  if (fabsf((float)(side_pwm - pwm_neutral_us)) < stall_pwm_delta_us) {
     start_ms = 0;
     return false;
   }
-  if (abs(first_tps - second_tps) < side_mismatch_fault_tps) {
+  if (fabsf(first_tps - second_tps) < side_mismatch_fault_tps) {
     start_ms = 0;
     return false;
   }
@@ -652,10 +694,10 @@ void updateEncoderSpeeds(unsigned long dt_ms) {
     encoder_jump_fault_enabled &&
     (controller_mode == MODE_VELOCITY || controller_mode == MODE_RAW2)
   ) {
-    if (abs(fl_tps) > encoder_jump_tps) setFault("fl_jump");
-    else if (abs(fr_tps) > encoder_jump_tps) setFault("fr_jump");
-    else if (abs(rl_tps) > encoder_jump_tps) setFault("rl_jump");
-    else if (abs(rr_tps) > encoder_jump_tps) setFault("rr_jump");
+    if (fabsf(fl_tps) > encoder_jump_tps) setFault("fl_jump");
+    else if (fabsf(fr_tps) > encoder_jump_tps) setFault("fr_jump");
+    else if (fabsf(rl_tps) > encoder_jump_tps) setFault("rl_jump");
+    else if (fabsf(rr_tps) > encoder_jump_tps) setFault("rr_jump");
   }
 
   left_measured_tps = 0.5f * (fl_tps + rl_tps);
@@ -693,10 +735,10 @@ void computeVelocityTargets() {
     return;
   }
 
-  if (abs(new_left_target_tps) < min_target_tps) {
+  if (fabsf(new_left_target_tps) < min_target_tps) {
     new_left_target_tps = 0.0f;
   }
-  if (abs(new_right_target_tps) < min_target_tps) {
+  if (fabsf(new_right_target_tps) < min_target_tps) {
     new_right_target_tps = 0.0f;
   }
 
@@ -741,39 +783,59 @@ void updatePidAndOutputs(unsigned long dt_ms) {
   left_error_tps = left_target_tps - left_measured_tps;
   right_error_tps = right_target_tps - right_measured_tps;
 
-  if (left_target_tps == 0.0f && right_target_tps == 0.0f) {
+  bool left_active = fabsf(left_target_tps) >= min_target_tps;
+  bool right_active = fabsf(right_target_tps) >= min_target_tps;
+  if (!left_active && !right_active) {
     resetPidState();
     applyNeutralNow();
     return;
   }
 
-  left_pid_input = left_measured_tps;
-  right_pid_input = right_measured_tps;
-  left_pid_setpoint = left_target_tps;
-  right_pid_setpoint = right_target_tps;
-  left_pid.Compute();
-  right_pid.Compute();
-  left_p_term = left_pid.GetPterm();
-  left_i_term = left_pid.GetIterm();
-  left_d_term = left_pid.GetDterm();
-  right_p_term = right_pid.GetPterm();
-  right_i_term = right_pid.GetIterm();
-  right_d_term = right_pid.GetDterm();
+  float left_base_delta_us = feedforwardForTarget(
+    left_target_tps,
+    left_static_ff_us,
+    left_feedforward_us_per_tps
+  );
+  float right_base_delta_us = feedforwardForTarget(
+    right_target_tps,
+    right_static_ff_us,
+    right_feedforward_us_per_tps
+  );
 
-  float left_delta_us =
-    staticFeedforwardForTarget(left_target_tps, left_static_ff_us) +
-    left_feedforward_us_per_tps * left_target_tps +
-    left_pid_output_us;
-  float right_delta_us =
-    staticFeedforwardForTarget(right_target_tps, right_static_ff_us) +
-    right_feedforward_us_per_tps * right_target_tps +
-    right_pid_output_us;
+  if (left_active) {
+    setPidOutputLimitsForBase(left_pid, left_base_delta_us, left_pid_output_limit_us);
+    left_pid_input = left_measured_tps;
+    left_pid_setpoint = left_target_tps;
+    left_pid.Compute();
+    left_p_term = left_pid.GetPterm();
+    left_i_term = left_pid.GetIterm();
+    left_d_term = left_pid.GetDterm();
+  } else {
+    resetLeftPidState();
+  }
+
+  if (right_active) {
+    setPidOutputLimitsForBase(right_pid, right_base_delta_us, right_pid_output_limit_us);
+    right_pid_input = right_measured_tps;
+    right_pid_setpoint = right_target_tps;
+    right_pid.Compute();
+    right_p_term = right_pid.GetPterm();
+    right_i_term = right_pid.GetIterm();
+    right_d_term = right_pid.GetDterm();
+  } else {
+    resetRightPidState();
+  }
+
+  float left_delta_us = left_active ? left_base_delta_us + left_pid_output_us : 0.0f;
+  float right_delta_us = right_active ? right_base_delta_us + right_pid_output_us : 0.0f;
   if (!isfinite(left_delta_us) || !isfinite(right_delta_us)) {
     stopController("nonfinite_pid", true);
     return;
   }
-  left_delta_us = clampFloat(left_delta_us, -(float)(pwm_max_us - pwm_neutral_us), (float)(pwm_max_us - pwm_neutral_us));
-  right_delta_us = clampFloat(right_delta_us, -(float)(pwm_max_us - pwm_neutral_us), (float)(pwm_max_us - pwm_neutral_us));
+  float positive_pwm_range_us = (float)(pwm_max_us - pwm_neutral_us);
+  float negative_pwm_range_us = (float)(pwm_neutral_us - pwm_min_us);
+  left_delta_us = clampFloat(left_delta_us, -negative_pwm_range_us, positive_pwm_range_us);
+  right_delta_us = clampFloat(right_delta_us, -negative_pwm_range_us, positive_pwm_range_us);
 
   target_left_pwm = clampPwm((int)roundf((float)pwm_neutral_us + left_delta_us));
   target_right_pwm = clampPwm((int)roundf((float)pwm_neutral_us + right_delta_us));
@@ -884,6 +946,8 @@ void printParamDump(Stream& stream) {
   stream.print(right_feedforward_us_per_tps, 6);
   stream.print(",static_ff_us=");
   stream.print(static_ff_us, 2);
+  stream.print(",static_ff_full_target_tps=");
+  stream.print(static_ff_full_target_tps, 2);
   stream.print(",left_static_ff_us=");
   stream.print(left_static_ff_us, 2);
   stream.print(",right_static_ff_us=");
@@ -981,6 +1045,10 @@ bool setParam(const char* name, float value) {
     if (!assignFloatInRange(static_ff_us, value, 0.0f, 500.0f)) return false;
     left_static_ff_us = static_ff_us;
     right_static_ff_us = static_ff_us;
+    critical = true;
+  }
+  else if (strcmp(name, "static_ff_full_target_tps") == 0) {
+    if (!assignFloatInRange(static_ff_full_target_tps, value, 1.0f, 50000.0f)) return false;
     critical = true;
   }
   else if (strcmp(name, "left_static_ff_us") == 0) {

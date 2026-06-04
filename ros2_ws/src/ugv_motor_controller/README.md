@@ -120,25 +120,34 @@ left_pwm / right_pwm
 fault / fault_reason
 ```
 
-Bridge-level compensation does not require reflashing the Teensy. Keep defaults
-at `1.0` unless measured data shows one side is weak:
+Bridge-level compensation does not require reflashing the Teensy. Keep speed
+scales at `1.0` unless a bench calibration proves the measured side speed is
+systematically wrong:
 
 ```bash
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   motor_right_forward_speed_scale:=1.20
 ```
 
-The Jetson bridge now expects the latest Teensy firmware by default and syncs
-side-specific PID/feedforward parameters at startup. If the right side still
-cannot reach target and PWM is near its limit, tune side-specific low-level
-parameters:
+The Jetson bridge expects the latest Teensy firmware by default and syncs
+low-level PID/feedforward parameters at startup. Flash the matching firmware
+before running the ROS bridge; if `teensy_pid_params_synced=false`, the bridge
+will hold STOP instead of driving with an unknown controller.
+
+Before changing any left/right-specific feedforward or static feedforward, run
+the closed-loop bench gate with the wheels off the ground:
 
 ```bash
-ros2 launch ugv_sensor_sync competition_bringup.launch.py \
-  motor_teensy_right_pid_static_ff_us:=210.0 \
-  motor_teensy_right_pid_feedforward_us_per_tps:=0.05 \
-  motor_teensy_right_pid_output_limit_us:=400.0
+python3 tools/ugv_motor_closed_loop_calibrate.py \
+  --port /dev/serial/by-id/usb-Teensyduino_USB_Serial_19983800-if00 \
+  --yes
 ```
+
+Do not carry over one-sided tuning from a previous run. If straight driving
+drifts left, making the right side faster will normally increase the left drift
+on a tank drive. Only use side-specific values after the calibration output
+shows which side fails to reach target and whether PWM is already near its
+limit.
 
 Use `motor_pwm_min_us:=1000` and `motor_pwm_max_us:=2000` only after confirming
 the speed controllers are calibrated for the full R/C PWM range.

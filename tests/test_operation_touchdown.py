@@ -280,6 +280,19 @@ def test_fusion_depth_blind_hazard_does_not_override_clear_lidar():
     assert "float32 front_lidar_range_m" in nav_frame_msg
 
 
+def test_fusion_summary_exposes_stop_first_obstacle_debug_fields():
+    fusion_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "fusion_node.py").read_text()
+
+    assert "FRONT_OBSTACLE_DEBUG_THRESHOLD_M = 2.0" in fusion_text
+    assert "FRONT_STOP_DEBUG_CLEARANCE_M = 1.0" in fusion_text
+    assert "'front_obstacle_within_2m': bool(front_obstacle_within_2m)" in fusion_text
+    assert "'front_stop_required_1m': bool(front_stop_required_1m)" in fusion_text
+    assert "'front_lidar_fov_deg': round(float(self.lidar_front_fov_deg), 3)" in fusion_text
+    assert "'depth_corridor_half_width_m': round(float(self.depth_front_corridor_half_width_m), 3)" in fusion_text
+    assert "'lidar_any_min_range_m': self._finite_or_none(lidar_min_range_m)" in fusion_text
+    assert "'front_sensor_health': front_sensor_health" in fusion_text
+
+
 def test_aruco_detector_uses_full_tf_projection_not_yaw_only_projection_by_default():
     aruco_text = (ROOT / "ros2_ws" / "src" / "ugv_perception" / "ugv_perception" / "aruco_marker_node.py").read_text()
     assert "TransformListener" in aruco_text

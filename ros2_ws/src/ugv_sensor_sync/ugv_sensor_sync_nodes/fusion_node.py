@@ -16,6 +16,8 @@ from ugv_sensor_sync.msg import EncoderTicksStamped, NavSensorFrame, SyncedSenso
 
 
 DEFAULT_SLOP_S = 0.25
+FRONT_OBSTACLE_DEBUG_THRESHOLD_M = 2.0
+FRONT_STOP_DEBUG_CLEARANCE_M = 1.0
 
 
 class FusionNode(Node):
@@ -102,9 +104,8 @@ class FusionNode(Node):
         self.depth_roi_y_center_frac = float(self.get_parameter('depth_roi_y_center_frac').value)
         self.depth_near_percentile = float(self.get_parameter('depth_near_percentile').value)
         self.depth_invalid_warn_frames = max(1, int(self.get_parameter('depth_invalid_warn_frames').value))
-        self.lidar_front_half_fov_rad = 0.5 * math.radians(
-            float(self.get_parameter('lidar_front_fov_deg').value)
-        )
+        self.lidar_front_fov_deg = float(self.get_parameter('lidar_front_fov_deg').value)
+        self.lidar_front_half_fov_rad = 0.5 * math.radians(self.lidar_front_fov_deg)
         self.depth_projection_hfov_rad = math.radians(
             float(self.get_parameter('depth_projection_hfov_deg').value)
         )
@@ -305,6 +306,21 @@ class FusionNode(Node):
         near_obstacle = depth_blind_hazard_active or (
             math.isfinite(front_clearance_m) and front_clearance_m < self.depth_warning_threshold_m
         )
+        front_obstacle_within_2m = (
+            math.isfinite(front_clearance_m)
+            and front_clearance_m <= FRONT_OBSTACLE_DEBUG_THRESHOLD_M
+        )
+        front_stop_required_1m = (
+            math.isfinite(front_clearance_m)
+            and front_clearance_m < FRONT_STOP_DEBUG_CLEARANCE_M
+        )
+        front_sensor_health = self._front_sensor_health(
+            zed_available=zed_available,
+            valid_depth_samples=valid_depth_samples,
+            depth_blind_hazard_active=depth_blind_hazard_active,
+            front_lidar_range_m=front_lidar_range_m,
+            depth_min_range_m=depth_min_range_m,
+        )
         smoothed_imu_msg = self._smooth_imu(imu_msg)
         encoder_left, encoder_right, encoder_available, encoder_age_s, encoder_source = self._select_encoder_for_frame(
             scan_msg.header
@@ -395,10 +411,16 @@ class FusionNode(Node):
                 round(float(smoothed_imu_msg.angular_velocity.z), 4),
             ],
             'min_lidar_range_m': self._finite_or_none(lidar_min_range_m),
+            'lidar_any_min_range_m': self._finite_or_none(lidar_min_range_m),
             'front_lidar_range_m': self._finite_or_none(front_lidar_range_m),
+            'front_lidar_fov_deg': round(float(self.lidar_front_fov_deg), 3),
             'min_depth_range_m': self._finite_or_none(depth_min_range_m),
+            'depth_corridor_half_width_m': round(float(self.depth_front_corridor_half_width_m), 3),
             'front_clearance_m': self._finite_or_none(front_clearance_m),
             'front_clearance_source': front_clearance_source,
+            'front_obstacle_within_2m': bool(front_obstacle_within_2m),
+            'front_stop_required_1m': bool(front_stop_required_1m),
+            'front_sensor_health': front_sensor_health,
             'depth_warning': bool(depth_warning),
             'depth_blind_hazard': bool(depth_blind_hazard),
             'depth_blind_hazard_active': bool(depth_blind_hazard_active),
@@ -592,6 +614,35 @@ class FusionNode(Node):
         if depth_ok:
             return 'zed'
         return 'none'
+
+    @staticmethod
+    def _front_sensor_health(
+        *,
+        zed_available: bool,
+        valid_depth_samples: int,
+        depth_blind_hazard_active: bool,
+        front_lidar_range_m: float,
+        depth_min_range_m: float,
+    ) -> str:
+        lidar_ok = math.isfinite(front_lidar_range_m)
+        depth_ok = math.isfinite(depth_min_range_m)
+        if lidar_ok and depth_ok:
+            return 'lidar+zed_ok'
+        if lidar_ok:
+            if not zed_available:
+                return 'lidar_only_zed_unavailable'
+            if depth_blind_hazard_active:
+                return 'lidar_only_depth_blind'
+            if valid_depth_samples <= 0:
+                return 'lidar_only_depth_invalid'
+            return 'lidar_only_no_depth_corridor_obstacle'
+        if depth_ok:
+            return 'zed_only_no_lidar_front'
+        if not zed_available:
+            return 'no_front_sensor_zed_unavailable'
+        if valid_depth_samples <= 0:
+            return 'no_front_sensor_depth_invalid'
+        return 'no_front_obstacle_points'
 
     def _compute_front_lidar_min_range(self, scan_msg: LaserScan) -> float:
         valid = []

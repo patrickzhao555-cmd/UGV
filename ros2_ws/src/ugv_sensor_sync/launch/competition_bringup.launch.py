@@ -125,6 +125,25 @@ def generate_launch_description():
     nav_curve_min_omega_radps = LaunchConfiguration("nav_curve_min_omega_radps")
     nav_curve_min_omega_disable_error_rad = LaunchConfiguration("nav_curve_min_omega_disable_error_rad")
     nav_allow_side_reverse = LaunchConfiguration("nav_allow_side_reverse")
+    nav_target_topic = LaunchConfiguration("nav_target_topic")
+    nav_manual_target_x_m = LaunchConfiguration("nav_manual_target_x_m")
+    nav_manual_target_y_m = LaunchConfiguration("nav_manual_target_y_m")
+    nav_tracking_enabled = LaunchConfiguration("nav_tracking_enabled")
+    nav_target_stop_radius_m = LaunchConfiguration("nav_target_stop_radius_m")
+    nav_tracking_lookahead_min_m = LaunchConfiguration("nav_tracking_lookahead_min_m")
+    nav_tracking_lookahead_max_m = LaunchConfiguration("nav_tracking_lookahead_max_m")
+    nav_tracking_lookahead_speed_gain = LaunchConfiguration("nav_tracking_lookahead_speed_gain")
+    nav_tracking_nominal_speed_mps = LaunchConfiguration("nav_tracking_nominal_speed_mps")
+    nav_tracking_max_speed_mps = LaunchConfiguration("nav_tracking_max_speed_mps")
+    nav_tracking_max_omega_radps = LaunchConfiguration("nav_tracking_max_omega_radps")
+    nav_tracking_heading_kp = LaunchConfiguration("nav_tracking_heading_kp")
+    nav_tracking_cross_track_kp = LaunchConfiguration("nav_tracking_cross_track_kp")
+    nav_tracking_slowdown_distance_m = LaunchConfiguration("nav_tracking_slowdown_distance_m")
+    nav_obstacle_warn_m = LaunchConfiguration("nav_obstacle_warn_m")
+    nav_obstacle_stop_m = LaunchConfiguration("nav_obstacle_stop_m")
+    nav_bypass_offset_m = LaunchConfiguration("nav_bypass_offset_m")
+    nav_bypass_forward_m = LaunchConfiguration("nav_bypass_forward_m")
+    nav_bypass_rejoin_ahead_m = LaunchConfiguration("nav_bypass_rejoin_ahead_m")
     nav_max_omega_radps = LaunchConfiguration("nav_max_omega_radps")
     nav_heading_kp = LaunchConfiguration("nav_heading_kp")
     nav_heading_kd = LaunchConfiguration("nav_heading_kd")
@@ -336,6 +355,44 @@ def generate_launch_description():
             nav_curve_min_omega_disable_error_rad,
             "--allow-side-reverse",
             nav_allow_side_reverse,
+            "--target-topic",
+            nav_target_topic,
+            "--manual-target-x-m",
+            nav_manual_target_x_m,
+            "--manual-target-y-m",
+            nav_manual_target_y_m,
+            "--tracking-enabled",
+            nav_tracking_enabled,
+            "--target-stop-radius-m",
+            nav_target_stop_radius_m,
+            "--tracking-lookahead-min-m",
+            nav_tracking_lookahead_min_m,
+            "--tracking-lookahead-max-m",
+            nav_tracking_lookahead_max_m,
+            "--tracking-lookahead-speed-gain",
+            nav_tracking_lookahead_speed_gain,
+            "--tracking-nominal-speed-mps",
+            nav_tracking_nominal_speed_mps,
+            "--tracking-max-speed-mps",
+            nav_tracking_max_speed_mps,
+            "--tracking-max-omega-radps",
+            nav_tracking_max_omega_radps,
+            "--tracking-heading-kp",
+            nav_tracking_heading_kp,
+            "--tracking-cross-track-kp",
+            nav_tracking_cross_track_kp,
+            "--tracking-slowdown-distance-m",
+            nav_tracking_slowdown_distance_m,
+            "--obstacle-warn-m",
+            nav_obstacle_warn_m,
+            "--obstacle-stop-m",
+            nav_obstacle_stop_m,
+            "--bypass-offset-m",
+            nav_bypass_offset_m,
+            "--bypass-forward-m",
+            nav_bypass_forward_m,
+            "--bypass-rejoin-ahead-m",
+            nav_bypass_rejoin_ahead_m,
             "--max-omega-radps",
             nav_max_omega_radps,
             "--heading-kp",
@@ -563,6 +620,25 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_curve_min_omega_radps", default_value="0.14"),
             DeclareLaunchArgument("nav_curve_min_omega_disable_error_rad", default_value="0.08"),
             DeclareLaunchArgument("nav_allow_side_reverse", default_value="false"),
+            DeclareLaunchArgument("nav_target_topic", default_value="/ugv/uav_target"),
+            DeclareLaunchArgument("nav_manual_target_x_m", default_value="0.0"),
+            DeclareLaunchArgument("nav_manual_target_y_m", default_value="0.0"),
+            DeclareLaunchArgument("nav_tracking_enabled", default_value="true"),
+            DeclareLaunchArgument("nav_target_stop_radius_m", default_value="0.75"),
+            DeclareLaunchArgument("nav_tracking_lookahead_min_m", default_value="0.45"),
+            DeclareLaunchArgument("nav_tracking_lookahead_max_m", default_value="1.20"),
+            DeclareLaunchArgument("nav_tracking_lookahead_speed_gain", default_value="1.8"),
+            DeclareLaunchArgument("nav_tracking_nominal_speed_mps", default_value="0.25"),
+            DeclareLaunchArgument("nav_tracking_max_speed_mps", default_value="0.42"),
+            DeclareLaunchArgument("nav_tracking_max_omega_radps", default_value="0.85"),
+            DeclareLaunchArgument("nav_tracking_heading_kp", default_value="0.85"),
+            DeclareLaunchArgument("nav_tracking_cross_track_kp", default_value="0.75"),
+            DeclareLaunchArgument("nav_tracking_slowdown_distance_m", default_value="1.20"),
+            DeclareLaunchArgument("nav_obstacle_warn_m", default_value="2.0"),
+            DeclareLaunchArgument("nav_obstacle_stop_m", default_value="1.0"),
+            DeclareLaunchArgument("nav_bypass_offset_m", default_value="1.1"),
+            DeclareLaunchArgument("nav_bypass_forward_m", default_value="2.0"),
+            DeclareLaunchArgument("nav_bypass_rejoin_ahead_m", default_value="2.0"),
             DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
             DeclareLaunchArgument("nav_heading_kp", default_value="0.6"),
             DeclareLaunchArgument("nav_heading_kd", default_value="0.08"),

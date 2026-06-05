@@ -134,6 +134,29 @@ def test_debug_hard_run_test_flags_parse():
     assert args.debug_ignore_obstacles
 
 
+def test_competition_tracker_args_parse():
+    args = parse_args([
+        "--controller-mode",
+        "competition_tracker",
+        "--manual-target-x-m",
+        "5.0",
+        "--manual-target-y-m",
+        "1.0",
+        "--tracking-max-omega-radps",
+        "0.85",
+        "--obstacle-warn-m",
+        "2.0",
+        "--bypass-offset-m",
+        "1.1",
+    ])
+    assert args.controller_mode == "competition_tracker"
+    assert args.manual_target_x_m == pytest.approx(5.0)
+    assert args.manual_target_y_m == pytest.approx(1.0)
+    assert args.tracking_max_omega_radps == pytest.approx(0.85)
+    assert args.obstacle_warn_m == pytest.approx(2.0)
+    assert args.bypass_offset_m == pytest.approx(1.1)
+
+
 def test_imu_health_args_parse():
     args = parse_args([
         "--imu-min-rate-hz",

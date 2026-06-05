@@ -29,6 +29,7 @@ from ugv_nav_core.chassis_controller import (
     evaluate_pivot_clearance,
     evaluate_safety,
     min_finite_range,
+    motor_status_ready,
     pivot_encoder_gyro_disagreement,
     reset_curve,
     reset_gyro_bias_calibration,
@@ -61,6 +62,15 @@ from ugv_nav_core.mission_controller import (
     straight_omega_with_slew,
     telemetry_force_flush_key,
     update_stuck_monitor,
+)
+from ugv_nav_core.trajectory_tracker import (
+    TrackerConfig,
+    TrackerState,
+    reset_tracker,
+    start_tracker_goal,
+    step_tracker,
+    tracker_status,
+    update_tracker_odometry,
 )
 
 
@@ -134,7 +144,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--mode", choices=["sim", "real"], default="sim")
     parser.add_argument(
         "--controller-mode",
-        choices=["idle", "straight_test", "pivot_test", "curve_test", "mission_sequence"],
+        choices=["idle", "straight_test", "pivot_test", "curve_test", "mission_sequence", "competition_tracker"],
         default="idle",
     )
     parser.add_argument("--command-topic", default="/ugv_nav_cmd")
@@ -171,6 +181,25 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--curve-min-omega-radps", type=float, default=0.14)
     parser.add_argument("--curve-min-omega-disable-error-rad", type=float, default=0.08)
     parser.add_argument("--allow-side-reverse", type=parse_bool, default=False)
+    parser.add_argument("--target-topic", default="/ugv/uav_target")
+    parser.add_argument("--manual-target-x-m", type=float, default=0.0)
+    parser.add_argument("--manual-target-y-m", type=float, default=0.0)
+    parser.add_argument("--tracking-enabled", type=parse_bool, default=True)
+    parser.add_argument("--target-stop-radius-m", type=float, default=0.75)
+    parser.add_argument("--tracking-lookahead-min-m", type=float, default=0.45)
+    parser.add_argument("--tracking-lookahead-max-m", type=float, default=1.20)
+    parser.add_argument("--tracking-lookahead-speed-gain", type=float, default=1.8)
+    parser.add_argument("--tracking-nominal-speed-mps", type=float, default=0.25)
+    parser.add_argument("--tracking-max-speed-mps", type=float, default=0.42)
+    parser.add_argument("--tracking-max-omega-radps", type=float, default=0.85)
+    parser.add_argument("--tracking-heading-kp", type=float, default=0.85)
+    parser.add_argument("--tracking-cross-track-kp", type=float, default=0.75)
+    parser.add_argument("--tracking-slowdown-distance-m", type=float, default=1.20)
+    parser.add_argument("--obstacle-warn-m", type=float, default=2.0)
+    parser.add_argument("--obstacle-stop-m", type=float, default=1.0)
+    parser.add_argument("--bypass-offset-m", type=float, default=1.1)
+    parser.add_argument("--bypass-forward-m", type=float, default=2.0)
+    parser.add_argument("--bypass-rejoin-ahead-m", type=float, default=2.0)
     parser.add_argument("--max-omega-radps", type=float, default=0.45)
     parser.add_argument("--heading-kp", type=float, default=0.6)
     parser.add_argument("--heading-kd", type=float, default=0.08)
@@ -342,6 +371,7 @@ def run_sim() -> None:
 def run_real(args: argparse.Namespace) -> None:
     try:
         import rclpy
+        from geometry_msgs.msg import PointStamped
         from rclpy.node import Node
         from rclpy.qos import qos_profile_sensor_data
         from sensor_msgs.msg import Imu
@@ -369,6 +399,30 @@ def run_real(args: argparse.Namespace) -> None:
             self.gyro_bias = GyroBiasCalibrationState()
             self.pivot = PivotControllerState()
             self.curve = CurveControllerState()
+            self.tracker = TrackerState()
+            self.tracker_config = TrackerConfig(
+                target_stop_radius_m=max(0.05, float(args.target_stop_radius_m)),
+                lookahead_min_m=max(0.05, float(args.tracking_lookahead_min_m)),
+                lookahead_max_m=max(0.05, float(args.tracking_lookahead_max_m)),
+                lookahead_speed_gain=max(0.0, float(args.tracking_lookahead_speed_gain)),
+                nominal_speed_mps=max(0.0, float(args.tracking_nominal_speed_mps)),
+                max_speed_mps=max(0.0, float(args.tracking_max_speed_mps)),
+                max_omega_radps=max(0.0, float(args.tracking_max_omega_radps)),
+                heading_kp=float(args.tracking_heading_kp),
+                cross_track_kp=float(args.tracking_cross_track_kp),
+                slowdown_distance_m=max(0.05, float(args.tracking_slowdown_distance_m)),
+                obstacle_warn_m=max(0.0, float(args.obstacle_warn_m)),
+                obstacle_stop_m=max(0.0, float(args.obstacle_stop_m)),
+                bypass_offset_m=max(0.0, float(args.bypass_offset_m)),
+                bypass_forward_m=max(0.1, float(args.bypass_forward_m)),
+                bypass_rejoin_ahead_m=max(0.1, float(args.bypass_rejoin_ahead_m)),
+                track_width_m=float(args.track_width_m),
+                wheel_radius_m=float(args.wheel_radius_m),
+                ticks_per_rev=float(args.ticks_per_rev),
+            )
+            self.tracker_pending_target: Optional[tuple[float, float]] = None
+            if abs(float(args.manual_target_x_m)) > 1e-9 or abs(float(args.manual_target_y_m)) > 1e-9:
+                self.tracker_pending_target = (float(args.manual_target_x_m), float(args.manual_target_y_m))
             self.last_sensor_s: Optional[float] = None
             self.last_imu_s: Optional[float] = None
             self.last_motor_status_s: Optional[float] = None
@@ -380,6 +434,8 @@ def run_real(args: argparse.Namespace) -> None:
             self.front_clearance_m: Optional[float] = None
             self.pivot_clearance_m: Optional[float] = None
             self.last_scan_ranges: Optional[list[float]] = None
+            self.last_scan_angle_min = 0.0
+            self.last_scan_angle_increment = 0.0
             self.raw_yaw_rate_radps = 0.0
             self.yaw_rate_radps = 0.0
             self.imu_dt_integrated = False
@@ -435,6 +491,7 @@ def run_real(args: argparse.Namespace) -> None:
             self.status_pub = self.create_publisher(String, args.status_topic, 10)
             self.create_subscription(NavSensorFrame, args.nav_frame_topic, self.nav_frame_callback, 10)
             self.create_subscription(Imu, args.imu_topic, self.imu_callback, imu_qos)
+            self.create_subscription(PointStamped, args.target_topic, self.target_callback, 10)
             self.create_subscription(String, args.motor_status_topic, self.motor_status_callback, 10)
             self.create_subscription(
                 EncoderTicksStamped,
@@ -467,6 +524,8 @@ def run_real(args: argparse.Namespace) -> None:
             self.near_obstacle = bool(msg.near_obstacle)
             self.front_clearance_m = float(msg.front_clearance_m)
             self.last_scan_ranges = [float(value) for value in getattr(msg.scan, "ranges", [])]
+            self.last_scan_angle_min = float(getattr(msg.scan, "angle_min", 0.0))
+            self.last_scan_angle_increment = float(getattr(msg.scan, "angle_increment", 0.0))
             self.pivot_clearance_m = min_finite_range(self.last_scan_ranges)
             if bool(msg.encoder_available):
                 self._update_encoder_feedback(
@@ -474,6 +533,22 @@ def run_real(args: argparse.Namespace) -> None:
                     right_ticks=int(msg.right_encoder_ticks),
                     now_s=now_s,
                 )
+
+        def target_callback(self, msg: Any) -> None:
+            x = float(msg.point.x)
+            y = float(msg.point.y)
+            if not math.isfinite(x) or not math.isfinite(y):
+                self.get_logger().warn("Ignoring non-finite competition tracker target")
+                return
+            current_target = self.tracker_pending_target
+            if current_target is None and self.tracker.target is not None:
+                current_target = (self.tracker.target.x, self.tracker.target.y)
+            if current_target is not None and math.hypot(x - current_target[0], y - current_target[1]) < 0.05:
+                self.tracker_pending_target = (x, y)
+                return
+            reset_tracker(self.tracker)
+            self.tracker_pending_target = (x, y)
+            self.get_logger().info(f"Competition tracker target queued: x={x:.3f}m y={y:.3f}m")
 
         def imu_callback(self, msg: Any) -> None:
             now_s = time.monotonic()
@@ -710,6 +785,108 @@ def run_real(args: argparse.Namespace) -> None:
             self.slip_detected = False
             self.previous_straight_omega_radps = 0.0
             self.last_mission_update_s = None
+
+        def _reset_tracker_state(self) -> None:
+            reset_tracker(self.tracker)
+            self.tracker_pending_target = None
+
+        def _tracker_safety_state(self, now_s: float) -> str:
+            if not self.config.debug_ignore_nav_frame and (
+                self.last_sensor_s is None or now_s - self.last_sensor_s > self.config.sensor_timeout_s
+            ):
+                return "sensor_stale"
+            if not self._imu_fresh(now_s):
+                return "imu_stale"
+            if not self._imu_rate_ok():
+                return "imu_rate_low"
+            if last_motor_status_s := self.last_motor_status_s:
+                if now_s - last_motor_status_s > self.config.motor_status_timeout_s:
+                    return "motor_status_stale"
+            else:
+                return "motor_status_stale"
+            motor = motor_status_ready(self.motor_status)
+            if not motor.safe:
+                return motor.reason
+            if not self.encoder_available or self.current_left_ticks is None or self.current_right_ticks is None:
+                return "encoder_unavailable"
+            return "ok"
+
+        def _scan_sector_min(self, *, angle_min_deg: float, angle_max_deg: float) -> Optional[float]:
+            if not self.last_scan_ranges:
+                return None
+            angle_min = math.radians(float(angle_min_deg))
+            angle_max = math.radians(float(angle_max_deg))
+            if angle_min > angle_max:
+                angle_min, angle_max = angle_max, angle_min
+            values: list[float] = []
+            for index, value in enumerate(self.last_scan_ranges):
+                distance = float(value)
+                if not math.isfinite(distance) or distance <= 0.0:
+                    continue
+                angle = self.last_scan_angle_min + float(index) * self.last_scan_angle_increment
+                angle = math.atan2(math.sin(angle), math.cos(angle))
+                if angle_min <= angle <= angle_max:
+                    values.append(distance)
+            return min(values) if values else None
+
+        def _ensure_tracker_started(self, now_s: float) -> Optional[str]:
+            if not bool(args.tracking_enabled):
+                return "tracking_disabled"
+            if self.tracker_pending_target is None:
+                return "tracker_wait_target"
+            if self.current_left_ticks is None or self.current_right_ticks is None:
+                return "encoder_unavailable"
+            if not self._imu_fresh(now_s):
+                return "imu_stale"
+            if self.tracker.target is None or self.tracker.state in {"WAIT_TARGET", "FAULT"}:
+                x, y = self.tracker_pending_target
+                start_tracker_goal(
+                    self.tracker,
+                    target_x_m=x,
+                    target_y_m=y,
+                    left_ticks=self.current_left_ticks,
+                    right_ticks=self.current_right_ticks,
+                    heading_rad=self._heading_rad(now_s),
+                )
+                self.mode_start_s = now_s
+                self.get_logger().warn(
+                    f"Competition tracker started: target=({x:.3f},{y:.3f})m "
+                    f"stop_radius={self.tracker_config.target_stop_radius_m:.2f}m"
+                )
+            return None
+
+        def _tick_competition_tracker(self, now_s: float) -> tuple[ControlCommand, float, float, str]:
+            heading = self._heading_rad(now_s)
+            safety_state = self._tracker_safety_state(now_s)
+            if safety_state != "ok":
+                return build_stop_command(safety_state), heading, 0.0, safety_state
+            start_hold = self._ensure_tracker_started(now_s)
+            if start_hold is not None:
+                return build_stop_command(start_hold), heading, 0.0, start_hold
+            assert self.current_left_ticks is not None
+            assert self.current_right_ticks is not None
+            update_tracker_odometry(
+                self.tracker,
+                left_ticks=self.current_left_ticks,
+                right_ticks=self.current_right_ticks,
+                heading_rad=heading,
+                config=self.tracker_config,
+            )
+            left_clearance = self._scan_sector_min(angle_min_deg=35.0, angle_max_deg=110.0)
+            right_clearance = self._scan_sector_min(angle_min_deg=-110.0, angle_max_deg=-35.0)
+            step = step_tracker(
+                self.tracker,
+                config=self.tracker_config,
+                front_clearance_m=self.front_clearance_m,
+                left_clearance_m=left_clearance,
+                right_clearance_m=right_clearance,
+            )
+            if step.state == "FAULT":
+                self.tracker.state = "FAULT"
+                return build_stop_command(step.reason), heading, self.tracker.heading_error_rad, step.reason
+            if step.command_type == "velocity":
+                return build_velocity_command(step.v_mps, step.omega_radps, step.reason), heading, self.tracker.heading_error_rad, "ok"
+            return build_stop_command(step.reason), heading, self.tracker.heading_error_rad, step.reason
 
         def _reset_bias_and_heading(self) -> None:
             reset_gyro_bias_calibration(self.gyro_bias)
@@ -1185,6 +1362,14 @@ def run_real(args: argparse.Namespace) -> None:
             if self.mode == "idle":
                 self._reset_test_state()
                 self._reset_mission_state()
+                reset_tracker(self.tracker)
+            elif self.mode == "competition_tracker":
+                calibrated, calibration_reason = self._calibrate_gyro_bias_if_needed(now_s)
+                if not calibrated:
+                    cmd = build_stop_command(calibration_reason)
+                    safety_state = calibration_reason
+                else:
+                    cmd, heading, heading_error, safety_state = self._tick_competition_tracker(now_s)
             elif self.mode == "mission_sequence":
                 cmd, heading, heading_error, safety_state = self._tick_mission(now_s)
             else:
@@ -1487,6 +1672,8 @@ def run_real(args: argparse.Namespace) -> None:
                 "curve_arc_length_m": self.curve.arc_length_m,
                 "curve_direction": self.curve.direction,
                 "curve_side_reverse_blocked": self.curve.side_reverse_blocked,
+                "tracking_enabled": bool(args.tracking_enabled),
+                **tracker_status(self.tracker),
                 "v_mps": last_v,
                 "omega_radps": last_omega,
                 "omega_saturated": abs(last_omega) >= max(0.0, omega_limit - 1e-6) and abs(last_omega) > 1e-6,

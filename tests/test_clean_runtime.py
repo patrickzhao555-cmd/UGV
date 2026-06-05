@@ -71,6 +71,13 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert '"--encoder-stamped-topic"' in launch
     assert '"--allow-encoder-heading-fallback"' in launch
     assert '"start_debug_status": start_debug_status' in launch
+    assert 'DeclareLaunchArgument("nav_tracking_enabled", default_value="true")' in launch
+    assert 'DeclareLaunchArgument("nav_target_topic", default_value="/ugv/uav_target")' in launch
+    assert 'DeclareLaunchArgument("nav_tracking_max_omega_radps", default_value="0.85")' in launch
+    assert '"--tracking-enabled"' in launch
+    assert '"--manual-target-x-m"' in launch
+    assert '"--obstacle-warn-m"' in launch
+    assert '"--bypass-offset-m"' in launch
 
 
 def test_obsolete_runtime_packages_are_removed_from_source_tree():

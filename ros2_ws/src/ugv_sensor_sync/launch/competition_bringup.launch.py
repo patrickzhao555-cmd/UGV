@@ -62,10 +62,15 @@ def generate_launch_description():
     motor_enable_teensy_side_specific_pid_params = LaunchConfiguration("motor_enable_teensy_side_specific_pid_params")
     motor_teensy_left_pid_feedforward_us_per_tps = LaunchConfiguration("motor_teensy_left_pid_feedforward_us_per_tps")
     motor_teensy_right_pid_feedforward_us_per_tps = LaunchConfiguration("motor_teensy_right_pid_feedforward_us_per_tps")
+    motor_teensy_right_reverse_pid_feedforward_us_per_tps = LaunchConfiguration(
+        "motor_teensy_right_reverse_pid_feedforward_us_per_tps"
+    )
     motor_teensy_pid_static_ff_us = LaunchConfiguration("motor_teensy_pid_static_ff_us")
     motor_teensy_pid_static_ff_full_target_tps = LaunchConfiguration("motor_teensy_pid_static_ff_full_target_tps")
     motor_teensy_left_pid_static_ff_us = LaunchConfiguration("motor_teensy_left_pid_static_ff_us")
     motor_teensy_right_pid_static_ff_us = LaunchConfiguration("motor_teensy_right_pid_static_ff_us")
+    motor_teensy_right_reverse_pid_static_ff_us = LaunchConfiguration("motor_teensy_right_reverse_pid_static_ff_us")
+    motor_teensy_right_reverse_pwm_floor_us = LaunchConfiguration("motor_teensy_right_reverse_pwm_floor_us")
     motor_teensy_pid_output_limit_us = LaunchConfiguration("motor_teensy_pid_output_limit_us")
     motor_teensy_left_pid_output_limit_us = LaunchConfiguration("motor_teensy_left_pid_output_limit_us")
     motor_teensy_right_pid_output_limit_us = LaunchConfiguration("motor_teensy_right_pid_output_limit_us")
@@ -79,6 +84,7 @@ def generate_launch_description():
     motor_teensy_side_mismatch_warn_tps = LaunchConfiguration("motor_teensy_side_mismatch_warn_tps")
     motor_teensy_side_mismatch_fault_tps = LaunchConfiguration("motor_teensy_side_mismatch_fault_tps")
     motor_teensy_encoder_jump_tps = LaunchConfiguration("motor_teensy_encoder_jump_tps")
+    motor_teensy_pid_param_ack_timeout_s = LaunchConfiguration("motor_teensy_pid_param_ack_timeout_s")
     nav_status_period_s = LaunchConfiguration("nav_status_period_s")
     nav_control_period_s = LaunchConfiguration("nav_control_period_s")
     nav_controller_mode = LaunchConfiguration("nav_controller_mode")
@@ -195,10 +201,15 @@ def generate_launch_description():
             "enable_teensy_side_specific_pid_params": motor_enable_teensy_side_specific_pid_params,
             "teensy_left_pid_feedforward_us_per_tps": motor_teensy_left_pid_feedforward_us_per_tps,
             "teensy_right_pid_feedforward_us_per_tps": motor_teensy_right_pid_feedforward_us_per_tps,
+            "teensy_right_reverse_pid_feedforward_us_per_tps": (
+                motor_teensy_right_reverse_pid_feedforward_us_per_tps
+            ),
             "teensy_pid_static_ff_us": motor_teensy_pid_static_ff_us,
             "teensy_pid_static_ff_full_target_tps": motor_teensy_pid_static_ff_full_target_tps,
             "teensy_left_pid_static_ff_us": motor_teensy_left_pid_static_ff_us,
             "teensy_right_pid_static_ff_us": motor_teensy_right_pid_static_ff_us,
+            "teensy_right_reverse_pid_static_ff_us": motor_teensy_right_reverse_pid_static_ff_us,
+            "teensy_right_reverse_pwm_floor_us": motor_teensy_right_reverse_pwm_floor_us,
             "teensy_pid_output_limit_us": motor_teensy_pid_output_limit_us,
             "teensy_left_pid_output_limit_us": motor_teensy_left_pid_output_limit_us,
             "teensy_right_pid_output_limit_us": motor_teensy_right_pid_output_limit_us,
@@ -212,6 +223,7 @@ def generate_launch_description():
             "teensy_side_mismatch_warn_tps": motor_teensy_side_mismatch_warn_tps,
             "teensy_side_mismatch_fault_tps": motor_teensy_side_mismatch_fault_tps,
             "teensy_encoder_jump_tps": motor_teensy_encoder_jump_tps,
+            "teensy_pid_param_ack_timeout_s": motor_teensy_pid_param_ack_timeout_s,
         }.items(),
         condition=IfCondition(start_motor_controller),
     )
@@ -467,18 +479,21 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_pwm_max_us", default_value="1900"),
             DeclareLaunchArgument("motor_pwm_slew_rate_us_per_s", default_value="2400.0"),
             DeclareLaunchArgument("motor_teensy_control_hz", default_value="50.0"),
-            DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.10"),
-            DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.02"),
+            DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.03"),
+            DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_kd", default_value="0.0"),
-            DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.04"),
+            DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.02"),
             DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="true"),
             DeclareLaunchArgument("motor_teensy_left_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_feedforward_us_per_tps", default_value="-1.0"),
-            DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="170.0"),
-            DeclareLaunchArgument("motor_teensy_pid_static_ff_full_target_tps", default_value="2500.0"),
+            DeclareLaunchArgument("motor_teensy_right_reverse_pid_feedforward_us_per_tps", default_value="-1.0"),
+            DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="90.0"),
+            DeclareLaunchArgument("motor_teensy_pid_static_ff_full_target_tps", default_value="1500.0"),
             DeclareLaunchArgument("motor_teensy_left_pid_static_ff_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_static_ff_us", default_value="-1.0"),
-            DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="500.0"),
+            DeclareLaunchArgument("motor_teensy_right_reverse_pid_static_ff_us", default_value="-1.0"),
+            DeclareLaunchArgument("motor_teensy_right_reverse_pwm_floor_us", default_value="0.0"),
+            DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="180.0"),
             DeclareLaunchArgument("motor_teensy_left_pid_output_limit_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_output_limit_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_pid_min_target_tps", default_value="2.0"),
@@ -491,13 +506,14 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_side_mismatch_warn_tps", default_value="80.0"),
             DeclareLaunchArgument("motor_teensy_side_mismatch_fault_tps", default_value="180.0"),
             DeclareLaunchArgument("motor_teensy_encoder_jump_tps", default_value="12000.0"),
+            DeclareLaunchArgument("motor_teensy_pid_param_ack_timeout_s", default_value="5.0"),
             DeclareLaunchArgument("nav_status_period_s", default_value="0.25"),
             DeclareLaunchArgument("nav_control_period_s", default_value="0.02"),
             DeclareLaunchArgument("nav_controller_mode", default_value="idle"),
             DeclareLaunchArgument("nav_frame_topic", default_value="/sensors/nav_frame"),
             DeclareLaunchArgument("nav_imu_topic", default_value="/zed/imu"),
             DeclareLaunchArgument("nav_imu_qos", default_value="sensor_data"),
-            DeclareLaunchArgument("nav_imu_yaw_axis", default_value="z"),
+            DeclareLaunchArgument("nav_imu_yaw_axis", default_value="y"),
             DeclareLaunchArgument("nav_imu_yaw_sign", default_value="-1.0"),
             DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.30"),
             DeclareLaunchArgument("nav_imu_min_rate_hz", default_value="20.0"),

@@ -72,12 +72,13 @@ const int MIN_PWM_SPAN_US = 20;
 const float DEFAULT_TRACK_WIDTH_M = 0.416f;
 const float DEFAULT_WHEEL_RADIUS_M = 0.0825f;
 const float DEFAULT_TICKS_PER_REV = 3200.0f;
-const float DEFAULT_KP = 0.10f;
-const float DEFAULT_KI = 0.02f;
+const float DEFAULT_KP = 0.03f;
+const float DEFAULT_KI = 0.0f;
 const float DEFAULT_KD = 0.0f;
-const float DEFAULT_FF_US_PER_TPS = 0.04f;
-const float DEFAULT_STATIC_FF_US = 170.0f;
-const float DEFAULT_STATIC_FF_FULL_TARGET_TPS = 2500.0f;
+const float DEFAULT_FF_US_PER_TPS = 0.02f;
+const float DEFAULT_STATIC_FF_US = 90.0f;
+const float DEFAULT_STATIC_FF_FULL_TARGET_TPS = 1500.0f;
+const float DEFAULT_PID_OUTPUT_LIMIT_US = 180.0f;
 
 enum ControllerMode {
   MODE_STOPPED,
@@ -115,6 +116,7 @@ unsigned long fl_sign_start_ms = 0;
 unsigned long rl_sign_start_ms = 0;
 unsigned long fr_sign_start_ms = 0;
 unsigned long rr_sign_start_ms = 0;
+unsigned long right_reverse_unavailable_start_ms = 0;
 
 char usb_buf[COMMAND_BUFFER_LEN];
 char uart_buf[COMMAND_BUFFER_LEN];
@@ -142,13 +144,16 @@ float kd = DEFAULT_KD;
 float feedforward_us_per_tps = DEFAULT_FF_US_PER_TPS;
 float left_feedforward_us_per_tps = DEFAULT_FF_US_PER_TPS;
 float right_feedforward_us_per_tps = DEFAULT_FF_US_PER_TPS;
+float right_reverse_feedforward_us_per_tps = -1.0f;
 float static_ff_us = DEFAULT_STATIC_FF_US;
 float left_static_ff_us = DEFAULT_STATIC_FF_US;
 float right_static_ff_us = DEFAULT_STATIC_FF_US;
+float right_reverse_static_ff_us = -1.0f;
+float right_reverse_pwm_floor_us = 0.0f;
 float static_ff_full_target_tps = DEFAULT_STATIC_FF_FULL_TARGET_TPS;
-float pid_output_limit_us = 500.0f;
-float left_pid_output_limit_us = 500.0f;
-float right_pid_output_limit_us = 500.0f;
+float pid_output_limit_us = DEFAULT_PID_OUTPUT_LIMIT_US;
+float left_pid_output_limit_us = DEFAULT_PID_OUTPUT_LIMIT_US;
+float right_pid_output_limit_us = DEFAULT_PID_OUTPUT_LIMIT_US;
 float pwm_slew_us_per_s = 2400.0f;
 float min_target_tps = 2.0f;
 float deadband_tps = 1.0f;
@@ -204,6 +209,9 @@ float side_mismatch_warn_tps = 80.0f;
 float side_mismatch_fault_tps = 180.0f;
 bool encoder_jump_fault_enabled = true;
 float encoder_jump_tps = 12000.0f;
+float right_reverse_unavailable_target_tps = 1000.0f;
+float right_reverse_unavailable_near_zero_tps = 250.0f;
+unsigned long right_reverse_unavailable_timeout_ms = 400;
 
 char fault_reason[32] = "none";
 
@@ -342,6 +350,20 @@ float feedforwardForTarget(float target_tps, float side_static_ff_us, float side
   return staticFeedforwardForTarget(target_tps, side_static_ff_us) + side_ff_us_per_tps * target_tps;
 }
 
+float rightStaticFfForTarget(float target_tps) {
+  if (target_tps < -min_target_tps && right_reverse_static_ff_us >= 0.0f) {
+    return right_reverse_static_ff_us;
+  }
+  return right_static_ff_us;
+}
+
+float rightFeedforwardForTarget(float target_tps) {
+  if (target_tps < -min_target_tps && right_reverse_feedforward_us_per_tps >= 0.0f) {
+    return right_reverse_feedforward_us_per_tps;
+  }
+  return right_feedforward_us_per_tps;
+}
+
 void clearFault() {
   strncpy(fault_reason, "none", sizeof(fault_reason));
   fault_reason[sizeof(fault_reason) - 1] = '\0';
@@ -357,6 +379,7 @@ void clearFault() {
   rl_sign_start_ms = 0;
   fr_sign_start_ms = 0;
   rr_sign_start_ms = 0;
+  right_reverse_unavailable_start_ms = 0;
 }
 
 void setFault(const char* reason) {
@@ -644,6 +667,34 @@ bool shouldFaultForSignMismatch(
   return false;
 }
 
+bool shouldFaultForRightReverseUnavailable() {
+  if (!stall_fault_enabled) {
+    right_reverse_unavailable_start_ms = 0;
+    return false;
+  }
+  if (right_target_tps > -right_reverse_unavailable_target_tps) {
+    right_reverse_unavailable_start_ms = 0;
+    return false;
+  }
+  if ((float)(pwm_neutral_us - current_right_pwm) < stall_pwm_delta_us) {
+    right_reverse_unavailable_start_ms = 0;
+    return false;
+  }
+  if (fabsf(right_measured_tps) > right_reverse_unavailable_near_zero_tps) {
+    right_reverse_unavailable_start_ms = 0;
+    return false;
+  }
+  if (right_reverse_unavailable_start_ms == 0) {
+    right_reverse_unavailable_start_ms = millis();
+    return false;
+  }
+  if (millis() - right_reverse_unavailable_start_ms >= right_reverse_unavailable_timeout_ms) {
+    setFault("right_reverse_unavailable");
+    return true;
+  }
+  return false;
+}
+
 bool checkEncoderDiagnostics() {
   if (controller_mode != MODE_VELOCITY) {
     fl_stall_start_ms = 0;
@@ -658,9 +709,11 @@ bool checkEncoderDiagnostics() {
     rl_sign_start_ms = 0;
     fr_sign_start_ms = 0;
     rr_sign_start_ms = 0;
+    right_reverse_unavailable_start_ms = 0;
     return false;
   }
 
+  if (shouldFaultForRightReverseUnavailable()) return true;
   if (shouldFaultForWheel("fl_stall", left_target_tps, fl_tps, rl_tps, current_left_pwm, fl_stall_start_ms)) return true;
   if (shouldFaultForWheel("rl_stall", left_target_tps, rl_tps, fl_tps, current_left_pwm, rl_stall_start_ms)) return true;
   if (shouldFaultForWheel("fr_stall", right_target_tps, fr_tps, rr_tps, current_right_pwm, fr_stall_start_ms)) return true;
@@ -798,8 +851,8 @@ void updatePidAndOutputs(unsigned long dt_ms) {
   );
   float right_base_delta_us = feedforwardForTarget(
     right_target_tps,
-    right_static_ff_us,
-    right_feedforward_us_per_tps
+    rightStaticFfForTarget(right_target_tps),
+    rightFeedforwardForTarget(right_target_tps)
   );
 
   if (left_active) {
@@ -834,6 +887,9 @@ void updatePidAndOutputs(unsigned long dt_ms) {
   }
   float positive_pwm_range_us = (float)(pwm_max_us - pwm_neutral_us);
   float negative_pwm_range_us = (float)(pwm_neutral_us - pwm_min_us);
+  if (right_active && right_target_tps < -min_target_tps && right_reverse_pwm_floor_us > 0.0f) {
+    right_delta_us = min(right_delta_us, -min(right_reverse_pwm_floor_us, negative_pwm_range_us));
+  }
   left_delta_us = clampFloat(left_delta_us, -negative_pwm_range_us, positive_pwm_range_us);
   right_delta_us = clampFloat(right_delta_us, -negative_pwm_range_us, positive_pwm_range_us);
 
@@ -944,6 +1000,8 @@ void printParamDump(Stream& stream) {
   stream.print(left_feedforward_us_per_tps, 6);
   stream.print(",right_ff_us_per_tps=");
   stream.print(right_feedforward_us_per_tps, 6);
+  stream.print(",right_reverse_ff_us_per_tps=");
+  stream.print(right_reverse_feedforward_us_per_tps, 6);
   stream.print(",static_ff_us=");
   stream.print(static_ff_us, 2);
   stream.print(",static_ff_full_target_tps=");
@@ -952,6 +1010,16 @@ void printParamDump(Stream& stream) {
   stream.print(left_static_ff_us, 2);
   stream.print(",right_static_ff_us=");
   stream.print(right_static_ff_us, 2);
+  stream.print(",right_reverse_static_ff_us=");
+  stream.print(right_reverse_static_ff_us, 2);
+  stream.print(",right_reverse_pwm_floor_us=");
+  stream.print(right_reverse_pwm_floor_us, 2);
+  stream.print(",right_reverse_unavailable_target_tps=");
+  stream.print(right_reverse_unavailable_target_tps, 2);
+  stream.print(",right_reverse_unavailable_near_zero_tps=");
+  stream.print(right_reverse_unavailable_near_zero_tps, 2);
+  stream.print(",right_reverse_unavailable_timeout_ms=");
+  stream.print(right_reverse_unavailable_timeout_ms);
   stream.print(",pid_output_limit_us=");
   stream.print(pid_output_limit_us, 2);
   stream.print(",left_pid_output_limit_us=");
@@ -1035,6 +1103,10 @@ bool setParam(const char* name, float value) {
     if (!assignFloatInRange(right_feedforward_us_per_tps, value, 0.0f, 2.0f)) return false;
     critical = true;
   }
+  else if (strcmp(name, "right_reverse_ff_us_per_tps") == 0) {
+    if (!assignFloatInRange(right_reverse_feedforward_us_per_tps, value, -1.0f, 2.0f)) return false;
+    critical = true;
+  }
   else if (strcmp(name, "static_ff_us") == 0) {
     if (!assignFloatInRange(static_ff_us, value, 0.0f, 500.0f)) return false;
     left_static_ff_us = static_ff_us;
@@ -1058,6 +1130,23 @@ bool setParam(const char* name, float value) {
   else if (strcmp(name, "right_static_ff_us") == 0) {
     if (!assignFloatInRange(right_static_ff_us, value, 0.0f, 500.0f)) return false;
     critical = true;
+  }
+  else if (strcmp(name, "right_reverse_static_ff_us") == 0) {
+    if (!assignFloatInRange(right_reverse_static_ff_us, value, -1.0f, 500.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "right_reverse_pwm_floor_us") == 0) {
+    if (!assignFloatInRange(right_reverse_pwm_floor_us, value, 0.0f, 500.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "right_reverse_unavailable_target_tps") == 0) {
+    if (!assignFloatInRange(right_reverse_unavailable_target_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "right_reverse_unavailable_near_zero_tps") == 0) {
+    if (!assignFloatInRange(right_reverse_unavailable_near_zero_tps, value, 0.0f, 50000.0f)) return false;
+  }
+  else if (strcmp(name, "right_reverse_unavailable_timeout_ms") == 0) {
+    if (!assignUnsignedLongInRange(right_reverse_unavailable_timeout_ms, value, 0.0f, 10000.0f)) return false;
   }
   else if (strcmp(name, "pid_output_limit_us") == 0) {
     if (!assignFloatInRange(pid_output_limit_us, value, 1.0f, 500.0f)) return false;

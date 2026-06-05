@@ -473,13 +473,12 @@ def builtin_suite(name: str) -> MotionTestSuite:
 
     if suite_id == "turn_debug":
         cases = [
-            _pivot_test_case(-30.0),
-            _pivot_test_case(30.0),
-            _pivot_test_case(-45.0),
             _curve_test_case(angle_deg=-45.0, radius_m=0.75, speed_mps=0.14),
             _curve_test_case(angle_deg=-45.0, radius_m=0.60, speed_mps=0.14),
-            _curve_test_case(angle_deg=-45.0, radius_m=0.45, speed_mps=0.12),
+            _curve_test_case(angle_deg=-45.0, radius_m=0.45, speed_mps=0.14),
+            _curve_test_case(angle_deg=-90.0, radius_m=0.75, speed_mps=0.14),
             _curve_test_case(angle_deg=45.0, radius_m=0.75, speed_mps=0.14),
+            _curve_test_case(angle_deg=45.0, radius_m=0.60, speed_mps=0.14),
         ]
         cases = [
             replace(
@@ -1020,6 +1019,7 @@ class RosTopicCollector:
     def collect_for(self, duration_s: float) -> list[TopicSample]:
         try:
             import rclpy  # type: ignore
+            from rclpy.executors import ExternalShutdownException  # type: ignore
             from std_msgs.msg import String  # type: ignore
         except Exception as exc:  # pragma: no cover - only used on robot when ROS is installed
             self.error = f"ROS topic collection unavailable: {exc}"
@@ -1046,12 +1046,19 @@ class RosTopicCollector:
                 node.create_subscription(String, topic, make_callback(topic), 10)
             deadline_s = time.monotonic() + max(0.0, duration_s)
             while time.monotonic() < deadline_s:
-                rclpy.spin_once(node, timeout_sec=0.05)
+                try:
+                    rclpy.spin_once(node, timeout_sec=0.05)
+                except (KeyboardInterrupt, ExternalShutdownException):  # pragma: no cover - robot shutdown path
+                    break
         finally:  # pragma: no cover - ROS runtime cleanup
             try:
                 node.destroy_node()
             finally:
-                rclpy.shutdown()
+                try:
+                    if rclpy.ok():
+                        rclpy.shutdown()
+                except Exception:
+                    pass
         return list(self.samples)
 
 
@@ -1156,7 +1163,11 @@ def run_case(
 
             def collect() -> None:
                 nonlocal collector_samples
-                collector_samples = collector.collect_for(run_duration)
+                try:
+                    collector_samples = collector.collect_for(run_duration)
+                except Exception as exc:  # pragma: no cover - robot shutdown path
+                    collector.error = f"ROS topic collection interrupted: {exc}"
+                    collector_samples = list(collector.samples)
 
             collector_thread = threading.Thread(target=collect, daemon=True)
             collector_thread.start()

@@ -50,10 +50,10 @@ def test_builtin_basic_suite_contains_expected_cases():
     assert "curve_left_R1_90" in curve_ids
     assert "curve_right_R0p75_90" in curve_ids
     turn_ids = {case.id for case in builtin_suite("turn_debug").cases}
-    assert "pivot_right_30" in turn_ids
-    assert "pivot_left_30" in turn_ids
     assert "curve_right_R0p45_45" in turn_ids
+    assert "curve_right_R0p75_90" in turn_ids
     assert "curve_left_R0p75_45" in turn_ids
+    assert "pivot_right_30" not in turn_ids
 
 
 def test_select_cases_and_expand_repeats():

@@ -65,6 +65,8 @@ def generate_launch_description():
     initial_x_m = LaunchConfiguration("initial_x_m")
     initial_y_m = LaunchConfiguration("initial_y_m")
     initial_yaw_deg = LaunchConfiguration("initial_yaw_deg")
+    field_odom_imu_yaw_axis = LaunchConfiguration("field_odom_imu_yaw_axis")
+    field_odom_imu_yaw_sign = LaunchConfiguration("field_odom_imu_yaw_sign")
     competition_min_speed_mps = LaunchConfiguration("competition_min_speed_mps")
     competition_moving_target_speed_mps = LaunchConfiguration("competition_moving_target_speed_mps")
     competition_continuous_motion_enabled = LaunchConfiguration("competition_continuous_motion_enabled")
@@ -175,6 +177,10 @@ def generate_launch_description():
             ["initial_y_m:=", initial_y_m],
             "-p",
             ["initial_yaw_deg:=", initial_yaw_deg],
+            "-p",
+            ["imu_yaw_axis:=", field_odom_imu_yaw_axis],
+            "-p",
+            ["imu_yaw_sign:=", field_odom_imu_yaw_sign],
         ],
         output="screen",
         condition=IfCondition(start_field_odom),
@@ -499,6 +505,8 @@ def generate_launch_description():
             DeclareLaunchArgument("initial_x_m", default_value="0.0"),
             DeclareLaunchArgument("initial_y_m", default_value="0.0"),
             DeclareLaunchArgument("initial_yaw_deg", default_value="0.0"),
+            DeclareLaunchArgument("field_odom_imu_yaw_axis", default_value="y"),
+            DeclareLaunchArgument("field_odom_imu_yaw_sign", default_value="-1.0"),
             DeclareLaunchArgument("competition_min_speed_mps", default_value="0.0894"),
             DeclareLaunchArgument("competition_moving_target_speed_mps", default_value="0.12"),
             DeclareLaunchArgument("competition_continuous_motion_enabled", default_value="true"),

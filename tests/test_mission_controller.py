@@ -362,6 +362,26 @@ def test_mission_segment_start_blocks_straight_obstacle_hold_by_default():
     ) is None
 
 
+def test_debug_flags_allow_mission_without_nav_frame_or_obstacle_stream():
+    decision = classify_mission_safety(
+        now_s=10.0,
+        last_sensor_s=None,
+        last_imu_s=9.99,
+        last_motor_status_s=9.99,
+        motor_status=_ready_motor_status(),
+        near_obstacle=False,
+        front_clearance_m=None,
+        config=ChassisControllerConfig(
+            debug_ignore_nav_frame=True,
+            debug_ignore_obstacles=True,
+        ),
+        require_imu=True,
+        imu_rate_hz=30.0,
+    )
+    assert decision.level == "ok"
+    assert decision.reason == "ok"
+
+
 def test_mission_segment_start_blocks_pivot_until_clearance_is_known_and_safe():
     segment = parse_mission_plan({"segments": [{"type": "pivot", "angle_deg": 45.0}]}).segments[0]
     config = ChassisControllerConfig()

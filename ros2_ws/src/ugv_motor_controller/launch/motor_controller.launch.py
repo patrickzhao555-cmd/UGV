@@ -30,10 +30,15 @@ def generate_launch_description():
     enable_teensy_side_specific_pid_params = LaunchConfiguration("enable_teensy_side_specific_pid_params")
     teensy_left_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_left_pid_feedforward_us_per_tps")
     teensy_right_pid_feedforward_us_per_tps = LaunchConfiguration("teensy_right_pid_feedforward_us_per_tps")
+    teensy_right_reverse_pid_feedforward_us_per_tps = LaunchConfiguration(
+        "teensy_right_reverse_pid_feedforward_us_per_tps"
+    )
     teensy_pid_static_ff_us = LaunchConfiguration("teensy_pid_static_ff_us")
     teensy_pid_static_ff_full_target_tps = LaunchConfiguration("teensy_pid_static_ff_full_target_tps")
     teensy_left_pid_static_ff_us = LaunchConfiguration("teensy_left_pid_static_ff_us")
     teensy_right_pid_static_ff_us = LaunchConfiguration("teensy_right_pid_static_ff_us")
+    teensy_right_reverse_pid_static_ff_us = LaunchConfiguration("teensy_right_reverse_pid_static_ff_us")
+    teensy_right_reverse_pwm_floor_us = LaunchConfiguration("teensy_right_reverse_pwm_floor_us")
     teensy_pid_output_limit_us = LaunchConfiguration("teensy_pid_output_limit_us")
     teensy_left_pid_output_limit_us = LaunchConfiguration("teensy_left_pid_output_limit_us")
     teensy_right_pid_output_limit_us = LaunchConfiguration("teensy_right_pid_output_limit_us")
@@ -117,11 +122,11 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kp",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.10"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KP", default_value="0.03"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_ki",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KI", default_value="0.02"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_KI", default_value="0.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_kd",
@@ -129,7 +134,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_feedforward_us_per_tps",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_FF_US_PER_TPS", default_value="0.04"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_FF_US_PER_TPS", default_value="0.02"),
             ),
             DeclareLaunchArgument(
                 "enable_teensy_side_specific_pid_params",
@@ -144,12 +149,19 @@ def generate_launch_description():
                 default_value=EnvironmentVariable("MOTOR_TEENSY_RIGHT_PID_FF_US_PER_TPS", default_value="-1.0"),
             ),
             DeclareLaunchArgument(
+                "teensy_right_reverse_pid_feedforward_us_per_tps",
+                default_value=EnvironmentVariable(
+                    "MOTOR_TEENSY_RIGHT_REVERSE_PID_FF_US_PER_TPS",
+                    default_value="-1.0",
+                ),
+            ),
+            DeclareLaunchArgument(
                 "teensy_pid_static_ff_us",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="170.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="90.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_static_ff_full_target_tps",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_FULL_TARGET_TPS", default_value="2500.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_FULL_TARGET_TPS", default_value="1500.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_left_pid_static_ff_us",
@@ -160,8 +172,19 @@ def generate_launch_description():
                 default_value=EnvironmentVariable("MOTOR_TEENSY_RIGHT_PID_STATIC_FF_US", default_value="-1.0"),
             ),
             DeclareLaunchArgument(
+                "teensy_right_reverse_pid_static_ff_us",
+                default_value=EnvironmentVariable(
+                    "MOTOR_TEENSY_RIGHT_REVERSE_PID_STATIC_FF_US",
+                    default_value="-1.0",
+                ),
+            ),
+            DeclareLaunchArgument(
+                "teensy_right_reverse_pwm_floor_us",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_RIGHT_REVERSE_PWM_FLOOR_US", default_value="0.0"),
+            ),
+            DeclareLaunchArgument(
                 "teensy_pid_output_limit_us",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_OUTPUT_LIMIT_US", default_value="500.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_OUTPUT_LIMIT_US", default_value="180.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_left_pid_output_limit_us",
@@ -257,7 +280,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_param_ack_timeout_s",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_ACK_TIMEOUT_S", default_value="1.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_ACK_TIMEOUT_S", default_value="5.0"),
             ),
             Node(
                 package="ugv_motor_controller",
@@ -302,6 +325,10 @@ def generate_launch_description():
                             teensy_right_pid_feedforward_us_per_tps,
                             value_type=float,
                         ),
+                        "teensy_right_reverse_pid_feedforward_us_per_tps": ParameterValue(
+                            teensy_right_reverse_pid_feedforward_us_per_tps,
+                            value_type=float,
+                        ),
                         "teensy_pid_static_ff_us": ParameterValue(teensy_pid_static_ff_us, value_type=float),
                         "teensy_pid_static_ff_full_target_tps": ParameterValue(
                             teensy_pid_static_ff_full_target_tps,
@@ -309,6 +336,14 @@ def generate_launch_description():
                         ),
                         "teensy_left_pid_static_ff_us": ParameterValue(teensy_left_pid_static_ff_us, value_type=float),
                         "teensy_right_pid_static_ff_us": ParameterValue(teensy_right_pid_static_ff_us, value_type=float),
+                        "teensy_right_reverse_pid_static_ff_us": ParameterValue(
+                            teensy_right_reverse_pid_static_ff_us,
+                            value_type=float,
+                        ),
+                        "teensy_right_reverse_pwm_floor_us": ParameterValue(
+                            teensy_right_reverse_pwm_floor_us,
+                            value_type=float,
+                        ),
                         "teensy_pid_output_limit_us": ParameterValue(teensy_pid_output_limit_us, value_type=float),
                         "teensy_left_pid_output_limit_us": ParameterValue(teensy_left_pid_output_limit_us, value_type=float),
                         "teensy_right_pid_output_limit_us": ParameterValue(teensy_right_pid_output_limit_us, value_type=float),

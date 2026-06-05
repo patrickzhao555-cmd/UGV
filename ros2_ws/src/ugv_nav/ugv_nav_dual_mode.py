@@ -141,7 +141,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--nav-frame-topic", default="/sensors/nav_frame")
     parser.add_argument("--imu-topic", default="/zed/imu")
     parser.add_argument("--imu-qos", default="sensor_data")
-    parser.add_argument("--imu-yaw-axis", choices=["x", "y", "z"], default="z")
+    parser.add_argument("--imu-yaw-axis", choices=["x", "y", "z"], default="y")
     parser.add_argument("--imu-yaw-sign", type=float, default=-1.0)
     parser.add_argument("--imu-min-rate-hz", type=float, default=20.0)
     parser.add_argument("--motor-status-topic", default="/motor_controller/status")

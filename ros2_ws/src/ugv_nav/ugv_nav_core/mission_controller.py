@@ -436,22 +436,24 @@ def classify_mission_safety(
     ):
         return MissionSafetyDecision("critical", "imu_rate_low")
 
-    if last_sensor_s is None:
-        return MissionSafetyDecision("degraded", "sensor_missing")
-    sensor_age_s = now_s - last_sensor_s
-    if sensor_age_s > config.mission_critical_sensor_timeout_s:
-        return MissionSafetyDecision("critical", "sensor_critical_stale")
-    if sensor_age_s > config.sensor_timeout_s:
-        return MissionSafetyDecision("degraded", "sensor_stale")
+    if not config.debug_ignore_nav_frame:
+        if last_sensor_s is None:
+            return MissionSafetyDecision("degraded", "sensor_missing")
+        sensor_age_s = now_s - last_sensor_s
+        if sensor_age_s > config.mission_critical_sensor_timeout_s:
+            return MissionSafetyDecision("critical", "sensor_critical_stale")
+        if sensor_age_s > config.sensor_timeout_s:
+            return MissionSafetyDecision("degraded", "sensor_stale")
 
-    if front_clearance_m is None or math.isnan(front_clearance_m):
-        return MissionSafetyDecision("degraded", "front_clearance_invalid")
-    if math.isfinite(front_clearance_m) and front_clearance_m < config.mission_emergency_stop_clearance_m:
-        return MissionSafetyDecision("critical", "front_clearance_emergency")
-    if near_obstacle:
-        return MissionSafetyDecision("degraded", "near_obstacle")
-    if math.isfinite(front_clearance_m) and front_clearance_m < config.stop_clearance_m:
-        return MissionSafetyDecision("degraded", "front_clearance_low")
+    if not config.debug_ignore_obstacles:
+        if front_clearance_m is None or math.isnan(front_clearance_m):
+            return MissionSafetyDecision("degraded", "front_clearance_invalid")
+        if math.isfinite(front_clearance_m) and front_clearance_m < config.mission_emergency_stop_clearance_m:
+            return MissionSafetyDecision("critical", "front_clearance_emergency")
+        if near_obstacle:
+            return MissionSafetyDecision("degraded", "near_obstacle")
+        if math.isfinite(front_clearance_m) and front_clearance_m < config.stop_clearance_m:
+            return MissionSafetyDecision("degraded", "front_clearance_low")
     return MissionSafetyDecision("ok", "ok")
 
 

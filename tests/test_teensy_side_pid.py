@@ -147,8 +147,11 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "static_ff_full_target_tps": 2500.0,
             "left_ff_us_per_tps": 0.04,
             "right_ff_us_per_tps": 0.04,
+            "right_reverse_ff_us_per_tps": 0.08,
             "left_static_ff_us": 170.0,
             "right_static_ff_us": 170.0,
+            "right_reverse_static_ff_us": 260.0,
+            "right_reverse_pwm_floor_us": 430.0,
             "left_pid_output_limit_us": 500.0,
             "right_pid_output_limit_us": 500.0,
             "control_hz": 50.0,
@@ -171,8 +174,11 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
     assert "CMD PARAM static_ff_full_target_tps 2500\n" in commands
     assert "CMD PARAM left_ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM right_ff_us_per_tps 0.04\n" in commands
+    assert "CMD PARAM right_reverse_ff_us_per_tps 0.08\n" in commands
     assert "CMD PARAM left_static_ff_us 170\n" in commands
     assert "CMD PARAM right_static_ff_us 170\n" in commands
+    assert "CMD PARAM right_reverse_static_ff_us 260\n" in commands
+    assert "CMD PARAM right_reverse_pwm_floor_us 430\n" in commands
     assert "CMD PARAM left_pid_output_limit_us 500\n" in commands
     assert "CMD PARAM right_pid_output_limit_us 500\n" in commands
     assert "CMD PARAM control_hz 50\n" in commands
@@ -268,6 +274,8 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
         / "competition_bringup.launch.py"
     ).read_text()
     setup_file = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "setup.py").read_text()
+    nav_file = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
+    field_odom_file = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_field_odom_node.py").read_text()
     firmware = (
         ROOT
         / "ros2_ws"
@@ -303,11 +311,12 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "DEFAULT_TRACK_WIDTH_M = 0.416f" in firmware
     assert "DEFAULT_WHEEL_RADIUS_M = 0.0825f" in firmware
     assert "DEFAULT_TICKS_PER_REV = 3200.0f" in firmware
-    assert "DEFAULT_KP = 0.10f" in firmware
-    assert "DEFAULT_KI = 0.02f" in firmware
-    assert "DEFAULT_FF_US_PER_TPS = 0.04f" in firmware
-    assert "DEFAULT_STATIC_FF_US = 170.0f" in firmware
-    assert "DEFAULT_STATIC_FF_FULL_TARGET_TPS = 2500.0f" in firmware
+    assert "DEFAULT_KP = 0.03f" in firmware
+    assert "DEFAULT_KI = 0.0f" in firmware
+    assert "DEFAULT_FF_US_PER_TPS = 0.02f" in firmware
+    assert "DEFAULT_STATIC_FF_US = 90.0f" in firmware
+    assert "DEFAULT_STATIC_FF_FULL_TARGET_TPS = 1500.0f" in firmware
+    assert "DEFAULT_PID_OUTPUT_LIMIT_US = 180.0f" in firmware
     assert "static_ff_full_target_tps" in firmware
     assert "setPidOutputLimitsForBase" in firmware
     assert "resetLeftPidState" in firmware
@@ -315,11 +324,23 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "right_feedforward_us_per_tps" in firmware
     assert "left_static_ff_us" in firmware
     assert "right_static_ff_us" in firmware
+    assert "right_reverse_static_ff_us" in firmware
+    assert "right_reverse_ff_us_per_tps" in firmware
+    assert "right_reverse_pwm_floor_us" in firmware
+    assert "right_reverse_unavailable" in firmware
     assert "left_pid_output_limit_us" in firmware
     assert "right_pid_output_limit_us" in firmware
     assert 'self.declare_parameter("enable_teensy_side_specific_pid_params", True)' in bridge_file
+    assert 'self.declare_parameter("teensy_right_reverse_pid_static_ff_us", -1.0)' in bridge_file
+    assert 'self.declare_parameter("teensy_right_reverse_pwm_floor_us", 0.0)' in bridge_file
     assert 'EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="true")' in motor_launch_file
+    assert "MOTOR_TEENSY_RIGHT_REVERSE_PID_STATIC_FF_US" in motor_launch_file
+    assert "MOTOR_TEENSY_RIGHT_REVERSE_PWM_FLOOR_US" in motor_launch_file
     assert 'DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="true")' in bringup_launch_file
+    assert 'DeclareLaunchArgument("motor_teensy_right_reverse_pid_static_ff_us", default_value="-1.0")' in bringup_launch_file
+    assert 'DeclareLaunchArgument("nav_imu_yaw_axis", default_value="y")' in bringup_launch_file
+    assert 'parser.add_argument("--imu-yaw-axis", choices=["x", "y", "z"], default="y")' in nav_file
+    assert 'self.declare_parameter("imu_yaw_axis", "y")' in field_odom_file
     assert "DEFAULT_CONTROL_INTERVAL_MS = 20" in firmware
     assert "int fl_encoder_sign = -1" in firmware
     assert "int rl_encoder_sign = -1" in firmware

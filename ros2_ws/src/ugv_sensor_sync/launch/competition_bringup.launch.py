@@ -588,7 +588,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_pid_param_ack_timeout_s", default_value="5.0"),
             DeclareLaunchArgument("nav_status_period_s", default_value="0.25"),
             DeclareLaunchArgument("nav_control_period_s", default_value="0.02"),
-            DeclareLaunchArgument("nav_controller_mode", default_value="idle"),
+            DeclareLaunchArgument("nav_controller_mode", default_value="competition_tracker"),
             DeclareLaunchArgument("nav_frame_topic", default_value="/sensors/nav_frame"),
             DeclareLaunchArgument("nav_imu_topic", default_value="/zed/imu"),
             DeclareLaunchArgument("nav_imu_qos", default_value="sensor_data"),

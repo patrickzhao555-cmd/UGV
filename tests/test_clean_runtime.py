@@ -64,6 +64,7 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert 'DeclareLaunchArgument("nav_zed_status_topic", default_value="/zed/status")' in launch
     assert 'DeclareLaunchArgument("nav_encoder_stamped_topic", default_value="/encoder_ticks_stamped")' in launch
     assert 'DeclareLaunchArgument("nav_allow_encoder_heading_fallback", default_value="false")' in launch
+    assert 'DeclareLaunchArgument("nav_controller_mode", default_value="competition_tracker")' in launch
     assert 'DeclareLaunchArgument("zed_publish_rate_hz", default_value="10.0")' in launch
     assert 'DeclareLaunchArgument("zed_depth_downsample_factor", default_value="2")' in launch
     assert '"--imu-min-rate-hz"' in launch

@@ -159,7 +159,8 @@ def update_tracker_odometry(
     )
     distance_delta = 0.5 * (left_m + right_m)
     yaw = wrap_pi(float(heading_rad) - float(state.start_heading_rad))
-    mid_yaw = wrap_pi(0.5 * (state.last_pose_yaw_rad + yaw))
+    yaw_delta = wrap_pi(yaw - state.last_pose_yaw_rad)
+    mid_yaw = wrap_pi(state.last_pose_yaw_rad + 0.5 * yaw_delta)
     state.pose.x += distance_delta * math.cos(mid_yaw)
     state.pose.y += distance_delta * math.sin(mid_yaw)
     state.pose.yaw = yaw
@@ -320,12 +321,14 @@ def step_tracker(
     remaining_path_m = max(0.0, total_len - projection.s_m)
     state.remaining_m = min(target_distance, remaining_path_m) if remaining_path_m > 0.0 else target_distance
 
+    lookahead_min = max(0.05, float(config.lookahead_min_m))
+    lookahead_max = max(lookahead_min, float(config.lookahead_max_m))
     lookahead = clamp(
-        float(config.lookahead_min_m) + float(config.nominal_speed_mps) * float(config.lookahead_speed_gain),
-        float(config.lookahead_min_m),
-        float(config.lookahead_max_m),
+        lookahead_min + float(config.nominal_speed_mps) * float(config.lookahead_speed_gain),
+        lookahead_min,
+        lookahead_max,
     )
-    lookahead = min(lookahead, max(float(config.lookahead_min_m), remaining_path_m))
+    lookahead = min(lookahead, max(lookahead_min, remaining_path_m))
     state.lookahead_m = lookahead
     lookahead_point = _point_at_s(state.active_path, projection.s_m + lookahead)
 

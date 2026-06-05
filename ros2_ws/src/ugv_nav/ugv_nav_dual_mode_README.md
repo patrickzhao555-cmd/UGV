@@ -1,9 +1,10 @@
 # Jetson Chassis Controller
 
-`ugv_nav_dual_mode.py` is a safe high-level chassis calibration/test node. It
-defaults to `idle`, which publishes STOP only. Formal target navigation for the
-competition path runs through `nav2_field_navigation.launch.py`,
-`ugv_operation_touchdown_mission.py`, and `ugv_nav2_adapter.py`.
+`ugv_nav_dual_mode.py` is the high-level chassis controller. The primary
+competition path is now `competition_tracker`: it uses encoder distance plus
+IMU yaw to continuously track the local path from the start pose to the target.
+The older Nav2 field stack is kept as a legacy fallback/debug path, not the
+default competition route.
 
 When a test mode is explicitly selected, it still uses one command contract:
 
@@ -14,14 +15,39 @@ When a test mode is explicitly selected, it still uses one command contract:
 ## Modes
 
 - `idle`: STOP only.
+- `competition_tracker`: closed-loop target tracking from the current start
+  pose to `/ugv/uav_target` or `nav_manual_target_x_m/y_m`.
 - `straight_test`: drive forward while holding the start heading.
 - `pivot_test`: profiled tank-drive turn to a bounded relative angle for bench
   and calibration work.
 - `mission_sequence`: run relative straight/pivot/wait mission segments.
 
-The Teensy remains the only motor velocity PID layer. Jetson heading correction
-is done by changing `omega_radps`; navigation must not publish raw PWM and must
-not run motor PID.
+The Teensy remains the only motor velocity PID layer. Jetson trajectory
+tracking is done by changing `v_mps` and `omega_radps`; navigation must not
+publish raw PWM and must not run motor PID.
+
+## Competition Tracker
+
+The default `competition_bringup.launch.py` controller is
+`competition_tracker`. With no target, it holds STOP and reports
+`tracker_wait_target`. A manual local target can be supplied at launch:
+
+```bash
+ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  nav_manual_target_x_m:=5.0 \
+  nav_manual_target_y_m:=0.0
+```
+
+Or publish the same target topic used by the ESP/UAV input path:
+
+```bash
+python3 tools/send_uav_target.py --x 5.0 --y 0.0 --count 3 --repeat-hz 2.0
+```
+
+Important `/ugv_nav_status` fields are `tracker_state`, `tracker_pose_m`,
+`tracker_remaining_m`, `tracker_cross_track_error_m`,
+`tracker_heading_error_rad`, `tracker_obstacle_state`, and
+`tracker_bypass_side`.
 
 ## Competition Motion Rule
 
@@ -48,6 +74,9 @@ of crawling forward. Override only for controlled debug runs with
 `nav_mission_stop_on_degraded_obstacle:=false`.
 
 ## Mission Sequence
+
+`mission_sequence` is now a calibration/fallback mode. Use
+`competition_tracker` for target-based competition driving.
 
 Mission files are JSON or YAML with relative segments:
 

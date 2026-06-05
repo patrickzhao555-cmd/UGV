@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Safe Jetson chassis controller entrypoint.
 
-Default real mode stays in ``idle`` and publishes STOP. Explicit test modes
-publish velocity-only JSON:
+Competition real mode uses IMU + encoder closed-loop trajectory tracking.
+Calibration modes still publish the same velocity-only JSON:
 
     {"command_type": "velocity", "v_mps": <float>, "omega_radps": <float>}
 """
@@ -807,8 +807,10 @@ def run_real(args: argparse.Namespace) -> None:
             motor = motor_status_ready(self.motor_status)
             if not motor.safe:
                 return motor.reason
-            if not self.encoder_available or self.current_left_ticks is None or self.current_right_ticks is None:
+            if not self._encoder_feedback_available():
                 return "encoder_unavailable"
+            if not self._encoder_feedback_fresh(now_s):
+                return "encoder_stale"
             return "ok"
 
         def _scan_sector_min(self, *, angle_min_deg: float, angle_max_deg: float) -> Optional[float]:
@@ -834,8 +836,10 @@ def run_real(args: argparse.Namespace) -> None:
                 return "tracking_disabled"
             if self.tracker_pending_target is None:
                 return "tracker_wait_target"
-            if self.current_left_ticks is None or self.current_right_ticks is None:
+            if not self._encoder_feedback_available():
                 return "encoder_unavailable"
+            if not self._encoder_feedback_fresh(now_s):
+                return "encoder_stale"
             if not self._imu_fresh(now_s):
                 return "imu_stale"
             if self.tracker.target is None or self.tracker.state in {"WAIT_TARGET", "FAULT"}:

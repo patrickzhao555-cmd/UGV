@@ -153,3 +153,46 @@ def test_tracker_odometry_uses_encoder_distance_and_imu_heading():
 
     assert state.pose.x == pytest.approx(1.0, abs=0.01)
     assert state.pose.y == pytest.approx(0.0, abs=0.01)
+
+
+def test_tracker_odometry_handles_yaw_wrap_without_large_side_jump():
+    state = TrackerState()
+    start_tracker_goal(
+        state,
+        target_x_m=5.0,
+        target_y_m=0.0,
+        left_ticks=0,
+        right_ticks=0,
+        heading_rad=0.0,
+    )
+    config = TrackerConfig(wheel_radius_m=0.0825, ticks_per_rev=3200.0)
+    ticks_for_10cm = int(round(0.10 * 3200.0 / (2.0 * math.pi * 0.0825)))
+    state.last_pose_yaw_rad = math.radians(179.0)
+    state.pose.yaw = math.radians(179.0)
+
+    update_tracker_odometry(
+        state,
+        left_ticks=ticks_for_10cm,
+        right_ticks=ticks_for_10cm,
+        heading_rad=math.radians(-179.0),
+        config=config,
+    )
+
+    assert state.pose.x == pytest.approx(-0.10, abs=0.02)
+    assert abs(state.pose.y) < 0.01
+
+
+def test_tracker_sanitizes_inverted_lookahead_limits():
+    state = TrackerState(
+        target=Point2D(10.0, 0.0),
+        base_path=[Point2D(0.0, 0.0), Point2D(10.0, 0.0)],
+        active_path=[Point2D(0.0, 0.0), Point2D(10.0, 0.0)],
+        state="TRACK_PATH",
+    )
+    step = step_tracker(
+        state,
+        config=TrackerConfig(lookahead_min_m=1.0, lookahead_max_m=0.2),
+    )
+
+    assert step.command_type == "velocity"
+    assert state.lookahead_m == pytest.approx(1.0)

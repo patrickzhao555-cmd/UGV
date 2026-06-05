@@ -96,6 +96,8 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_right_reverse_pid_feedforward_us_per_tps", -1.0)
         self.declare_parameter("teensy_pid_static_ff_us", 90.0)
         self.declare_parameter("teensy_pid_static_ff_full_target_tps", 1500.0)
+        self.declare_parameter("teensy_pid_static_ff_fade_start_ratio", 0.20)
+        self.declare_parameter("teensy_pid_static_ff_fade_end_ratio", 0.85)
         self.declare_parameter("teensy_left_pid_static_ff_us", -1.0)
         self.declare_parameter("teensy_right_pid_static_ff_us", -1.0)
         self.declare_parameter("teensy_right_reverse_pid_static_ff_us", -1.0)
@@ -193,6 +195,14 @@ class MotorControllerBridge(Node):
         self.teensy_pid_static_ff_full_target_tps = max(
             1.0,
             float(self.get_parameter("teensy_pid_static_ff_full_target_tps").value),
+        )
+        self.teensy_pid_static_ff_fade_start_ratio = max(
+            0.0,
+            min(0.99, float(self.get_parameter("teensy_pid_static_ff_fade_start_ratio").value)),
+        )
+        self.teensy_pid_static_ff_fade_end_ratio = max(
+            self.teensy_pid_static_ff_fade_start_ratio + 0.01,
+            min(2.0, float(self.get_parameter("teensy_pid_static_ff_fade_end_ratio").value)),
         )
         self.teensy_left_pid_static_ff_us = _side_param_or_global(
             self.get_parameter("teensy_left_pid_static_ff_us").value,
@@ -322,6 +332,8 @@ class MotorControllerBridge(Node):
             f"kp={self.teensy_pid_kp}, ki={self.teensy_pid_ki}, kd={self.teensy_pid_kd}, "
             f"ff={self.teensy_pid_feedforward_us_per_tps}, static_ff={self.teensy_pid_static_ff_us}, "
             f"static_ff_full_target_tps={self.teensy_pid_static_ff_full_target_tps}, "
+            f"static_ff_fade={self.teensy_pid_static_ff_fade_start_ratio}->"
+            f"{self.teensy_pid_static_ff_fade_end_ratio}, "
             f"right_reverse_ff={self.teensy_right_reverse_pid_feedforward_us_per_tps}, "
             f"right_reverse_static_ff={self.teensy_right_reverse_pid_static_ff_us}, "
             f"right_reverse_pwm_floor={self.teensy_right_reverse_pwm_floor_us})"
@@ -599,6 +611,8 @@ class MotorControllerBridge(Node):
                 ("ff_us_per_tps", self.teensy_pid_feedforward_us_per_tps),
                 ("static_ff_us", self.teensy_pid_static_ff_us),
                 ("static_ff_full_target_tps", self.teensy_pid_static_ff_full_target_tps),
+                ("static_ff_fade_start_ratio", self.teensy_pid_static_ff_fade_start_ratio),
+                ("static_ff_fade_end_ratio", self.teensy_pid_static_ff_fade_end_ratio),
                 ("pid_output_limit_us", self.teensy_pid_output_limit_us),
                 ("min_target_tps", self.teensy_pid_min_target_tps),
                 ("stall_fault_enabled", 1 if self.teensy_stall_fault_enabled else 0),
@@ -748,6 +762,8 @@ class MotorControllerBridge(Node):
             ),
             "teensy_pid_static_ff_us": round(self.teensy_pid_static_ff_us, 3),
             "teensy_pid_static_ff_full_target_tps": round(self.teensy_pid_static_ff_full_target_tps, 3),
+            "teensy_pid_static_ff_fade_start_ratio": round(self.teensy_pid_static_ff_fade_start_ratio, 4),
+            "teensy_pid_static_ff_fade_end_ratio": round(self.teensy_pid_static_ff_fade_end_ratio, 4),
             "teensy_left_pid_static_ff_us": round(self.teensy_left_pid_static_ff_us, 3),
             "teensy_right_pid_static_ff_us": round(self.teensy_right_pid_static_ff_us, 3),
             "teensy_right_reverse_pid_static_ff_us": round(self.teensy_right_reverse_pid_static_ff_us, 3),

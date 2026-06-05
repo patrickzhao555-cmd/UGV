@@ -145,6 +145,8 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
             "ff_us_per_tps": 0.04,
             "static_ff_us": 170.0,
             "static_ff_full_target_tps": 2500.0,
+            "static_ff_fade_start_ratio": 0.20,
+            "static_ff_fade_end_ratio": 0.85,
             "left_ff_us_per_tps": 0.04,
             "right_ff_us_per_tps": 0.04,
             "right_reverse_ff_us_per_tps": 0.08,
@@ -172,6 +174,8 @@ def test_teensy_startup_param_sequence_uses_physical_defaults():
     assert "CMD PARAM ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM static_ff_us 170\n" in commands
     assert "CMD PARAM static_ff_full_target_tps 2500\n" in commands
+    assert "CMD PARAM static_ff_fade_start_ratio 0.2\n" in commands
+    assert "CMD PARAM static_ff_fade_end_ratio 0.85\n" in commands
     assert "CMD PARAM left_ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM right_ff_us_per_tps 0.04\n" in commands
     assert "CMD PARAM right_reverse_ff_us_per_tps 0.08\n" in commands
@@ -207,6 +211,26 @@ def test_teensy_firmware_uses_float_abs_for_speed_math():
     assert "bool left_active = fabsf(left_target_tps)" in source
     assert "abs(left_target_tps)" not in source
     assert "abs(right_target_tps)" not in source
+
+
+def test_teensy_firmware_shapes_feedforward_from_measured_speed():
+    firmware = (
+        ROOT
+        / "ros2_ws"
+        / "src"
+        / "ugv_motor_controller"
+        / "firmware"
+        / "teensy_4_1_side_pid_controller"
+        / "teensy_4_1_side_pid_controller.ino"
+    )
+    source = firmware.read_text(encoding="utf-8")
+    assert "staticFeedforwardForTarget(float target_tps, float measured_tps" in source
+    assert "linearFeedforwardForTarget(float target_tps, float measured_tps" in source
+    assert "motion_fade" in source
+    assert "static_ff_fade_start_ratio" in source
+    assert "static_ff_fade_end_ratio" in source
+    assert "measured_along_target > target_abs" in source
+    assert "linear_ff *= clampFloat(target_abs / measured_along_target" in source
 
 
 def test_motor_controller_readme_rejects_stale_one_sided_right_boost_example():
@@ -316,8 +340,12 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "DEFAULT_FF_US_PER_TPS = 0.02f" in firmware
     assert "DEFAULT_STATIC_FF_US = 90.0f" in firmware
     assert "DEFAULT_STATIC_FF_FULL_TARGET_TPS = 1500.0f" in firmware
+    assert "DEFAULT_STATIC_FF_FADE_START_RATIO = 0.20f" in firmware
+    assert "DEFAULT_STATIC_FF_FADE_END_RATIO = 0.85f" in firmware
     assert "DEFAULT_PID_OUTPUT_LIMIT_US = 180.0f" in firmware
     assert "static_ff_full_target_tps" in firmware
+    assert "static_ff_fade_start_ratio" in firmware
+    assert "static_ff_fade_end_ratio" in firmware
     assert "setPidOutputLimitsForBase" in firmware
     assert "resetLeftPidState" in firmware
     assert "left_feedforward_us_per_tps" in firmware
@@ -331,12 +359,18 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "left_pid_output_limit_us" in firmware
     assert "right_pid_output_limit_us" in firmware
     assert 'self.declare_parameter("enable_teensy_side_specific_pid_params", True)' in bridge_file
+    assert 'self.declare_parameter("teensy_pid_static_ff_fade_start_ratio", 0.20)' in bridge_file
+    assert 'self.declare_parameter("teensy_pid_static_ff_fade_end_ratio", 0.85)' in bridge_file
     assert 'self.declare_parameter("teensy_right_reverse_pid_static_ff_us", -1.0)' in bridge_file
     assert 'self.declare_parameter("teensy_right_reverse_pwm_floor_us", 0.0)' in bridge_file
     assert 'EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="true")' in motor_launch_file
+    assert "MOTOR_TEENSY_PID_STATIC_FF_FADE_START_RATIO" in motor_launch_file
+    assert "MOTOR_TEENSY_PID_STATIC_FF_FADE_END_RATIO" in motor_launch_file
     assert "MOTOR_TEENSY_RIGHT_REVERSE_PID_STATIC_FF_US" in motor_launch_file
     assert "MOTOR_TEENSY_RIGHT_REVERSE_PWM_FLOOR_US" in motor_launch_file
     assert 'DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="true")' in bringup_launch_file
+    assert 'DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_start_ratio", default_value="0.20")' in bringup_launch_file
+    assert 'DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_end_ratio", default_value="0.85")' in bringup_launch_file
     assert 'DeclareLaunchArgument("motor_teensy_right_reverse_pid_static_ff_us", default_value="-1.0")' in bringup_launch_file
     assert 'DeclareLaunchArgument("nav_imu_yaw_axis", default_value="y")' in bringup_launch_file
     assert 'parser.add_argument("--imu-yaw-axis", choices=["x", "y", "z"], default="y")' in nav_file

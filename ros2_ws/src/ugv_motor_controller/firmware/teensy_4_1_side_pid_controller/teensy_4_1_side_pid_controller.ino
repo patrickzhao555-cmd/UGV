@@ -53,7 +53,7 @@ const unsigned long DEFAULT_CONTROL_INTERVAL_MS = 20;  // 50 Hz
 const unsigned long STATUS_INTERVAL_MS = 50;   // 20 Hz
 const unsigned long DEFAULT_COMMAND_TIMEOUT_MS = 500;
 const unsigned long HEARTBEAT_LED_INTERVAL_MS = 500;
-const char FIRMWARE_ID[] = "teensy_4_1_side_pid_v2026_06_04";
+const char FIRMWARE_ID[] = "teensy_4_1_side_pid_v2026_06_05";
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 13
@@ -78,6 +78,8 @@ const float DEFAULT_KD = 0.0f;
 const float DEFAULT_FF_US_PER_TPS = 0.02f;
 const float DEFAULT_STATIC_FF_US = 90.0f;
 const float DEFAULT_STATIC_FF_FULL_TARGET_TPS = 1500.0f;
+const float DEFAULT_STATIC_FF_FADE_START_RATIO = 0.20f;
+const float DEFAULT_STATIC_FF_FADE_END_RATIO = 0.85f;
 const float DEFAULT_PID_OUTPUT_LIMIT_US = 180.0f;
 
 enum ControllerMode {
@@ -151,6 +153,8 @@ float right_static_ff_us = DEFAULT_STATIC_FF_US;
 float right_reverse_static_ff_us = -1.0f;
 float right_reverse_pwm_floor_us = 0.0f;
 float static_ff_full_target_tps = DEFAULT_STATIC_FF_FULL_TARGET_TPS;
+float static_ff_fade_start_ratio = DEFAULT_STATIC_FF_FADE_START_RATIO;
+float static_ff_fade_end_ratio = DEFAULT_STATIC_FF_FADE_END_RATIO;
 float pid_output_limit_us = DEFAULT_PID_OUTPUT_LIMIT_US;
 float left_pid_output_limit_us = DEFAULT_PID_OUTPUT_LIMIT_US;
 float right_pid_output_limit_us = DEFAULT_PID_OUTPUT_LIMIT_US;
@@ -332,7 +336,7 @@ long readEncoderSigned(Encoder& encoder, int sign) {
   return encoder.read() * sign;
 }
 
-float staticFeedforwardForTarget(float target_tps, float side_static_ff_us) {
+float staticFeedforwardForTarget(float target_tps, float measured_tps, float side_static_ff_us) {
   int target_sign = signOf(target_tps, min_target_tps);
   if (target_sign == 0) {
     return 0.0f;
@@ -340,14 +344,37 @@ float staticFeedforwardForTarget(float target_tps, float side_static_ff_us) {
   float full_target = max(min_target_tps + 1.0f, static_ff_full_target_tps);
   float target_abs = fabsf(target_tps);
   float ramp = clampFloat((target_abs - min_target_tps) / (full_target - min_target_tps), 0.0f, 1.0f);
-  return (float)target_sign * max(0.0f, side_static_ff_us) * ramp;
+  float fade_start = clampFloat(static_ff_fade_start_ratio, 0.0f, 0.99f);
+  float fade_end = clampFloat(static_ff_fade_end_ratio, fade_start + 0.01f, 2.0f);
+  float measured_along_target = max(0.0f, (float)target_sign * measured_tps);
+  float motion_ratio = measured_along_target / max(min_target_tps + 1.0f, target_abs);
+  float motion_fade = 1.0f;
+  if (motion_ratio > fade_start) {
+    motion_fade = clampFloat((fade_end - motion_ratio) / (fade_end - fade_start), 0.0f, 1.0f);
+  }
+  return (float)target_sign * max(0.0f, side_static_ff_us) * ramp * motion_fade;
 }
 
-float feedforwardForTarget(float target_tps, float side_static_ff_us, float side_ff_us_per_tps) {
+float linearFeedforwardForTarget(float target_tps, float measured_tps, float side_ff_us_per_tps) {
+  int target_sign = signOf(target_tps, min_target_tps);
+  if (target_sign == 0) {
+    return 0.0f;
+  }
+  float linear_ff = side_ff_us_per_tps * target_tps;
+  float target_abs = max(min_target_tps + 1.0f, fabsf(target_tps));
+  float measured_along_target = (float)target_sign * measured_tps;
+  if (measured_along_target > target_abs) {
+    linear_ff *= clampFloat(target_abs / measured_along_target, 0.0f, 1.0f);
+  }
+  return linear_ff;
+}
+
+float feedforwardForTarget(float target_tps, float measured_tps, float side_static_ff_us, float side_ff_us_per_tps) {
   if (signOf(target_tps, min_target_tps) == 0) {
     return 0.0f;
   }
-  return staticFeedforwardForTarget(target_tps, side_static_ff_us) + side_ff_us_per_tps * target_tps;
+  return staticFeedforwardForTarget(target_tps, measured_tps, side_static_ff_us) +
+         linearFeedforwardForTarget(target_tps, measured_tps, side_ff_us_per_tps);
 }
 
 float rightStaticFfForTarget(float target_tps) {
@@ -846,11 +873,13 @@ void updatePidAndOutputs(unsigned long dt_ms) {
 
   float left_base_delta_us = feedforwardForTarget(
     left_target_tps,
+    left_measured_tps,
     left_static_ff_us,
     left_feedforward_us_per_tps
   );
   float right_base_delta_us = feedforwardForTarget(
     right_target_tps,
+    right_measured_tps,
     rightStaticFfForTarget(right_target_tps),
     rightFeedforwardForTarget(right_target_tps)
   );
@@ -1006,6 +1035,10 @@ void printParamDump(Stream& stream) {
   stream.print(static_ff_us, 2);
   stream.print(",static_ff_full_target_tps=");
   stream.print(static_ff_full_target_tps, 2);
+  stream.print(",static_ff_fade_start_ratio=");
+  stream.print(static_ff_fade_start_ratio, 4);
+  stream.print(",static_ff_fade_end_ratio=");
+  stream.print(static_ff_fade_end_ratio, 4);
   stream.print(",left_static_ff_us=");
   stream.print(left_static_ff_us, 2);
   stream.print(",right_static_ff_us=");
@@ -1121,6 +1154,14 @@ bool setParam(const char* name, float value) {
   }
   else if (strcmp(name, "static_ff_full_target_tps") == 0) {
     if (!assignFloatInRange(static_ff_full_target_tps, value, 1.0f, 50000.0f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "static_ff_fade_start_ratio") == 0) {
+    if (!assignFloatInRange(static_ff_fade_start_ratio, value, 0.0f, 0.99f)) return false;
+    critical = true;
+  }
+  else if (strcmp(name, "static_ff_fade_end_ratio") == 0) {
+    if (!assignFloatInRange(static_ff_fade_end_ratio, value, 0.01f, 2.0f)) return false;
     critical = true;
   }
   else if (strcmp(name, "left_static_ff_us") == 0) {

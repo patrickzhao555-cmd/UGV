@@ -35,6 +35,8 @@ def generate_launch_description():
     )
     teensy_pid_static_ff_us = LaunchConfiguration("teensy_pid_static_ff_us")
     teensy_pid_static_ff_full_target_tps = LaunchConfiguration("teensy_pid_static_ff_full_target_tps")
+    teensy_pid_static_ff_fade_start_ratio = LaunchConfiguration("teensy_pid_static_ff_fade_start_ratio")
+    teensy_pid_static_ff_fade_end_ratio = LaunchConfiguration("teensy_pid_static_ff_fade_end_ratio")
     teensy_left_pid_static_ff_us = LaunchConfiguration("teensy_left_pid_static_ff_us")
     teensy_right_pid_static_ff_us = LaunchConfiguration("teensy_right_pid_static_ff_us")
     teensy_right_reverse_pid_static_ff_us = LaunchConfiguration("teensy_right_reverse_pid_static_ff_us")
@@ -162,6 +164,14 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "teensy_pid_static_ff_full_target_tps",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_FULL_TARGET_TPS", default_value="1500.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_pid_static_ff_fade_start_ratio",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_FADE_START_RATIO", default_value="0.20"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_pid_static_ff_fade_end_ratio",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_FADE_END_RATIO", default_value="0.85"),
             ),
             DeclareLaunchArgument(
                 "teensy_left_pid_static_ff_us",
@@ -332,6 +342,14 @@ def generate_launch_description():
                         "teensy_pid_static_ff_us": ParameterValue(teensy_pid_static_ff_us, value_type=float),
                         "teensy_pid_static_ff_full_target_tps": ParameterValue(
                             teensy_pid_static_ff_full_target_tps,
+                            value_type=float,
+                        ),
+                        "teensy_pid_static_ff_fade_start_ratio": ParameterValue(
+                            teensy_pid_static_ff_fade_start_ratio,
+                            value_type=float,
+                        ),
+                        "teensy_pid_static_ff_fade_end_ratio": ParameterValue(
+                            teensy_pid_static_ff_fade_end_ratio,
                             value_type=float,
                         ),
                         "teensy_left_pid_static_ff_us": ParameterValue(teensy_left_pid_static_ff_us, value_type=float),

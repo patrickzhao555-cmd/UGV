@@ -30,6 +30,8 @@ def add_common_serial_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--refresh-period-s", type=float, default=0.10)
     parser.add_argument("--static-ff-us", type=float, default=90.0)
     parser.add_argument("--static-ff-full-target-tps", type=float, default=1500.0)
+    parser.add_argument("--static-ff-fade-start-ratio", type=float, default=0.20)
+    parser.add_argument("--static-ff-fade-end-ratio", type=float, default=0.85)
     parser.add_argument("--sign-mismatch-tps", type=float, default=10.0)
     parser.add_argument("--sign-mismatch-target-tps", type=float, default=100.0)
     parser.add_argument("--sign-mismatch-timeout-ms", type=int, default=250)
@@ -134,6 +136,8 @@ def sync_standard_params(dev: serial.Serial, args: argparse.Namespace) -> None:
         ("command_timeout_ms", max(100, int(args.command_timeout_ms))),
         ("static_ff_us", args.static_ff_us),
         ("static_ff_full_target_tps", args.static_ff_full_target_tps),
+        ("static_ff_fade_start_ratio", args.static_ff_fade_start_ratio),
+        ("static_ff_fade_end_ratio", args.static_ff_fade_end_ratio),
         ("sign_mismatch_tps", args.sign_mismatch_tps),
         ("sign_mismatch_target_tps", args.sign_mismatch_target_tps),
         ("sign_mismatch_timeout_ms", args.sign_mismatch_timeout_ms),

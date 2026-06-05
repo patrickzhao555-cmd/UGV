@@ -134,6 +134,13 @@ low-level PID/feedforward parameters at startup. Flash the matching firmware
 before running the ROS bridge; if `teensy_pid_params_synced=false`, the bridge
 will hold STOP instead of driving with an unknown controller.
 
+`static_ff_us` is treated as breakaway assist, not permanent throttle. The
+firmware fades static feedforward out as measured side speed approaches the
+target (`static_ff_fade_start_ratio` to `static_ff_fade_end_ratio`) and also
+reduces linear feedforward when measured speed overshoots the target. This lets
+grass startup use a high static value without driving the wheels at full PWM for
+the whole run.
+
 Before changing any left/right-specific feedforward or static feedforward, run
 the closed-loop bench gate with the wheels off the ground:
 

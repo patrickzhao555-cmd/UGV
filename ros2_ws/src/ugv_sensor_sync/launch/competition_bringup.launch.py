@@ -67,6 +67,12 @@ def generate_launch_description():
     )
     motor_teensy_pid_static_ff_us = LaunchConfiguration("motor_teensy_pid_static_ff_us")
     motor_teensy_pid_static_ff_full_target_tps = LaunchConfiguration("motor_teensy_pid_static_ff_full_target_tps")
+    motor_teensy_pid_static_ff_fade_start_ratio = LaunchConfiguration(
+        "motor_teensy_pid_static_ff_fade_start_ratio"
+    )
+    motor_teensy_pid_static_ff_fade_end_ratio = LaunchConfiguration(
+        "motor_teensy_pid_static_ff_fade_end_ratio"
+    )
     motor_teensy_left_pid_static_ff_us = LaunchConfiguration("motor_teensy_left_pid_static_ff_us")
     motor_teensy_right_pid_static_ff_us = LaunchConfiguration("motor_teensy_right_pid_static_ff_us")
     motor_teensy_right_reverse_pid_static_ff_us = LaunchConfiguration("motor_teensy_right_reverse_pid_static_ff_us")
@@ -206,6 +212,8 @@ def generate_launch_description():
             ),
             "teensy_pid_static_ff_us": motor_teensy_pid_static_ff_us,
             "teensy_pid_static_ff_full_target_tps": motor_teensy_pid_static_ff_full_target_tps,
+            "teensy_pid_static_ff_fade_start_ratio": motor_teensy_pid_static_ff_fade_start_ratio,
+            "teensy_pid_static_ff_fade_end_ratio": motor_teensy_pid_static_ff_fade_end_ratio,
             "teensy_left_pid_static_ff_us": motor_teensy_left_pid_static_ff_us,
             "teensy_right_pid_static_ff_us": motor_teensy_right_pid_static_ff_us,
             "teensy_right_reverse_pid_static_ff_us": motor_teensy_right_reverse_pid_static_ff_us,
@@ -489,6 +497,8 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_right_reverse_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="90.0"),
             DeclareLaunchArgument("motor_teensy_pid_static_ff_full_target_tps", default_value="1500.0"),
+            DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_start_ratio", default_value="0.20"),
+            DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_end_ratio", default_value="0.85"),
             DeclareLaunchArgument("motor_teensy_left_pid_static_ff_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_static_ff_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_reverse_pid_static_ff_us", default_value="-1.0"),

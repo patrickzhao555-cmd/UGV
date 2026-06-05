@@ -25,6 +25,7 @@ from ugv_nav_core.chassis_controller import (
     PivotControllerState,
     bounded_duration,
     compute_straight_omega,
+    curve_speed_radius_omega,
     evaluate_pivot_clearance,
     evaluate_safety,
     min_finite_range,
@@ -162,9 +163,13 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--arc-max-omega-radps", type=float, default=0.45)
     parser.add_argument("--curve-omega-slew-radps2", type=float, default=0.80)
     parser.add_argument("--curve-timeout-s", type=float, default=0.0)
+    parser.add_argument("--curve-no-progress-timeout-s", type=float, default=1.5)
+    parser.add_argument("--curve-min-progress-rad", type=float, default=0.025)
     parser.add_argument("--curve-approach-error-rad", type=float, default=0.25)
     parser.add_argument("--curve-kp-approach", type=float, default=0.90)
     parser.add_argument("--curve-kd-yaw-rate", type=float, default=0.08)
+    parser.add_argument("--curve-min-omega-radps", type=float, default=0.14)
+    parser.add_argument("--curve-min-omega-disable-error-rad", type=float, default=0.08)
     parser.add_argument("--allow-side-reverse", type=parse_bool, default=False)
     parser.add_argument("--max-omega-radps", type=float, default=0.45)
     parser.add_argument("--heading-kp", type=float, default=0.6)
@@ -260,9 +265,13 @@ def config_from_args(args: argparse.Namespace) -> ChassisControllerConfig:
         arc_max_omega_radps=float(args.arc_max_omega_radps),
         curve_omega_slew_radps2=float(args.curve_omega_slew_radps2),
         curve_timeout_s=float(args.curve_timeout_s),
+        curve_no_progress_timeout_s=float(args.curve_no_progress_timeout_s),
+        curve_min_progress_rad=float(args.curve_min_progress_rad),
         curve_approach_error_rad=float(args.curve_approach_error_rad),
         curve_kp_approach=float(args.curve_kp_approach),
         curve_kd_yaw_rate=float(args.curve_kd_yaw_rate),
+        curve_min_omega_radps=float(args.curve_min_omega_radps),
+        curve_min_omega_disable_error_rad=float(args.curve_min_omega_disable_error_rad),
         allow_side_reverse=bool(args.allow_side_reverse),
         max_omega_radps=float(args.max_omega_radps),
         heading_kp=float(args.heading_kp),
@@ -1395,7 +1404,13 @@ def run_real(args: argparse.Namespace) -> None:
             last_omega = float(self.last_command_payload.get("omega_radps", 0.0))
             straight_limit = max(0.0, min(float(self.config.max_omega_radps), float(self.config.mission_straight_max_omega_radps)))
             pivot_limit = max(0.0, min(float(self.config.max_omega_radps), float(self.config.pivot_max_omega_radps)))
-            omega_limit = pivot_limit if pivot_state not in {"idle", "complete"} else straight_limit
+            _, _, curve_limit = curve_speed_radius_omega(self.config)
+            if self.mode == "curve_test" and self.curve.state not in {"idle", "complete"}:
+                omega_limit = curve_limit
+            elif pivot_state not in {"idle", "complete"}:
+                omega_limit = pivot_limit
+            else:
+                omega_limit = straight_limit
             pivot_state_elapsed_s = (
                 None if self.pivot.state_start_s is None else round(max(0.0, now_s - self.pivot.state_start_s), 3)
             )
@@ -1457,6 +1472,17 @@ def run_real(args: argparse.Namespace) -> None:
                 "curve_state": curve_state,
                 "curve_target_angle_rad": self.curve.target_angle_rad,
                 "curve_heading_error_rad": self.curve.last_error_rad,
+                "curve_actual_angle_rad": self.curve.target_angle_rad - self.curve.last_error_rad,
+                "curve_elapsed_s": (
+                    None if self.curve.motion_start_s is None else round(max(0.0, now_s - self.curve.motion_start_s), 3)
+                ),
+                "curve_progress_age_s": (
+                    None if self.curve.last_progress_s is None else round(max(0.0, now_s - self.curve.last_progress_s), 3)
+                ),
+                "curve_abort_reason": self.curve.abort_reason,
+                "curve_min_abs_error_rad": (
+                    self.curve.min_abs_error_rad if math.isfinite(self.curve.min_abs_error_rad) else None
+                ),
                 "curve_radius_m": self.curve.radius_m,
                 "curve_arc_length_m": self.curve.arc_length_m,
                 "curve_direction": self.curve.direction,

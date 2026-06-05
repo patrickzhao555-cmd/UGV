@@ -23,9 +23,13 @@ class ChassisControllerConfig:
     arc_max_omega_radps: float = 0.45
     curve_omega_slew_radps2: float = 0.80
     curve_timeout_s: float = 0.0
+    curve_no_progress_timeout_s: float = 1.5
+    curve_min_progress_rad: float = 0.025
     curve_approach_error_rad: float = 0.25
     curve_kp_approach: float = 0.90
     curve_kd_yaw_rate: float = 0.08
+    curve_min_omega_radps: float = 0.14
+    curve_min_omega_disable_error_rad: float = 0.08
     allow_side_reverse: bool = False
     max_omega_radps: float = 0.45
     heading_kp: float = 0.6
@@ -174,14 +178,17 @@ class CurveControllerState:
     start_heading_rad: float = 0.0
     start_encoder_heading_rad: float = 0.0
     last_update_s: Optional[float] = None
+    last_progress_s: Optional[float] = None
     previous_omega_radps: float = 0.0
     last_error_rad: float = 0.0
+    min_abs_error_rad: float = math.inf
     direction: str = "none"
     target_angle_rad: float = 0.0
     radius_m: float = 0.0
     arc_length_m: float = 0.0
     side_reverse_blocked: bool = False
     complete: bool = False
+    abort_reason: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -669,14 +676,17 @@ def reset_curve(state: CurveControllerState) -> None:
     state.start_heading_rad = 0.0
     state.start_encoder_heading_rad = 0.0
     state.last_update_s = None
+    state.last_progress_s = None
     state.previous_omega_radps = 0.0
     state.last_error_rad = 0.0
+    state.min_abs_error_rad = math.inf
     state.direction = "none"
     state.target_angle_rad = 0.0
     state.radius_m = 0.0
     state.arc_length_m = 0.0
     state.side_reverse_blocked = False
     state.complete = False
+    state.abort_reason = None
 
 
 def curve_speed_radius_omega(config: ChassisControllerConfig) -> Tuple[float, float, float]:
@@ -705,7 +715,7 @@ def estimate_curve_timeout_s(config: ChassisControllerConfig) -> float:
     if omega_abs <= 1e-9:
         return 1.0
     nominal_s = target_angle / omega_abs
-    return max(3.0, nominal_s * 1.6 + 1.5)
+    return max(20.0, nominal_s * 8.0 + 3.0)
 
 
 def _curve_target_angle_rad(config: ChassisControllerConfig) -> float:
@@ -736,14 +746,17 @@ def start_curve(
     state.target_angle_rad = target_angle
     state.target_heading_rad = wrap_pi(float(current_heading_rad) + target_angle)
     state.last_update_s = float(now_s)
+    state.last_progress_s = float(now_s)
     state.previous_omega_radps = 0.0
     state.last_error_rad = target_angle
+    state.min_abs_error_rad = abs(target_angle)
     state.direction = "left" if target_angle >= 0.0 else "right"
     radius = max(float(config.arc_min_turn_radius_m), abs(float(config.curve_radius_m)))
     state.radius_m = radius
     state.arc_length_m = radius * abs(target_angle)
     state.side_reverse_blocked = False
     state.complete = False
+    state.abort_reason = None
 
 
 def step_curve(
@@ -759,19 +772,27 @@ def step_curve(
 
     error = wrap_pi(float(state.target_heading_rad) - float(heading_rad))
     state.last_error_rad = error
+    abs_error = abs(error)
     sign = 1.0 if state.target_angle_rad >= 0.0 else -1.0
-    if abs(error) <= max(0.0, float(config.heading_deadband_rad)) or error * sign < 0.0:
+    if abs_error <= max(0.0, float(config.heading_deadband_rad)) or error * sign < 0.0:
         state.state = "complete"
         state.complete = True
+        state.abort_reason = None
         state.previous_omega_radps = 0.0
         return CurveStepResult("stop", 0.0, 0.0, "curve_test_complete", state.state, error, True)
+
+    min_progress = max(0.0, float(config.curve_min_progress_rad))
+    if abs_error < state.min_abs_error_rad - min_progress:
+        state.min_abs_error_rad = abs_error
+        state.last_progress_s = float(now_s)
 
     motion_start_s = float(state.motion_start_s) if state.motion_start_s is not None else float(now_s)
     timeout_s = float(config.curve_timeout_s) if float(config.curve_timeout_s) > 0.0 else estimate_curve_timeout_s(config)
     if float(now_s) - motion_start_s > max(0.0, timeout_s):
         state.state = "abort"
+        state.abort_reason = "curve_hard_timeout"
         state.previous_omega_radps = 0.0
-        return CurveStepResult("stop", 0.0, 0.0, "curve_timeout", state.state, error, False)
+        return CurveStepResult("stop", 0.0, 0.0, "curve_hard_timeout", state.state, error, False)
 
     speed, radius, omega_limit = curve_speed_radius_omega(config)
     state.radius_m = radius
@@ -779,16 +800,30 @@ def step_curve(
     if omega_limit <= 1e-9:
         state.state = "abort"
         state.side_reverse_blocked = True
+        state.abort_reason = "curve_side_reverse_blocked"
         state.previous_omega_radps = 0.0
         return CurveStepResult("stop", 0.0, 0.0, "curve_side_reverse_blocked", state.state, error, False)
 
-    if abs(error) <= max(0.0, float(config.curve_approach_error_rad)):
+    no_progress_timeout_s = max(0.0, float(config.curve_no_progress_timeout_s))
+    progress_start_s = state.last_progress_s if state.last_progress_s is not None else motion_start_s
+    progress_age_s = float(now_s) - float(progress_start_s)
+    if no_progress_timeout_s > 0.0 and progress_age_s > no_progress_timeout_s:
+        state.state = "abort"
+        state.abort_reason = "curve_no_yaw_progress"
+        state.previous_omega_radps = 0.0
+        return CurveStepResult("stop", 0.0, 0.0, "curve_no_yaw_progress", state.state, error, False)
+
+    if abs_error <= max(0.0, float(config.curve_approach_error_rad)):
         state.state = "approach"
         omega_target = (
             float(config.curve_kp_approach) * error
             - float(config.curve_kd_yaw_rate) * float(yaw_rate_radps)
         )
         omega_target = clamp(omega_target, -omega_limit, omega_limit)
+        min_omega = min(max(0.0, float(config.curve_min_omega_radps)), omega_limit)
+        min_omega_disable_error = max(0.0, float(config.curve_min_omega_disable_error_rad))
+        if min_omega > 0.0 and abs_error > min_omega_disable_error and abs(omega_target) < min_omega:
+            omega_target = (1.0 if error >= 0.0 else -1.0) * min_omega
         reason = "curve_approach"
     else:
         state.state = "arc"

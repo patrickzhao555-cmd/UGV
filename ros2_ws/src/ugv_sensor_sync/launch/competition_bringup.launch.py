@@ -117,9 +117,13 @@ def generate_launch_description():
     nav_arc_max_omega_radps = LaunchConfiguration("nav_arc_max_omega_radps")
     nav_curve_omega_slew_radps2 = LaunchConfiguration("nav_curve_omega_slew_radps2")
     nav_curve_timeout_s = LaunchConfiguration("nav_curve_timeout_s")
+    nav_curve_no_progress_timeout_s = LaunchConfiguration("nav_curve_no_progress_timeout_s")
+    nav_curve_min_progress_rad = LaunchConfiguration("nav_curve_min_progress_rad")
     nav_curve_approach_error_rad = LaunchConfiguration("nav_curve_approach_error_rad")
     nav_curve_kp_approach = LaunchConfiguration("nav_curve_kp_approach")
     nav_curve_kd_yaw_rate = LaunchConfiguration("nav_curve_kd_yaw_rate")
+    nav_curve_min_omega_radps = LaunchConfiguration("nav_curve_min_omega_radps")
+    nav_curve_min_omega_disable_error_rad = LaunchConfiguration("nav_curve_min_omega_disable_error_rad")
     nav_allow_side_reverse = LaunchConfiguration("nav_allow_side_reverse")
     nav_max_omega_radps = LaunchConfiguration("nav_max_omega_radps")
     nav_heading_kp = LaunchConfiguration("nav_heading_kp")
@@ -316,12 +320,20 @@ def generate_launch_description():
             nav_curve_omega_slew_radps2,
             "--curve-timeout-s",
             nav_curve_timeout_s,
+            "--curve-no-progress-timeout-s",
+            nav_curve_no_progress_timeout_s,
+            "--curve-min-progress-rad",
+            nav_curve_min_progress_rad,
             "--curve-approach-error-rad",
             nav_curve_approach_error_rad,
             "--curve-kp-approach",
             nav_curve_kp_approach,
             "--curve-kd-yaw-rate",
             nav_curve_kd_yaw_rate,
+            "--curve-min-omega-radps",
+            nav_curve_min_omega_radps,
+            "--curve-min-omega-disable-error-rad",
+            nav_curve_min_omega_disable_error_rad,
             "--allow-side-reverse",
             nav_allow_side_reverse,
             "--max-omega-radps",
@@ -543,9 +555,13 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_arc_max_omega_radps", default_value="0.45"),
             DeclareLaunchArgument("nav_curve_omega_slew_radps2", default_value="0.80"),
             DeclareLaunchArgument("nav_curve_timeout_s", default_value="0.0"),
+            DeclareLaunchArgument("nav_curve_no_progress_timeout_s", default_value="1.5"),
+            DeclareLaunchArgument("nav_curve_min_progress_rad", default_value="0.025"),
             DeclareLaunchArgument("nav_curve_approach_error_rad", default_value="0.25"),
             DeclareLaunchArgument("nav_curve_kp_approach", default_value="0.90"),
             DeclareLaunchArgument("nav_curve_kd_yaw_rate", default_value="0.08"),
+            DeclareLaunchArgument("nav_curve_min_omega_radps", default_value="0.14"),
+            DeclareLaunchArgument("nav_curve_min_omega_disable_error_rad", default_value="0.08"),
             DeclareLaunchArgument("nav_allow_side_reverse", default_value="false"),
             DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
             DeclareLaunchArgument("nav_heading_kp", default_value="0.6"),

@@ -96,7 +96,7 @@ def estimate_curve_watchdog_s(
     if omega_abs <= 1e-9:
         return 3.0
     nominal_s = angle_rad / omega_abs
-    return max(4.0, nominal_s * 1.6 + 1.5)
+    return max(20.0, nominal_s * 8.0 + 3.0)
 
 
 def parse_optional_float(text: str) -> Optional[float]:
@@ -768,6 +768,13 @@ def _last_float(records: Sequence[dict[str, Any]], key: str) -> Optional[float]:
     return None
 
 
+def _last_value(records: Sequence[dict[str, Any]], key: str) -> Any:
+    for record in reversed(records):
+        if key in record and record.get(key) is not None:
+            return record.get(key)
+    return None
+
+
 def _max_abs(records: Sequence[dict[str, Any]], key: str) -> float:
     values = [_safe_float(record.get(key)) for record in records]
     finite = [abs(v) for v in values if v is not None]
@@ -819,8 +826,12 @@ def compute_case_metrics(
     pivot_overshoot_rad = _last_float(status_records, "pivot_overshoot_rad")
     pivot_retry_count = _last_float(status_records, "pivot_retry_count")
     curve_heading_error_rad = _last_float(status_records, "curve_heading_error_rad")
+    curve_actual_angle_rad = _last_float(status_records, "curve_actual_angle_rad")
     curve_radius_m = _last_float(status_records, "curve_radius_m")
     curve_arc_length_m = _last_float(status_records, "curve_arc_length_m")
+    curve_elapsed_s = _last_float(status_records, "curve_elapsed_s")
+    curve_progress_age_s = _last_float(status_records, "curve_progress_age_s")
+    curve_abort_reason = _last_value(status_records, "curve_abort_reason")
     omega_limit = _last_float(status_records, "max_omega_radps")
     omega_max_abs = max(_max_abs(status_records, "omega_cmd_radps"), _max_abs(cmd_records, "omega_radps"))
     omega_saturated_samples = sum(1 for record in status_records if bool(record.get("omega_saturated", False)))
@@ -830,6 +841,8 @@ def compute_case_metrics(
     estimated_angle_deg = None
     if expected_angle_deg is not None and pivot_final_error_rad is not None:
         estimated_angle_deg = float(expected_angle_deg) - math.degrees(float(pivot_final_error_rad))
+    elif curve_actual_angle_rad is not None:
+        estimated_angle_deg = math.degrees(float(curve_actual_angle_rad))
     elif expected_angle_deg is not None and curve_heading_error_rad is not None:
         estimated_angle_deg = float(expected_angle_deg) - math.degrees(float(curve_heading_error_rad))
     metrics: dict[str, Any] = {
@@ -869,6 +882,13 @@ def compute_case_metrics(
         "curve_heading_error_deg": None
         if curve_heading_error_rad is None
         else math.degrees(float(curve_heading_error_rad)),
+        "curve_actual_angle_rad": curve_actual_angle_rad,
+        "curve_actual_angle_deg": None
+        if curve_actual_angle_rad is None
+        else math.degrees(float(curve_actual_angle_rad)),
+        "curve_elapsed_s": curve_elapsed_s,
+        "curve_progress_age_s": curve_progress_age_s,
+        "curve_abort_reason": curve_abort_reason,
         "curve_radius_m": curve_radius_m,
         "curve_arc_length_m": curve_arc_length_m,
         "actual_turn_radius_m": actual_turn_radius_m,
@@ -950,6 +970,7 @@ def write_summary_files(suite_dir: Path, suite_id: str, case_results: Sequence[d
         "actual_angle_deg",
         "actual_angle_error_deg",
         "estimated_angle_deg",
+        "curve_actual_angle_deg",
         "pivot_final_error_deg",
         "pivot_overshoot_deg",
         "curve_radius_m",
@@ -957,6 +978,9 @@ def write_summary_files(suite_dir: Path, suite_id: str, case_results: Sequence[d
         "actual_turn_radius_error_m",
         "curve_arc_length_m",
         "curve_heading_error_deg",
+        "curve_elapsed_s",
+        "curve_progress_age_s",
+        "curve_abort_reason",
         "omega_saturation_percent",
         "motion_rule_violation_count",
         "critical_status_count",

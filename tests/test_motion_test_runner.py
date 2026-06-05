@@ -234,7 +234,7 @@ def test_custom_curve_rejects_invalid_timeout_override():
 
 def test_curve_watchdog_is_computed_from_angle_radius_and_speed():
     timeout = estimate_curve_watchdog_s(angle_deg=90.0, radius_m=1.0, speed_mps=0.15)
-    assert timeout == pytest.approx((math.pi / 2.0 / 0.15) * 1.6 + 1.5)
+    assert timeout == pytest.approx((math.pi / 2.0 / 0.15) * 8.0 + 3.0)
 
 
 def test_custom_pivot_case_rejects_angles_outside_supported_shortest_path_range():

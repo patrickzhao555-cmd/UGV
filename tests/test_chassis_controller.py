@@ -369,6 +369,70 @@ def test_curve_timeout_is_derived_from_motion_when_generic_test_duration_is_shor
     assert still_running.reason in {"curve_arc", "curve_approach"}
 
 
+def test_curve_continues_past_nominal_time_when_heading_is_still_progressing():
+    config = ChassisControllerConfig(
+        curve_angle_deg=90.0,
+        curve_direction="left",
+        curve_speed_mps=0.42,
+        curve_radius_m=1.0,
+        arc_max_omega_radps=0.85,
+        max_omega_radps=0.85,
+        curve_omega_slew_radps2=100.0,
+    )
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+
+    still_running = step_curve(state, now_s=8.0, heading_rad=0.4, yaw_rate_radps=0.05, config=config)
+
+    assert still_running.command_type == "velocity"
+    assert still_running.reason == "curve_arc"
+    assert state.abort_reason is None
+
+
+def test_curve_aborts_when_heading_makes_no_progress():
+    config = ChassisControllerConfig(
+        curve_angle_deg=90.0,
+        curve_direction="left",
+        curve_speed_mps=0.42,
+        curve_radius_m=1.0,
+        arc_max_omega_radps=0.85,
+        max_omega_radps=0.85,
+        curve_no_progress_timeout_s=1.5,
+        curve_min_progress_rad=0.025,
+        curve_omega_slew_radps2=100.0,
+    )
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+    first = step_curve(state, now_s=0.1, heading_rad=0.0, yaw_rate_radps=0.0, config=config)
+    assert first.command_type == "velocity"
+
+    stuck = step_curve(state, now_s=1.6, heading_rad=0.0, yaw_rate_radps=0.0, config=config)
+
+    assert stuck.command_type == "stop"
+    assert stuck.reason == "curve_no_yaw_progress"
+    assert state.abort_reason == "curve_no_yaw_progress"
+
+
+def test_curve_explicit_timeout_is_hard_safety_limit():
+    config = ChassisControllerConfig(
+        curve_angle_deg=90.0,
+        curve_direction="left",
+        curve_speed_mps=0.42,
+        curve_radius_m=1.0,
+        curve_timeout_s=0.5,
+        curve_no_progress_timeout_s=10.0,
+        curve_omega_slew_radps2=100.0,
+    )
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+
+    timeout = step_curve(state, now_s=0.6, heading_rad=0.1, yaw_rate_radps=0.1, config=config)
+
+    assert timeout.command_type == "stop"
+    assert timeout.reason == "curve_hard_timeout"
+    assert state.abort_reason == "curve_hard_timeout"
+
+
 def test_curve_approach_reduces_omega_near_target():
     config = ChassisControllerConfig(
         curve_angle_deg=90.0,
@@ -383,6 +447,26 @@ def test_curve_approach_reduces_omega_near_target():
     approach = step_curve(state, now_s=0.1, heading_rad=math.radians(85.0), yaw_rate_radps=0.0, config=config)
     assert approach.reason == "curve_approach"
     assert 0.0 < approach.omega_radps < 0.15
+
+
+def test_curve_approach_applies_minimum_omega_until_close_to_target():
+    config = ChassisControllerConfig(
+        curve_angle_deg=90.0,
+        curve_direction="left",
+        curve_speed_mps=0.15,
+        curve_radius_m=1.0,
+        curve_approach_error_rad=0.3,
+        curve_min_omega_radps=0.14,
+        curve_min_omega_disable_error_rad=0.08,
+        curve_omega_slew_radps2=100.0,
+    )
+    state = CurveControllerState()
+    start_curve(state, now_s=0.0, current_heading_rad=0.0, encoder_heading_rad=0.0, config=config)
+
+    approach = step_curve(state, now_s=0.1, heading_rad=math.radians(85.0), yaw_rate_radps=0.0, config=config)
+
+    assert approach.reason == "curve_approach"
+    assert approach.omega_radps == pytest.approx(0.14)
 
 
 def test_curve_test_right_turn_has_negative_omega():

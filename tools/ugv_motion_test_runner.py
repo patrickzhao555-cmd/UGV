@@ -471,6 +471,30 @@ def builtin_suite(name: str) -> MotionTestSuite:
         ]
         return MotionTestSuite(suite_id="curve_calibration", cases=tuple(cases))
 
+    if suite_id == "turn_debug":
+        cases = [
+            _pivot_test_case(-30.0),
+            _pivot_test_case(30.0),
+            _pivot_test_case(-45.0),
+            _curve_test_case(angle_deg=-45.0, radius_m=0.75, speed_mps=0.14),
+            _curve_test_case(angle_deg=-45.0, radius_m=0.60, speed_mps=0.14),
+            _curve_test_case(angle_deg=-45.0, radius_m=0.45, speed_mps=0.12),
+            _curve_test_case(angle_deg=45.0, radius_m=0.75, speed_mps=0.14),
+        ]
+        cases = [
+            replace(
+                case,
+                description=(
+                    case.description
+                    + " Mark robot center before/after; enter center chord as actual distance."
+                    if case.mode == "curve_test"
+                    else case.description
+                ),
+            )
+            for case in cases
+        ]
+        return MotionTestSuite(suite_id="turn_debug", cases=tuple(cases))
+
     if suite_id == "mission_smoke":
         cases = [
             _mission_case(
@@ -777,6 +801,14 @@ def compute_case_metrics(
     actual_distance_m = _safe_float(manual.get("actual_distance_m"))
     actual_angle_deg = _safe_float(manual.get("actual_angle_deg"))
     lateral_drift_m = _safe_float(manual.get("lateral_drift_m"))
+    actual_turn_radius_m = None
+    if case.mode == "curve_test" and actual_distance_m is not None:
+        angle_for_radius_deg = actual_angle_deg if actual_angle_deg is not None else expected_angle_deg
+        if angle_for_radius_deg is not None:
+            half_angle_rad = 0.5 * abs(math.radians(float(angle_for_radius_deg)))
+            denominator = 2.0 * math.sin(half_angle_rad)
+            if denominator > 1e-9:
+                actual_turn_radius_m = actual_distance_m / denominator
     encoder_distance_m = _last_float(status_records, "segment_distance_m")
     heading_rms = _last_float(status_records, "straight_heading_error_rms")
     if heading_rms is None:
@@ -840,6 +872,10 @@ def compute_case_metrics(
         else math.degrees(float(curve_heading_error_rad)),
         "curve_radius_m": curve_radius_m,
         "curve_arc_length_m": curve_arc_length_m,
+        "actual_turn_radius_m": actual_turn_radius_m,
+        "actual_turn_radius_error_m": None
+        if actual_turn_radius_m is None or curve_radius_m is None
+        else actual_turn_radius_m - curve_radius_m,
         "omega_max_abs_radps": omega_max_abs,
         "omega_saturation_percent": 0.0
         if not status_records
@@ -918,6 +954,8 @@ def write_summary_files(suite_dir: Path, suite_id: str, case_results: Sequence[d
         "pivot_final_error_deg",
         "pivot_overshoot_deg",
         "curve_radius_m",
+        "actual_turn_radius_m",
+        "actual_turn_radius_error_m",
         "curve_arc_length_m",
         "curve_heading_error_deg",
         "omega_saturation_percent",
@@ -941,20 +979,21 @@ def write_summary_files(suite_dir: Path, suite_id: str, case_results: Sequence[d
             writer.writerow(row)
 
     lines = [f"# UGV Motion Test Summary: {suite_id}", "", f"Cases: {len(case_results)}", ""]
-    lines.append("| Case | Mode | Manual | Distance Error | Angle Error | Heading RMS | Stops |")
-    lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+    lines.append("| Case | Mode | Manual | Distance Error | Angle Error | Radius Error | Heading RMS | Stops |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
     for result in case_results:
         metrics = result.get("metrics", {})
         manual = result.get("manual", {})
         stops = metrics.get("stop_reasons") or {}
         stop_text = ", ".join(f"{k}={v}" for k, v in sorted(stops.items())) if isinstance(stops, dict) else ""
         lines.append(
-            "| {case} | {mode} | {pf} | {dist} | {angle} | {rms} | {stops} |".format(
+            "| {case} | {mode} | {pf} | {dist} | {angle} | {radius} | {rms} | {stops} |".format(
                 case=result.get("case_id"),
                 mode=result.get("mode"),
                 pf=manual.get("pass_fail") or "",
                 dist=_md_value(metrics.get("distance_error_m"), "m"),
                 angle=_md_value(metrics.get("actual_angle_error_deg"), "deg"),
+                radius=_md_value(metrics.get("actual_turn_radius_error_m"), "m"),
                 rms=_md_value(metrics.get("heading_rms_deg"), "deg"),
                 stops=stop_text,
             )
@@ -1053,7 +1092,11 @@ def prompt_manual_measurements(case: MotionTestCase, *, yes: bool) -> dict[str, 
         }
     print()
     print(f"Manual measurements for {case.id}. Blank or 'skip' leaves a field empty.")
-    actual_distance = parse_optional_float(input("Actual travel distance in meters: "))
+    if case.mode == "curve_test":
+        distance_prompt = "Actual center chord in meters, start center to stop center: "
+    else:
+        distance_prompt = "Actual travel distance in meters: "
+    actual_distance = parse_optional_float(input(distance_prompt))
     actual_angle = parse_optional_float(input("Actual final turn angle in degrees, CCW positive: "))
     lateral_drift = parse_optional_float(input("Lateral drift in meters: "))
     pass_fail = input("Pass/fail label [pass/fail/needs_review]: ").strip() or "needs_review"
@@ -1156,7 +1199,11 @@ def run_case(
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--suite", default="basic", help="Built-in suite: basic, pivot_calibration, curve_calibration, mission_smoke")
+    parser.add_argument(
+        "--suite",
+        default="basic",
+        help="Built-in suite: basic, turn_debug, pivot_calibration, curve_calibration, mission_smoke",
+    )
     parser.add_argument("--suite-file", help="Path to a custom JSON suite")
     parser.add_argument("--case", action="append", default=[], help="Run only this case id; can be repeated")
     parser.add_argument("--straight-speed-mps", type=float, help="Create a one-off custom straight test at this speed")

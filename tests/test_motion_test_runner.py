@@ -49,6 +49,11 @@ def test_builtin_basic_suite_contains_expected_cases():
     curve_ids = {case.id for case in curve_suite.cases}
     assert "curve_left_R1_90" in curve_ids
     assert "curve_right_R0p75_90" in curve_ids
+    turn_ids = {case.id for case in builtin_suite("turn_debug").cases}
+    assert "pivot_right_30" in turn_ids
+    assert "pivot_left_30" in turn_ids
+    assert "curve_right_R0p45_45" in turn_ids
+    assert "curve_left_R0p75_45" in turn_ids
 
 
 def test_select_cases_and_expand_repeats():
@@ -327,6 +332,30 @@ def test_case_metrics_calculate_distance_angle_and_health_fields():
     assert metrics["omega_saturation_percent"] == pytest.approx(50.0)
     assert metrics["imu_rate_avg_hz"] == pytest.approx(100.0)
     assert metrics["stop_reasons"] == {"pivot_test_complete": 1}
+
+
+def test_case_metrics_calculate_curve_radius_from_manual_chord():
+    case = MotionTestCase(
+        id="curve_right_R0p6_45",
+        mode="curve_test",
+        expected_angle_deg=-45.0,
+    )
+    status_records = [
+        {
+            "curve_radius_m": 0.60,
+            "curve_heading_error_rad": 0.0,
+            "imu_rate_hz": 30.0,
+        }
+    ]
+    expected_chord = 2.0 * 0.60 * math.sin(math.radians(45.0) / 2.0)
+    metrics = compute_case_metrics(
+        case,
+        status_records,
+        [],
+        {"actual_distance_m": expected_chord, "actual_angle_deg": -45.0},
+    )
+    assert metrics["actual_turn_radius_m"] == pytest.approx(0.60)
+    assert metrics["actual_turn_radius_error_m"] == pytest.approx(0.0)
 
 
 def test_case_metrics_calculate_straight_distance_errors():

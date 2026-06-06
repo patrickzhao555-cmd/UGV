@@ -386,11 +386,13 @@ def test_challenge2_hardening_guards_are_present_in_runtime_code():
     assert "self._heading_source(now_s) != \"imu\"" in challenge2_block
     assert "challenge2_target_bearing_from_pose_rad" in challenge2_block
     assert "challenge2_align_recovery_too_close" in challenge2_block
-    assert "ROLLING_ALIGN" in challenge2_block
-    assert "challenge2_rolling_align_recovery" in challenge2_block
-    assert "challenge2_rolling_align_no_progress" in challenge2_block
+    assert 'self.challenge2_state = "ROLLING_ALIGN"' not in challenge2_block
+    assert "challenge2_pivot_recovery_retry" in challenge2_block
+    assert "challenge2_pivot_recovery_count += 1" in challenge2_block
     assert 'self.challenge2_state in {"WAIT_TARGET", "FAULT"}' not in challenge2_block
     assert 'if self.challenge2_state == "FAULT":' in challenge2_block
+    assert "CHALLENGE2_PIVOT_DEFAULT_MIN_OMEGA_RADPS = 0.72" in controller_text
+    assert "CHALLENGE2_PIVOT_DEFAULT_BREAKAWAY_OMEGA_RADPS = 0.75" in controller_text
     assert 'DeclareLaunchArgument("nav_challenge2_align_arc_speed_mps", default_value="0.18")' in bringup_text
     assert 'DeclareLaunchArgument("nav_challenge2_align_max_omega_radps", default_value="0.85")' in bringup_text
     assert 'DeclareLaunchArgument("nav_challenge2_align_min_turn_radius_m", default_value="0.50")' in bringup_text

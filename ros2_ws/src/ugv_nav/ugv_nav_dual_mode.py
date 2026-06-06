@@ -84,6 +84,11 @@ CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M = (
 CHALLENGE2_ROLLING_ALIGN_DEFAULT_SPEED_MPS = 0.18
 CHALLENGE2_ROLLING_ALIGN_DEFAULT_MAX_OMEGA_RADPS = 0.85
 CHALLENGE2_ROLLING_ALIGN_DEFAULT_MIN_RADIUS_M = 0.50
+CHALLENGE2_PIVOT_DEFAULT_MIN_OMEGA_RADPS = 0.72
+CHALLENGE2_PIVOT_DEFAULT_BREAKAWAY_OMEGA_RADPS = 0.75
+CHALLENGE2_PIVOT_DEFAULT_ACCEL_LIMIT_RADPS2 = 2.0
+CHALLENGE2_PIVOT_DEFAULT_DECEL_LIMIT_RADPS2 = 1.4
+CHALLENGE2_PIVOT_RECOVERY_OMEGA_STEP_RADPS = 0.06
 
 
 @dataclass(frozen=True)
@@ -709,6 +714,7 @@ def run_real(args: argparse.Namespace) -> None:
             self.challenge2_align_best_abs_error_rad = math.inf
             self.challenge2_align_last_progress_s: Optional[float] = None
             self.challenge2_rolling_align_started_s: Optional[float] = None
+            self.challenge2_pivot_recovery_count = 0
             self.challenge1_state = "idle"
             self.challenge1_uav_launched = bool(args.challenge1_auto_start)
             self.challenge1_uav_landed = False
@@ -1174,6 +1180,7 @@ def run_real(args: argparse.Namespace) -> None:
             self.challenge2_align_best_abs_error_rad = math.inf
             self.challenge2_align_last_progress_s = None
             self.challenge2_rolling_align_started_s = None
+            self.challenge2_pivot_recovery_count = 0
 
         def _challenge2_field_pose(self) -> tuple[float, float, float]:
             pose = self.challenge2_tracker.pose
@@ -1413,10 +1420,35 @@ def run_real(args: argparse.Namespace) -> None:
 
         def _challenge2_pivot_config(self) -> ChassisControllerConfig:
             max_omega = max(0.0, float(args.challenge2_pivot_max_omega_radps))
+            recovery_omega = max(0, self.challenge2_pivot_recovery_count) * CHALLENGE2_PIVOT_RECOVERY_OMEGA_STEP_RADPS
+            pivot_min_omega = min(
+                max_omega,
+                max(
+                    float(self.config.pivot_min_omega_radps),
+                    CHALLENGE2_PIVOT_DEFAULT_MIN_OMEGA_RADPS + recovery_omega,
+                ),
+            )
+            pivot_breakaway_omega = min(
+                max_omega,
+                max(
+                    float(self.config.pivot_breakaway_omega_radps),
+                    CHALLENGE2_PIVOT_DEFAULT_BREAKAWAY_OMEGA_RADPS + recovery_omega,
+                ),
+            )
             return replace(
                 self.config,
                 max_omega_radps=max(max_omega, float(self.config.max_omega_radps)),
                 pivot_max_omega_radps=max_omega,
+                pivot_min_omega_radps=pivot_min_omega,
+                pivot_breakaway_omega_radps=pivot_breakaway_omega,
+                pivot_accel_limit_radps2=max(
+                    float(self.config.pivot_accel_limit_radps2),
+                    CHALLENGE2_PIVOT_DEFAULT_ACCEL_LIMIT_RADPS2,
+                ),
+                pivot_decel_limit_radps2=max(
+                    float(self.config.pivot_decel_limit_radps2),
+                    CHALLENGE2_PIVOT_DEFAULT_DECEL_LIMIT_RADPS2,
+                ),
                 pivot_timeout_s=max(0.1, float(args.challenge2_pivot_timeout_s)),
                 pivot_settle_error_rad=max(0.0, float(args.challenge2_pivot_settle_error_rad)),
                 pivot_settle_time_s=max(0.0, float(args.challenge2_pivot_settle_time_s)),
@@ -1700,6 +1732,7 @@ def run_real(args: argparse.Namespace) -> None:
                     self.challenge2_result_reason = "align_already_within_tolerance"
                     self.challenge2_last_update_s = now_s
                     self.challenge2_last_omega_radps = 0.0
+                    self.challenge2_pivot_recovery_count = 0
                     reset_pivot(self.pivot)
                 else:
                     if self.pivot.state == "idle":
@@ -1738,17 +1771,19 @@ def run_real(args: argparse.Namespace) -> None:
                         self.challenge2_result_reason = "align_complete"
                         self.challenge2_last_update_s = now_s
                         self.challenge2_last_omega_radps = 0.0
+                        self.challenge2_pivot_recovery_count = 0
                     elif self._challenge2_align_no_progress(now_s):
-                        self.challenge2_state = "ROLLING_ALIGN"
-                        self.challenge2_rolling_align_started_s = now_s
+                        self.challenge2_pivot_recovery_count += 1
+                        self.challenge2_result_reason = "challenge2_pivot_recovery_retry"
                         self.challenge2_align_best_abs_error_rad = abs(float(self.challenge2_align_error_rad))
                         self.challenge2_align_last_progress_s = now_s
                         reset_pivot(self.pivot)
-                        cmd, rolling_state = self._challenge2_rolling_align_command(
-                            target_distance_m=target_distance,
-                            stop_radius_m=stop_radius,
+                        return (
+                            build_stop_command(self.challenge2_result_reason),
+                            heading,
+                            self.challenge2_align_error_rad,
+                            "ok",
                         )
-                        return cmd, heading, self.challenge2_align_error_rad, rolling_state
                     elif step.command_type == "velocity":
                         self.challenge2_result_reason = step.reason
                         return build_velocity_command(0.0, step.omega_radps, step.reason), heading, step.heading_error_rad, "ok"
@@ -2648,6 +2683,12 @@ def run_real(args: argparse.Namespace) -> None:
                 ),
                 "challenge2_align_min_turn_radius_m": round(max(0.0, float(args.challenge2_align_min_turn_radius_m)), 4),
                 "challenge2_align_heading_kp": round(float(args.challenge2_align_heading_kp), 4),
+                "challenge2_pivot_recovery_count": int(self.challenge2_pivot_recovery_count),
+                "challenge2_pivot_min_omega_radps": round(float(self._challenge2_pivot_config().pivot_min_omega_radps), 4),
+                "challenge2_pivot_breakaway_omega_radps": round(
+                    float(self._challenge2_pivot_config().pivot_breakaway_omega_radps),
+                    4,
+                ),
                 "competition_min_speed_mps": self.config.competition_min_speed_mps,
                 "moving_target_speed_mps": self.config.competition_moving_target_speed_mps,
                 "competition_continuous_motion_enabled": self.config.competition_continuous_motion_enabled,

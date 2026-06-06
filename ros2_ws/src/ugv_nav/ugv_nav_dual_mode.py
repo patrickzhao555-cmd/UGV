@@ -76,6 +76,13 @@ from ugv_nav_core.trajectory_tracker import (
 )
 
 
+CHALLENGE2_TURN_ENVELOPE_SPEED_MPS = 1.70
+CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS = 7.80
+CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M = (
+    CHALLENGE2_TURN_ENVELOPE_SPEED_MPS / CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS
+)
+
+
 @dataclass(frozen=True)
 class ControlCommand:
     command_type: str = "stop"
@@ -146,6 +153,20 @@ def challenge2_target_bearing_rad(target_x_m: float, target_y_m: float) -> float
     return math.atan2(y, x)
 
 
+def challenge2_target_bearing_from_pose_rad(
+    target_x_m: float,
+    target_y_m: float,
+    *,
+    pose_x_m: float,
+    pose_y_m: float,
+) -> float:
+    dx = float(target_x_m) - float(pose_x_m)
+    dy = float(target_y_m) - float(pose_y_m)
+    if not math.isfinite(dx) or not math.isfinite(dy):
+        raise ValueError("challenge2 pose/target coordinates must be finite")
+    return math.atan2(dy, dx)
+
+
 def challenge2_target_distance_m(
     target_x_m: float,
     target_y_m: float,
@@ -169,6 +190,38 @@ def challenge2_cross_track_error_m(
     ux = float(target_x_m) / target_len
     uy = float(target_y_m) / target_len
     return ux * float(pose_y_m) - uy * float(pose_x_m)
+
+
+def challenge2_clamped_rolling_align_command(
+    *,
+    v_mps: float,
+    heading_error_rad: float,
+    yaw_rate_radps: float,
+    heading_kp: float,
+    heading_kd: float,
+    max_omega_radps: float,
+    min_turn_radius_m: float,
+    track_width_m: float,
+) -> tuple[float, float, float, float]:
+    speed = max(0.0, float(v_mps))
+    track = max(1e-6, float(track_width_m))
+    radius = max(abs(float(min_turn_radius_m)), 0.5 * track + 1e-6)
+    if speed <= 1e-9:
+        return 0.0, 0.0, 0.0, 0.0
+    raw_omega = float(heading_kp) * float(heading_error_rad) - float(heading_kd) * float(yaw_rate_radps)
+    omega_limit = min(
+        max(0.0, float(max_omega_radps)),
+        speed / radius,
+        2.0 * speed / track,
+    )
+    omega = clamp(raw_omega, -omega_limit, omega_limit)
+    left_mps = speed - omega * 0.5 * track
+    right_mps = speed + omega * 0.5 * track
+    if min(left_mps, right_mps) < -1e-9:
+        omega = math.copysign(2.0 * speed / track, omega)
+        left_mps = speed - omega * 0.5 * track
+        right_mps = speed + omega * 0.5 * track
+    return speed, omega, left_mps, right_mps
 
 
 def challenge2_landing_requirement_met(
@@ -272,9 +325,27 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--challenge2-pivot-timeout-s", type=float, default=25.0)
     parser.add_argument("--challenge2-pivot-settle-error-rad", type=float, default=0.035)
     parser.add_argument("--challenge2-pivot-settle-time-s", type=float, default=0.35)
+    parser.add_argument(
+        "--challenge2-align-arc-speed-mps",
+        type=float,
+        default=CHALLENGE2_TURN_ENVELOPE_SPEED_MPS,
+    )
+    parser.add_argument(
+        "--challenge2-align-max-omega-radps",
+        type=float,
+        default=CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS,
+    )
+    parser.add_argument(
+        "--challenge2-align-min-turn-radius-m",
+        type=float,
+        default=CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M,
+    )
+    parser.add_argument("--challenge2-align-heading-kp", type=float, default=6.0)
+    parser.add_argument("--challenge2-align-no-progress-timeout-s", type=float, default=1.25)
+    parser.add_argument("--challenge2-align-close-guard-m", type=float, default=0.40)
     parser.add_argument("--challenge2-heading-kp", type=float, default=0.85)
     parser.add_argument("--challenge2-cross-track-kp", type=float, default=0.75)
-    parser.add_argument("--challenge2-max-omega-radps", type=float, default=0.35)
+    parser.add_argument("--challenge2-max-omega-radps", type=float, default=0.85)
     parser.add_argument("--max-omega-radps", type=float, default=0.45)
     parser.add_argument("--heading-kp", type=float, default=0.6)
     parser.add_argument("--heading-kd", type=float, default=0.08)
@@ -548,6 +619,9 @@ def run_real(args: argparse.Namespace) -> None:
             self.challenge2_result_reason = "waiting_for_target"
             self.challenge2_last_omega_radps = 0.0
             self.challenge2_last_update_s: Optional[float] = None
+            self.challenge2_align_best_abs_error_rad = math.inf
+            self.challenge2_align_last_progress_s: Optional[float] = None
+            self.challenge2_rolling_align_started_s: Optional[float] = None
             self.challenge1_state = "idle"
             self.challenge1_uav_launched = bool(args.challenge1_auto_start)
             self.challenge1_uav_landed = False
@@ -998,6 +1072,9 @@ def run_real(args: argparse.Namespace) -> None:
             self.challenge2_result_reason = "waiting_for_target"
             self.challenge2_last_omega_radps = 0.0
             self.challenge2_last_update_s = None
+            self.challenge2_align_best_abs_error_rad = math.inf
+            self.challenge2_align_last_progress_s = None
+            self.challenge2_rolling_align_started_s = None
 
         def _tracker_safety_state(self, now_s: float) -> str:
             if not self.config.debug_ignore_nav_frame and (
@@ -1281,7 +1358,12 @@ def run_real(args: argparse.Namespace) -> None:
                 self.challenge2_cross_track_error_m = 0.0
             else:
                 pose = self.challenge2_tracker.pose
-                bearing = challenge2_target_bearing_rad(target[0], target[1])
+                bearing = challenge2_target_bearing_from_pose_rad(
+                    target[0],
+                    target[1],
+                    pose_x_m=pose.x,
+                    pose_y_m=pose.y,
+                )
                 self.challenge2_target_bearing_rad = bearing
                 self.challenge2_target_distance_m = challenge2_target_distance_m(
                     target[0],
@@ -1330,6 +1412,9 @@ def run_real(args: argparse.Namespace) -> None:
                 self.challenge2_result_reason = "aligning_to_target"
                 self.challenge2_last_omega_radps = 0.0
                 self.challenge2_last_update_s = now_s
+                self.challenge2_align_best_abs_error_rad = math.inf
+                self.challenge2_align_last_progress_s = now_s
+                self.challenge2_rolling_align_started_s = None
                 reset_pivot(self.pivot)
                 self.get_logger().warn(
                     "Challenge 2 align-then-straight started: "
@@ -1346,9 +1431,94 @@ def run_real(args: argparse.Namespace) -> None:
                 else "challenge2_goal_reached_landing_requirement_unmet"
             )
 
+        def _challenge2_strict_safety_state(self, now_s: float) -> str:
+            state = self._tracker_safety_state(now_s)
+            if state != "ok":
+                return state
+            if not self.gyro_bias.ready or not self.estimator.gyro_available:
+                return "gyro_bias_calibration"
+            if self._heading_source(now_s) != "imu":
+                return "imu_heading_unavailable"
+            return "ok"
+
+        def _challenge2_heading_rad(self, now_s: float) -> float:
+            if self._challenge2_strict_safety_state(now_s) == "ok":
+                return self.estimator.gyro_heading_rad
+            return self._heading_rad(now_s)
+
+        def _note_challenge2_align_progress(self, now_s: float) -> None:
+            abs_error = abs(float(self.challenge2_align_error_rad))
+            min_progress = 0.02
+            if not math.isfinite(self.challenge2_align_best_abs_error_rad):
+                self.challenge2_align_best_abs_error_rad = abs_error
+                self.challenge2_align_last_progress_s = now_s
+                return
+            if abs_error < self.challenge2_align_best_abs_error_rad - min_progress:
+                self.challenge2_align_best_abs_error_rad = abs_error
+                self.challenge2_align_last_progress_s = now_s
+
+        def _challenge2_align_no_progress(self, now_s: float) -> bool:
+            timeout_s = max(0.0, float(args.challenge2_align_no_progress_timeout_s))
+            if timeout_s <= 0.0 or self.challenge2_align_last_progress_s is None:
+                return False
+            return now_s - self.challenge2_align_last_progress_s > timeout_s
+
+        def _challenge2_rolling_align_command(
+            self,
+            *,
+            target_distance_m: float,
+            stop_radius_m: float,
+        ) -> tuple[ControlCommand, str]:
+            close_guard = max(0.0, float(args.challenge2_align_close_guard_m))
+            if target_distance_m <= stop_radius_m + close_guard:
+                self.challenge2_state = "FAULT"
+                self.challenge2_result_reason = "challenge2_align_recovery_too_close"
+                self.challenge2_last_omega_radps = 0.0
+                return build_stop_command(self.challenge2_result_reason), self.challenge2_result_reason
+
+            requested_speed = max(0.0, float(args.challenge2_align_arc_speed_mps))
+            if requested_speed <= 1e-9:
+                self.challenge2_state = "FAULT"
+                self.challenge2_result_reason = "challenge2_align_recovery_speed_zero"
+                self.challenge2_last_omega_radps = 0.0
+                return build_stop_command(self.challenge2_result_reason), self.challenge2_result_reason
+
+            available_distance = max(0.0, target_distance_m - stop_radius_m - close_guard)
+            v_cmd = min(requested_speed, available_distance)
+            if v_cmd <= 1e-9:
+                self.challenge2_state = "FAULT"
+                self.challenge2_result_reason = "challenge2_align_recovery_too_close"
+                self.challenge2_last_omega_radps = 0.0
+                return build_stop_command(self.challenge2_result_reason), self.challenge2_result_reason
+            v_cmd = apply_competition_speed_rule(
+                v_cmd,
+                allow_stop=False,
+                min_speed_mps=self.config.competition_min_speed_mps,
+                moving_target_speed_mps=self.config.competition_moving_target_speed_mps,
+            )
+            if v_cmd > available_distance:
+                self.challenge2_state = "FAULT"
+                self.challenge2_result_reason = "challenge2_align_recovery_too_close"
+                self.challenge2_last_omega_radps = 0.0
+                return build_stop_command(self.challenge2_result_reason), self.challenge2_result_reason
+
+            _, omega, _left_mps, _right_mps = challenge2_clamped_rolling_align_command(
+                v_mps=v_cmd,
+                heading_error_rad=self.challenge2_align_error_rad,
+                yaw_rate_radps=self.yaw_rate_radps,
+                heading_kp=float(args.challenge2_align_heading_kp),
+                heading_kd=float(args.heading_kd),
+                max_omega_radps=float(args.challenge2_align_max_omega_radps),
+                min_turn_radius_m=float(args.challenge2_align_min_turn_radius_m),
+                track_width_m=float(args.track_width_m),
+            )
+            self.challenge2_last_omega_radps = omega
+            self.challenge2_result_reason = "challenge2_rolling_align_recovery"
+            return build_velocity_command(v_cmd, omega, self.challenge2_result_reason), "ok"
+
         def _tick_challenge2_align_straight(self, now_s: float) -> tuple[ControlCommand, float, float, str]:
-            heading = self._heading_rad(now_s)
-            safety_state = self._tracker_safety_state(now_s)
+            heading = self._challenge2_heading_rad(now_s)
+            safety_state = self._challenge2_strict_safety_state(now_s)
             if safety_state != "ok":
                 self.challenge2_state = "FAULT"
                 self.challenge2_result_reason = safety_state
@@ -1371,6 +1541,7 @@ def run_real(args: argparse.Namespace) -> None:
                 config=self.challenge2_tracker_config,
             )
             self._update_challenge2_metrics(now_s)
+            self._note_challenge2_align_progress(now_s)
             target_distance = (
                 math.inf if self.challenge2_target_distance_m is None else float(self.challenge2_target_distance_m)
             )
@@ -1392,7 +1563,10 @@ def run_real(args: argparse.Namespace) -> None:
             if self.challenge2_state == "ALIGN_TO_TARGET":
                 pivot_config = self._challenge2_pivot_config()
                 align_error = self.challenge2_align_error_rad
-                self.target_heading_rad = wrap_pi(self.challenge2_tracker.start_heading_rad + float(self.challenge2_target_bearing_rad or 0.0))
+                desired_heading = wrap_pi(
+                    self.challenge2_tracker.start_heading_rad + float(self.challenge2_target_bearing_rad or 0.0)
+                )
+                self.target_heading_rad = desired_heading
                 if self.pivot.state == "idle" and abs(align_error) <= max(0.0, float(args.challenge2_pivot_settle_error_rad)):
                     self.challenge2_state = "DRIVE_STRAIGHT"
                     self.challenge2_result_reason = "align_already_within_tolerance"
@@ -1406,8 +1580,10 @@ def run_real(args: argparse.Namespace) -> None:
                             now_s=now_s,
                             current_heading_rad=heading,
                             encoder_heading_rad=self.estimator.encoder_heading_rad,
-                            target_angle_rad=align_error,
+                            target_angle_rad=wrap_pi(desired_heading - heading),
                         )
+                    else:
+                        self.pivot.target_heading_rad = desired_heading
                     step = step_profiled_pivot(
                         self.pivot,
                         now_s=now_s,
@@ -1434,12 +1610,46 @@ def run_real(args: argparse.Namespace) -> None:
                         self.challenge2_result_reason = "align_complete"
                         self.challenge2_last_update_s = now_s
                         self.challenge2_last_omega_radps = 0.0
+                    elif self._challenge2_align_no_progress(now_s):
+                        self.challenge2_state = "ROLLING_ALIGN"
+                        self.challenge2_rolling_align_started_s = now_s
+                        self.challenge2_align_best_abs_error_rad = abs(float(self.challenge2_align_error_rad))
+                        self.challenge2_align_last_progress_s = now_s
+                        reset_pivot(self.pivot)
+                        cmd, rolling_state = self._challenge2_rolling_align_command(
+                            target_distance_m=target_distance,
+                            stop_radius_m=stop_radius,
+                        )
+                        return cmd, heading, self.challenge2_align_error_rad, rolling_state
                     elif step.command_type == "velocity":
                         self.challenge2_result_reason = step.reason
                         return build_velocity_command(0.0, step.omega_radps, step.reason), heading, step.heading_error_rad, "ok"
                     else:
                         self.challenge2_result_reason = step.reason
                         return build_stop_command(step.reason), heading, step.heading_error_rad, "ok"
+
+            if self.challenge2_state == "ROLLING_ALIGN":
+                align_error = self.challenge2_align_error_rad
+                self.target_heading_rad = wrap_pi(
+                    self.challenge2_tracker.start_heading_rad + float(self.challenge2_target_bearing_rad or 0.0)
+                )
+                if abs(align_error) <= max(0.0, float(args.challenge2_pivot_settle_error_rad)):
+                    self.challenge2_state = "DRIVE_STRAIGHT"
+                    self.challenge2_result_reason = "rolling_align_complete"
+                    self.challenge2_last_update_s = now_s
+                    self.challenge2_last_omega_radps = 0.0
+                    reset_pivot(self.pivot)
+                else:
+                    if self._challenge2_align_no_progress(now_s):
+                        self.challenge2_state = "FAULT"
+                        self.challenge2_result_reason = "challenge2_rolling_align_no_progress"
+                        self.challenge2_last_omega_radps = 0.0
+                        return build_stop_command(self.challenge2_result_reason), heading, align_error, self.challenge2_result_reason
+                    cmd, rolling_state = self._challenge2_rolling_align_command(
+                        target_distance_m=target_distance,
+                        stop_radius_m=stop_radius,
+                    )
+                    return cmd, heading, align_error, rolling_state
 
             if self.challenge2_state == "DRIVE_STRAIGHT":
                 dt_s = 0.0 if self.challenge2_last_update_s is None else max(0.0, now_s - self.challenge2_last_update_s)
@@ -2265,6 +2475,18 @@ def run_real(args: argparse.Namespace) -> None:
                 "challenge2_post_landing_required_s": max(0.0, float(args.challenge2_post_landing_s)),
                 "challenge2_landing_requirement_met": self.challenge2_landing_requirement_met,
                 "challenge2_result_reason": self.challenge2_result_reason,
+                "challenge2_turn_envelope_speed_mps": round(float(args.challenge2_align_arc_speed_mps), 4),
+                "challenge2_turn_envelope_omega_radps": round(float(args.challenge2_align_max_omega_radps), 4),
+                "challenge2_turn_envelope_radius_m": (
+                    None
+                    if abs(float(args.challenge2_align_max_omega_radps)) <= 1e-9
+                    else round(
+                        abs(float(args.challenge2_align_arc_speed_mps) / float(args.challenge2_align_max_omega_radps)),
+                        4,
+                    )
+                ),
+                "challenge2_align_min_turn_radius_m": round(max(0.0, float(args.challenge2_align_min_turn_radius_m)), 4),
+                "challenge2_align_heading_kp": round(float(args.challenge2_align_heading_kp), 4),
                 "competition_min_speed_mps": self.config.competition_min_speed_mps,
                 "moving_target_speed_mps": self.config.competition_moving_target_speed_mps,
                 "competition_continuous_motion_enabled": self.config.competition_continuous_motion_enabled,

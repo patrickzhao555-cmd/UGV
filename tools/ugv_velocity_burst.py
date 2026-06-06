@@ -47,6 +47,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--v-mps", type=float, default=0.12)
     parser.add_argument("--omega-radps", type=float, default=0.0)
     parser.add_argument("--duration-s", type=float, default=1.0)
+    parser.add_argument("--max-duration-s", type=float, default=60.0)
     parser.add_argument("--hz", type=float, default=20.0)
     parser.add_argument("--reason", default="velocity_burst")
     parser.add_argument("--yes", action="store_true", help="confirm the robot is clear to move")
@@ -55,11 +56,18 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
-    duration_s = max(0.05, min(10.0, float(args.duration_s)))
+    requested_duration_s = max(0.05, float(args.duration_s))
+    max_duration_s = max(0.05, float(args.max_duration_s))
+    duration_s = min(requested_duration_s, max_duration_s)
     hz = max(1.0, min(50.0, float(args.hz)))
     period_s = 1.0 / hz
 
     print("WARNING: this sends real velocity commands to the motor bridge.", file=sys.stderr)
+    print(
+        f"Running velocity burst for {duration_s:.2f}s "
+        f"(requested {requested_duration_s:.2f}s, max {max_duration_s:.2f}s).",
+        file=sys.stderr,
+    )
     if not args.yes:
         print("Refusing to run without --yes.", file=sys.stderr)
         return 2

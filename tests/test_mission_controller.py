@@ -35,8 +35,10 @@ from ugv_nav_core.mission_controller import (  # noqa: E402
     update_stuck_monitor,
 )
 from ugv_nav_dual_mode import (  # noqa: E402
+    challenge2_clamped_rolling_align_command,
     challenge2_cross_track_error_m,
     challenge2_landing_requirement_met,
+    challenge2_target_bearing_from_pose_rad,
     challenge2_target_bearing_rad,
     challenge2_target_distance_m,
     encoder_ticks_from_motor_status,
@@ -217,6 +219,18 @@ def test_challenge2_align_straight_args_parse_and_guard_allowed():
         "0.035",
         "--challenge2-pivot-settle-time-s",
         "0.35",
+        "--challenge2-align-arc-speed-mps",
+        "1.70",
+        "--challenge2-align-max-omega-radps",
+        "7.80",
+        "--challenge2-align-min-turn-radius-m",
+        "0.218",
+        "--challenge2-align-heading-kp",
+        "6.0",
+        "--challenge2-align-no-progress-timeout-s",
+        "1.25",
+        "--challenge2-align-close-guard-m",
+        "0.40",
         "--uav-landed-topic",
         "/test/uav_landed",
     ])
@@ -230,6 +244,13 @@ def test_challenge2_align_straight_args_parse_and_guard_allowed():
     assert args.challenge2_pivot_timeout_s == pytest.approx(25.0)
     assert args.challenge2_pivot_settle_error_rad == pytest.approx(0.035)
     assert args.challenge2_pivot_settle_time_s == pytest.approx(0.35)
+    assert args.challenge2_align_arc_speed_mps == pytest.approx(1.70)
+    assert args.challenge2_align_max_omega_radps == pytest.approx(7.80)
+    assert args.challenge2_align_min_turn_radius_m == pytest.approx(0.218)
+    assert args.challenge2_align_heading_kp == pytest.approx(6.0)
+    assert args.challenge2_align_no_progress_timeout_s == pytest.approx(1.25)
+    assert args.challenge2_align_close_guard_m == pytest.approx(0.40)
+    assert args.challenge2_max_omega_radps == pytest.approx(0.85)
     assert args.uav_landed_topic == "/test/uav_landed"
     validate_controller_mode(args)
 
@@ -238,6 +259,10 @@ def test_challenge2_target_bearing_is_start_local_x_forward_y_left():
     assert challenge2_target_bearing_rad(5.0, 0.0) == pytest.approx(0.0)
     assert challenge2_target_bearing_rad(0.0, 5.0) == pytest.approx(math.pi / 2.0)
     assert challenge2_target_bearing_rad(0.0, -5.0) == pytest.approx(-math.pi / 2.0)
+    assert challenge2_target_bearing_from_pose_rad(5.0, 0.0, pose_x_m=2.0, pose_y_m=0.0) == pytest.approx(0.0)
+    assert challenge2_target_bearing_from_pose_rad(5.0, 2.0, pose_x_m=4.0, pose_y_m=1.0) == pytest.approx(
+        math.pi / 4.0
+    )
 
 
 def test_challenge2_distance_cross_track_and_landing_requirement_helpers():
@@ -247,6 +272,57 @@ def test_challenge2_distance_cross_track_and_landing_requirement_helpers():
     assert not challenge2_landing_requirement_met(None, 20.0, 10.0)
     assert not challenge2_landing_requirement_met(11.0, 20.0, 10.0)
     assert challenge2_landing_requirement_met(10.0, 20.0, 10.0)
+
+
+def test_challenge2_rolling_align_clamps_radius_and_blocks_reverse_side():
+    v, omega, left, right = challenge2_clamped_rolling_align_command(
+        v_mps=0.12,
+        heading_error_rad=1.2,
+        yaw_rate_radps=0.0,
+        heading_kp=0.85,
+        heading_kd=0.08,
+        max_omega_radps=0.85,
+        min_turn_radius_m=0.25,
+        track_width_m=0.416,
+    )
+    assert v == pytest.approx(0.12)
+    assert omega == pytest.approx(0.48)
+    assert v / abs(omega) >= 0.25 - 1e-9
+    assert left >= -1e-9
+    assert right > left
+
+
+def test_challenge2_rolling_align_matches_measured_turn_envelope_without_reverse():
+    v, omega, left, right = challenge2_clamped_rolling_align_command(
+        v_mps=1.70,
+        heading_error_rad=math.radians(72.0),
+        yaw_rate_radps=0.0,
+        heading_kp=6.0,
+        heading_kd=0.08,
+        max_omega_radps=7.80,
+        min_turn_radius_m=1.70 / 7.80,
+        track_width_m=0.416,
+    )
+    assert v == pytest.approx(1.70)
+    assert abs(omega) <= 7.80 + 1e-9
+    assert v / abs(omega) >= (1.70 / 7.80) - 1e-9
+    assert left >= -1e-9
+    assert right > left
+
+
+def test_challenge2_hardening_guards_are_present_in_runtime_code():
+    controller_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
+    challenge2_block = controller_text[
+        controller_text.index("def _update_challenge2_metrics") : controller_text.index(
+            "        def _reset_bias_and_heading"
+        )
+    ]
+    assert "self._heading_source(now_s) != \"imu\"" in challenge2_block
+    assert "challenge2_target_bearing_from_pose_rad" in challenge2_block
+    assert "challenge2_align_recovery_too_close" in challenge2_block
+    assert "ROLLING_ALIGN" in challenge2_block
+    assert "challenge2_rolling_align_recovery" in challenge2_block
+    assert "challenge2_rolling_align_no_progress" in challenge2_block
 
 
 def test_legacy_controller_guard_blocks_non_tracker_when_disabled():

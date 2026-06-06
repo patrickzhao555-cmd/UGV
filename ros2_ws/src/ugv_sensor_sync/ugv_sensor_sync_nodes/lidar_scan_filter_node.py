@@ -30,7 +30,7 @@ class LidarScanFilterNode(Node):
         super().__init__("lidar_scan_filter_node")
         self.declare_parameter("input_topic", "/scan/synced")
         self.declare_parameter("output_topic", "/scan/filtered")
-        self.declare_parameter("forward_fov_deg", 250.0)
+        self.declare_parameter("forward_fov_deg", 230.0)
         self.declare_parameter("forward_center_rad", 0.0)
         self.declare_parameter("invalid_replacement", "inf")
 

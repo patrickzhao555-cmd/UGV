@@ -88,6 +88,9 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert 'DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1")' in launch
     assert 'DeclareLaunchArgument("uav_esp_serial_protocol", default_value="binary14")' in launch
     assert 'DeclareLaunchArgument("uav_esp_require_checksum", default_value="false")' in launch
+    assert 'DeclareLaunchArgument("lidar_filter_forward_fov_deg", default_value="230.0")' in launch
+    assert 'DeclareLaunchArgument("fusion_lidar_front_min_cluster_points", default_value="3")' in launch
+    assert 'DeclareLaunchArgument("fusion_lidar_front_cluster_max_gap_m", default_value="0.35")' in launch
     assert '["output_topic:=", nav_target_topic]' in launch
     assert '["serial_protocol:=", uav_esp_serial_protocol]' in launch
     assert "target_receiver_node" in launch
@@ -109,6 +112,19 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert 'DeclareLaunchArgument("nav_challenge2_align_max_omega_radps", default_value="7.80")' in launch
     assert 'DeclareLaunchArgument("nav_challenge2_align_min_turn_radius_m", default_value="0.21795")' in launch
     assert 'DeclareLaunchArgument("nav_challenge2_align_heading_kp", default_value="22.345354")' in launch
+    assert 'ugv_challenge3_corridor.py' in launch
+    assert 'DeclareLaunchArgument("start_challenge3_corridor", default_value="false")' in launch
+    assert 'DeclareLaunchArgument("challenge3_hard_turn_speed_mps", default_value="1.70")' in launch
+    assert 'DeclareLaunchArgument("challenge3_hard_turn_max_omega_radps", default_value="7.80")' in launch
+    assert 'DeclareLaunchArgument("challenge3_lane_offsets_m", default_value="0.0,1.6,-1.6,2.2,-2.2")' in launch
+    assert '["scan_topic:=", challenge3_scan_topic]' in launch
+    assert 'DeclareLaunchArgument("challenge3_lidar_min_cluster_points", default_value="3")' in launch
+    assert 'DeclareLaunchArgument("challenge3_lidar_cluster_max_gap_m", default_value="0.35")' in launch
+    assert '["lidar_min_cluster_points:=", challenge3_lidar_min_cluster_points]' in launch
+    assert "challenge3_controller" in launch
+    assert "c3_state={nav.get('challenge3_state')}" in (
+        ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "debug_status_node.py"
+    ).read_text()
     assert '"--tracking-enabled"' in launch
     assert '"--manual-target-x-m"' in launch
     assert '"--uav-landed-topic"' in launch

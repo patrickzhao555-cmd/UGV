@@ -288,6 +288,8 @@ def test_fusion_summary_exposes_stop_first_obstacle_debug_fields():
     assert "'front_obstacle_within_2m': bool(front_obstacle_within_2m)" in fusion_text
     assert "'front_stop_required_1m': bool(front_stop_required_1m)" in fusion_text
     assert "'front_lidar_fov_deg': round(float(self.lidar_front_fov_deg), 3)" in fusion_text
+    assert "'front_lidar_min_cluster_points': int(self.lidar_front_min_cluster_points)" in fusion_text
+    assert "'front_lidar_cluster_max_gap_m': round(float(self.lidar_front_cluster_max_gap_m), 3)" in fusion_text
     assert "'depth_corridor_half_width_m': round(float(self.depth_front_corridor_half_width_m), 3)" in fusion_text
     assert "'lidar_any_min_range_m': self._finite_or_none(lidar_min_range_m)" in fusion_text
     assert "'front_sensor_health': front_sensor_health" in fusion_text

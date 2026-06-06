@@ -21,6 +21,7 @@ from ugv_nav_core.nav2_bridge import (  # noqa: E402
     evaluate_gyro_bias_samples,
     angle_within_centered_fov,
     build_velocity_command,
+    clustered_lidar_min_range,
     field_boundary_decision,
     integrate_planar_odometry,
     inverse_transform_2d,
@@ -403,12 +404,47 @@ def test_finite_xyz_points_filters_invalid_points_for_obstacle_cloud():
     assert points == [(1.0, 2.0, 0.0)]
 
 
-def test_lidar_forward_sector_keeps_front_250_degrees_and_rejects_rear_blockage():
-    assert angle_within_centered_fov(0.0, 250.0)
-    assert angle_within_centered_fov(math.radians(120.0), 250.0)
-    assert angle_within_centered_fov(math.radians(-120.0), 250.0)
-    assert not angle_within_centered_fov(math.pi, 250.0)
-    assert not angle_within_centered_fov(math.radians(-170.0), 250.0)
+def test_lidar_forward_sector_keeps_front_230_degrees_and_rejects_rear_blockage():
+    assert angle_within_centered_fov(0.0, 230.0)
+    assert angle_within_centered_fov(math.radians(110.0), 230.0)
+    assert angle_within_centered_fov(math.radians(-110.0), 230.0)
+    assert not angle_within_centered_fov(math.radians(120.0), 230.0)
+    assert not angle_within_centered_fov(math.pi, 230.0)
+    assert not angle_within_centered_fov(math.radians(-170.0), 230.0)
+
+
+def test_clustered_lidar_min_range_ignores_singleton_return():
+    ranges = [float("inf"), 1.0, float("inf")]
+
+    nearest = clustered_lidar_min_range(
+        ranges=ranges,
+        angle_min_rad=math.radians(-1.0),
+        angle_increment_rad=math.radians(1.0),
+        range_min_m=0.05,
+        range_max_m=8.0,
+        fov_deg=70.0,
+        min_cluster_points=3,
+        max_cluster_gap_m=0.35,
+    )
+
+    assert math.isinf(nearest)
+
+
+def test_clustered_lidar_min_range_accepts_adjacent_supported_obstacle():
+    ranges = [float("inf"), 1.10, 1.00, 1.05, float("inf")]
+
+    nearest = clustered_lidar_min_range(
+        ranges=ranges,
+        angle_min_rad=math.radians(-2.0),
+        angle_increment_rad=math.radians(1.0),
+        range_min_m=0.05,
+        range_max_m=8.0,
+        fov_deg=70.0,
+        min_cluster_points=3,
+        max_cluster_gap_m=0.35,
+    )
+
+    assert nearest == pytest.approx(1.0)
 
 
 def test_field_boundary_gate_enforces_inner_field_for_translation_but_allows_pivot():
@@ -510,6 +546,9 @@ def test_nav2_and_fusion_use_filtered_scan_and_15yd_field_defaults():
     assert 'DeclareLaunchArgument("field_height_m", default_value="13.716")' in launch_text
     assert "lidar_scan_filter_node" in sensor_launch_text
     assert "lidar_filter_forward_fov_deg" in sensor_launch_text
+    assert "default_value='230.0'" in sensor_launch_text
+    assert "fusion_lidar_front_min_cluster_points" in sensor_launch_text
+    assert "ros_param_arg('lidar_front_min_cluster_points', fusion_lidar_front_min_cluster_points)" in sensor_launch_text
     assert "ros_param_arg('scan_topic', lidar_filtered_topic)" in sensor_launch_text
     assert "topic: /scan/filtered" in nav2_params
     assert "topic: /scan/filtered" in collision_params

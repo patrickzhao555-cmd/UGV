@@ -394,6 +394,85 @@ def angle_within_centered_fov(angle_rad: float, fov_deg: float, *, center_rad: f
     return abs(wrap_pi(float(angle_rad) - float(center_rad))) <= half_fov
 
 
+def clustered_lidar_min_range(
+    *,
+    ranges: Sequence[float],
+    angle_min_rad: float,
+    angle_increment_rad: float,
+    range_min_m: float,
+    range_max_m: float,
+    fov_deg: float,
+    center_rad: float = 0.0,
+    min_cluster_points: int = 3,
+    max_cluster_gap_m: float = 0.35,
+) -> float:
+    """Return the nearest LiDAR range supported by a contiguous beam cluster.
+
+    A raw minimum over a forward sector is very sensitive to one bad return.
+    This helper keeps the same sector semantics but only accepts adjacent valid
+    beams that are spatially close enough to plausibly be the same object.
+    """
+    min_points = max(1, int(min_cluster_points))
+    max_gap = max(0.0, float(max_cluster_gap_m))
+    range_min = float(range_min_m)
+    range_max = float(range_max_m)
+    if not math.isfinite(range_max) or range_max <= max(0.0, range_min):
+        return float("inf")
+
+    best = float("inf")
+    cluster: list[tuple[float, float]] = []
+
+    def flush_cluster() -> None:
+        nonlocal best, cluster
+        if len(cluster) >= min_points:
+            best = min(best, min(r for r, _ in cluster))
+        cluster = []
+
+    previous_range: Optional[float] = None
+    previous_angle: Optional[float] = None
+    angle = float(angle_min_rad)
+    increment = float(angle_increment_rad)
+    for raw_range in ranges:
+        try:
+            r = float(raw_range)
+        except (TypeError, ValueError):
+            flush_cluster()
+            previous_range = None
+            previous_angle = None
+            angle += increment
+            continue
+
+        valid = (
+            math.isfinite(r)
+            and range_min < r < range_max
+            and angle_within_centered_fov(angle, fov_deg, center_rad=center_rad)
+        )
+        if not valid:
+            flush_cluster()
+            previous_range = None
+            previous_angle = None
+            angle += increment
+            continue
+
+        starts_new = False
+        if previous_range is not None and previous_angle is not None and max_gap > 0.0:
+            delta_angle = abs(wrap_pi(angle - previous_angle))
+            gap = math.hypot(
+                r * math.cos(angle) - previous_range * math.cos(previous_angle),
+                r * math.sin(angle) - previous_range * math.sin(previous_angle),
+            )
+            starts_new = gap > max_gap or delta_angle > abs(increment) * 2.5
+        if starts_new:
+            flush_cluster()
+        cluster.append((r, angle))
+        previous_range = r
+        previous_angle = angle
+        angle += increment
+
+    flush_cluster()
+    return best
+
+
 def field_boundary_decision(
     *,
     x_m: float,

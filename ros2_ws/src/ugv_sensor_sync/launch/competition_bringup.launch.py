@@ -20,6 +20,7 @@ def generate_launch_description():
     motor_launch = workspace_root / "src" / "ugv_motor_controller" / "launch" / "motor_controller.launch.py"
     sensor_launch = workspace_root / "src" / "ugv_sensor_sync" / "launch" / "sensor_sync_launch.py"
     nav_script = workspace_root / "src" / "ugv_nav" / "ugv_nav_dual_mode.py"
+    challenge3_script = workspace_root / "src" / "ugv_nav" / "ugv_challenge3_corridor.py"
     target_receiver = workspace_root / "src" / "ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "uwb_node.py"
 
     start_motor_controller = LaunchConfiguration("start_motor_controller")
@@ -31,9 +32,12 @@ def generate_launch_description():
     start_fusion = LaunchConfiguration("start_fusion")
     start_debug_status = LaunchConfiguration("start_debug_status")
     start_uav_target_receiver = LaunchConfiguration("start_uav_target_receiver")
+    start_challenge3_corridor = LaunchConfiguration("start_challenge3_corridor")
     lidar_port = LaunchConfiguration("lidar_port")
     lidar_baud = LaunchConfiguration("lidar_baud")
     lidar_filter_forward_fov_deg = LaunchConfiguration("lidar_filter_forward_fov_deg")
+    fusion_lidar_front_min_cluster_points = LaunchConfiguration("fusion_lidar_front_min_cluster_points")
+    fusion_lidar_front_cluster_max_gap_m = LaunchConfiguration("fusion_lidar_front_cluster_max_gap_m")
     zed_publish_rate_hz = LaunchConfiguration("zed_publish_rate_hz")
     zed_imu_publish_rate_hz = LaunchConfiguration("zed_imu_publish_rate_hz")
     zed_imu_rate_window_s = LaunchConfiguration("zed_imu_rate_window_s")
@@ -186,6 +190,32 @@ def generate_launch_description():
     nav_challenge2_heading_kp = LaunchConfiguration("nav_challenge2_heading_kp")
     nav_challenge2_cross_track_kp = LaunchConfiguration("nav_challenge2_cross_track_kp")
     nav_challenge2_max_omega_radps = LaunchConfiguration("nav_challenge2_max_omega_radps")
+    challenge3_start_pose_set = LaunchConfiguration("challenge3_start_pose_set")
+    challenge3_start_x_m = LaunchConfiguration("challenge3_start_x_m")
+    challenge3_start_y_m = LaunchConfiguration("challenge3_start_y_m")
+    challenge3_start_yaw_deg = LaunchConfiguration("challenge3_start_yaw_deg")
+    challenge3_scan_topic = LaunchConfiguration("challenge3_scan_topic")
+    challenge3_require_scan = LaunchConfiguration("challenge3_require_scan")
+    challenge3_lidar_min_cluster_points = LaunchConfiguration("challenge3_lidar_min_cluster_points")
+    challenge3_lidar_cluster_max_gap_m = LaunchConfiguration("challenge3_lidar_cluster_max_gap_m")
+    challenge3_field_width_m = LaunchConfiguration("challenge3_field_width_m")
+    challenge3_field_height_m = LaunchConfiguration("challenge3_field_height_m")
+    challenge3_field_margin_m = LaunchConfiguration("challenge3_field_margin_m")
+    challenge3_lane_offsets_m = LaunchConfiguration("challenge3_lane_offsets_m")
+    challenge3_obstacle_lookahead_m = LaunchConfiguration("challenge3_obstacle_lookahead_m")
+    challenge3_route_corridor_half_width_m = LaunchConfiguration("challenge3_route_corridor_half_width_m")
+    challenge3_emergency_stop_m = LaunchConfiguration("challenge3_emergency_stop_m")
+    challenge3_obstacle_memory_ttl_s = LaunchConfiguration("challenge3_obstacle_memory_ttl_s")
+    challenge3_obstacle_passed_behind_m = LaunchConfiguration("challenge3_obstacle_passed_behind_m")
+    challenge3_lane_change_distance_m = LaunchConfiguration("challenge3_lane_change_distance_m")
+    challenge3_rejoin_distance_m = LaunchConfiguration("challenge3_rejoin_distance_m")
+    challenge3_lookahead_m = LaunchConfiguration("challenge3_lookahead_m")
+    challenge3_cruise_speed_mps = LaunchConfiguration("challenge3_cruise_speed_mps")
+    challenge3_hard_turn_speed_mps = LaunchConfiguration("challenge3_hard_turn_speed_mps")
+    challenge3_hard_turn_max_omega_radps = LaunchConfiguration("challenge3_hard_turn_max_omega_radps")
+    challenge3_hard_turn_error_rad = LaunchConfiguration("challenge3_hard_turn_error_rad")
+    challenge3_cruise_heading_kp = LaunchConfiguration("challenge3_cruise_heading_kp")
+    challenge3_cruise_max_omega_radps = LaunchConfiguration("challenge3_cruise_max_omega_radps")
     nav_max_omega_radps = LaunchConfiguration("nav_max_omega_radps")
     nav_heading_kp = LaunchConfiguration("nav_heading_kp")
     nav_heading_kd = LaunchConfiguration("nav_heading_kd")
@@ -314,6 +344,8 @@ def generate_launch_description():
             "lidar_port": lidar_port,
             "lidar_baud": lidar_baud,
             "lidar_filter_forward_fov_deg": lidar_filter_forward_fov_deg,
+            "fusion_lidar_front_min_cluster_points": fusion_lidar_front_min_cluster_points,
+            "fusion_lidar_front_cluster_max_gap_m": fusion_lidar_front_cluster_max_gap_m,
             "zed_publish_rate_hz": zed_publish_rate_hz,
             "zed_imu_publish_rate_hz": zed_imu_publish_rate_hz,
             "zed_imu_rate_window_s": zed_imu_rate_window_s,
@@ -653,6 +685,114 @@ def generate_launch_description():
         condition=IfCondition(start_nav),
     )
 
+    challenge3_controller = ExecuteProcess(
+        cmd=[
+            FindExecutable(name="python3"),
+            str(challenge3_script),
+            "--ros-args",
+            "-p",
+            ["command_topic:=", "/ugv_nav_cmd"],
+            "-p",
+            ["status_topic:=", "/ugv_nav_status"],
+            "-p",
+            ["target_topic:=", nav_target_topic],
+            "-p",
+            ["encoder_topic:=", nav_encoder_stamped_topic],
+            "-p",
+            ["imu_topic:=", nav_imu_topic],
+            "-p",
+            ["scan_topic:=", challenge3_scan_topic],
+            "-p",
+            ["motor_status_topic:=", nav_motor_status_topic],
+            "-p",
+            ["uav_landed_topic:=", nav_uav_landed_topic],
+            "-p",
+            ["control_period_s:=", nav_control_period_s],
+            "-p",
+            ["status_period_s:=", nav_status_period_s],
+            "-p",
+            ["start_pose_set:=", challenge3_start_pose_set],
+            "-p",
+            ["start_x_m:=", challenge3_start_x_m],
+            "-p",
+            ["start_y_m:=", challenge3_start_y_m],
+            "-p",
+            ["start_yaw_deg:=", challenge3_start_yaw_deg],
+            "-p",
+            ["imu_yaw_axis:=", nav_imu_yaw_axis],
+            "-p",
+            ["imu_yaw_sign:=", nav_imu_yaw_sign],
+            "-p",
+            ["imu_timeout_s:=", nav_imu_timeout_s],
+            "-p",
+            ["imu_min_rate_hz:=", nav_imu_min_rate_hz],
+            "-p",
+            ["imu_rate_window_s:=", nav_imu_rate_window_s],
+            "-p",
+            ["encoder_timeout_s:=", nav_motor_status_timeout_s],
+            "-p",
+            ["scan_timeout_s:=", nav_sensor_timeout_s],
+            "-p",
+            ["motor_status_timeout_s:=", nav_motor_status_timeout_s],
+            "-p",
+            ["require_scan:=", challenge3_require_scan],
+            "-p",
+            ["lidar_min_cluster_points:=", challenge3_lidar_min_cluster_points],
+            "-p",
+            ["lidar_cluster_max_gap_m:=", challenge3_lidar_cluster_max_gap_m],
+            "-p",
+            ["gyro_bias_calibration_s:=", nav_gyro_bias_calibration_s],
+            "-p",
+            ["gyro_bias_max_std_radps:=", nav_gyro_bias_max_std_radps],
+            "-p",
+            ["gyro_bias_max_encoder_delta_ticks:=", nav_gyro_bias_max_encoder_delta_ticks],
+            "-p",
+            ["field_width_m:=", challenge3_field_width_m],
+            "-p",
+            ["field_height_m:=", challenge3_field_height_m],
+            "-p",
+            ["field_margin_m:=", challenge3_field_margin_m],
+            "-p",
+            ["lane_offsets_m:=", challenge3_lane_offsets_m],
+            "-p",
+            ["obstacle_lookahead_m:=", challenge3_obstacle_lookahead_m],
+            "-p",
+            ["route_corridor_half_width_m:=", challenge3_route_corridor_half_width_m],
+            "-p",
+            ["emergency_stop_m:=", challenge3_emergency_stop_m],
+            "-p",
+            ["obstacle_memory_ttl_s:=", challenge3_obstacle_memory_ttl_s],
+            "-p",
+            ["obstacle_passed_behind_m:=", challenge3_obstacle_passed_behind_m],
+            "-p",
+            ["lane_change_distance_m:=", challenge3_lane_change_distance_m],
+            "-p",
+            ["rejoin_distance_m:=", challenge3_rejoin_distance_m],
+            "-p",
+            ["lookahead_m:=", challenge3_lookahead_m],
+            "-p",
+            ["cruise_speed_mps:=", challenge3_cruise_speed_mps],
+            "-p",
+            ["hard_turn_speed_mps:=", challenge3_hard_turn_speed_mps],
+            "-p",
+            ["hard_turn_max_omega_radps:=", challenge3_hard_turn_max_omega_radps],
+            "-p",
+            ["hard_turn_error_rad:=", challenge3_hard_turn_error_rad],
+            "-p",
+            ["cruise_heading_kp:=", challenge3_cruise_heading_kp],
+            "-p",
+            ["cruise_max_omega_radps:=", challenge3_cruise_max_omega_radps],
+            "-p",
+            ["track_width_m:=", motor_track_width_m],
+            "-p",
+            ["wheel_radius_m:=", motor_wheel_radius_m],
+            "-p",
+            ["ticks_per_rev:=", motor_ticks_per_rev],
+        ],
+        output="screen",
+        condition=IfCondition(start_challenge3_corridor),
+    )
+
     return LaunchDescription(
         [
             DeclareLaunchArgument("start_motor_controller", default_value="true"),
@@ -664,9 +804,12 @@ def generate_launch_description():
             DeclareLaunchArgument("start_fusion", default_value="true"),
             DeclareLaunchArgument("start_debug_status", default_value="true"),
             DeclareLaunchArgument("start_uav_target_receiver", default_value="false"),
+            DeclareLaunchArgument("start_challenge3_corridor", default_value="false"),
             DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB0"),
             DeclareLaunchArgument("lidar_baud", default_value="115200"),
-            DeclareLaunchArgument("lidar_filter_forward_fov_deg", default_value="250.0"),
+            DeclareLaunchArgument("lidar_filter_forward_fov_deg", default_value="230.0"),
+            DeclareLaunchArgument("fusion_lidar_front_min_cluster_points", default_value="3"),
+            DeclareLaunchArgument("fusion_lidar_front_cluster_max_gap_m", default_value="0.35"),
             DeclareLaunchArgument("zed_publish_rate_hz", default_value="10.0"),
             DeclareLaunchArgument("zed_imu_publish_rate_hz", default_value="100.0"),
             DeclareLaunchArgument("zed_imu_rate_window_s", default_value="2.0"),
@@ -813,6 +956,32 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_challenge2_heading_kp", default_value="0.85"),
             DeclareLaunchArgument("nav_challenge2_cross_track_kp", default_value="0.75"),
             DeclareLaunchArgument("nav_challenge2_max_omega_radps", default_value="0.85"),
+            DeclareLaunchArgument("challenge3_start_pose_set", default_value="false"),
+            DeclareLaunchArgument("challenge3_start_x_m", default_value="0.0"),
+            DeclareLaunchArgument("challenge3_start_y_m", default_value="0.0"),
+            DeclareLaunchArgument("challenge3_start_yaw_deg", default_value="0.0"),
+            DeclareLaunchArgument("challenge3_scan_topic", default_value="/scan/filtered"),
+            DeclareLaunchArgument("challenge3_require_scan", default_value="true"),
+            DeclareLaunchArgument("challenge3_lidar_min_cluster_points", default_value="3"),
+            DeclareLaunchArgument("challenge3_lidar_cluster_max_gap_m", default_value="0.35"),
+            DeclareLaunchArgument("challenge3_field_width_m", default_value="13.716"),
+            DeclareLaunchArgument("challenge3_field_height_m", default_value="13.716"),
+            DeclareLaunchArgument("challenge3_field_margin_m", default_value="0.45"),
+            DeclareLaunchArgument("challenge3_lane_offsets_m", default_value="0.0,1.6,-1.6,2.2,-2.2"),
+            DeclareLaunchArgument("challenge3_obstacle_lookahead_m", default_value="5.5"),
+            DeclareLaunchArgument("challenge3_route_corridor_half_width_m", default_value="0.70"),
+            DeclareLaunchArgument("challenge3_emergency_stop_m", default_value="0.65"),
+            DeclareLaunchArgument("challenge3_obstacle_memory_ttl_s", default_value="8.0"),
+            DeclareLaunchArgument("challenge3_obstacle_passed_behind_m", default_value="1.0"),
+            DeclareLaunchArgument("challenge3_lane_change_distance_m", default_value="5.0"),
+            DeclareLaunchArgument("challenge3_rejoin_distance_m", default_value="6.0"),
+            DeclareLaunchArgument("challenge3_lookahead_m", default_value="2.4"),
+            DeclareLaunchArgument("challenge3_cruise_speed_mps", default_value="0.24"),
+            DeclareLaunchArgument("challenge3_hard_turn_speed_mps", default_value="1.70"),
+            DeclareLaunchArgument("challenge3_hard_turn_max_omega_radps", default_value="7.80"),
+            DeclareLaunchArgument("challenge3_hard_turn_error_rad", default_value="0.35"),
+            DeclareLaunchArgument("challenge3_cruise_heading_kp", default_value="0.85"),
+            DeclareLaunchArgument("challenge3_cruise_max_omega_radps", default_value="0.85"),
             DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
             DeclareLaunchArgument("nav_heading_kp", default_value="0.6"),
             DeclareLaunchArgument("nav_heading_kd", default_value="0.08"),
@@ -874,6 +1043,7 @@ def generate_launch_description():
             motor_controller_launch,
             sensor_sync_launch,
             target_receiver_node,
+            challenge3_controller,
             nav_controller,
         ]
     )

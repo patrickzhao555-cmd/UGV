@@ -6,6 +6,7 @@ This repository contains the current competition runtime for the UGV:
 - ROS 2 motor bridge and sensor sync stack
 - Challenge 1 landing-platform controller
 - Challenge 2 IMU closed-loop forward-arc alignment and straight drive
+- Challenge 3 large-radius corridor bypass controller
 - UAV/ESP target packet receiver with manual target fallback
 
 ## Hardware Truth
@@ -134,6 +135,54 @@ The UGV ESP should verify the UAV ESP source MAC and forward the exact 14 bytes
 to the Jetson serial port. The Jetson node in
 `ros2_ws/src/ugv_sensor_sync/ugv_sensor_sync_nodes/uwb_node.py` publishes valid
 packets to `/ugv/uav_target`.
+
+## Challenge 3
+
+Challenge 3 also requires the UGV start pose. The helper prompts for:
+
+```text
+start x
+start y
+heading yaw deg, field +x = 0, left turn positive
+```
+
+Launch Challenge 3 with manual target fallback:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/run_challenge3_prompt.py
+```
+
+Then send the UAV/marker target manually from another terminal:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/send_uav_target.py --x 6.0 --y 3.0 --count 3
+```
+
+Launch Challenge 3 with the UGV ESP target receiver enabled:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/run_challenge3_prompt.py --esp-target --uav-esp-port /dev/ttyUSB1
+```
+
+Challenge 3 runs the standalone corridor bypass controller in
+`ros2_ws/src/ugv_nav/ugv_challenge3_corridor.py`. It uses encoder + IMU
+dead-reckoning, follows the start-to-target baseline, and avoids obstacles by
+early lane changes instead of pivot turns.
+
+Default Challenge 3 obstacle settings:
+
+```text
+LiDAR filtered forward FOV = 230 deg
+LiDAR cluster gate = at least 3 adjacent beams, max 0.35 m gap
+lane offsets = 0.0, +1.6, -1.6, +2.2, -2.2 m
+destination stop radius = 5 ft minus 0.20 m buffer
+```
 
 ## Useful Debug Commands
 

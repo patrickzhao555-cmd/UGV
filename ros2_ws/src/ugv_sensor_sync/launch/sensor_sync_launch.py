@@ -63,6 +63,8 @@ def generate_launch_description():
     fusion_allow_lidar_only = LaunchConfiguration('fusion_allow_lidar_only')
     fusion_depth_invalid_warn_frames = LaunchConfiguration('fusion_depth_invalid_warn_frames')
     fusion_lidar_front_fov_deg = LaunchConfiguration('fusion_lidar_front_fov_deg')
+    fusion_lidar_front_min_cluster_points = LaunchConfiguration('fusion_lidar_front_min_cluster_points')
+    fusion_lidar_front_cluster_max_gap_m = LaunchConfiguration('fusion_lidar_front_cluster_max_gap_m')
     fusion_depth_projection_stride_px = LaunchConfiguration('fusion_depth_projection_stride_px')
     fusion_depth_ground_filter_enabled = LaunchConfiguration('fusion_depth_ground_filter_enabled')
     fusion_depth_ground_min_delta_m = LaunchConfiguration('fusion_depth_ground_min_delta_m')
@@ -137,8 +139,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'lidar_filter_forward_fov_deg',
-            default_value='250.0',
-            description='Forward LiDAR sector kept for navigation. The remaining rear sector is invalidated.',
+            default_value='230.0',
+            description='Forward LiDAR sector kept for navigation; rear/body-blocked returns are invalidated.',
         ),
         DeclareLaunchArgument(
             'lidar_filtered_topic',
@@ -194,6 +196,16 @@ def generate_launch_description():
             'fusion_lidar_front_fov_deg',
             default_value='70.0',
             description='LiDAR angle window centered on 0 rad used for front clearance.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_lidar_front_min_cluster_points',
+            default_value='3',
+            description='Minimum adjacent LiDAR beams required before fusion accepts a front obstacle range.',
+        ),
+        DeclareLaunchArgument(
+            'fusion_lidar_front_cluster_max_gap_m',
+            default_value='0.35',
+            description='Maximum spacing between adjacent LiDAR beams in the same accepted front obstacle cluster.',
         ),
         DeclareLaunchArgument(
             'fusion_depth_projection_stride_px',
@@ -347,6 +359,10 @@ def generate_launch_description():
                     ros_param_arg('depth_invalid_warn_frames', fusion_depth_invalid_warn_frames),
                     '-p',
                     ros_param_arg('lidar_front_fov_deg', fusion_lidar_front_fov_deg),
+                    '-p',
+                    ros_param_arg('lidar_front_min_cluster_points', fusion_lidar_front_min_cluster_points),
+                    '-p',
+                    ros_param_arg('lidar_front_cluster_max_gap_m', fusion_lidar_front_cluster_max_gap_m),
                     '-p',
                     ros_param_arg('depth_projection_stride_px', fusion_depth_projection_stride_px),
                     '-p',

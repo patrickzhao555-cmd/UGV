@@ -13,6 +13,7 @@ from sensor_msgs.msg import Image, Imu, LaserScan
 from std_msgs.msg import Bool, Float32, Int32MultiArray, String
 
 from ugv_sensor_sync.msg import EncoderTicksStamped, NavSensorFrame, SyncedSensorPacket
+from ugv_nav_core.nav2_bridge import clustered_lidar_min_range
 
 
 DEFAULT_SLOP_S = 0.25
@@ -57,6 +58,8 @@ class FusionNode(Node):
         self.declare_parameter('depth_near_percentile', 10.0)
         self.declare_parameter('depth_invalid_warn_frames', 2)
         self.declare_parameter('lidar_front_fov_deg', 70.0)
+        self.declare_parameter('lidar_front_min_cluster_points', 3)
+        self.declare_parameter('lidar_front_cluster_max_gap_m', 0.35)
         self.declare_parameter('depth_projection_hfov_deg', 110.0)
         self.declare_parameter('depth_projection_stride_px', 8)
         self.declare_parameter('depth_obstacle_max_m', 3.5)
@@ -106,6 +109,8 @@ class FusionNode(Node):
         self.depth_invalid_warn_frames = max(1, int(self.get_parameter('depth_invalid_warn_frames').value))
         self.lidar_front_fov_deg = float(self.get_parameter('lidar_front_fov_deg').value)
         self.lidar_front_half_fov_rad = 0.5 * math.radians(self.lidar_front_fov_deg)
+        self.lidar_front_min_cluster_points = max(1, int(self.get_parameter('lidar_front_min_cluster_points').value))
+        self.lidar_front_cluster_max_gap_m = max(0.0, float(self.get_parameter('lidar_front_cluster_max_gap_m').value))
         self.depth_projection_hfov_rad = math.radians(
             float(self.get_parameter('depth_projection_hfov_deg').value)
         )
@@ -414,6 +419,8 @@ class FusionNode(Node):
             'lidar_any_min_range_m': self._finite_or_none(lidar_min_range_m),
             'front_lidar_range_m': self._finite_or_none(front_lidar_range_m),
             'front_lidar_fov_deg': round(float(self.lidar_front_fov_deg), 3),
+            'front_lidar_min_cluster_points': int(self.lidar_front_min_cluster_points),
+            'front_lidar_cluster_max_gap_m': round(float(self.lidar_front_cluster_max_gap_m), 3),
             'min_depth_range_m': self._finite_or_none(depth_min_range_m),
             'depth_corridor_half_width_m': round(float(self.depth_front_corridor_half_width_m), 3),
             'front_clearance_m': self._finite_or_none(front_clearance_m),
@@ -645,14 +652,16 @@ class FusionNode(Node):
         return 'no_front_obstacle_points'
 
     def _compute_front_lidar_min_range(self, scan_msg: LaserScan) -> float:
-        valid = []
-        angle = float(scan_msg.angle_min)
-        for r in scan_msg.ranges:
-            if abs(self._wrap_to_pi(angle)) <= self.lidar_front_half_fov_rad:
-                if math.isfinite(r) and scan_msg.range_min < r < scan_msg.range_max:
-                    valid.append(float(r))
-            angle += float(scan_msg.angle_increment)
-        return min(valid) if valid else float('inf')
+        return clustered_lidar_min_range(
+            ranges=list(scan_msg.ranges),
+            angle_min_rad=float(scan_msg.angle_min),
+            angle_increment_rad=float(scan_msg.angle_increment),
+            range_min_m=float(scan_msg.range_min),
+            range_max_m=float(scan_msg.range_max),
+            fov_deg=float(self.lidar_front_fov_deg),
+            min_cluster_points=self.lidar_front_min_cluster_points,
+            max_cluster_gap_m=self.lidar_front_cluster_max_gap_m,
+        )
 
     def _compute_depth_stats(self, depth_msg: Image):
         points, valid_count, _ = self._depth_obstacle_points_for_msg(depth_msg)

@@ -670,7 +670,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_bypass_forward_m", default_value="2.0"),
             DeclareLaunchArgument("nav_bypass_rejoin_ahead_m", default_value="2.0"),
             DeclareLaunchArgument("nav_challenge1_auto_start", default_value="true"),
-            DeclareLaunchArgument("nav_challenge1_speed_mps", default_value="0.12"),
+            DeclareLaunchArgument("nav_challenge1_speed_mps", default_value="0.24"),
             DeclareLaunchArgument("nav_challenge1_post_landing_s", default_value="40.0"),
             DeclareLaunchArgument("nav_challenge1_timeout_s", default_value="420.0"),
             DeclareLaunchArgument("nav_challenge1_max_distance_m", default_value="0.0"),

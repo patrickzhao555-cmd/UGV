@@ -60,7 +60,7 @@ with the dedicated controller:
 ```bash
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \
   nav_controller_mode:=challenge1_landing_platform \
-  nav_challenge1_speed_mps:=0.12
+  nav_challenge1_speed_mps:=0.24
 ```
 
 By default the UGV starts moving after IMU/motor/encoder prechecks pass. To

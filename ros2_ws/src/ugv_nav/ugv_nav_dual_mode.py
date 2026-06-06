@@ -212,7 +212,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--bypass-forward-m", type=float, default=2.0)
     parser.add_argument("--bypass-rejoin-ahead-m", type=float, default=2.0)
     parser.add_argument("--challenge1-auto-start", type=parse_bool, default=True)
-    parser.add_argument("--challenge1-speed-mps", type=float, default=0.12)
+    parser.add_argument("--challenge1-speed-mps", type=float, default=0.24)
     parser.add_argument("--challenge1-post-landing-s", type=float, default=40.0)
     parser.add_argument("--challenge1-timeout-s", type=float, default=420.0)
     parser.add_argument("--challenge1-max-distance-m", type=float, default=0.0)

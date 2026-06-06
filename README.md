@@ -1,28 +1,16 @@
-# UGV Clean Runtime Branch
+# UGV Operation Touchdown Runtime
 
-This branch is a deliberate cleanup reset.
+This repository contains the current competition runtime for the UGV:
 
-Backup of the pre-cleanup code:
-
-```text
-backup/pre-cleanup-20260527
-```
+- Teensy 4.1 two-controller/four-encoder side PID motor firmware
+- ROS 2 motor bridge and sensor sync stack
+- Challenge 1 landing-platform controller
+- Challenge 2 IMU closed-loop forward-arc alignment and straight drive
+- UAV/ESP target packet receiver with manual target fallback
 
 ## Hardware Truth
 
-- Four Pololu motors.
-- Each Pololu motor has its own quadrature encoder, so four encoder channels
-  are available.
-- Two goBILDA 1x15A R/C PWM speed controllers.
-- Left controller drives both left motors.
-- Right controller drives both right motors.
-- The goBILDA controllers are actuator inputs only; they do not provide encoder
-  feedback.
-
-Therefore the active motor architecture is **two-controller/four-encoder side
-PID**, not four-motor independent PID.
-
-## Active Direction
+The active drivetrain is:
 
 ```text
 Jetson high-level navigation
@@ -30,77 +18,147 @@ Jetson high-level navigation
   -> motor_controller_bridge
   -> Teensy two-controller/four-encoder side PID firmware
   -> left/right goBILDA speed controllers
+  -> four Pololu motors with four encoder channels
 ```
 
-The Jetson should publish robot intent:
+Hardware summary: four Pololu motors, four quadrature encoders, and Two goBILDA 1x15A R/C PWM speed controllers. The left controller drives both left motors, and the right controller drives both right motors.
 
-```json
-{"command_type":"velocity","v_mps":0.20,"omega_radps":0.0}
-{"command_type":"stop","mode":"STOP"}
+Navigation publishes only velocity/STOP intent. Raw PWM stays on the Teensy.
+
+## Build On Jetson
+
+```bash
+cd ~/ugv_project
+git pull --ff-only origin main
+
+cd ~/ugv_project/ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+
+source ~/ugv_project/ros2_ws/install/setup.bash
 ```
 
-The Teensy should own:
-
-- encoder reading
-- left/right side velocity PID
-- PWM output to the two goBILDA controllers
-- command timeout
-- stall/mismatch/fault diagnostics
-
-The same-side encoder streams, FL/RL and FR/RR, are averaged for PID feedback.
-Large same-side mismatch is a diagnostic warning/fault; it cannot be actively
-corrected because each side shares one physical speed controller.
-
-## What Was Removed
-
-The cleanup removes the old mixed runtime:
-
-- legacy ROS-side motor PID
-- legacy raw Teensy bridge firmware
-- direct raw motor test node
-- old multi-mode navigation implementation
-- old nav core modules and their tests
-- old tuned round launch wrappers
-
-`ugv_nav_dual_mode.py` is now the safe Jetson chassis controller entrypoint. It
-keeps `idle`, `straight_test`, and `pivot_test` for bringup, and adds
-`mission_sequence` for relative straight/pivot/wait missions. Navigation still
-publishes only velocity/STOP JSON; raw PWM stays out of Jetson navigation.
-
-Formal competition autonomous travel enforces the corrected minimum moving
-speed rule:
+Default motor port used in the field:
 
 ```text
-before official movement: STOP allowed
-active travel: abs(v_mps) >= 0.0894, target crawl 0.12 m/s
-destination reached or safety/fault/kill: STOP allowed
+/dev/serial/by-id/usb-Teensyduino_USB_Serial_19983800-if00
 ```
 
-Manual teleop and calibration tests remain debug exceptions.  During formal
-competition autonomous movement, normal waiting/replanning/alignment does not
-intentionally command zero speed; safety exceptions are logged explicitly.
+## Challenge 1
 
-## Start Clean Runtime
+Challenge 1 drives the landing platform path and listens for UAV lifecycle
+events on:
 
-Build the workspace, then:
-
-```bash
-cd ros2_ws
-./jetson_bringup.sh
+```text
+/ugv/uav_launched
+/ugv/uav_landed
 ```
 
-For motor bench with wheels off the ground:
+Launch Challenge 1:
 
 ```bash
-cd ..
-scripts/run_teensy_side_pid_bench.sh --yes
-```
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
 
-For a dry mission-sequence run, provide a mission JSON file:
-
-```bash
-cd ros2_ws
 ros2 launch ugv_sensor_sync competition_bringup.launch.py \
-  nav_controller_mode:=mission_sequence \
-  nav_mission_file:=/path/to/course_01.json
+  nav_controller_mode:=challenge1_landing_platform \
+  nav_challenge1_speed_mps:=0.24 \
+  nav_challenge1_post_landing_s:=40.0 \
+  start_zed:=true \
+  start_lidar:=false \
+  start_lidar_filter:=false \
+  start_fusion:=false \
+  nav_debug_ignore_nav_frame:=true \
+  motor_port:=/dev/serial/by-id/usb-Teensyduino_USB_Serial_19983800-if00
+```
+
+For bench or field testing, publish the UAV landed event manually:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/send_challenge1_event.py --event landed --count 3
+```
+
+## Challenge 2
+
+Challenge 2 requires the UGV start pose. The helper prompts for:
+
+```text
+start x
+start y
+heading yaw deg, field +x = 0, left turn positive
+```
+
+Launch Challenge 2 with manual target fallback:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/run_challenge2_prompt.py
+```
+
+Then send a target manually from another terminal:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/send_uav_target.py --x 4.0 --y 2.0 --count 3
+```
+
+Launch Challenge 2 with the UGV ESP target receiver enabled:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/run_challenge2_prompt.py --esp-target --uav-esp-port /dev/ttyUSB1
+```
+
+The UAV/ESP target packet is a fixed 14-byte little-endian binary payload:
+
+```python
+struct.pack("<BiBff", msg_type, seqNum, status_code, target_x, target_y)
+```
+
+Required values:
+
+```text
+packet length = 14 bytes
+msg_type = 1
+status_code = 1
+target_x/target_y are meters
+ESP-NOW channel = 6 on the ESP firmware side
+```
+
+The UGV ESP should verify the UAV ESP source MAC and forward the exact 14 bytes
+to the Jetson serial port. The Jetson node in
+`ros2_ws/src/ugv_sensor_sync/ugv_sensor_sync_nodes/uwb_node.py` publishes valid
+packets to `/ugv/uav_target`.
+
+## Useful Debug Commands
+
+Watch motor status:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+python3 tools/ugv_motor_status_watch.py --hz 5
+```
+
+Motor-only turn envelope check:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+
+ros2 launch ugv_motor_controller motor_controller.launch.py \
+  port:=/dev/serial/by-id/usb-Teensyduino_USB_Serial_19983800-if00
+
+python3 tools/ugv_velocity_burst.py --v-mps 1.70 --omega-radps 7.8 --duration-s 25.0 --yes
+```
+
+Run the local test suite:
+
+```bash
+python -m pytest tests -q
 ```

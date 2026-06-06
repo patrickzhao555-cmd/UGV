@@ -81,9 +81,9 @@ CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS = 7.80
 CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M = (
     CHALLENGE2_TURN_ENVELOPE_SPEED_MPS / CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS
 )
-CHALLENGE2_ROLLING_ALIGN_DEFAULT_SPEED_MPS = 0.12
+CHALLENGE2_ROLLING_ALIGN_DEFAULT_SPEED_MPS = 0.18
 CHALLENGE2_ROLLING_ALIGN_DEFAULT_MAX_OMEGA_RADPS = 0.85
-CHALLENGE2_ROLLING_ALIGN_DEFAULT_MIN_RADIUS_M = 0.25
+CHALLENGE2_ROLLING_ALIGN_DEFAULT_MIN_RADIUS_M = 0.50
 
 
 @dataclass(frozen=True)
@@ -393,7 +393,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=CHALLENGE2_ROLLING_ALIGN_DEFAULT_MIN_RADIUS_M,
     )
     parser.add_argument("--challenge2-align-heading-kp", type=float, default=0.85)
-    parser.add_argument("--challenge2-align-no-progress-timeout-s", type=float, default=1.25)
+    parser.add_argument("--challenge2-align-no-progress-timeout-s", type=float, default=4.0)
     parser.add_argument("--challenge2-align-close-guard-m", type=float, default=0.40)
     parser.add_argument("--challenge2-heading-kp", type=float, default=0.85)
     parser.add_argument("--challenge2-cross-track-kp", type=float, default=0.75)

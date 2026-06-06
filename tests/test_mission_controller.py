@@ -37,7 +37,9 @@ from ugv_nav_core.mission_controller import (  # noqa: E402
 from ugv_nav_dual_mode import (  # noqa: E402
     challenge2_clamped_rolling_align_command,
     challenge2_cross_track_error_m,
+    challenge2_field_to_start_local_m,
     challenge2_landing_requirement_met,
+    challenge2_start_local_to_field_pose_m,
     challenge2_target_bearing_from_pose_rad,
     challenge2_target_bearing_rad,
     challenge2_target_distance_m,
@@ -211,6 +213,14 @@ def test_challenge2_align_straight_args_parse_and_guard_allowed():
         "0.75",
         "--challenge2-post-landing-s",
         "10.0",
+        "--challenge2-start-pose-set",
+        "true",
+        "--challenge2-start-x-m",
+        "2.0",
+        "--challenge2-start-y-m",
+        "1.0",
+        "--challenge2-start-yaw-deg",
+        "90.0",
         "--challenge2-pivot-max-omega-radps",
         "0.85",
         "--challenge2-pivot-timeout-s",
@@ -240,6 +250,10 @@ def test_challenge2_align_straight_args_parse_and_guard_allowed():
     assert args.challenge2_slowdown_distance_m == pytest.approx(1.5)
     assert args.challenge2_stop_radius_m == pytest.approx(0.75)
     assert args.challenge2_post_landing_s == pytest.approx(10.0)
+    assert args.challenge2_start_pose_set
+    assert args.challenge2_start_x_m == pytest.approx(2.0)
+    assert args.challenge2_start_y_m == pytest.approx(1.0)
+    assert args.challenge2_start_yaw_deg == pytest.approx(90.0)
     assert args.challenge2_pivot_max_omega_radps == pytest.approx(0.85)
     assert args.challenge2_pivot_timeout_s == pytest.approx(25.0)
     assert args.challenge2_pivot_settle_error_rad == pytest.approx(0.035)
@@ -255,6 +269,16 @@ def test_challenge2_align_straight_args_parse_and_guard_allowed():
     validate_controller_mode(args)
 
 
+def test_challenge2_requires_explicit_start_pose_by_default():
+    args = parse_args([
+        "--controller-mode",
+        "challenge2_align_straight",
+    ])
+
+    with pytest.raises(SystemExit, match="requires an explicit UGV start pose"):
+        validate_controller_mode(args)
+
+
 def test_challenge2_target_bearing_is_start_local_x_forward_y_left():
     assert challenge2_target_bearing_rad(5.0, 0.0) == pytest.approx(0.0)
     assert challenge2_target_bearing_rad(0.0, 5.0) == pytest.approx(math.pi / 2.0)
@@ -263,6 +287,29 @@ def test_challenge2_target_bearing_is_start_local_x_forward_y_left():
     assert challenge2_target_bearing_from_pose_rad(5.0, 2.0, pose_x_m=4.0, pose_y_m=1.0) == pytest.approx(
         math.pi / 4.0
     )
+
+
+def test_challenge2_field_target_transforms_through_explicit_start_pose():
+    local = challenge2_field_to_start_local_m(
+        2.0,
+        4.0,
+        start_x_m=1.0,
+        start_y_m=2.0,
+        start_yaw_rad=math.radians(90.0),
+    )
+    assert local == pytest.approx((2.0, -1.0))
+
+    field = challenge2_start_local_to_field_pose_m(
+        local[0],
+        local[1],
+        math.radians(15.0),
+        start_x_m=1.0,
+        start_y_m=2.0,
+        start_yaw_rad=math.radians(90.0),
+    )
+    assert field[0] == pytest.approx(2.0)
+    assert field[1] == pytest.approx(4.0)
+    assert math.degrees(field[2]) == pytest.approx(105.0)
 
 
 def test_challenge2_distance_cross_track_and_landing_requirement_helpers():

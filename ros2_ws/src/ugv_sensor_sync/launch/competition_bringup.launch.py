@@ -158,6 +158,11 @@ def generate_launch_description():
     nav_challenge2_slowdown_distance_m = LaunchConfiguration("nav_challenge2_slowdown_distance_m")
     nav_challenge2_stop_radius_m = LaunchConfiguration("nav_challenge2_stop_radius_m")
     nav_challenge2_post_landing_s = LaunchConfiguration("nav_challenge2_post_landing_s")
+    nav_challenge2_start_pose_set = LaunchConfiguration("nav_challenge2_start_pose_set")
+    nav_challenge2_require_start_pose = LaunchConfiguration("nav_challenge2_require_start_pose")
+    nav_challenge2_start_x_m = LaunchConfiguration("nav_challenge2_start_x_m")
+    nav_challenge2_start_y_m = LaunchConfiguration("nav_challenge2_start_y_m")
+    nav_challenge2_start_yaw_deg = LaunchConfiguration("nav_challenge2_start_yaw_deg")
     nav_challenge2_pivot_max_omega_radps = LaunchConfiguration("nav_challenge2_pivot_max_omega_radps")
     nav_challenge2_pivot_timeout_s = LaunchConfiguration("nav_challenge2_pivot_timeout_s")
     nav_challenge2_pivot_settle_error_rad = LaunchConfiguration("nav_challenge2_pivot_settle_error_rad")
@@ -448,6 +453,16 @@ def generate_launch_description():
             nav_challenge2_stop_radius_m,
             "--challenge2-post-landing-s",
             nav_challenge2_post_landing_s,
+            "--challenge2-start-pose-set",
+            nav_challenge2_start_pose_set,
+            "--challenge2-require-start-pose",
+            nav_challenge2_require_start_pose,
+            "--challenge2-start-x-m",
+            nav_challenge2_start_x_m,
+            "--challenge2-start-y-m",
+            nav_challenge2_start_y_m,
+            "--challenge2-start-yaw-deg",
+            nav_challenge2_start_yaw_deg,
             "--challenge2-pivot-max-omega-radps",
             nav_challenge2_pivot_max_omega_radps,
             "--challenge2-pivot-timeout-s",
@@ -734,6 +749,11 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_challenge2_slowdown_distance_m", default_value="1.5"),
             DeclareLaunchArgument("nav_challenge2_stop_radius_m", default_value="0.75"),
             DeclareLaunchArgument("nav_challenge2_post_landing_s", default_value="10.0"),
+            DeclareLaunchArgument("nav_challenge2_start_pose_set", default_value="false"),
+            DeclareLaunchArgument("nav_challenge2_require_start_pose", default_value="true"),
+            DeclareLaunchArgument("nav_challenge2_start_x_m", default_value="0.0"),
+            DeclareLaunchArgument("nav_challenge2_start_y_m", default_value="0.0"),
+            DeclareLaunchArgument("nav_challenge2_start_yaw_deg", default_value="0.0"),
             DeclareLaunchArgument("nav_challenge2_pivot_max_omega_radps", default_value="0.85"),
             DeclareLaunchArgument("nav_challenge2_pivot_timeout_s", default_value="25.0"),
             DeclareLaunchArgument("nav_challenge2_pivot_settle_error_rad", default_value="0.035"),

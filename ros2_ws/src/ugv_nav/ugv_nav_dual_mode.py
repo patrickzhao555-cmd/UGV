@@ -167,6 +167,50 @@ def challenge2_target_bearing_from_pose_rad(
     return math.atan2(dy, dx)
 
 
+def challenge2_field_to_start_local_m(
+    field_x_m: float,
+    field_y_m: float,
+    *,
+    start_x_m: float,
+    start_y_m: float,
+    start_yaw_rad: float,
+) -> tuple[float, float]:
+    dx = float(field_x_m) - float(start_x_m)
+    dy = float(field_y_m) - float(start_y_m)
+    yaw = float(start_yaw_rad)
+    if not all(math.isfinite(value) for value in (dx, dy, yaw)):
+        raise ValueError("challenge2 field/start pose coordinates must be finite")
+    cos_yaw = math.cos(yaw)
+    sin_yaw = math.sin(yaw)
+    return (
+        cos_yaw * dx + sin_yaw * dy,
+        -sin_yaw * dx + cos_yaw * dy,
+    )
+
+
+def challenge2_start_local_to_field_pose_m(
+    local_x_m: float,
+    local_y_m: float,
+    local_yaw_rad: float,
+    *,
+    start_x_m: float,
+    start_y_m: float,
+    start_yaw_rad: float,
+) -> tuple[float, float, float]:
+    x = float(local_x_m)
+    y = float(local_y_m)
+    yaw = float(start_yaw_rad)
+    if not all(math.isfinite(value) for value in (x, y, float(local_yaw_rad), yaw)):
+        raise ValueError("challenge2 local pose coordinates must be finite")
+    cos_yaw = math.cos(yaw)
+    sin_yaw = math.sin(yaw)
+    return (
+        float(start_x_m) + cos_yaw * x - sin_yaw * y,
+        float(start_y_m) + sin_yaw * x + cos_yaw * y,
+        wrap_pi(yaw + float(local_yaw_rad)),
+    )
+
+
 def challenge2_target_distance_m(
     target_x_m: float,
     target_y_m: float,
@@ -321,6 +365,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--challenge2-slowdown-distance-m", type=float, default=1.5)
     parser.add_argument("--challenge2-stop-radius-m", type=float, default=0.75)
     parser.add_argument("--challenge2-post-landing-s", type=float, default=10.0)
+    parser.add_argument("--challenge2-start-pose-set", type=parse_bool, default=False)
+    parser.add_argument("--challenge2-require-start-pose", type=parse_bool, default=True)
+    parser.add_argument("--challenge2-start-x-m", type=float, default=0.0)
+    parser.add_argument("--challenge2-start-y-m", type=float, default=0.0)
+    parser.add_argument("--challenge2-start-yaw-deg", type=float, default=0.0)
     parser.add_argument("--challenge2-pivot-max-omega-radps", type=float, default=0.85)
     parser.add_argument("--challenge2-pivot-timeout-s", type=float, default=25.0)
     parser.add_argument("--challenge2-pivot-settle-error-rad", type=float, default=0.035)
@@ -423,6 +472,14 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         parser.error("--pivot-angle-deg supports -180..180 degrees; split larger rotations into multiple pivots")
     if abs(float(args.curve_angle_deg)) > 180.0:
         parser.error("--curve-angle-deg supports -180..180 degrees; split larger curves into multiple segments")
+    if bool(args.challenge2_start_pose_set):
+        start_pose = (
+            float(args.challenge2_start_x_m),
+            float(args.challenge2_start_y_m),
+            float(args.challenge2_start_yaw_deg),
+        )
+        if not all(math.isfinite(value) for value in start_pose):
+            parser.error("--challenge2-start-x/y/yaw must be finite when --challenge2-start-pose-set is true")
     return args
 
 
@@ -530,6 +587,18 @@ def validate_controller_mode(args: argparse.Namespace) -> None:
             "for closed-loop competition tracking, "
             "or pass --allow-legacy-controller true for intentional calibration/debug runs."
         )
+    if (
+        mode == "challenge2_align_straight"
+        and bool(args.challenge2_require_start_pose)
+        and not bool(args.challenge2_start_pose_set)
+    ):
+        raise SystemExit(
+            "Challenge 2 requires an explicit UGV start pose. Pass "
+            "nav_challenge2_start_pose_set:=true "
+            "nav_challenge2_start_x_m:=<field_x_m> "
+            "nav_challenge2_start_y_m:=<field_y_m> "
+            "nav_challenge2_start_yaw_deg:=<vehicle_heading_deg>."
+        )
 
 
 def run_real(args: argparse.Namespace) -> None:
@@ -589,6 +658,10 @@ def run_real(args: argparse.Namespace) -> None:
             self.tracker_pending_target: Optional[tuple[float, float]] = None
             if abs(float(args.manual_target_x_m)) > 1e-9 or abs(float(args.manual_target_y_m)) > 1e-9:
                 self.tracker_pending_target = (float(args.manual_target_x_m), float(args.manual_target_y_m))
+            self.challenge2_start_pose_set = bool(args.challenge2_start_pose_set)
+            self.challenge2_start_x_m = float(args.challenge2_start_x_m)
+            self.challenge2_start_y_m = float(args.challenge2_start_y_m)
+            self.challenge2_start_yaw_rad = math.radians(float(args.challenge2_start_yaw_deg))
             self.challenge2_tracker = TrackerState()
             self.challenge2_tracker_config = replace(
                 self.tracker_config,
@@ -600,8 +673,19 @@ def run_real(args: argparse.Namespace) -> None:
                 cross_track_kp=float(args.challenge2_cross_track_kp),
                 slowdown_distance_m=max(0.05, float(args.challenge2_slowdown_distance_m)),
             )
-            self.challenge2_target: Optional[tuple[float, float]] = (
+            self.challenge2_field_target: Optional[tuple[float, float]] = (
                 None if self.tracker_pending_target is None else tuple(self.tracker_pending_target)
+            )
+            self.challenge2_target: Optional[tuple[float, float]] = (
+                None
+                if self.challenge2_field_target is None
+                else challenge2_field_to_start_local_m(
+                    self.challenge2_field_target[0],
+                    self.challenge2_field_target[1],
+                    start_x_m=self.challenge2_start_x_m,
+                    start_y_m=self.challenge2_start_y_m,
+                    start_yaw_rad=self.challenge2_start_yaw_rad,
+                )
             )
             self.challenge2_state = "WAIT_TARGET"
             self.challenge2_start_s: Optional[float] = None
@@ -746,10 +830,20 @@ def run_real(args: argparse.Namespace) -> None:
                 )
 
         def _queue_challenge2_target(self, x: float, y: float) -> bool:
-            current = self.challenge2_target
-            self.challenge2_target = (float(x), float(y))
-            self.challenge2_target_bearing_rad = challenge2_target_bearing_rad(x, y)
-            if current is not None and math.hypot(float(x) - current[0], float(y) - current[1]) < 0.05:
+            field_x = float(x)
+            field_y = float(y)
+            current = self.challenge2_field_target
+            local_x, local_y = challenge2_field_to_start_local_m(
+                field_x,
+                field_y,
+                start_x_m=self.challenge2_start_x_m,
+                start_y_m=self.challenge2_start_y_m,
+                start_yaw_rad=self.challenge2_start_yaw_rad,
+            )
+            self.challenge2_field_target = (field_x, field_y)
+            self.challenge2_target = (local_x, local_y)
+            self.challenge2_target_bearing_rad = challenge2_target_bearing_rad(local_x, local_y)
+            if current is not None and math.hypot(field_x - current[0], field_y - current[1]) < 0.05:
                 return False
             self._reset_challenge2_state(keep_target=True, preserve_landed=True)
             return True
@@ -1052,11 +1146,13 @@ def run_real(args: argparse.Namespace) -> None:
             preserve_landed: bool = False,
         ) -> None:
             target = self.challenge2_target if keep_target else None
+            field_target = self.challenge2_field_target if keep_target else None
             landed = self.challenge2_uav_landed if preserve_landed else False
             landed_s = self.challenge2_landed_s if preserve_landed else None
             reset_tracker(self.challenge2_tracker)
             if self.mode == "challenge2_align_straight":
                 reset_pivot(self.pivot)
+            self.challenge2_field_target = field_target
             self.challenge2_target = target
             self.challenge2_state = "WAIT_TARGET"
             self.challenge2_start_s = None
@@ -1075,6 +1171,17 @@ def run_real(args: argparse.Namespace) -> None:
             self.challenge2_align_best_abs_error_rad = math.inf
             self.challenge2_align_last_progress_s = None
             self.challenge2_rolling_align_started_s = None
+
+        def _challenge2_field_pose(self) -> tuple[float, float, float]:
+            pose = self.challenge2_tracker.pose
+            return challenge2_start_local_to_field_pose_m(
+                pose.x,
+                pose.y,
+                pose.yaw,
+                start_x_m=self.challenge2_start_x_m,
+                start_y_m=self.challenge2_start_y_m,
+                start_yaw_rad=self.challenge2_start_yaw_rad,
+            )
 
         def _tracker_safety_state(self, now_s: float) -> str:
             if not self.config.debug_ignore_nav_frame and (
@@ -1399,6 +1506,7 @@ def run_real(args: argparse.Namespace) -> None:
                 assert self.current_left_ticks is not None
                 assert self.current_right_ticks is not None
                 x, y = self.challenge2_target
+                field_target = self.challenge2_field_target
                 start_tracker_goal(
                     self.challenge2_tracker,
                     target_x_m=x,
@@ -1416,9 +1524,17 @@ def run_real(args: argparse.Namespace) -> None:
                 self.challenge2_align_last_progress_s = now_s
                 self.challenge2_rolling_align_started_s = None
                 reset_pivot(self.pivot)
+                field_text = (
+                    "field_target=unknown"
+                    if field_target is None
+                    else f"field_target=({field_target[0]:.3f},{field_target[1]:.3f})m"
+                )
+                self.get_logger().warn(f"Challenge 2 align-then-straight started: {field_text}")
                 self.get_logger().warn(
-                    "Challenge 2 align-then-straight started: "
-                    f"target=({x:.3f},{y:.3f})m "
+                    "Challenge 2 local target/start pose: "
+                    f"local_target=({x:.3f},{y:.3f})m "
+                    f"start_pose=({self.challenge2_start_x_m:.3f},{self.challenge2_start_y_m:.3f},"
+                    f"{math.degrees(self.challenge2_start_yaw_rad):.1f}deg) "
                     f"bearing={math.degrees(challenge2_target_bearing_rad(x, y)):.1f}deg "
                     f"stop_radius={float(args.challenge2_stop_radius_m):.2f}m"
                 )
@@ -2421,6 +2537,7 @@ def run_real(args: argparse.Namespace) -> None:
                 "gyro_bias_encoder_motion",
             }:
                 curve_state = "gyro_bias_calibration"
+            challenge2_field_pose = self._challenge2_field_pose()
             return {
                 "nav_runtime": "chassis_controller",
                 "controller_mode": self.mode,
@@ -2446,6 +2563,20 @@ def run_real(args: argparse.Namespace) -> None:
                 "challenge1_timeout_s": max(0.0, float(args.challenge1_timeout_s)),
                 "challenge1_max_distance_m": max(0.0, float(args.challenge1_max_distance_m)),
                 "challenge2_state": self.challenge2_state,
+                "challenge2_start_pose_set": self.challenge2_start_pose_set,
+                "challenge2_start_pose_m": [
+                    round(float(self.challenge2_start_x_m), 4),
+                    round(float(self.challenge2_start_y_m), 4),
+                    round(math.degrees(float(self.challenge2_start_yaw_rad)), 3),
+                ],
+                "challenge2_target_field_m": (
+                    None
+                    if self.challenge2_field_target is None
+                    else [
+                        round(float(self.challenge2_field_target[0]), 4),
+                        round(float(self.challenge2_field_target[1]), 4),
+                    ]
+                ),
                 "challenge2_target_m": (
                     None
                     if self.challenge2_target is None
@@ -2455,6 +2586,11 @@ def run_real(args: argparse.Namespace) -> None:
                     round(float(self.challenge2_tracker.pose.x), 4),
                     round(float(self.challenge2_tracker.pose.y), 4),
                     round(float(self.challenge2_tracker.pose.yaw), 5),
+                ],
+                "challenge2_field_pose_m": [
+                    round(float(challenge2_field_pose[0]), 4),
+                    round(float(challenge2_field_pose[1]), 4),
+                    round(math.degrees(float(challenge2_field_pose[2])), 3),
                 ],
                 "challenge2_target_distance_m": (
                     None

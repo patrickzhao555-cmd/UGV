@@ -26,6 +26,7 @@ def test_run_challenge2_prompt_keeps_manual_target_path_by_default():
     )
 
     assert "nav_controller_mode:=challenge2_align_straight" in result.stdout
+    assert "nav_challenge2_align_no_progress_timeout_s:=0.000000" in result.stdout
     assert "start_uav_target_receiver:=true" not in result.stdout
     assert "uav_target_input_mode:=serial" not in result.stdout
 

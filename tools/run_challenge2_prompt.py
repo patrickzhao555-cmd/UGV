@@ -101,6 +101,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"nav_challenge2_start_yaw_deg:={start_yaw_deg:.6f}",
         f"nav_challenge2_speed_mps:={float(args.speed_mps):.6f}",
         f"nav_challenge2_stop_radius_m:={float(args.stop_radius_m):.6f}",
+        "nav_challenge2_align_no_progress_timeout_s:=0.000000",
         "start_zed:=true",
         "start_lidar:=false",
         "start_lidar_filter:=false",

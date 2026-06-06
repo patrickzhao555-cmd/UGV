@@ -965,7 +965,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_challenge2_align_max_omega_radps", default_value="7.80"),
             DeclareLaunchArgument("nav_challenge2_align_min_turn_radius_m", default_value="0.21795"),
             DeclareLaunchArgument("nav_challenge2_align_heading_kp", default_value="22.345354"),
-            DeclareLaunchArgument("nav_challenge2_align_no_progress_timeout_s", default_value="4.0"),
+            DeclareLaunchArgument("nav_challenge2_align_no_progress_timeout_s", default_value="0.0"),
             DeclareLaunchArgument("nav_challenge2_align_close_guard_m", default_value="0.40"),
             DeclareLaunchArgument("nav_challenge2_heading_kp", default_value="0.85"),
             DeclareLaunchArgument("nav_challenge2_cross_track_kp", default_value="0.75"),

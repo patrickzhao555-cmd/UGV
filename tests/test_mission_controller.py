@@ -299,7 +299,7 @@ def test_challenge2_arc_align_defaults_use_measured_hardware_envelope():
     assert args.challenge2_align_max_omega_radps == pytest.approx(CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS)
     assert args.challenge2_align_min_turn_radius_m == pytest.approx(CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M)
     assert args.challenge2_align_heading_kp == pytest.approx(CHALLENGE2_ROLLING_ALIGN_DEFAULT_HEADING_KP)
-    assert args.challenge2_align_no_progress_timeout_s == pytest.approx(4.0)
+    assert args.challenge2_align_no_progress_timeout_s == pytest.approx(0.0)
     validate_controller_mode(args)
 
 
@@ -426,7 +426,7 @@ def test_challenge2_hardening_guards_are_present_in_runtime_code():
     assert 'DeclareLaunchArgument("nav_challenge2_align_max_omega_radps", default_value="7.80")' in bringup_text
     assert 'DeclareLaunchArgument("nav_challenge2_align_min_turn_radius_m", default_value="0.21795")' in bringup_text
     assert 'DeclareLaunchArgument("nav_challenge2_align_heading_kp", default_value="22.345354")' in bringup_text
-    assert 'DeclareLaunchArgument("nav_challenge2_align_no_progress_timeout_s", default_value="4.0")' in bringup_text
+    assert 'DeclareLaunchArgument("nav_challenge2_align_no_progress_timeout_s", default_value="0.0")' in bringup_text
 
 
 def test_legacy_controller_guard_blocks_non_tracker_when_disabled():

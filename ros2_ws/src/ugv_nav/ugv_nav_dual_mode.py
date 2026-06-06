@@ -403,7 +403,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=CHALLENGE2_ROLLING_ALIGN_DEFAULT_MIN_RADIUS_M,
     )
     parser.add_argument("--challenge2-align-heading-kp", type=float, default=CHALLENGE2_ROLLING_ALIGN_DEFAULT_HEADING_KP)
-    parser.add_argument("--challenge2-align-no-progress-timeout-s", type=float, default=4.0)
+    parser.add_argument("--challenge2-align-no-progress-timeout-s", type=float, default=0.0)
     parser.add_argument("--challenge2-align-close-guard-m", type=float, default=0.40)
     parser.add_argument("--challenge2-heading-kp", type=float, default=0.85)
     parser.add_argument("--challenge2-cross-track-kp", type=float, default=0.75)

@@ -74,7 +74,7 @@ python3 tools/send_challenge1_event.py --event landed
 ```
 
 The controller will continue straight-line closed-loop travel for
-`nav_challenge1_post_landing_s` seconds, default `30.0`, then stop. Key status
+`nav_challenge1_post_landing_s` seconds, default `40.0`, then stop. Key status
 fields are `challenge1_state`, `challenge1_uav_launched`,
 `challenge1_uav_landed`, `challenge1_distance_m`,
 `challenge1_elapsed_s`, and `challenge1_post_landing_elapsed_s`.

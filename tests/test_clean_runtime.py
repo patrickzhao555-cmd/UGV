@@ -87,7 +87,7 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert 'DeclareLaunchArgument("nav_uav_landed_topic", default_value="/ugv/uav_landed")' in launch
     assert 'DeclareLaunchArgument("nav_tracking_max_omega_radps", default_value="0.85")' in launch
     assert 'DeclareLaunchArgument("nav_challenge1_speed_mps", default_value="0.12")' in launch
-    assert 'DeclareLaunchArgument("nav_challenge1_post_landing_s", default_value="30.0")' in launch
+    assert 'DeclareLaunchArgument("nav_challenge1_post_landing_s", default_value="40.0")' in launch
     assert 'DeclareLaunchArgument("nav_challenge1_timeout_s", default_value="420.0")' in launch
     assert '"--tracking-enabled"' in launch
     assert '"--manual-target-x-m"' in launch

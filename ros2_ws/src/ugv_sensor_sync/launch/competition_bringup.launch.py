@@ -865,7 +865,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_side_mismatch_warn_tps", default_value="80.0"),
             DeclareLaunchArgument("motor_teensy_side_mismatch_fault_tps", default_value="180.0"),
             DeclareLaunchArgument("motor_teensy_encoder_jump_tps", default_value="12000.0"),
-            DeclareLaunchArgument("motor_teensy_pid_param_ack_timeout_s", default_value="20.0"),
+            DeclareLaunchArgument("motor_teensy_pid_param_ack_timeout_s", default_value="3.0"),
             DeclareLaunchArgument("motor_teensy_pid_param_write_interval_s", default_value="0.03"),
             DeclareLaunchArgument("nav_status_period_s", default_value="0.25"),
             DeclareLaunchArgument("nav_control_period_s", default_value="0.02"),

@@ -126,7 +126,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_side_mismatch_fault_tps", 180.0)
         self.declare_parameter("teensy_encoder_jump_fault_enabled", True)
         self.declare_parameter("teensy_encoder_jump_tps", 12000.0)
-        self.declare_parameter("teensy_pid_param_ack_timeout_s", 20.0)
+        self.declare_parameter("teensy_pid_param_ack_timeout_s", 3.0)
         self.declare_parameter("teensy_pid_param_write_interval_s", 0.03)
 
         self.port = str(self.get_parameter("port").value)
@@ -693,6 +693,9 @@ class MotorControllerBridge(Node):
         self._copy_param_sync_state()
         self.get_logger().warn(f"Teensy parameter sync timeout: {self.teensy_pid_param_sync_reason}")
         self._publish_status(event="teensy param sync timeout")
+        if self._transport_available():
+            self._send_stop("parameter sync retry stop")
+            self._sync_teensy_pid_params("parameter sync retry")
 
     def _motion_allowed(self) -> bool:
         return bool(self.teensy_pid_params_synced)

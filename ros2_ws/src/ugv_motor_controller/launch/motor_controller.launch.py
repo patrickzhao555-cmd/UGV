@@ -291,7 +291,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_param_ack_timeout_s",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_ACK_TIMEOUT_S", default_value="20.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_ACK_TIMEOUT_S", default_value="3.0"),
             ),
             DeclareLaunchArgument(
                 "teensy_pid_param_write_interval_s",

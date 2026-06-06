@@ -323,10 +323,23 @@ UAV targets are strict by default: `/ugv/uav_target` must be a `PointStamped`
 in the `map` frame, in meters unless `uav_target_units:=yards` is set, and a
 fresh global costmap must show the target cell as known free space.
 The optional `ugv_uav_target_receiver.py` is the shared input adapter for both
-ESP and terminal testing. It parses line-based meter coordinates such as
-`5.0 7.0`, `5.0,7.0`, `TARGET,5.0,7.0`, `TARGET,seq,5.0,7.0`, or JSON like
-`{"x_m":5.0,"y_m":7.0,"seq":12}`, then publishes the same `/ugv/uav_target`
-topic. Start it from the Nav2 launch with:
+ESP and terminal testing. The formal UAV/ESP packet is a fixed 14-byte binary
+payload:
+
+```python
+struct.pack("<BiBff", msg_type, seqNum, status_code, target_x, target_y)
+```
+
+where `msg_type == 1`, `status_code == 1`, and `target_x/target_y` are
+little-endian float32 meters. The UGV ESP firmware should receive ESP-NOW on
+channel 6, verify the UAV ESP source MAC, and forward the exact 14 bytes to the
+Jetson serial port. The Jetson receiver publishes accepted packets to
+`/ugv/uav_target`.
+
+For terminal fallback, the same receiver still parses line-based meter
+coordinates such as `5.0 7.0`, `5.0,7.0`, `TARGET,5.0,7.0`,
+`TARGET,seq,5.0,7.0`, or JSON like `{"x_m":5.0,"y_m":7.0,"seq":12}`. Start
+terminal mode directly with:
 
 ```bash
 python3 ros2_ws/src/ugv_nav/ugv_uav_target_receiver.py --ros-args \
@@ -344,18 +357,21 @@ It publishes a `PointStamped` in the `map` frame on `/ugv/uav_target` and does
 not publish motor commands. Use `--repeat-hz` and `--count` if you want to send
 the same coordinate multiple times while checking the mission supervisor.
 
-For ESP line input use:
+For ESP binary packet input use:
 
 ```bash
 ros2 launch ugv_sensor_sync nav2_field_navigation.launch.py \
   start_uav_target_receiver:=true \
   uav_target_input_mode:=serial \
   uav_esp_serial_port:=/dev/ttyUSB1 \
-  uav_esp_serial_baud:=115200
+  uav_esp_serial_baud:=115200 \
+  uav_esp_serial_protocol:=binary14
 ```
 
-Checksum suffixes of the form `TARGET,seq,x,y*XX` are supported; set
-`uav_esp_require_checksum:=true` once the ESP firmware emits checksums.
+Text-line serial fallback remains available with `uav_esp_serial_protocol:=line`.
+Checksum suffixes of the form `TARGET,seq,x,y*XX` are supported for line mode;
+set `uav_esp_require_checksum:=true` only if the ESP firmware emits text lines
+with checksums.
 
 For Operation Touchdown, the UAV target is treated as the center of the
 destination ArUco marker. The marker is not used as the first global Nav2 goal:

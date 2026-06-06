@@ -47,6 +47,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--esp-target", action="store_true", help="Start the ESP serial target receiver.")
     parser.add_argument("--uav-esp-port", default=DEFAULT_UAV_ESP_PORT)
     parser.add_argument("--uav-esp-baud", type=int, default=115200)
+    parser.add_argument("--uav-esp-serial-protocol", choices=("binary14", "line", "auto"), default="binary14")
     parser.add_argument(
         "--uav-esp-require-checksum",
         action="store_true",
@@ -84,6 +85,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "uav_target_input_mode:=serial",
             f"uav_esp_serial_port:={str(args.uav_esp_port)}",
             f"uav_esp_serial_baud:={int(args.uav_esp_baud)}",
+            f"uav_esp_serial_protocol:={str(args.uav_esp_serial_protocol)}",
             f"uav_esp_require_checksum:={'true' if args.uav_esp_require_checksum else 'false'}",
         ]
 

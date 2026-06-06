@@ -10,10 +10,17 @@ from __future__ import annotations
 import json
 import math
 import re
+import struct
 from dataclasses import dataclass
 from typing import Optional
 
 from .nav2_bridge import target_units_scale
+
+
+UAV_TARGET_BINARY_PACKET_FORMAT = "<BiBff"
+UAV_TARGET_BINARY_PACKET_SIZE = struct.calcsize(UAV_TARGET_BINARY_PACKET_FORMAT)
+UAV_TARGET_MESSAGE_TYPE = 1
+UAV_TARGET_VALID_STATUS_CODE = 1
 
 
 @dataclass(frozen=True)
@@ -22,6 +29,8 @@ class ParsedUavTarget:
     x_m: Optional[float] = None
     y_m: Optional[float] = None
     seq: Optional[int] = None
+    msg_type: Optional[int] = None
+    status_code: Optional[int] = None
     units: str = "meters"
     reason: str = "ok"
     source_format: str = "unknown"
@@ -212,3 +221,95 @@ def parse_uav_target_line(
     if payload.lstrip().startswith("{"):
         return _parse_json_payload(payload, default_units=default_units, raw=raw)
     return _parse_csv_payload(payload, default_units=default_units, raw=raw)
+
+
+def parse_uav_target_packet(
+    packet: bytes,
+    *,
+    default_units: str = "meters",
+    expected_msg_type: int = UAV_TARGET_MESSAGE_TYPE,
+    valid_status_code: int = UAV_TARGET_VALID_STATUS_CODE,
+) -> ParsedUavTarget:
+    """Parse the UAV ESP-NOW packed target packet.
+
+    The UAV side sends exactly 14 bytes, equivalent to:
+
+    ``struct.pack('<BiBff', msg_type, seqNum, status_code, target_x, target_y)``
+    """
+
+    raw_bytes = bytes(packet)
+    raw_hex = raw_bytes.hex(" ").upper()
+    if len(raw_bytes) != UAV_TARGET_BINARY_PACKET_SIZE:
+        return ParsedUavTarget(
+            False,
+            units=default_units,
+            reason="packet_length_invalid",
+            source_format="binary14",
+            raw=raw_hex,
+        )
+
+    try:
+        msg_type, seq, status_code, x_value, y_value = struct.unpack(UAV_TARGET_BINARY_PACKET_FORMAT, raw_bytes)
+    except struct.error:
+        return ParsedUavTarget(
+            False,
+            units=default_units,
+            reason="packet_unpack_failed",
+            source_format="binary14",
+            raw=raw_hex,
+        )
+
+    if int(msg_type) != int(expected_msg_type):
+        return ParsedUavTarget(
+            False,
+            seq=int(seq),
+            msg_type=int(msg_type),
+            status_code=int(status_code),
+            units=default_units,
+            reason="message_type_ignored",
+            source_format="binary14",
+            raw=raw_hex,
+        )
+    if int(status_code) != int(valid_status_code):
+        return ParsedUavTarget(
+            False,
+            seq=int(seq),
+            msg_type=int(msg_type),
+            status_code=int(status_code),
+            units=default_units,
+            reason="status_code_invalid",
+            source_format="binary14",
+            raw=raw_hex,
+        )
+
+    parsed = _apply_units(
+        x_value=x_value,
+        y_value=y_value,
+        units=default_units,
+        seq=int(seq),
+        raw=raw_hex,
+        source_format="binary14",
+    )
+    if not parsed.accepted:
+        return ParsedUavTarget(
+            False,
+            seq=int(seq),
+            msg_type=int(msg_type),
+            status_code=int(status_code),
+            units=parsed.units,
+            reason=parsed.reason,
+            source_format="binary14",
+            raw=raw_hex,
+        )
+    return ParsedUavTarget(
+        True,
+        x_m=parsed.x_m,
+        y_m=parsed.y_m,
+        seq=int(seq),
+        msg_type=int(msg_type),
+        status_code=int(status_code),
+        units=parsed.units,
+        reason="ok",
+        source_format="binary14",
+        raw=raw_hex,
+    )

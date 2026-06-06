@@ -56,4 +56,5 @@ def test_run_challenge2_prompt_can_enable_esp_target_receiver_in_dry_run():
     assert "uav_target_input_mode:=serial" in result.stdout
     assert "uav_esp_serial_port:=/dev/ttyUSB9" in result.stdout
     assert "uav_esp_serial_baud:=115200" in result.stdout
+    assert "uav_esp_serial_protocol:=binary14" in result.stdout
     assert "uav_esp_require_checksum:=true" in result.stdout

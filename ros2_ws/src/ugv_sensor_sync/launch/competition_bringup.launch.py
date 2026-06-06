@@ -135,6 +135,7 @@ def generate_launch_description():
     uav_target_frame_id = LaunchConfiguration("uav_target_frame_id")
     uav_esp_serial_port = LaunchConfiguration("uav_esp_serial_port")
     uav_esp_serial_baud = LaunchConfiguration("uav_esp_serial_baud")
+    uav_esp_serial_protocol = LaunchConfiguration("uav_esp_serial_protocol")
     uav_esp_require_checksum = LaunchConfiguration("uav_esp_require_checksum")
     nav_uav_launched_topic = LaunchConfiguration("nav_uav_launched_topic")
     nav_uav_landed_topic = LaunchConfiguration("nav_uav_landed_topic")
@@ -340,6 +341,8 @@ def generate_launch_description():
             ["serial_port:=", uav_esp_serial_port],
             "-p",
             ["serial_baud:=", uav_esp_serial_baud],
+            "-p",
+            ["serial_protocol:=", uav_esp_serial_protocol],
             "-p",
             ["require_checksum:=", uav_esp_require_checksum],
         ],
@@ -759,6 +762,7 @@ def generate_launch_description():
             DeclareLaunchArgument("uav_target_frame_id", default_value="map"),
             DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1"),
             DeclareLaunchArgument("uav_esp_serial_baud", default_value="115200"),
+            DeclareLaunchArgument("uav_esp_serial_protocol", default_value="binary14"),
             DeclareLaunchArgument("uav_esp_require_checksum", default_value="false"),
             DeclareLaunchArgument("nav_uav_launched_topic", default_value="/ugv/uav_launched"),
             DeclareLaunchArgument("nav_uav_landed_topic", default_value="/ugv/uav_landed"),

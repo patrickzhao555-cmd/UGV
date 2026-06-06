@@ -80,6 +80,7 @@ def generate_launch_description():
     uav_target_input_mode = LaunchConfiguration("uav_target_input_mode")
     uav_esp_serial_port = LaunchConfiguration("uav_esp_serial_port")
     uav_esp_serial_baud = LaunchConfiguration("uav_esp_serial_baud")
+    uav_esp_serial_protocol = LaunchConfiguration("uav_esp_serial_protocol")
     uav_esp_require_checksum = LaunchConfiguration("uav_esp_require_checksum")
     uav_target_units = LaunchConfiguration("uav_target_units")
     uav_require_target_frame = LaunchConfiguration("uav_require_target_frame")
@@ -261,6 +262,8 @@ def generate_launch_description():
             ["serial_port:=", uav_esp_serial_port],
             "-p",
             ["serial_baud:=", uav_esp_serial_baud],
+            "-p",
+            ["serial_protocol:=", uav_esp_serial_protocol],
             "-p",
             ["require_checksum:=", uav_esp_require_checksum],
         ],
@@ -520,6 +523,7 @@ def generate_launch_description():
             DeclareLaunchArgument("uav_target_input_mode", default_value="serial"),
             DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1"),
             DeclareLaunchArgument("uav_esp_serial_baud", default_value="115200"),
+            DeclareLaunchArgument("uav_esp_serial_protocol", default_value="binary14"),
             DeclareLaunchArgument("uav_esp_require_checksum", default_value="false"),
             DeclareLaunchArgument("uav_target_units", default_value="meters"),
             DeclareLaunchArgument("uav_require_target_frame", default_value="true"),

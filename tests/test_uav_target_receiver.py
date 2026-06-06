@@ -1,4 +1,5 @@
 import pathlib
+import struct
 import sys
 
 import pytest
@@ -7,7 +8,12 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ros2_ws" / "src" / "ugv_nav"))
 
-from ugv_nav_core.uav_target_input import append_esp_checksum, parse_uav_target_line  # noqa: E402
+from ugv_nav_core.uav_target_input import (  # noqa: E402
+    UAV_TARGET_BINARY_PACKET_SIZE,
+    append_esp_checksum,
+    parse_uav_target_line,
+    parse_uav_target_packet,
+)
 
 
 def test_parse_terminal_target_accepts_space_and_comma_meter_inputs():
@@ -89,12 +95,43 @@ def test_parse_esp_checksum_optional_or_required():
     assert bad.reason == "checksum_mismatch"
 
 
+def test_parse_uav_binary14_packet_matches_uav_struct_contract():
+    packet = struct.pack("<BiBff", 1, 1, 1, 12.34, 56.78)
+    assert len(packet) == 14
+    assert UAV_TARGET_BINARY_PACKET_SIZE == 14
+    assert packet.hex(" ").upper() == "01 01 00 00 00 01 A4 70 45 41 B8 1E 63 42"
+
+    parsed = parse_uav_target_packet(packet)
+    assert parsed.accepted
+    assert parsed.source_format == "binary14"
+    assert parsed.msg_type == 1
+    assert parsed.seq == 1
+    assert parsed.status_code == 1
+    assert parsed.x_m == pytest.approx(12.34)
+    assert parsed.y_m == pytest.approx(56.78)
+
+
+def test_parse_uav_binary14_packet_rejects_wrong_length_type_status_and_bad_coordinates():
+    assert parse_uav_target_packet(b"\x01").reason == "packet_length_invalid"
+
+    wrong_type = struct.pack("<BiBff", 2, 1, 1, 12.34, 56.78)
+    assert parse_uav_target_packet(wrong_type).reason == "message_type_ignored"
+
+    invalid_status = struct.pack("<BiBff", 1, 1, 0, 12.34, 56.78)
+    assert parse_uav_target_packet(invalid_status).reason == "status_code_invalid"
+
+    invalid_coordinate = struct.pack("<BiBff", 1, 1, 1, float("nan"), 56.78)
+    assert parse_uav_target_packet(invalid_coordinate).reason == "coordinate_invalid"
+
+
 def test_nav2_launch_can_start_terminal_or_esp_target_receiver_without_goal_bridge():
     launch_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "nav2_field_navigation.launch.py").read_text()
     assert "ugv_uav_target_receiver.py" in launch_text
     assert 'DeclareLaunchArgument("start_uav_target_receiver", default_value="false")' in launch_text
     assert 'DeclareLaunchArgument("uav_target_input_mode", default_value="serial")' in launch_text
     assert 'DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1")' in launch_text
+    assert 'DeclareLaunchArgument("uav_esp_serial_protocol", default_value="binary14")' in launch_text
     assert 'DeclareLaunchArgument("uav_esp_require_checksum", default_value="false")' in launch_text
+    assert '["serial_protocol:=", uav_esp_serial_protocol]' in launch_text
     assert "target_receiver_node" in launch_text
     assert 'DeclareLaunchArgument("start_goal_bridge", default_value="false")' in launch_text

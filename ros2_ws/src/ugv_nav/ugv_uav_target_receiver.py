@@ -26,10 +26,18 @@ try:
 except ImportError:  # pragma: no cover - depends on robot image packages
     serial = None
 
-from ugv_nav_core.uav_target_input import ParsedUavTarget, parse_uav_target_line
+from ugv_nav_core.uav_target_input import (
+    ParsedUavTarget,
+    UAV_TARGET_BINARY_PACKET_SIZE,
+    UAV_TARGET_MESSAGE_TYPE,
+    UAV_TARGET_VALID_STATUS_CODE,
+    parse_uav_target_line,
+    parse_uav_target_packet,
+)
 
 
 VALID_INPUT_MODES = {"disabled", "terminal", "serial", "both"}
+VALID_SERIAL_PROTOCOLS = {"line", "binary14", "auto"}
 
 
 class UavTargetReceiverNode(Node):
@@ -48,6 +56,7 @@ class UavTargetReceiverNode(Node):
         self.declare_parameter("serial_reconnect_period_s", 1.0)
         self.declare_parameter("serial_read_timeout_s", 0.05)
         self.declare_parameter("serial_max_line_bytes", 256)
+        self.declare_parameter("serial_protocol", "auto")
         self.declare_parameter("terminal_prompt", True)
         self.declare_parameter("status_period_s", 0.5)
 
@@ -66,6 +75,10 @@ class UavTargetReceiverNode(Node):
         self.serial_reconnect_period_s = max(0.1, float(self.get_parameter("serial_reconnect_period_s").value))
         self.serial_read_timeout_s = max(0.0, float(self.get_parameter("serial_read_timeout_s").value))
         self.serial_max_line_bytes = max(32, int(self.get_parameter("serial_max_line_bytes").value))
+        self.serial_protocol = str(self.get_parameter("serial_protocol").value).strip().lower()
+        if self.serial_protocol not in VALID_SERIAL_PROTOCOLS:
+            self.get_logger().error(f"Unsupported serial_protocol={self.serial_protocol!r}; using auto.")
+            self.serial_protocol = "auto"
         self.terminal_prompt = bool(self.get_parameter("terminal_prompt").value)
         self.status_period_s = max(0.1, float(self.get_parameter("status_period_s").value))
 
@@ -98,7 +111,8 @@ class UavTargetReceiverNode(Node):
         self.get_logger().warn(
             "UAV target receiver started "
             f"(mode={self.input_mode}, output={self.output_topic}, frame={self.frame_id}, "
-            f"units={self.target_units}, serial={self.serial_port}@{self.serial_baud})"
+            f"units={self.target_units}, serial={self.serial_port}@{self.serial_baud}, "
+            f"serial_protocol={self.serial_protocol})"
         )
 
     @property
@@ -166,11 +180,75 @@ class UavTargetReceiverNode(Node):
         if len(self._serial_buffer) > self.serial_max_line_bytes * 4:
             self._serial_buffer = self._serial_buffer[-self.serial_max_line_bytes :]
             self.serial_error = "serial_line_overflow"
+        self._drain_serial_buffer()
+
+    def _drain_serial_buffer(self) -> None:
+        if self.serial_protocol == "line":
+            self._drain_line_serial_buffer()
+        elif self.serial_protocol == "binary14":
+            self._drain_binary14_serial_buffer()
+        else:
+            self._drain_auto_serial_buffer()
+
+    def _drain_line_serial_buffer(self) -> None:
         while b"\n" in self._serial_buffer:
             raw_line, self._serial_buffer = self._serial_buffer.split(b"\n", 1)
             line = raw_line.decode("utf-8", errors="ignore").strip()
             if line:
                 self._handle_line(line, source="serial")
+
+    def _drain_binary14_serial_buffer(self) -> None:
+        while len(self._serial_buffer) >= UAV_TARGET_BINARY_PACKET_SIZE:
+            if not self._looks_like_binary14_start(self._serial_buffer):
+                next_start = self._find_next_binary14_start(self._serial_buffer[1:])
+                if next_start is None:
+                    self._serial_buffer = self._serial_buffer[-(UAV_TARGET_BINARY_PACKET_SIZE - 1) :]
+                    self.serial_error = "serial_binary14_resync"
+                    return
+                self._serial_buffer = self._serial_buffer[next_start + 1 :]
+                self.serial_error = "serial_binary14_resync"
+                continue
+            raw_packet = self._serial_buffer[:UAV_TARGET_BINARY_PACKET_SIZE]
+            self._serial_buffer = self._serial_buffer[UAV_TARGET_BINARY_PACKET_SIZE:]
+            self._handle_packet(raw_packet, source="serial")
+
+    def _drain_auto_serial_buffer(self) -> None:
+        while self._serial_buffer:
+            if self._looks_like_binary14_start(self._serial_buffer):
+                if len(self._serial_buffer) < UAV_TARGET_BINARY_PACKET_SIZE:
+                    return
+                raw_packet = self._serial_buffer[:UAV_TARGET_BINARY_PACKET_SIZE]
+                self._serial_buffer = self._serial_buffer[UAV_TARGET_BINARY_PACKET_SIZE:]
+                self._handle_packet(raw_packet, source="serial")
+                continue
+
+            newline_index = self._serial_buffer.find(b"\n")
+            if newline_index >= 0:
+                raw_line, self._serial_buffer = self._serial_buffer.split(b"\n", 1)
+                line = raw_line.decode("utf-8", errors="ignore").strip()
+                if line:
+                    self._handle_line(line, source="serial")
+                continue
+
+            if len(self._serial_buffer) >= UAV_TARGET_BINARY_PACKET_SIZE:
+                next_start = self._find_next_binary14_start(self._serial_buffer[1:])
+                if next_start is None:
+                    self._serial_buffer = self._serial_buffer[-(UAV_TARGET_BINARY_PACKET_SIZE - 1) :]
+                    self.serial_error = "serial_auto_waiting_for_line_or_packet"
+                    return
+                self._serial_buffer = self._serial_buffer[next_start + 1 :]
+                self.serial_error = "serial_binary14_resync"
+                continue
+            return
+
+    def _looks_like_binary14_start(self, data: bytes) -> bool:
+        return bool(data) and data[0] == UAV_TARGET_MESSAGE_TYPE
+
+    def _find_next_binary14_start(self, data: bytes) -> Optional[int]:
+        for index in range(0, max(0, len(data) - UAV_TARGET_BINARY_PACKET_SIZE + 1)):
+            if self._looks_like_binary14_start(data[index:]):
+                return index
+        return None
 
     def _try_open_serial(self) -> None:
         now_s = time.monotonic()
@@ -224,6 +302,23 @@ class UavTargetReceiverNode(Node):
             return
         self._publish_target(parsed, source=source)
 
+    def _handle_packet(self, packet: bytes, *, source: str) -> None:
+        parsed = parse_uav_target_packet(packet, default_units=self.target_units)
+        self.last_line_s = time.monotonic()
+        self.last_source = source
+        if not parsed.accepted:
+            self.rejected_count += 1
+            self.last_error = f"{source}:{parsed.reason}"
+            self._publish_status()
+            self.get_logger().warn(f"Rejected {source} UAV binary target packet: {parsed.reason}")
+            return
+        if self._is_duplicate(parsed):
+            self.duplicate_count += 1
+            self.last_error = f"{source}:duplicate_sequence"
+            self._publish_status()
+            return
+        self._publish_target(parsed, source=source)
+
     def _is_duplicate(self, parsed: ParsedUavTarget) -> bool:
         if not self.drop_duplicate_sequences or parsed.seq is None:
             return False
@@ -264,6 +359,8 @@ class UavTargetReceiverNode(Node):
             "serial_connected": self.serial_connected,
             "serial_port": self.serial_port,
             "serial_baud": self.serial_baud,
+            "serial_protocol": self.serial_protocol,
+            "binary_packet_size": UAV_TARGET_BINARY_PACKET_SIZE,
             "serial_error": self.serial_error,
             "output_topic": self.output_topic,
             "frame_id": self.frame_id,

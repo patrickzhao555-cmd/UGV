@@ -184,6 +184,8 @@ def test_challenge1_landing_platform_args_parse_and_guard_allowed():
         "0.14",
         "--challenge1-post-landing-s",
         "30.0",
+        "--challenge1-run-duration-s",
+        "80.0",
         "--challenge1-timeout-s",
         "420.0",
         "--challenge1-max-distance-m",
@@ -197,6 +199,7 @@ def test_challenge1_landing_platform_args_parse_and_guard_allowed():
     assert not args.challenge1_auto_start
     assert args.challenge1_speed_mps == pytest.approx(0.14)
     assert args.challenge1_post_landing_s == pytest.approx(30.0)
+    assert args.challenge1_run_duration_s == pytest.approx(80.0)
     assert args.challenge1_timeout_s == pytest.approx(420.0)
     assert args.challenge1_max_distance_m == pytest.approx(12.0)
     assert args.uav_launched_topic == "/test/uav_launched"

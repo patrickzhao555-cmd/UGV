@@ -164,6 +164,7 @@ def generate_launch_description():
     nav_challenge1_auto_start = LaunchConfiguration("nav_challenge1_auto_start")
     nav_challenge1_speed_mps = LaunchConfiguration("nav_challenge1_speed_mps")
     nav_challenge1_post_landing_s = LaunchConfiguration("nav_challenge1_post_landing_s")
+    nav_challenge1_run_duration_s = LaunchConfiguration("nav_challenge1_run_duration_s")
     nav_challenge1_timeout_s = LaunchConfiguration("nav_challenge1_timeout_s")
     nav_challenge1_max_distance_m = LaunchConfiguration("nav_challenge1_max_distance_m")
     nav_challenge1_stop_on_obstacle = LaunchConfiguration("nav_challenge1_stop_on_obstacle")
@@ -506,6 +507,8 @@ def generate_launch_description():
             nav_challenge1_speed_mps,
             "--challenge1-post-landing-s",
             nav_challenge1_post_landing_s,
+            "--challenge1-run-duration-s",
+            nav_challenge1_run_duration_s,
             "--challenge1-timeout-s",
             nav_challenge1_timeout_s,
             "--challenge1-max-distance-m",
@@ -930,6 +933,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_challenge1_auto_start", default_value="true"),
             DeclareLaunchArgument("nav_challenge1_speed_mps", default_value="0.24"),
             DeclareLaunchArgument("nav_challenge1_post_landing_s", default_value="40.0"),
+            DeclareLaunchArgument("nav_challenge1_run_duration_s", default_value="0.0"),
             DeclareLaunchArgument("nav_challenge1_timeout_s", default_value="420.0"),
             DeclareLaunchArgument("nav_challenge1_max_distance_m", default_value="0.0"),
             DeclareLaunchArgument("nav_challenge1_stop_on_obstacle", default_value="true"),

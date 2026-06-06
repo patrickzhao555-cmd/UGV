@@ -81,6 +81,20 @@ fields are `challenge1_state`, `challenge1_uav_launched`,
 `challenge1_uav_landed`, `challenge1_distance_m`,
 `challenge1_elapsed_s`, and `challenge1_post_landing_elapsed_s`.
 
+For time-only field testing, set `nav_challenge1_run_duration_s` to a positive
+duration. In that mode the controller ignores the landed flag requirement and
+stops after the total run time:
+
+```bash
+ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  nav_controller_mode:=challenge1_landing_platform \
+  nav_challenge1_speed_mps:=0.24 \
+  nav_challenge1_run_duration_s:=80.0 \
+  nav_challenge1_timeout_s:=100.0
+```
+
+Leave `nav_challenge1_run_duration_s` at `0.0` to use the landed-flag mode.
+
 ## Challenge 2 Align Then Straight
 
 Challenge 2 uses the dedicated align-then-straight controller. It requires ZED

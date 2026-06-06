@@ -81,6 +81,28 @@ source ~/ugv_project/ros2_ws/install/setup.bash
 python3 tools/send_challenge1_event.py --event landed --count 3
 ```
 
+Timed Challenge 1 fallback, no UAV landed flag required:
+
+```bash
+cd ~/ugv_project
+source ~/ugv_project/ros2_ws/install/setup.bash
+
+ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  nav_controller_mode:=challenge1_landing_platform \
+  nav_challenge1_speed_mps:=0.24 \
+  nav_challenge1_run_duration_s:=80.0 \
+  nav_challenge1_timeout_s:=100.0 \
+  start_zed:=true \
+  start_lidar:=false \
+  start_lidar_filter:=false \
+  start_fusion:=false \
+  nav_debug_ignore_nav_frame:=true \
+  motor_port:=/dev/serial/by-id/usb-Teensyduino_USB_Serial_19983800-if00
+```
+
+Set `nav_challenge1_run_duration_s:=0.0` or omit it to use the original UAV
+landed flag behavior.
+
 ## Challenge 2
 
 Challenge 2 requires the UGV start pose. The helper prompts for:

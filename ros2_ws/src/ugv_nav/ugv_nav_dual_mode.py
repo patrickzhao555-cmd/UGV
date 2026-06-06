@@ -369,6 +369,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--challenge1-auto-start", type=parse_bool, default=True)
     parser.add_argument("--challenge1-speed-mps", type=float, default=0.24)
     parser.add_argument("--challenge1-post-landing-s", type=float, default=40.0)
+    parser.add_argument("--challenge1-run-duration-s", type=float, default=0.0)
     parser.add_argument("--challenge1-timeout-s", type=float, default=420.0)
     parser.add_argument("--challenge1-max-distance-m", type=float, default=0.0)
     parser.add_argument("--challenge1-stop-on-obstacle", type=parse_bool, default=True)
@@ -1357,6 +1358,7 @@ def run_real(args: argparse.Namespace) -> None:
                 "Challenge 1 landing platform started: "
                 f"speed={self._challenge1_speed_mps():.3f}m/s "
                 f"post_landing={float(args.challenge1_post_landing_s):.1f}s "
+                f"run_duration={max(0.0, float(args.challenge1_run_duration_s)):.1f}s "
                 f"timeout={float(args.challenge1_timeout_s):.1f}s"
             )
 
@@ -1390,7 +1392,20 @@ def run_real(args: argparse.Namespace) -> None:
                 self.challenge1_state = "DISTANCE_LIMIT"
                 return build_stop_command("challenge1_distance_limit"), heading, 0.0, "challenge1_distance_limit"
 
-            if self.challenge1_uav_landed:
+            run_duration_s = max(0.0, float(args.challenge1_run_duration_s))
+            if run_duration_s > 0.0:
+                if elapsed_s >= run_duration_s:
+                    self.challenge1_complete_s = now_s
+                    self.challenge1_state = "COMPLETE"
+                    return (
+                        build_stop_command("challenge1_timed_run_complete"),
+                        heading,
+                        0.0,
+                        "challenge1_timed_run_complete",
+                    )
+                self.challenge1_state = "TIMED_RUN"
+                reason = "challenge1_timed_run"
+            elif self.challenge1_uav_landed:
                 if self.challenge1_landed_s is None:
                     self.challenge1_landed_s = now_s
                 post_elapsed_s = now_s - self.challenge1_landed_s
@@ -2535,6 +2550,8 @@ def run_real(args: argparse.Namespace) -> None:
                     None if self.challenge1_landed_s is None else round(max(0.0, now_s - self.challenge1_landed_s), 3)
                 ),
                 "challenge1_post_landing_required_s": max(0.0, float(args.challenge1_post_landing_s)),
+                "challenge1_timed_run_enabled": max(0.0, float(args.challenge1_run_duration_s)) > 0.0,
+                "challenge1_run_duration_s": max(0.0, float(args.challenge1_run_duration_s)),
                 "challenge1_timeout_s": max(0.0, float(args.challenge1_timeout_s)),
                 "challenge1_max_distance_m": max(0.0, float(args.challenge1_max_distance_m)),
                 "challenge2_state": self.challenge2_state,

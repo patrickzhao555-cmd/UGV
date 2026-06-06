@@ -35,6 +35,11 @@ from ugv_nav_core.mission_controller import (  # noqa: E402
     update_stuck_monitor,
 )
 from ugv_nav_dual_mode import (  # noqa: E402
+    CHALLENGE2_ARC_ALIGN_STATE,
+    CHALLENGE2_ROLLING_ALIGN_DEFAULT_HEADING_KP,
+    CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M,
+    CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS,
+    CHALLENGE2_TURN_ENVELOPE_SPEED_MPS,
     challenge2_clamped_rolling_align_command,
     challenge2_cross_track_error_m,
     challenge2_field_to_start_local_m,
@@ -279,7 +284,7 @@ def test_challenge2_requires_explicit_start_pose_by_default():
         validate_controller_mode(args)
 
 
-def test_challenge2_rolling_align_defaults_are_safe_not_hardware_envelope():
+def test_challenge2_arc_align_defaults_use_measured_hardware_envelope():
     args = parse_args([
         "--controller-mode",
         "challenge2_align_straight",
@@ -287,13 +292,11 @@ def test_challenge2_rolling_align_defaults_are_safe_not_hardware_envelope():
         "true",
     ])
 
-    assert args.challenge2_align_arc_speed_mps == pytest.approx(0.18)
-    assert args.challenge2_align_max_omega_radps == pytest.approx(0.85)
-    assert args.challenge2_align_min_turn_radius_m == pytest.approx(0.50)
-    assert args.challenge2_align_heading_kp == pytest.approx(0.85)
+    assert args.challenge2_align_arc_speed_mps == pytest.approx(CHALLENGE2_TURN_ENVELOPE_SPEED_MPS)
+    assert args.challenge2_align_max_omega_radps == pytest.approx(CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS)
+    assert args.challenge2_align_min_turn_radius_m == pytest.approx(CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M)
+    assert args.challenge2_align_heading_kp == pytest.approx(CHALLENGE2_ROLLING_ALIGN_DEFAULT_HEADING_KP)
     assert args.challenge2_align_no_progress_timeout_s == pytest.approx(4.0)
-    assert args.challenge2_align_arc_speed_mps < 1.70
-    assert args.challenge2_align_max_omega_radps < 7.80
     validate_controller_mode(args)
 
 
@@ -375,6 +378,23 @@ def test_challenge2_rolling_align_matches_measured_turn_envelope_without_reverse
     assert right > left
 
 
+def test_challenge2_default_arc_align_envelope_keeps_both_sides_forward():
+    v, omega, left, right = challenge2_clamped_rolling_align_command(
+        v_mps=CHALLENGE2_TURN_ENVELOPE_SPEED_MPS,
+        heading_error_rad=math.atan2(1.0, 2.0),
+        yaw_rate_radps=0.0,
+        heading_kp=CHALLENGE2_ROLLING_ALIGN_DEFAULT_HEADING_KP,
+        heading_kd=0.08,
+        max_omega_radps=CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS,
+        min_turn_radius_m=CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M,
+        track_width_m=0.416,
+    )
+    assert v == pytest.approx(CHALLENGE2_TURN_ENVELOPE_SPEED_MPS)
+    assert omega == pytest.approx(CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS)
+    assert left >= -1e-9
+    assert right > left
+
+
 def test_challenge2_hardening_guards_are_present_in_runtime_code():
     controller_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
     bringup_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "competition_bringup.launch.py").read_text()
@@ -385,17 +405,24 @@ def test_challenge2_hardening_guards_are_present_in_runtime_code():
     ]
     assert "self._heading_source(now_s) != \"imu\"" in challenge2_block
     assert "challenge2_target_bearing_from_pose_rad" in challenge2_block
-    assert "challenge2_align_recovery_too_close" in challenge2_block
+    assert "challenge2_arc_align_skipped_too_close" in challenge2_block
+    assert CHALLENGE2_ARC_ALIGN_STATE in controller_text
+    assert "challenge2_arc_align_to_target" in challenge2_block
+    assert "challenge2_arc_align_no_progress" in challenge2_block
     assert 'self.challenge2_state = "ROLLING_ALIGN"' not in challenge2_block
-    assert "challenge2_pivot_recovery_retry" in challenge2_block
-    assert "challenge2_pivot_recovery_count += 1" in challenge2_block
+    assert "challenge2_pivot_recovery_retry" not in challenge2_block
+    assert "challenge2_pivot_recovery_count += 1" not in challenge2_block
+    assert "step_profiled_pivot(" not in challenge2_block
+    assert "start_pivot(" not in challenge2_block
+    assert "build_velocity_command(0.0," not in challenge2_block
     assert 'self.challenge2_state in {"WAIT_TARGET", "FAULT"}' not in challenge2_block
     assert 'if self.challenge2_state == "FAULT":' in challenge2_block
     assert "CHALLENGE2_PIVOT_DEFAULT_MIN_OMEGA_RADPS = 0.72" in controller_text
     assert "CHALLENGE2_PIVOT_DEFAULT_BREAKAWAY_OMEGA_RADPS = 0.75" in controller_text
-    assert 'DeclareLaunchArgument("nav_challenge2_align_arc_speed_mps", default_value="0.18")' in bringup_text
-    assert 'DeclareLaunchArgument("nav_challenge2_align_max_omega_radps", default_value="0.85")' in bringup_text
-    assert 'DeclareLaunchArgument("nav_challenge2_align_min_turn_radius_m", default_value="0.50")' in bringup_text
+    assert 'DeclareLaunchArgument("nav_challenge2_align_arc_speed_mps", default_value="1.70")' in bringup_text
+    assert 'DeclareLaunchArgument("nav_challenge2_align_max_omega_radps", default_value="7.80")' in bringup_text
+    assert 'DeclareLaunchArgument("nav_challenge2_align_min_turn_radius_m", default_value="0.21795")' in bringup_text
+    assert 'DeclareLaunchArgument("nav_challenge2_align_heading_kp", default_value="22.345354")' in bringup_text
     assert 'DeclareLaunchArgument("nav_challenge2_align_no_progress_timeout_s", default_value="4.0")' in bringup_text
 
 

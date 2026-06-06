@@ -230,13 +230,13 @@ def test_challenge2_align_straight_args_parse_and_guard_allowed():
         "--challenge2-pivot-settle-time-s",
         "0.35",
         "--challenge2-align-arc-speed-mps",
-        "1.70",
+        "0.12",
         "--challenge2-align-max-omega-radps",
-        "7.80",
+        "0.85",
         "--challenge2-align-min-turn-radius-m",
-        "0.218",
+        "0.25",
         "--challenge2-align-heading-kp",
-        "6.0",
+        "0.85",
         "--challenge2-align-no-progress-timeout-s",
         "1.25",
         "--challenge2-align-close-guard-m",
@@ -258,10 +258,10 @@ def test_challenge2_align_straight_args_parse_and_guard_allowed():
     assert args.challenge2_pivot_timeout_s == pytest.approx(25.0)
     assert args.challenge2_pivot_settle_error_rad == pytest.approx(0.035)
     assert args.challenge2_pivot_settle_time_s == pytest.approx(0.35)
-    assert args.challenge2_align_arc_speed_mps == pytest.approx(1.70)
-    assert args.challenge2_align_max_omega_radps == pytest.approx(7.80)
-    assert args.challenge2_align_min_turn_radius_m == pytest.approx(0.218)
-    assert args.challenge2_align_heading_kp == pytest.approx(6.0)
+    assert args.challenge2_align_arc_speed_mps == pytest.approx(0.12)
+    assert args.challenge2_align_max_omega_radps == pytest.approx(0.85)
+    assert args.challenge2_align_min_turn_radius_m == pytest.approx(0.25)
+    assert args.challenge2_align_heading_kp == pytest.approx(0.85)
     assert args.challenge2_align_no_progress_timeout_s == pytest.approx(1.25)
     assert args.challenge2_align_close_guard_m == pytest.approx(0.40)
     assert args.challenge2_max_omega_radps == pytest.approx(0.85)
@@ -277,6 +277,23 @@ def test_challenge2_requires_explicit_start_pose_by_default():
 
     with pytest.raises(SystemExit, match="requires an explicit UGV start pose"):
         validate_controller_mode(args)
+
+
+def test_challenge2_rolling_align_defaults_are_safe_not_hardware_envelope():
+    args = parse_args([
+        "--controller-mode",
+        "challenge2_align_straight",
+        "--challenge2-start-pose-set",
+        "true",
+    ])
+
+    assert args.challenge2_align_arc_speed_mps == pytest.approx(0.12)
+    assert args.challenge2_align_max_omega_radps == pytest.approx(0.85)
+    assert args.challenge2_align_min_turn_radius_m == pytest.approx(0.25)
+    assert args.challenge2_align_heading_kp == pytest.approx(0.85)
+    assert args.challenge2_align_arc_speed_mps < 1.70
+    assert args.challenge2_align_max_omega_radps < 7.80
+    validate_controller_mode(args)
 
 
 def test_challenge2_target_bearing_is_start_local_x_forward_y_left():
@@ -359,6 +376,7 @@ def test_challenge2_rolling_align_matches_measured_turn_envelope_without_reverse
 
 def test_challenge2_hardening_guards_are_present_in_runtime_code():
     controller_text = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
+    bringup_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "competition_bringup.launch.py").read_text()
     challenge2_block = controller_text[
         controller_text.index("def _update_challenge2_metrics") : controller_text.index(
             "        def _reset_bias_and_heading"
@@ -370,6 +388,11 @@ def test_challenge2_hardening_guards_are_present_in_runtime_code():
     assert "ROLLING_ALIGN" in challenge2_block
     assert "challenge2_rolling_align_recovery" in challenge2_block
     assert "challenge2_rolling_align_no_progress" in challenge2_block
+    assert 'self.challenge2_state in {"WAIT_TARGET", "FAULT"}' not in challenge2_block
+    assert 'if self.challenge2_state == "FAULT":' in challenge2_block
+    assert 'DeclareLaunchArgument("nav_challenge2_align_arc_speed_mps", default_value="0.12")' in bringup_text
+    assert 'DeclareLaunchArgument("nav_challenge2_align_max_omega_radps", default_value="0.85")' in bringup_text
+    assert 'DeclareLaunchArgument("nav_challenge2_align_min_turn_radius_m", default_value="0.25")' in bringup_text
 
 
 def test_legacy_controller_guard_blocks_non_tracker_when_disabled():

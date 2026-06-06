@@ -81,6 +81,9 @@ CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS = 7.80
 CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M = (
     CHALLENGE2_TURN_ENVELOPE_SPEED_MPS / CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS
 )
+CHALLENGE2_ROLLING_ALIGN_DEFAULT_SPEED_MPS = 0.12
+CHALLENGE2_ROLLING_ALIGN_DEFAULT_MAX_OMEGA_RADPS = 0.85
+CHALLENGE2_ROLLING_ALIGN_DEFAULT_MIN_RADIUS_M = 0.25
 
 
 @dataclass(frozen=True)
@@ -377,19 +380,19 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--challenge2-align-arc-speed-mps",
         type=float,
-        default=CHALLENGE2_TURN_ENVELOPE_SPEED_MPS,
+        default=CHALLENGE2_ROLLING_ALIGN_DEFAULT_SPEED_MPS,
     )
     parser.add_argument(
         "--challenge2-align-max-omega-radps",
         type=float,
-        default=CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS,
+        default=CHALLENGE2_ROLLING_ALIGN_DEFAULT_MAX_OMEGA_RADPS,
     )
     parser.add_argument(
         "--challenge2-align-min-turn-radius-m",
         type=float,
-        default=CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M,
+        default=CHALLENGE2_ROLLING_ALIGN_DEFAULT_MIN_RADIUS_M,
     )
-    parser.add_argument("--challenge2-align-heading-kp", type=float, default=6.0)
+    parser.add_argument("--challenge2-align-heading-kp", type=float, default=0.85)
     parser.add_argument("--challenge2-align-no-progress-timeout-s", type=float, default=1.25)
     parser.add_argument("--challenge2-align-close-guard-m", type=float, default=0.40)
     parser.add_argument("--challenge2-heading-kp", type=float, default=0.85)
@@ -1673,7 +1676,16 @@ def run_real(args: argparse.Namespace) -> None:
             if self.challenge2_state == "GOAL_REACHED":
                 return build_stop_command(self.challenge2_result_reason), heading, self.challenge2_align_error_rad, "ok"
 
-            if self.challenge2_state in {"WAIT_TARGET", "FAULT"}:
+            if self.challenge2_state == "FAULT":
+                self.challenge2_last_omega_radps = 0.0
+                return (
+                    build_stop_command(self.challenge2_result_reason),
+                    heading,
+                    self.challenge2_align_error_rad,
+                    self.challenge2_result_reason,
+                )
+
+            if self.challenge2_state == "WAIT_TARGET":
                 self.challenge2_state = "ALIGN_TO_TARGET"
 
             if self.challenge2_state == "ALIGN_TO_TARGET":
@@ -2611,6 +2623,19 @@ def run_real(args: argparse.Namespace) -> None:
                 "challenge2_post_landing_required_s": max(0.0, float(args.challenge2_post_landing_s)),
                 "challenge2_landing_requirement_met": self.challenge2_landing_requirement_met,
                 "challenge2_result_reason": self.challenge2_result_reason,
+                "challenge2_rolling_align_speed_mps": round(float(args.challenge2_align_arc_speed_mps), 4),
+                "challenge2_rolling_align_max_omega_radps": round(float(args.challenge2_align_max_omega_radps), 4),
+                "challenge2_rolling_align_radius_m": (
+                    None
+                    if abs(float(args.challenge2_align_max_omega_radps)) <= 1e-9
+                    else round(
+                        abs(float(args.challenge2_align_arc_speed_mps) / float(args.challenge2_align_max_omega_radps)),
+                        4,
+                    )
+                ),
+                "challenge2_hardware_turn_envelope_speed_mps": CHALLENGE2_TURN_ENVELOPE_SPEED_MPS,
+                "challenge2_hardware_turn_envelope_omega_radps": CHALLENGE2_TURN_ENVELOPE_OMEGA_RADPS,
+                "challenge2_hardware_turn_envelope_radius_m": round(CHALLENGE2_TURN_ENVELOPE_MIN_RADIUS_M, 4),
                 "challenge2_turn_envelope_speed_mps": round(float(args.challenge2_align_arc_speed_mps), 4),
                 "challenge2_turn_envelope_omega_radps": round(float(args.challenge2_align_max_omega_radps), 4),
                 "challenge2_turn_envelope_radius_m": (

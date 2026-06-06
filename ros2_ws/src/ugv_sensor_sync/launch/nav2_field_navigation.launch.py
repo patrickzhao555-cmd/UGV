@@ -24,7 +24,7 @@ def generate_launch_description():
     nav2_adapter = workspace_root / "src" / "ugv_nav" / "ugv_nav2_adapter.py"
     field_odom = workspace_root / "src" / "ugv_nav" / "ugv_field_odom_node.py"
     field_map = workspace_root / "src" / "ugv_nav" / "ugv_field_map_node.py"
-    target_receiver = workspace_root / "src" / "ugv_nav" / "ugv_uav_target_receiver.py"
+    target_receiver = workspace_root / "src" / "ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "uwb_node.py"
     goal_bridge = workspace_root / "src" / "ugv_nav" / "ugv_uav_goal_bridge.py"
     mission_supervisor = workspace_root / "src" / "ugv_nav" / "ugv_operation_touchdown_mission.py"
     posearray_to_cloud = workspace_root / "src" / "ugv_nav" / "ugv_posearray_to_cloud.py"

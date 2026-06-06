@@ -45,6 +45,9 @@ def generate_launch_description():
     start_lidar_filter = LaunchConfiguration('start_lidar_filter')
     start_fusion = LaunchConfiguration('start_fusion')
     start_debug_status = LaunchConfiguration('start_debug_status')
+    uwb_port = LaunchConfiguration('uwb_port')
+    uwb_baud = LaunchConfiguration('uwb_baud')
+    uwb_serial_protocol = LaunchConfiguration('uwb_serial_protocol')
     lidar_port = LaunchConfiguration('lidar_port')
     lidar_baud = LaunchConfiguration('lidar_baud')
     lidar_scan_freq_hz = LaunchConfiguration('lidar_scan_freq_hz')
@@ -75,7 +78,22 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'start_uwb',
             default_value='false',
-            description='Launch the UWB serial bridge as part of the sensor sync stack.',
+            description='Launch the UAV ESP target serial receiver as part of the sensor sync stack.',
+        ),
+        DeclareLaunchArgument(
+            'uwb_port',
+            default_value='/dev/ttyUSB1',
+            description='Serial port used by the UGV ESP target receiver.',
+        ),
+        DeclareLaunchArgument(
+            'uwb_baud',
+            default_value='115200',
+            description='Baud rate used by the UGV ESP target receiver.',
+        ),
+        DeclareLaunchArgument(
+            'uwb_serial_protocol',
+            default_value='binary14',
+            description='UGV ESP serial protocol: binary14, line, or auto.',
         ),
         DeclareLaunchArgument(
             'start_zed',
@@ -295,13 +313,17 @@ def generate_launch_description():
                 uwb_script,
                 '--ros-args',
                 '-r',
-                '__node:=uwb_node',
+                '__node:=ugv_uav_target_receiver',
                 '-p',
-                'port:=/dev/ttyUSB1',
+                ros_param_arg('input_mode', 'serial'),
                 '-p',
-                'baud:=115200',
+                ros_param_arg('output_topic', '/ugv/uav_target'),
                 '-p',
-                'use_esp32_timestamp:=false',
+                ros_param_arg('serial_port', uwb_port),
+                '-p',
+                ros_param_arg('serial_baud', uwb_baud),
+                '-p',
+                ros_param_arg('serial_protocol', uwb_serial_protocol),
             ],
             output='screen',
             condition=IfCondition(start_uwb),

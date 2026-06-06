@@ -20,7 +20,7 @@ def generate_launch_description():
     motor_launch = workspace_root / "src" / "ugv_motor_controller" / "launch" / "motor_controller.launch.py"
     sensor_launch = workspace_root / "src" / "ugv_sensor_sync" / "launch" / "sensor_sync_launch.py"
     nav_script = workspace_root / "src" / "ugv_nav" / "ugv_nav_dual_mode.py"
-    target_receiver = workspace_root / "src" / "ugv_nav" / "ugv_uav_target_receiver.py"
+    target_receiver = workspace_root / "src" / "ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "uwb_node.py"
 
     start_motor_controller = LaunchConfiguration("start_motor_controller")
     start_sensor_sync = LaunchConfiguration("start_sensor_sync")

@@ -322,9 +322,10 @@ human supervision.
 UAV targets are strict by default: `/ugv/uav_target` must be a `PointStamped`
 in the `map` frame, in meters unless `uav_target_units:=yards` is set, and a
 fresh global costmap must show the target cell as known free space.
-The optional `ugv_uav_target_receiver.py` is the shared input adapter for both
-ESP and terminal testing. The formal UAV/ESP packet is a fixed 14-byte binary
-payload:
+The `ugv_sensor_sync_nodes/uwb_node.py` entrypoint is the shared input adapter
+for both ESP and terminal testing. Despite the historical filename, it now
+receives UAV target coordinates, not UWB ranges. The formal UAV/ESP packet is a
+fixed 14-byte binary payload:
 
 ```python
 struct.pack("<BiBff", msg_type, seqNum, status_code, target_x, target_y)
@@ -342,7 +343,7 @@ coordinates such as `5.0 7.0`, `5.0,7.0`, `TARGET,5.0,7.0`,
 terminal mode directly with:
 
 ```bash
-python3 ros2_ws/src/ugv_nav/ugv_uav_target_receiver.py --ros-args \
+python3 ros2_ws/src/ugv_sensor_sync/ugv_sensor_sync_nodes/uwb_node.py --ros-args \
   -p input_mode:=terminal \
   -p target_units:=meters
 ```

@@ -81,7 +81,8 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert '"--encoder-stamped-topic"' in launch
     assert '"--allow-encoder-heading-fallback"' in launch
     assert '"start_debug_status": start_debug_status' in launch
-    assert 'ugv_uav_target_receiver.py' in launch
+    assert 'ugv_sensor_sync_nodes" / "uwb_node.py"' in launch
+    assert not (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_uav_target_receiver.py").exists()
     assert 'DeclareLaunchArgument("start_uav_target_receiver", default_value="false")' in launch
     assert 'DeclareLaunchArgument("uav_target_input_mode", default_value="serial")' in launch
     assert 'DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1")' in launch

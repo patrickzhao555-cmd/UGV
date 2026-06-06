@@ -126,7 +126,7 @@ def test_parse_uav_binary14_packet_rejects_wrong_length_type_status_and_bad_coor
 
 def test_nav2_launch_can_start_terminal_or_esp_target_receiver_without_goal_bridge():
     launch_text = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "nav2_field_navigation.launch.py").read_text()
-    assert "ugv_uav_target_receiver.py" in launch_text
+    assert 'ugv_sensor_sync" / "ugv_sensor_sync_nodes" / "uwb_node.py"' in launch_text
     assert 'DeclareLaunchArgument("start_uav_target_receiver", default_value="false")' in launch_text
     assert 'DeclareLaunchArgument("uav_target_input_mode", default_value="serial")' in launch_text
     assert 'DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1")' in launch_text

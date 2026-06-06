@@ -89,10 +89,18 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert 'DeclareLaunchArgument("nav_challenge1_speed_mps", default_value="0.24")' in launch
     assert 'DeclareLaunchArgument("nav_challenge1_post_landing_s", default_value="40.0")' in launch
     assert 'DeclareLaunchArgument("nav_challenge1_timeout_s", default_value="420.0")' in launch
+    assert 'DeclareLaunchArgument("nav_challenge2_speed_mps", default_value="0.24")' in launch
+    assert 'DeclareLaunchArgument("nav_challenge2_approach_speed_mps", default_value="0.12")' in launch
+    assert 'DeclareLaunchArgument("nav_challenge2_stop_radius_m", default_value="0.75")' in launch
+    assert 'DeclareLaunchArgument("nav_challenge2_post_landing_s", default_value="10.0")' in launch
+    assert 'DeclareLaunchArgument("nav_challenge2_pivot_max_omega_radps", default_value="0.85")' in launch
+    assert 'DeclareLaunchArgument("nav_challenge2_pivot_timeout_s", default_value="25.0")' in launch
     assert '"--tracking-enabled"' in launch
     assert '"--manual-target-x-m"' in launch
     assert '"--uav-landed-topic"' in launch
     assert '"--challenge1-post-landing-s"' in launch
+    assert '"--challenge2-post-landing-s"' in launch
+    assert '"--challenge2-pivot-max-omega-radps"' in launch
     assert '"--obstacle-warn-m"' in launch
     assert '"--bypass-offset-m"' in launch
 

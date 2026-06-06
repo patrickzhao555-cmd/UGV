@@ -153,6 +153,18 @@ def generate_launch_description():
     nav_challenge1_timeout_s = LaunchConfiguration("nav_challenge1_timeout_s")
     nav_challenge1_max_distance_m = LaunchConfiguration("nav_challenge1_max_distance_m")
     nav_challenge1_stop_on_obstacle = LaunchConfiguration("nav_challenge1_stop_on_obstacle")
+    nav_challenge2_speed_mps = LaunchConfiguration("nav_challenge2_speed_mps")
+    nav_challenge2_approach_speed_mps = LaunchConfiguration("nav_challenge2_approach_speed_mps")
+    nav_challenge2_slowdown_distance_m = LaunchConfiguration("nav_challenge2_slowdown_distance_m")
+    nav_challenge2_stop_radius_m = LaunchConfiguration("nav_challenge2_stop_radius_m")
+    nav_challenge2_post_landing_s = LaunchConfiguration("nav_challenge2_post_landing_s")
+    nav_challenge2_pivot_max_omega_radps = LaunchConfiguration("nav_challenge2_pivot_max_omega_radps")
+    nav_challenge2_pivot_timeout_s = LaunchConfiguration("nav_challenge2_pivot_timeout_s")
+    nav_challenge2_pivot_settle_error_rad = LaunchConfiguration("nav_challenge2_pivot_settle_error_rad")
+    nav_challenge2_pivot_settle_time_s = LaunchConfiguration("nav_challenge2_pivot_settle_time_s")
+    nav_challenge2_heading_kp = LaunchConfiguration("nav_challenge2_heading_kp")
+    nav_challenge2_cross_track_kp = LaunchConfiguration("nav_challenge2_cross_track_kp")
+    nav_challenge2_max_omega_radps = LaunchConfiguration("nav_challenge2_max_omega_radps")
     nav_max_omega_radps = LaunchConfiguration("nav_max_omega_radps")
     nav_heading_kp = LaunchConfiguration("nav_heading_kp")
     nav_heading_kd = LaunchConfiguration("nav_heading_kd")
@@ -420,6 +432,30 @@ def generate_launch_description():
             nav_challenge1_max_distance_m,
             "--challenge1-stop-on-obstacle",
             nav_challenge1_stop_on_obstacle,
+            "--challenge2-speed-mps",
+            nav_challenge2_speed_mps,
+            "--challenge2-approach-speed-mps",
+            nav_challenge2_approach_speed_mps,
+            "--challenge2-slowdown-distance-m",
+            nav_challenge2_slowdown_distance_m,
+            "--challenge2-stop-radius-m",
+            nav_challenge2_stop_radius_m,
+            "--challenge2-post-landing-s",
+            nav_challenge2_post_landing_s,
+            "--challenge2-pivot-max-omega-radps",
+            nav_challenge2_pivot_max_omega_radps,
+            "--challenge2-pivot-timeout-s",
+            nav_challenge2_pivot_timeout_s,
+            "--challenge2-pivot-settle-error-rad",
+            nav_challenge2_pivot_settle_error_rad,
+            "--challenge2-pivot-settle-time-s",
+            nav_challenge2_pivot_settle_time_s,
+            "--challenge2-heading-kp",
+            nav_challenge2_heading_kp,
+            "--challenge2-cross-track-kp",
+            nav_challenge2_cross_track_kp,
+            "--challenge2-max-omega-radps",
+            nav_challenge2_max_omega_radps,
             "--max-omega-radps",
             nav_max_omega_radps,
             "--heading-kp",
@@ -675,6 +711,18 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_challenge1_timeout_s", default_value="420.0"),
             DeclareLaunchArgument("nav_challenge1_max_distance_m", default_value="0.0"),
             DeclareLaunchArgument("nav_challenge1_stop_on_obstacle", default_value="true"),
+            DeclareLaunchArgument("nav_challenge2_speed_mps", default_value="0.24"),
+            DeclareLaunchArgument("nav_challenge2_approach_speed_mps", default_value="0.12"),
+            DeclareLaunchArgument("nav_challenge2_slowdown_distance_m", default_value="1.5"),
+            DeclareLaunchArgument("nav_challenge2_stop_radius_m", default_value="0.75"),
+            DeclareLaunchArgument("nav_challenge2_post_landing_s", default_value="10.0"),
+            DeclareLaunchArgument("nav_challenge2_pivot_max_omega_radps", default_value="0.85"),
+            DeclareLaunchArgument("nav_challenge2_pivot_timeout_s", default_value="25.0"),
+            DeclareLaunchArgument("nav_challenge2_pivot_settle_error_rad", default_value="0.035"),
+            DeclareLaunchArgument("nav_challenge2_pivot_settle_time_s", default_value="0.35"),
+            DeclareLaunchArgument("nav_challenge2_heading_kp", default_value="0.85"),
+            DeclareLaunchArgument("nav_challenge2_cross_track_kp", default_value="0.75"),
+            DeclareLaunchArgument("nav_challenge2_max_omega_radps", default_value="0.35"),
             DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
             DeclareLaunchArgument("nav_heading_kp", default_value="0.6"),
             DeclareLaunchArgument("nav_heading_kd", default_value="0.08"),

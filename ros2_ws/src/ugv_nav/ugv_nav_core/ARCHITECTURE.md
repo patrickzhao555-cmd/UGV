@@ -1,11 +1,11 @@
 # Jetson Chassis Control Architecture
 
-`ugv_nav_dual_mode.py` is the safe Jetson chassis controller. The primary
-competition mode is `competition_tracker`, which uses encoder distance and IMU
-yaw as local odometry, then continuously tracks the target path with
-lookahead/cross-track/heading correction. The older Nav2 field launch,
-Operation Touchdown mission supervisor, and Nav2 adapter are retained as a
-legacy fallback/debug stack.
+`ugv_nav_dual_mode.py` is the safe Jetson chassis controller. Competition
+controllers use encoder distance and IMU yaw as local odometry, then
+continuously correct heading, distance, and cross-track error before every
+command. The older Nav2 field launch, Operation Touchdown mission supervisor,
+and Nav2 adapter are retained as a separate legacy/debug stack, not an
+automatic competition fallback.
 
 The active command contract remains:
 
@@ -22,11 +22,11 @@ The split is intentional:
 
 - Teensy: low-level left/right side velocity PID.
 - Jetson motor bridge: thin protocol bridge and motor health/status.
-- Jetson chassis controller: competition trajectory tracking, heading/yaw
-  tests, and fallback mission sequencing that publish `v_mps` and
-  `omega_radps`.
-- Legacy Nav2 adapter and mission supervisor: optional fallback/debug target
-  navigation and collision-monitor handoff.
+- Jetson chassis controller: Challenge 1 straight heading hold, Challenge 2
+  align-then-straight tracking, target-path tracking, heading/yaw tests, and
+  mission sequencing that publish `v_mps` and `omega_radps`.
+- Legacy Nav2 adapter and mission supervisor: optional debug target navigation
+  and collision-monitor handoff.
 
 ## Chassis Test Modes
 
@@ -34,6 +34,9 @@ The split is intentional:
 - `competition_tracker`: takes a target from `/ugv/uav_target` or manual launch
   parameters, integrates encoder distance with IMU yaw, then tracks the local
   target path until it reaches the configured stop radius.
+- `challenge2_align_straight`: waits for a target, pivots in place until IMU
+  heading settles on the target bearing, then tracks the start-local straight
+  line to the marker using encoder odometry and IMU yaw.
 - `straight_test`: records current heading, drives forward, and applies
   `omega_radps` correction from heading error plus gyro damping.
 - `pivot_test`: records current heading, adds a relative target angle, then
@@ -46,8 +49,8 @@ The heading estimate integrates high-rate `/zed/imu` gyro data directly. The
 ZED depth/image path can stay at 10 Hz, while IMU defaults to 100 Hz and the
 chassis control timer defaults to 50 Hz. In `competition_tracker`, encoder
 average distance supplies actual translation and IMU yaw supplies actual
-heading. The tracker continuously recomputes remaining distance, cross-track
-error, heading error, and obstacle state before every command.
+heading. The competition controllers continuously recompute remaining distance,
+cross-track error, heading error, and obstacle state before every command.
 
 Before each active test, the node holds STOP and calibrates gyro bias. If the
 robot moves or gyro samples are too noisy during calibration, it keeps holding
@@ -68,8 +71,9 @@ Manual teleop and primitive calibration modes are debug exceptions.  During
 formal autonomous movement, normal waits, replans, marker search, and terminal
 alignment crawl instead of intentionally commanding zero speed.  STOP is still
 used for destination reached, kill switch, safety stop, or fault.
-Formal autonomous steering through `competition_tracker` is velocity/omega
-closed-loop tracking. Legacy Nav2 steering remains rolling-arc constrained by
+Formal autonomous steering through `competition_tracker` and
+`challenge2_align_straight` is velocity/omega closed-loop tracking. Legacy Nav2
+steering remains rolling-arc constrained by
 `ugv_nav2_adapter.py`; with `allow_side_reverse:=false`, pure opposite-side-speed
 pivots are not passed to the motor bridge.
 
@@ -140,9 +144,9 @@ with STOP.
 
 ## Legacy Nav2 Field Navigation Path
 
-The GPS-denied Nav2 obstacle-avoidance path is now a legacy fallback/debug
-integration layer. It does not replace `competition_tracker`, the tested
-chassis primitives, or the Teensy PID layer:
+The GPS-denied Nav2 obstacle-avoidance path is now a legacy/debug integration
+layer. It does not replace `challenge2_align_straight`, `competition_tracker`,
+the tested chassis primitives, or the Teensy PID layer:
 
 ```text
 Nav2 planner/controller

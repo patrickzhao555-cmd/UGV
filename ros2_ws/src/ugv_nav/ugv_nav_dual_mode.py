@@ -24,6 +24,7 @@ from ugv_nav_core.chassis_controller import (
     GyroBiasCalibrationState,
     PivotControllerState,
     bounded_duration,
+    clamp,
     compute_straight_omega,
     curve_speed_radius_omega,
     evaluate_pivot_clearance,
@@ -41,6 +42,7 @@ from ugv_nav_core.chassis_controller import (
     update_encoder_heading,
     update_gyro_bias_calibration,
     update_gyro_heading,
+    wrap_pi,
 )
 from ugv_nav_core.mission_controller import (
     MOVING_TARGET_SPEED_MPS,
@@ -136,6 +138,49 @@ def encoder_ticks_from_motor_status(payload: Any) -> Optional[tuple[int, int]]:
     return None
 
 
+def challenge2_target_bearing_rad(target_x_m: float, target_y_m: float) -> float:
+    x = float(target_x_m)
+    y = float(target_y_m)
+    if not math.isfinite(x) or not math.isfinite(y):
+        raise ValueError("challenge2 target coordinates must be finite")
+    return math.atan2(y, x)
+
+
+def challenge2_target_distance_m(
+    target_x_m: float,
+    target_y_m: float,
+    *,
+    pose_x_m: float = 0.0,
+    pose_y_m: float = 0.0,
+) -> float:
+    return math.hypot(float(target_x_m) - float(pose_x_m), float(target_y_m) - float(pose_y_m))
+
+
+def challenge2_cross_track_error_m(
+    target_x_m: float,
+    target_y_m: float,
+    *,
+    pose_x_m: float,
+    pose_y_m: float,
+) -> float:
+    target_len = math.hypot(float(target_x_m), float(target_y_m))
+    if target_len <= 1e-9:
+        return 0.0
+    ux = float(target_x_m) / target_len
+    uy = float(target_y_m) / target_len
+    return ux * float(pose_y_m) - uy * float(pose_x_m)
+
+
+def challenge2_landing_requirement_met(
+    landed_s: Optional[float],
+    now_s: float,
+    required_s: float,
+) -> bool:
+    if landed_s is None:
+        return False
+    return float(now_s) - float(landed_s) >= max(0.0, float(required_s))
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Safe UGV chassis controller. Default mode publishes STOP.",
@@ -152,6 +197,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
             "mission_sequence",
             "competition_tracker",
             "challenge1_landing_platform",
+            "challenge2_align_straight",
         ],
         default="idle",
     )
@@ -217,6 +263,18 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--challenge1-timeout-s", type=float, default=420.0)
     parser.add_argument("--challenge1-max-distance-m", type=float, default=0.0)
     parser.add_argument("--challenge1-stop-on-obstacle", type=parse_bool, default=True)
+    parser.add_argument("--challenge2-speed-mps", type=float, default=0.24)
+    parser.add_argument("--challenge2-approach-speed-mps", type=float, default=0.12)
+    parser.add_argument("--challenge2-slowdown-distance-m", type=float, default=1.5)
+    parser.add_argument("--challenge2-stop-radius-m", type=float, default=0.75)
+    parser.add_argument("--challenge2-post-landing-s", type=float, default=10.0)
+    parser.add_argument("--challenge2-pivot-max-omega-radps", type=float, default=0.85)
+    parser.add_argument("--challenge2-pivot-timeout-s", type=float, default=25.0)
+    parser.add_argument("--challenge2-pivot-settle-error-rad", type=float, default=0.035)
+    parser.add_argument("--challenge2-pivot-settle-time-s", type=float, default=0.35)
+    parser.add_argument("--challenge2-heading-kp", type=float, default=0.85)
+    parser.add_argument("--challenge2-cross-track-kp", type=float, default=0.75)
+    parser.add_argument("--challenge2-max-omega-radps", type=float, default=0.35)
     parser.add_argument("--max-omega-radps", type=float, default=0.45)
     parser.add_argument("--heading-kp", type=float, default=0.6)
     parser.add_argument("--heading-kd", type=float, default=0.08)
@@ -387,10 +445,17 @@ def run_sim() -> None:
 
 def validate_controller_mode(args: argparse.Namespace) -> None:
     mode = str(args.controller_mode)
-    if not bool(args.allow_legacy_controller) and mode not in {"idle", "competition_tracker", "challenge1_landing_platform"}:
+    competition_modes = {
+        "idle",
+        "competition_tracker",
+        "challenge1_landing_platform",
+        "challenge2_align_straight",
+    }
+    if not bool(args.allow_legacy_controller) and mode not in competition_modes:
         raise SystemExit(
             f"controller-mode={mode} is a legacy/calibration controller. "
-            "Use controller-mode=competition_tracker or challenge1_landing_platform "
+            "Use controller-mode=competition_tracker, challenge1_landing_platform, "
+            "or challenge2_align_straight "
             "for closed-loop competition tracking, "
             "or pass --allow-legacy-controller true for intentional calibration/debug runs."
         )
@@ -453,6 +518,36 @@ def run_real(args: argparse.Namespace) -> None:
             self.tracker_pending_target: Optional[tuple[float, float]] = None
             if abs(float(args.manual_target_x_m)) > 1e-9 or abs(float(args.manual_target_y_m)) > 1e-9:
                 self.tracker_pending_target = (float(args.manual_target_x_m), float(args.manual_target_y_m))
+            self.challenge2_tracker = TrackerState()
+            self.challenge2_tracker_config = replace(
+                self.tracker_config,
+                target_stop_radius_m=max(0.05, float(args.challenge2_stop_radius_m)),
+                nominal_speed_mps=max(0.0, float(args.challenge2_speed_mps)),
+                max_speed_mps=max(0.0, max(float(args.challenge2_speed_mps), float(args.challenge2_approach_speed_mps))),
+                max_omega_radps=max(0.0, float(args.challenge2_max_omega_radps)),
+                heading_kp=float(args.challenge2_heading_kp),
+                cross_track_kp=float(args.challenge2_cross_track_kp),
+                slowdown_distance_m=max(0.05, float(args.challenge2_slowdown_distance_m)),
+            )
+            self.challenge2_target: Optional[tuple[float, float]] = (
+                None if self.tracker_pending_target is None else tuple(self.tracker_pending_target)
+            )
+            self.challenge2_state = "WAIT_TARGET"
+            self.challenge2_start_s: Optional[float] = None
+            self.challenge2_landed_s: Optional[float] = None
+            self.challenge2_uav_landed = False
+            self.challenge2_landing_requirement_met = False
+            self.challenge2_target_distance_m: Optional[float] = None
+            self.challenge2_target_bearing_rad: Optional[float] = (
+                None
+                if self.challenge2_target is None
+                else challenge2_target_bearing_rad(self.challenge2_target[0], self.challenge2_target[1])
+            )
+            self.challenge2_align_error_rad = 0.0
+            self.challenge2_cross_track_error_m = 0.0
+            self.challenge2_result_reason = "waiting_for_target"
+            self.challenge2_last_omega_radps = 0.0
+            self.challenge2_last_update_s: Optional[float] = None
             self.challenge1_state = "idle"
             self.challenge1_uav_launched = bool(args.challenge1_auto_start)
             self.challenge1_uav_landed = False
@@ -576,12 +671,22 @@ def run_real(args: argparse.Namespace) -> None:
                     now_s=now_s,
                 )
 
+        def _queue_challenge2_target(self, x: float, y: float) -> bool:
+            current = self.challenge2_target
+            self.challenge2_target = (float(x), float(y))
+            self.challenge2_target_bearing_rad = challenge2_target_bearing_rad(x, y)
+            if current is not None and math.hypot(float(x) - current[0], float(y) - current[1]) < 0.05:
+                return False
+            self._reset_challenge2_state(keep_target=True, preserve_landed=True)
+            return True
+
         def target_callback(self, msg: Any) -> None:
             x = float(msg.point.x)
             y = float(msg.point.y)
             if not math.isfinite(x) or not math.isfinite(y):
                 self.get_logger().warn("Ignoring non-finite competition tracker target")
                 return
+            challenge2_new_target = self._queue_challenge2_target(x, y)
             current_target = self.tracker_pending_target
             if current_target is None and self.tracker.target is not None:
                 current_target = (self.tracker.target.x, self.tracker.target.y)
@@ -591,6 +696,8 @@ def run_real(args: argparse.Namespace) -> None:
             reset_tracker(self.tracker)
             self.tracker_pending_target = (x, y)
             self.get_logger().info(f"Competition tracker target queued: x={x:.3f}m y={y:.3f}m")
+            if challenge2_new_target:
+                self.get_logger().warn(f"Challenge 2 target queued: x={x:.3f}m y={y:.3f}m")
 
         def uav_launched_callback(self, msg: Any) -> None:
             if not bool(getattr(msg, "data", False)):
@@ -602,10 +709,15 @@ def run_real(args: argparse.Namespace) -> None:
         def uav_landed_callback(self, msg: Any) -> None:
             if not bool(getattr(msg, "data", False)):
                 return
+            now_s = time.monotonic()
             if not self.challenge1_uav_landed:
-                self.challenge1_landed_s = time.monotonic()
+                self.challenge1_landed_s = now_s
                 self.get_logger().warn("Challenge 1 UAV landed signal received; starting post-landing travel timer.")
             self.challenge1_uav_landed = True
+            if not self.challenge2_uav_landed:
+                self.challenge2_landed_s = now_s
+                self.get_logger().warn("Challenge 2 UAV landed signal received; starting 10s rule timer.")
+            self.challenge2_uav_landed = True
 
         def imu_callback(self, msg: Any) -> None:
             now_s = time.monotonic()
@@ -859,6 +971,34 @@ def run_real(args: argparse.Namespace) -> None:
             self.challenge1_distance_m = 0.0
             self.challenge1_last_omega_radps = 0.0
 
+        def _reset_challenge2_state(
+            self,
+            *,
+            keep_target: bool = False,
+            preserve_landed: bool = False,
+        ) -> None:
+            target = self.challenge2_target if keep_target else None
+            landed = self.challenge2_uav_landed if preserve_landed else False
+            landed_s = self.challenge2_landed_s if preserve_landed else None
+            reset_tracker(self.challenge2_tracker)
+            if self.mode == "challenge2_align_straight":
+                reset_pivot(self.pivot)
+            self.challenge2_target = target
+            self.challenge2_state = "WAIT_TARGET"
+            self.challenge2_start_s = None
+            self.challenge2_landed_s = landed_s
+            self.challenge2_uav_landed = landed
+            self.challenge2_landing_requirement_met = False
+            self.challenge2_target_distance_m = None
+            self.challenge2_target_bearing_rad = (
+                None if target is None else challenge2_target_bearing_rad(target[0], target[1])
+            )
+            self.challenge2_align_error_rad = 0.0
+            self.challenge2_cross_track_error_m = 0.0
+            self.challenge2_result_reason = "waiting_for_target"
+            self.challenge2_last_omega_radps = 0.0
+            self.challenge2_last_update_s = None
+
         def _tracker_safety_state(self, now_s: float) -> str:
             if not self.config.debug_ignore_nav_frame and (
                 self.last_sensor_s is None or now_s - self.last_sensor_s > self.config.sensor_timeout_s
@@ -1083,6 +1223,251 @@ def run_real(args: argparse.Namespace) -> None:
             )
             self.challenge1_last_omega_radps = omega
             return build_velocity_command(self._challenge1_speed_mps(), omega, reason), heading, heading_error, "ok"
+
+        def _challenge2_pivot_config(self) -> ChassisControllerConfig:
+            max_omega = max(0.0, float(args.challenge2_pivot_max_omega_radps))
+            return replace(
+                self.config,
+                max_omega_radps=max(max_omega, float(self.config.max_omega_radps)),
+                pivot_max_omega_radps=max_omega,
+                pivot_timeout_s=max(0.1, float(args.challenge2_pivot_timeout_s)),
+                pivot_settle_error_rad=max(0.0, float(args.challenge2_pivot_settle_error_rad)),
+                pivot_settle_time_s=max(0.0, float(args.challenge2_pivot_settle_time_s)),
+            )
+
+        def _challenge2_straight_config(self) -> ChassisControllerConfig:
+            max_omega = max(0.0, float(args.challenge2_max_omega_radps))
+            return replace(
+                self.config,
+                max_omega_radps=max(max_omega, float(self.config.max_omega_radps)),
+                mission_straight_max_omega_radps=max_omega,
+                heading_kp=float(args.challenge2_heading_kp),
+                heading_kd=float(self.config.heading_kd),
+            )
+
+        def _challenge2_speed_mps(self, target_distance_m: float) -> float:
+            base = max(
+                abs(float(args.challenge2_speed_mps)),
+                float(self.config.competition_min_speed_mps),
+                float(self.config.competition_moving_target_speed_mps),
+            )
+            approach = max(
+                abs(float(args.challenge2_approach_speed_mps)),
+                float(self.config.competition_min_speed_mps),
+                float(self.config.competition_moving_target_speed_mps),
+            )
+            stop_radius = max(0.05, float(args.challenge2_stop_radius_m))
+            slowdown = max(stop_radius + 0.05, float(args.challenge2_slowdown_distance_m))
+            if target_distance_m <= stop_radius:
+                return 0.0
+            if target_distance_m < slowdown:
+                ratio = clamp((target_distance_m - stop_radius) / max(1e-6, slowdown - stop_radius), 0.0, 1.0)
+                requested = approach + (base - approach) * ratio
+            else:
+                requested = base
+            return apply_competition_speed_rule(
+                requested,
+                allow_stop=False,
+                min_speed_mps=self.config.competition_min_speed_mps,
+                moving_target_speed_mps=self.config.competition_moving_target_speed_mps,
+            )
+
+        def _update_challenge2_metrics(self, now_s: float) -> None:
+            target = self.challenge2_target
+            if target is None:
+                self.challenge2_target_distance_m = None
+                self.challenge2_target_bearing_rad = None
+                self.challenge2_align_error_rad = 0.0
+                self.challenge2_cross_track_error_m = 0.0
+            else:
+                pose = self.challenge2_tracker.pose
+                bearing = challenge2_target_bearing_rad(target[0], target[1])
+                self.challenge2_target_bearing_rad = bearing
+                self.challenge2_target_distance_m = challenge2_target_distance_m(
+                    target[0],
+                    target[1],
+                    pose_x_m=pose.x,
+                    pose_y_m=pose.y,
+                )
+                self.challenge2_align_error_rad = wrap_pi(bearing - pose.yaw)
+                self.challenge2_cross_track_error_m = challenge2_cross_track_error_m(
+                    target[0],
+                    target[1],
+                    pose_x_m=pose.x,
+                    pose_y_m=pose.y,
+                )
+            if self.challenge2_uav_landed and self.challenge2_landed_s is None:
+                self.challenge2_landed_s = now_s
+            self.challenge2_landing_requirement_met = challenge2_landing_requirement_met(
+                self.challenge2_landed_s,
+                now_s,
+                float(args.challenge2_post_landing_s),
+            )
+
+        def _ensure_challenge2_started(self, now_s: float, heading: float) -> Optional[str]:
+            if self.challenge2_target is None:
+                self.challenge2_state = "WAIT_TARGET"
+                self.challenge2_result_reason = "waiting_for_target"
+                return "challenge2_wait_target"
+            if not self._encoder_feedback_available():
+                return "encoder_unavailable"
+            if not self._encoder_feedback_fresh(now_s):
+                return "encoder_stale"
+            if self.challenge2_tracker.target is None or self.challenge2_tracker.state in {"WAIT_TARGET", "FAULT"}:
+                assert self.current_left_ticks is not None
+                assert self.current_right_ticks is not None
+                x, y = self.challenge2_target
+                start_tracker_goal(
+                    self.challenge2_tracker,
+                    target_x_m=x,
+                    target_y_m=y,
+                    left_ticks=self.current_left_ticks,
+                    right_ticks=self.current_right_ticks,
+                    heading_rad=heading,
+                )
+                self.challenge2_start_s = now_s
+                self.challenge2_state = "ALIGN_TO_TARGET"
+                self.challenge2_result_reason = "aligning_to_target"
+                self.challenge2_last_omega_radps = 0.0
+                self.challenge2_last_update_s = now_s
+                reset_pivot(self.pivot)
+                self.get_logger().warn(
+                    "Challenge 2 align-then-straight started: "
+                    f"target=({x:.3f},{y:.3f})m "
+                    f"bearing={math.degrees(challenge2_target_bearing_rad(x, y)):.1f}deg "
+                    f"stop_radius={float(args.challenge2_stop_radius_m):.2f}m"
+                )
+            return None
+
+        def _challenge2_goal_stop_reason(self) -> str:
+            return (
+                "challenge2_goal_reached"
+                if self.challenge2_landing_requirement_met
+                else "challenge2_goal_reached_landing_requirement_unmet"
+            )
+
+        def _tick_challenge2_align_straight(self, now_s: float) -> tuple[ControlCommand, float, float, str]:
+            heading = self._heading_rad(now_s)
+            safety_state = self._tracker_safety_state(now_s)
+            if safety_state != "ok":
+                self.challenge2_state = "FAULT"
+                self.challenge2_result_reason = safety_state
+                reset_pivot(self.pivot)
+                self.challenge2_last_omega_radps = 0.0
+                return build_stop_command(safety_state), heading, 0.0, safety_state
+
+            start_hold = self._ensure_challenge2_started(now_s, heading)
+            self._update_challenge2_metrics(now_s)
+            if start_hold is not None:
+                return build_stop_command(start_hold), heading, 0.0, start_hold
+
+            assert self.current_left_ticks is not None
+            assert self.current_right_ticks is not None
+            update_tracker_odometry(
+                self.challenge2_tracker,
+                left_ticks=self.current_left_ticks,
+                right_ticks=self.current_right_ticks,
+                heading_rad=heading,
+                config=self.challenge2_tracker_config,
+            )
+            self._update_challenge2_metrics(now_s)
+            target_distance = (
+                math.inf if self.challenge2_target_distance_m is None else float(self.challenge2_target_distance_m)
+            )
+            stop_radius = max(0.05, float(args.challenge2_stop_radius_m))
+            if target_distance <= stop_radius:
+                self.challenge2_state = "GOAL_REACHED"
+                self.challenge2_result_reason = self._challenge2_goal_stop_reason()
+                self.challenge2_tracker.state = "GOAL_REACHED"
+                self.challenge2_tracker.completion_reason = self.challenge2_result_reason
+                reset_pivot(self.pivot)
+                return build_stop_command(self.challenge2_result_reason), heading, self.challenge2_align_error_rad, "ok"
+
+            if self.challenge2_state == "GOAL_REACHED":
+                return build_stop_command(self.challenge2_result_reason), heading, self.challenge2_align_error_rad, "ok"
+
+            if self.challenge2_state in {"WAIT_TARGET", "FAULT"}:
+                self.challenge2_state = "ALIGN_TO_TARGET"
+
+            if self.challenge2_state == "ALIGN_TO_TARGET":
+                pivot_config = self._challenge2_pivot_config()
+                align_error = self.challenge2_align_error_rad
+                self.target_heading_rad = wrap_pi(self.challenge2_tracker.start_heading_rad + float(self.challenge2_target_bearing_rad or 0.0))
+                if self.pivot.state == "idle" and abs(align_error) <= max(0.0, float(args.challenge2_pivot_settle_error_rad)):
+                    self.challenge2_state = "DRIVE_STRAIGHT"
+                    self.challenge2_result_reason = "align_already_within_tolerance"
+                    self.challenge2_last_update_s = now_s
+                    self.challenge2_last_omega_radps = 0.0
+                    reset_pivot(self.pivot)
+                else:
+                    if self.pivot.state == "idle":
+                        start_pivot(
+                            self.pivot,
+                            now_s=now_s,
+                            current_heading_rad=heading,
+                            encoder_heading_rad=self.estimator.encoder_heading_rad,
+                            target_angle_rad=align_error,
+                        )
+                    step = step_profiled_pivot(
+                        self.pivot,
+                        now_s=now_s,
+                        heading_rad=heading,
+                        yaw_rate_radps=self.yaw_rate_radps,
+                        encoder_heading_rad=self.estimator.encoder_heading_rad,
+                        config=pivot_config,
+                    )
+                    self.challenge2_align_error_rad = step.heading_error_rad
+                    self.target_heading_rad = self.pivot.target_heading_rad
+                    self.encoder_gyro_disagreement_rad = pivot_encoder_gyro_disagreement(
+                        pivot_start_gyro_heading_rad=self.pivot.start_heading_rad,
+                        pivot_start_encoder_heading_rad=self.pivot.start_encoder_heading_rad,
+                        current_gyro_heading_rad=self.estimator.gyro_heading_rad,
+                        current_encoder_heading_rad=self.estimator.encoder_heading_rad,
+                    )
+                    self.slip_detected = self.encoder_gyro_disagreement_rad > self.config.slip_disagreement_rad
+                    if step.state == "abort":
+                        self.challenge2_state = "FAULT"
+                        self.challenge2_result_reason = step.reason
+                        return build_stop_command(step.reason), heading, step.heading_error_rad, step.reason
+                    if step.complete:
+                        self.challenge2_state = "DRIVE_STRAIGHT"
+                        self.challenge2_result_reason = "align_complete"
+                        self.challenge2_last_update_s = now_s
+                        self.challenge2_last_omega_radps = 0.0
+                    elif step.command_type == "velocity":
+                        self.challenge2_result_reason = step.reason
+                        return build_velocity_command(0.0, step.omega_radps, step.reason), heading, step.heading_error_rad, "ok"
+                    else:
+                        self.challenge2_result_reason = step.reason
+                        return build_stop_command(step.reason), heading, step.heading_error_rad, "ok"
+
+            if self.challenge2_state == "DRIVE_STRAIGHT":
+                dt_s = 0.0 if self.challenge2_last_update_s is None else max(0.0, now_s - self.challenge2_last_update_s)
+                self.challenge2_last_update_s = now_s
+                straight_config = self._challenge2_straight_config()
+                heading_error = self.challenge2_align_error_rad
+                cross_track = self.challenge2_cross_track_error_m
+                distance_scale = max(0.35, target_distance)
+                cross_heading_correction = -float(args.challenge2_cross_track_kp) * math.atan2(cross_track, distance_scale)
+                effective_heading_error = wrap_pi(heading_error + cross_heading_correction)
+                self.straight_heading_error_samples.append(heading_error)
+                omega = straight_omega_with_slew(
+                    heading_error_rad=effective_heading_error,
+                    yaw_rate_radps=self.yaw_rate_radps,
+                    previous_omega_radps=self.challenge2_last_omega_radps,
+                    dt_s=dt_s,
+                    config=straight_config,
+                )
+                self.challenge2_last_omega_radps = omega
+                v_cmd = self._challenge2_speed_mps(target_distance)
+                self.sub_min_speed_command_blocked = (
+                    0.0 < abs(float(args.challenge2_speed_mps)) < self.config.competition_min_speed_mps
+                    and abs(v_cmd) >= self.config.competition_min_speed_mps
+                )
+                self.challenge2_result_reason = "driving_to_marker"
+                return build_velocity_command(v_cmd, omega, "challenge2_drive_straight"), heading, heading_error, "ok"
+
+            return build_stop_command(self.challenge2_result_reason), heading, self.challenge2_align_error_rad, "ok"
 
         def _reset_bias_and_heading(self) -> None:
             reset_gyro_bias_calibration(self.gyro_bias)
@@ -1560,6 +1945,7 @@ def run_real(args: argparse.Namespace) -> None:
                 self._reset_mission_state()
                 reset_tracker(self.tracker)
                 self._reset_challenge1_state()
+                self._reset_challenge2_state()
             elif self.mode == "challenge1_landing_platform":
                 calibrated, calibration_reason = self._calibrate_gyro_bias_if_needed(now_s)
                 if not calibrated:
@@ -1568,6 +1954,15 @@ def run_real(args: argparse.Namespace) -> None:
                     safety_state = calibration_reason
                 else:
                     cmd, heading, heading_error, safety_state = self._tick_challenge1_landing_platform(now_s)
+            elif self.mode == "challenge2_align_straight":
+                calibrated, calibration_reason = self._calibrate_gyro_bias_if_needed(now_s)
+                if not calibrated:
+                    self.challenge2_state = "GYRO_BIAS_CALIBRATION"
+                    self.challenge2_result_reason = calibration_reason
+                    cmd = build_stop_command(calibration_reason)
+                    safety_state = calibration_reason
+                else:
+                    cmd, heading, heading_error, safety_state = self._tick_challenge2_align_straight(now_s)
             elif self.mode == "competition_tracker":
                 calibrated, calibration_reason = self._calibrate_gyro_bias_if_needed(now_s)
                 if not calibrated:
@@ -1780,6 +2175,7 @@ def run_real(args: argparse.Namespace) -> None:
             heading_error: float,
             safety_state: str,
         ) -> Dict[str, Any]:
+            self._update_challenge2_metrics(now_s)
             pivot_state = self.pivot.state
             if self.mode == "pivot_test":
                 if safety_state in {
@@ -1794,6 +2190,9 @@ def run_real(args: argparse.Namespace) -> None:
             last_omega = float(self.last_command_payload.get("omega_radps", 0.0))
             straight_limit = max(0.0, min(float(self.config.max_omega_radps), float(self.config.mission_straight_max_omega_radps)))
             pivot_limit = max(0.0, min(float(self.config.max_omega_radps), float(self.config.pivot_max_omega_radps)))
+            if self.mode == "challenge2_align_straight":
+                straight_limit = max(0.0, float(args.challenge2_max_omega_radps))
+                pivot_limit = max(0.0, float(args.challenge2_pivot_max_omega_radps))
             _, _, curve_limit = curve_speed_radius_omega(self.config)
             if self.mode == "curve_test" and self.curve.state not in {"idle", "complete"}:
                 omega_limit = curve_limit
@@ -1836,6 +2235,36 @@ def run_real(args: argparse.Namespace) -> None:
                 "challenge1_post_landing_required_s": max(0.0, float(args.challenge1_post_landing_s)),
                 "challenge1_timeout_s": max(0.0, float(args.challenge1_timeout_s)),
                 "challenge1_max_distance_m": max(0.0, float(args.challenge1_max_distance_m)),
+                "challenge2_state": self.challenge2_state,
+                "challenge2_target_m": (
+                    None
+                    if self.challenge2_target is None
+                    else [round(float(self.challenge2_target[0]), 4), round(float(self.challenge2_target[1]), 4)]
+                ),
+                "challenge2_pose_m": [
+                    round(float(self.challenge2_tracker.pose.x), 4),
+                    round(float(self.challenge2_tracker.pose.y), 4),
+                    round(float(self.challenge2_tracker.pose.yaw), 5),
+                ],
+                "challenge2_target_distance_m": (
+                    None
+                    if self.challenge2_target_distance_m is None
+                    else round(float(self.challenge2_target_distance_m), 4)
+                ),
+                "challenge2_target_bearing_rad": (
+                    None
+                    if self.challenge2_target_bearing_rad is None
+                    else round(float(self.challenge2_target_bearing_rad), 5)
+                ),
+                "challenge2_align_error_rad": round(float(self.challenge2_align_error_rad), 5),
+                "challenge2_cross_track_error_m": round(float(self.challenge2_cross_track_error_m), 4),
+                "challenge2_uav_landed": self.challenge2_uav_landed,
+                "challenge2_post_landing_elapsed_s": (
+                    None if self.challenge2_landed_s is None else round(max(0.0, now_s - self.challenge2_landed_s), 3)
+                ),
+                "challenge2_post_landing_required_s": max(0.0, float(args.challenge2_post_landing_s)),
+                "challenge2_landing_requirement_met": self.challenge2_landing_requirement_met,
+                "challenge2_result_reason": self.challenge2_result_reason,
                 "competition_min_speed_mps": self.config.competition_min_speed_mps,
                 "moving_target_speed_mps": self.config.competition_moving_target_speed_mps,
                 "competition_continuous_motion_enabled": self.config.competition_continuous_motion_enabled,

@@ -34,7 +34,15 @@ from ugv_nav_core.mission_controller import (  # noqa: E402
     telemetry_force_flush_key,
     update_stuck_monitor,
 )
-from ugv_nav_dual_mode import encoder_ticks_from_motor_status, parse_args, validate_controller_mode  # noqa: E402
+from ugv_nav_dual_mode import (  # noqa: E402
+    challenge2_cross_track_error_m,
+    challenge2_landing_requirement_met,
+    challenge2_target_bearing_rad,
+    challenge2_target_distance_m,
+    encoder_ticks_from_motor_status,
+    parse_args,
+    validate_controller_mode,
+)
 
 
 class _FakeTelemetryFile:
@@ -185,6 +193,60 @@ def test_challenge1_landing_platform_args_parse_and_guard_allowed():
     assert args.uav_launched_topic == "/test/uav_launched"
     assert args.uav_landed_topic == "/test/uav_landed"
     validate_controller_mode(args)
+
+
+def test_challenge2_align_straight_args_parse_and_guard_allowed():
+    args = parse_args([
+        "--controller-mode",
+        "challenge2_align_straight",
+        "--challenge2-speed-mps",
+        "0.24",
+        "--challenge2-approach-speed-mps",
+        "0.12",
+        "--challenge2-slowdown-distance-m",
+        "1.5",
+        "--challenge2-stop-radius-m",
+        "0.75",
+        "--challenge2-post-landing-s",
+        "10.0",
+        "--challenge2-pivot-max-omega-radps",
+        "0.85",
+        "--challenge2-pivot-timeout-s",
+        "25.0",
+        "--challenge2-pivot-settle-error-rad",
+        "0.035",
+        "--challenge2-pivot-settle-time-s",
+        "0.35",
+        "--uav-landed-topic",
+        "/test/uav_landed",
+    ])
+    assert args.controller_mode == "challenge2_align_straight"
+    assert args.challenge2_speed_mps == pytest.approx(0.24)
+    assert args.challenge2_approach_speed_mps == pytest.approx(0.12)
+    assert args.challenge2_slowdown_distance_m == pytest.approx(1.5)
+    assert args.challenge2_stop_radius_m == pytest.approx(0.75)
+    assert args.challenge2_post_landing_s == pytest.approx(10.0)
+    assert args.challenge2_pivot_max_omega_radps == pytest.approx(0.85)
+    assert args.challenge2_pivot_timeout_s == pytest.approx(25.0)
+    assert args.challenge2_pivot_settle_error_rad == pytest.approx(0.035)
+    assert args.challenge2_pivot_settle_time_s == pytest.approx(0.35)
+    assert args.uav_landed_topic == "/test/uav_landed"
+    validate_controller_mode(args)
+
+
+def test_challenge2_target_bearing_is_start_local_x_forward_y_left():
+    assert challenge2_target_bearing_rad(5.0, 0.0) == pytest.approx(0.0)
+    assert challenge2_target_bearing_rad(0.0, 5.0) == pytest.approx(math.pi / 2.0)
+    assert challenge2_target_bearing_rad(0.0, -5.0) == pytest.approx(-math.pi / 2.0)
+
+
+def test_challenge2_distance_cross_track_and_landing_requirement_helpers():
+    assert challenge2_target_distance_m(5.0, 0.0, pose_x_m=4.3, pose_y_m=0.0) == pytest.approx(0.7)
+    assert challenge2_cross_track_error_m(5.0, 0.0, pose_x_m=2.0, pose_y_m=0.3) == pytest.approx(0.3)
+    assert challenge2_cross_track_error_m(0.0, 5.0, pose_x_m=0.3, pose_y_m=2.0) == pytest.approx(-0.3)
+    assert not challenge2_landing_requirement_met(None, 20.0, 10.0)
+    assert not challenge2_landing_requirement_met(11.0, 20.0, 10.0)
+    assert challenge2_landing_requirement_met(10.0, 20.0, 10.0)
 
 
 def test_legacy_controller_guard_blocks_non_tracker_when_disabled():

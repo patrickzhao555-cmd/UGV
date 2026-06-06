@@ -1,10 +1,9 @@
 # Jetson Chassis Controller
 
-`ugv_nav_dual_mode.py` is the high-level chassis controller. The primary
-competition path is now `competition_tracker`: it uses encoder distance plus
-IMU yaw to continuously track the local path from the start pose to the target.
-The older Nav2 field stack is kept as a legacy fallback/debug path, not the
-default competition route.
+`ugv_nav_dual_mode.py` is the high-level chassis controller. Competition modes
+use encoder distance plus IMU yaw as closed-loop supervision; they do not fall
+back to time-only or open-loop movement. The older Nav2 field stack is kept as
+a separate legacy/debug path, not an automatic competition fallback.
 
 When a test mode is explicitly selected, it still uses one command contract:
 
@@ -18,6 +17,9 @@ When a test mode is explicitly selected, it still uses one command contract:
 - `challenge1_landing_platform`: Challenge 1 moving landing platform. It
   drives straight with IMU heading hold, waits for a UAV landed signal, then
   keeps moving for the required post-landing time before stopping.
+- `challenge2_align_straight`: Challenge 2 marker run. It waits for the UAV
+  target, pivots in place until IMU heading settles on the marker bearing, then
+  drives a start-local straight line using IMU heading and encoder odometry.
 - `competition_tracker`: closed-loop target tracking from the current start
   pose to `/ugv/uav_target` or `nav_manual_target_x_m/y_m`.
 - `straight_test`: drive forward while holding the start heading.
@@ -79,6 +81,50 @@ fields are `challenge1_state`, `challenge1_uav_launched`,
 `challenge1_uav_landed`, `challenge1_distance_m`,
 `challenge1_elapsed_s`, and `challenge1_post_landing_elapsed_s`.
 
+## Challenge 2 Align Then Straight
+
+Challenge 2 uses the dedicated align-then-straight controller. It requires ZED
+IMU and encoder feedback; if either is stale, it STOPs instead of switching to
+an open-loop estimate.
+
+```bash
+ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  nav_controller_mode:=challenge2_align_straight \
+  nav_challenge2_speed_mps:=0.24 \
+  nav_challenge2_stop_radius_m:=0.75 \
+  start_zed:=true \
+  start_lidar:=false \
+  start_lidar_filter:=false \
+  start_fusion:=false \
+  nav_debug_ignore_nav_frame:=true \
+  motor_port:=/dev/serial/by-id/usb-Teensyduino_USB_Serial_19983800-if00
+```
+
+Send the UAV/marker target in the UGV start-local frame, meters, `x` forward
+and `y` left:
+
+```bash
+python3 tools/send_uav_target.py --x 5.0 --y 0.0 --count 3
+```
+
+When the UAV has landed, publish:
+
+```bash
+python3 tools/send_challenge1_event.py --event landed
+```
+
+The UGV stops when it enters `nav_challenge2_stop_radius_m`, default `0.75m`.
+If landed plus `nav_challenge2_post_landing_s`, default `10.0s`, has not been
+satisfied yet, it still stops at the marker and reports
+`challenge2_landing_requirement_met=false`. It will not drive past the marker
+just to pad the 10 seconds.
+
+Key status fields are `challenge2_state`, `challenge2_target_m`,
+`challenge2_target_distance_m`, `challenge2_target_bearing_rad`,
+`challenge2_align_error_rad`, `challenge2_cross_track_error_m`,
+`challenge2_uav_landed`, `challenge2_post_landing_elapsed_s`,
+`challenge2_landing_requirement_met`, and `challenge2_result_reason`.
+
 Legacy/calibration controllers (`straight_test`, `pivot_test`, `curve_test`,
 and `mission_sequence`) are blocked by default in the competition bringup. Run
 them only through `tools/ugv_motion_test_runner.py`, or explicitly pass
@@ -110,9 +156,10 @@ of crawling forward. Override only for controlled debug runs with
 
 ## Mission Sequence
 
-`mission_sequence` is now a calibration/fallback mode. Use
-`competition_tracker` for target-based competition driving. Direct launch of
-this mode requires `nav_allow_legacy_controller:=true`.
+`mission_sequence` is now a legacy calibration/debug mode. Use
+`challenge2_align_straight` for Round 2 marker runs or `competition_tracker`
+for general target-based competition driving. Direct launch of this mode
+requires `nav_allow_legacy_controller:=true`.
 
 Mission files are JSON or YAML with relative segments:
 

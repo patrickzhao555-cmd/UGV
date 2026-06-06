@@ -151,7 +151,11 @@ class Challenge3CorridorNode(Node):
         self.declare_parameter("cruise_max_omega_radps", 0.85)
         self.declare_parameter("track_width_m", 0.416)
         self.declare_parameter("wheel_radius_m", 0.0825)
-        self.declare_parameter("ticks_per_rev", 3200.0)
+        self.declare_parameter(
+            "ticks_per_rev",
+            3200.0,
+            descriptor=ParameterDescriptor(dynamic_typing=True),
+        )
 
         self.command_topic = str(self.get_parameter("command_topic").value)
         self.status_topic = str(self.get_parameter("status_topic").value)

@@ -400,6 +400,7 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert 'self.declare_parameter("imu_yaw_axis", "y")' in field_odom_file
     assert "ParameterDescriptor(dynamic_typing=True)" in challenge3_file
     assert "_normalize_imu_yaw_axis(self.get_parameter(\"imu_yaw_axis\").value)" in challenge3_file
+    assert '"ticks_per_rev",\n            3200.0,\n            descriptor=ParameterDescriptor(dynamic_typing=True),' in challenge3_file
     assert "DEFAULT_CONTROL_INTERVAL_MS = 20" in firmware
     assert "int fl_encoder_sign = -1" in firmware
     assert "int rl_encoder_sign = -1" in firmware

@@ -358,13 +358,22 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert "right_reverse_unavailable" in firmware
     assert "left_pid_output_limit_us" in firmware
     assert "right_pid_output_limit_us" in firmware
-    assert 'self.declare_parameter("enable_teensy_side_specific_pid_params", True)' in bridge_file
+    assert 'self.declare_parameter("pwm_min_us", 1000)' in bridge_file
+    assert 'self.declare_parameter("pwm_max_us", 2000)' in bridge_file
+    assert 'self.declare_parameter("enable_teensy_side_specific_pid_params", False)' in bridge_file
+    assert 'self.declare_parameter("teensy_pid_feedforward_us_per_tps", 0.08)' in bridge_file
+    assert 'self.declare_parameter("teensy_pid_static_ff_us", 410.0)' in bridge_file
+    assert 'self.declare_parameter("teensy_pid_output_limit_us", 500.0)' in bridge_file
+    assert 'self.declare_parameter("teensy_pid_param_ack_timeout_s", 20.0)' in bridge_file
     assert 'self.declare_parameter("teensy_pid_static_ff_fade_start_ratio", 0.20)' in bridge_file
     assert 'self.declare_parameter("teensy_pid_static_ff_fade_end_ratio", 0.85)' in bridge_file
     assert 'self.declare_parameter("teensy_right_reverse_pid_static_ff_us", -1.0)' in bridge_file
     assert 'self.declare_parameter("teensy_right_reverse_pwm_floor_us", 0.0)' in bridge_file
     assert 'self.declare_parameter("teensy_pid_param_write_interval_s", 0.03)' in bridge_file
-    assert 'EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="true")' in motor_launch_file
+    assert 'EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="false")' in motor_launch_file
+    assert 'EnvironmentVariable("MOTOR_TEENSY_PID_FF_US_PER_TPS", default_value="0.08")' in motor_launch_file
+    assert 'EnvironmentVariable("MOTOR_TEENSY_PID_STATIC_FF_US", default_value="410.0")' in motor_launch_file
+    assert 'EnvironmentVariable("MOTOR_TEENSY_PID_OUTPUT_LIMIT_US", default_value="500.0")' in motor_launch_file
     assert "MOTOR_TEENSY_PID_STATIC_FF_FADE_START_RATIO" in motor_launch_file
     assert "MOTOR_TEENSY_PID_STATIC_FF_FADE_END_RATIO" in motor_launch_file
     assert "MOTOR_TEENSY_RIGHT_REVERSE_PID_STATIC_FF_US" in motor_launch_file

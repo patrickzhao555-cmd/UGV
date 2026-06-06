@@ -11,6 +11,7 @@ from typing import Optional, Sequence
 
 
 DEFAULT_MOTOR_PORT = "/dev/serial/by-id/usb-Teensyduino_USB_Serial_19983800-if00"
+DEFAULT_UAV_ESP_PORT = "/dev/ttyUSB1"
 
 
 def _finite_float(text: str) -> float:
@@ -43,6 +44,14 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--motor-port", default=DEFAULT_MOTOR_PORT)
     parser.add_argument("--speed-mps", type=_finite_float, default=0.24)
     parser.add_argument("--stop-radius-m", type=_finite_float, default=0.75)
+    parser.add_argument("--esp-target", action="store_true", help="Start the ESP serial target receiver.")
+    parser.add_argument("--uav-esp-port", default=DEFAULT_UAV_ESP_PORT)
+    parser.add_argument("--uav-esp-baud", type=int, default=115200)
+    parser.add_argument(
+        "--uav-esp-require-checksum",
+        action="store_true",
+        help="Require NMEA-style *XX XOR checksums on ESP target lines.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print the ros2 launch command without running it.")
     parser.add_argument(
         "extra_launch_args",
@@ -68,6 +77,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if extra and extra[0] == "--":
         extra = extra[1:]
 
+    esp_launch_args = []
+    if args.esp_target:
+        esp_launch_args = [
+            "start_uav_target_receiver:=true",
+            "uav_target_input_mode:=serial",
+            f"uav_esp_serial_port:={str(args.uav_esp_port)}",
+            f"uav_esp_serial_baud:={int(args.uav_esp_baud)}",
+            f"uav_esp_require_checksum:={'true' if args.uav_esp_require_checksum else 'false'}",
+        ]
+
     command = [
         "ros2",
         "launch",
@@ -86,6 +105,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "start_fusion:=false",
         "nav_debug_ignore_nav_frame:=true",
         f"motor_port:={str(args.motor_port)}",
+        *esp_launch_args,
         *extra,
     ]
 

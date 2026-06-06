@@ -20,6 +20,7 @@ def generate_launch_description():
     motor_launch = workspace_root / "src" / "ugv_motor_controller" / "launch" / "motor_controller.launch.py"
     sensor_launch = workspace_root / "src" / "ugv_sensor_sync" / "launch" / "sensor_sync_launch.py"
     nav_script = workspace_root / "src" / "ugv_nav" / "ugv_nav_dual_mode.py"
+    target_receiver = workspace_root / "src" / "ugv_nav" / "ugv_uav_target_receiver.py"
 
     start_motor_controller = LaunchConfiguration("start_motor_controller")
     start_sensor_sync = LaunchConfiguration("start_sensor_sync")
@@ -29,6 +30,7 @@ def generate_launch_description():
     start_lidar_filter = LaunchConfiguration("start_lidar_filter")
     start_fusion = LaunchConfiguration("start_fusion")
     start_debug_status = LaunchConfiguration("start_debug_status")
+    start_uav_target_receiver = LaunchConfiguration("start_uav_target_receiver")
     lidar_port = LaunchConfiguration("lidar_port")
     lidar_baud = LaunchConfiguration("lidar_baud")
     lidar_filter_forward_fov_deg = LaunchConfiguration("lidar_filter_forward_fov_deg")
@@ -128,6 +130,12 @@ def generate_launch_description():
     nav_curve_min_omega_disable_error_rad = LaunchConfiguration("nav_curve_min_omega_disable_error_rad")
     nav_allow_side_reverse = LaunchConfiguration("nav_allow_side_reverse")
     nav_target_topic = LaunchConfiguration("nav_target_topic")
+    uav_target_input_mode = LaunchConfiguration("uav_target_input_mode")
+    uav_target_units = LaunchConfiguration("uav_target_units")
+    uav_target_frame_id = LaunchConfiguration("uav_target_frame_id")
+    uav_esp_serial_port = LaunchConfiguration("uav_esp_serial_port")
+    uav_esp_serial_baud = LaunchConfiguration("uav_esp_serial_baud")
+    uav_esp_require_checksum = LaunchConfiguration("uav_esp_require_checksum")
     nav_uav_launched_topic = LaunchConfiguration("nav_uav_launched_topic")
     nav_uav_landed_topic = LaunchConfiguration("nav_uav_landed_topic")
     nav_manual_target_x_m = LaunchConfiguration("nav_manual_target_x_m")
@@ -313,6 +321,30 @@ def generate_launch_description():
             "zed_publish_image": zed_publish_image,
         }.items(),
         condition=IfCondition(start_sensor_sync),
+    )
+
+    target_receiver_node = ExecuteProcess(
+        cmd=[
+            FindExecutable(name="python3"),
+            str(target_receiver),
+            "--ros-args",
+            "-p",
+            ["input_mode:=", uav_target_input_mode],
+            "-p",
+            ["output_topic:=", nav_target_topic],
+            "-p",
+            ["frame_id:=", uav_target_frame_id],
+            "-p",
+            ["target_units:=", uav_target_units],
+            "-p",
+            ["serial_port:=", uav_esp_serial_port],
+            "-p",
+            ["serial_baud:=", uav_esp_serial_baud],
+            "-p",
+            ["require_checksum:=", uav_esp_require_checksum],
+        ],
+        output="screen",
+        condition=IfCondition(start_uav_target_receiver),
     )
 
     nav_controller = ExecuteProcess(
@@ -628,6 +660,7 @@ def generate_launch_description():
             DeclareLaunchArgument("start_lidar_filter", default_value="true"),
             DeclareLaunchArgument("start_fusion", default_value="true"),
             DeclareLaunchArgument("start_debug_status", default_value="true"),
+            DeclareLaunchArgument("start_uav_target_receiver", default_value="false"),
             DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB0"),
             DeclareLaunchArgument("lidar_baud", default_value="115200"),
             DeclareLaunchArgument("lidar_filter_forward_fov_deg", default_value="250.0"),
@@ -721,6 +754,12 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_curve_min_omega_disable_error_rad", default_value="0.08"),
             DeclareLaunchArgument("nav_allow_side_reverse", default_value="false"),
             DeclareLaunchArgument("nav_target_topic", default_value="/ugv/uav_target"),
+            DeclareLaunchArgument("uav_target_input_mode", default_value="serial"),
+            DeclareLaunchArgument("uav_target_units", default_value="meters"),
+            DeclareLaunchArgument("uav_target_frame_id", default_value="map"),
+            DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1"),
+            DeclareLaunchArgument("uav_esp_serial_baud", default_value="115200"),
+            DeclareLaunchArgument("uav_esp_require_checksum", default_value="false"),
             DeclareLaunchArgument("nav_uav_launched_topic", default_value="/ugv/uav_launched"),
             DeclareLaunchArgument("nav_uav_landed_topic", default_value="/ugv/uav_landed"),
             DeclareLaunchArgument("nav_manual_target_x_m", default_value="0.0"),
@@ -830,6 +869,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_telemetry_dir", default_value="~/.ros/ugv_mission_logs"),
             motor_controller_launch,
             sensor_sync_launch,
+            target_receiver_node,
             nav_controller,
         ]
     )

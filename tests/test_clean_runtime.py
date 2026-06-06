@@ -81,6 +81,13 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert '"--encoder-stamped-topic"' in launch
     assert '"--allow-encoder-heading-fallback"' in launch
     assert '"start_debug_status": start_debug_status' in launch
+    assert 'ugv_uav_target_receiver.py' in launch
+    assert 'DeclareLaunchArgument("start_uav_target_receiver", default_value="false")' in launch
+    assert 'DeclareLaunchArgument("uav_target_input_mode", default_value="serial")' in launch
+    assert 'DeclareLaunchArgument("uav_esp_serial_port", default_value="/dev/ttyUSB1")' in launch
+    assert 'DeclareLaunchArgument("uav_esp_require_checksum", default_value="false")' in launch
+    assert '["output_topic:=", nav_target_topic]' in launch
+    assert "target_receiver_node" in launch
     assert 'DeclareLaunchArgument("nav_tracking_enabled", default_value="true")' in launch
     assert 'DeclareLaunchArgument("nav_target_topic", default_value="/ugv/uav_target")' in launch
     assert 'DeclareLaunchArgument("nav_uav_launched_topic", default_value="/ugv/uav_launched")' in launch

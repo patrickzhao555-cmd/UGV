@@ -66,6 +66,7 @@ def generate_launch_description():
     teensy_encoder_jump_fault_enabled = LaunchConfiguration("teensy_encoder_jump_fault_enabled")
     teensy_encoder_jump_tps = LaunchConfiguration("teensy_encoder_jump_tps")
     teensy_pid_param_ack_timeout_s = LaunchConfiguration("teensy_pid_param_ack_timeout_s")
+    teensy_pid_param_write_interval_s = LaunchConfiguration("teensy_pid_param_write_interval_s")
 
     return LaunchDescription(
         [
@@ -290,7 +291,11 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "teensy_pid_param_ack_timeout_s",
-                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_ACK_TIMEOUT_S", default_value="5.0"),
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_ACK_TIMEOUT_S", default_value="20.0"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_pid_param_write_interval_s",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_WRITE_INTERVAL_S", default_value="0.03"),
             ),
             Node(
                 package="ugv_motor_controller",
@@ -406,6 +411,10 @@ def generate_launch_description():
                         "teensy_encoder_jump_tps": ParameterValue(teensy_encoder_jump_tps, value_type=float),
                         "teensy_pid_param_ack_timeout_s": ParameterValue(
                             teensy_pid_param_ack_timeout_s,
+                            value_type=float,
+                        ),
+                        "teensy_pid_param_write_interval_s": ParameterValue(
+                            teensy_pid_param_write_interval_s,
                             value_type=float,
                         ),
                     }

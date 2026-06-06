@@ -363,15 +363,18 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert 'self.declare_parameter("teensy_pid_static_ff_fade_end_ratio", 0.85)' in bridge_file
     assert 'self.declare_parameter("teensy_right_reverse_pid_static_ff_us", -1.0)' in bridge_file
     assert 'self.declare_parameter("teensy_right_reverse_pwm_floor_us", 0.0)' in bridge_file
+    assert 'self.declare_parameter("teensy_pid_param_write_interval_s", 0.03)' in bridge_file
     assert 'EnvironmentVariable("MOTOR_ENABLE_TEENSY_SIDE_SPECIFIC_PID_PARAMS", default_value="true")' in motor_launch_file
     assert "MOTOR_TEENSY_PID_STATIC_FF_FADE_START_RATIO" in motor_launch_file
     assert "MOTOR_TEENSY_PID_STATIC_FF_FADE_END_RATIO" in motor_launch_file
     assert "MOTOR_TEENSY_RIGHT_REVERSE_PID_STATIC_FF_US" in motor_launch_file
     assert "MOTOR_TEENSY_RIGHT_REVERSE_PWM_FLOOR_US" in motor_launch_file
+    assert "MOTOR_TEENSY_PARAM_WRITE_INTERVAL_S" in motor_launch_file
     assert 'DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="false")' in bringup_launch_file
     assert 'DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="410.0")' in bringup_launch_file
     assert 'DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.08")' in bringup_launch_file
     assert 'DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="500.0")' in bringup_launch_file
+    assert 'DeclareLaunchArgument("motor_teensy_pid_param_write_interval_s", default_value="0.03")' in bringup_launch_file
     assert 'DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_start_ratio", default_value="0.20")' in bringup_launch_file
     assert 'DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_end_ratio", default_value="0.85")' in bringup_launch_file
     assert 'DeclareLaunchArgument("motor_teensy_right_reverse_pid_static_ff_us", default_value="-1.0")' in bringup_launch_file

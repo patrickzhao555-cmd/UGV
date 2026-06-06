@@ -127,6 +127,7 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_encoder_jump_fault_enabled", True)
         self.declare_parameter("teensy_encoder_jump_tps", 12000.0)
         self.declare_parameter("teensy_pid_param_ack_timeout_s", 5.0)
+        self.declare_parameter("teensy_pid_param_write_interval_s", 0.03)
 
         self.port = str(self.get_parameter("port").value)
         self.baud = int(self.get_parameter("baud").value)
@@ -279,6 +280,10 @@ class MotorControllerBridge(Node):
         self.teensy_pid_param_ack_timeout_s = max(
             0.05,
             float(self.get_parameter("teensy_pid_param_ack_timeout_s").value),
+        )
+        self.teensy_pid_param_write_interval_s = max(
+            0.0,
+            float(self.get_parameter("teensy_pid_param_write_interval_s").value),
         )
 
         self.serial_device: Optional[serial.Serial] = None
@@ -672,6 +677,8 @@ class MotorControllerBridge(Node):
                 self.teensy_pid_param_sync.mark_write_failed(name)
                 self._copy_param_sync_state()
                 return
+            if self.teensy_pid_param_write_interval_s > 0.0:
+                time.sleep(self.teensy_pid_param_write_interval_s)
         self._copy_param_sync_state()
 
     def _copy_param_sync_state(self) -> None:
@@ -741,6 +748,7 @@ class MotorControllerBridge(Node):
             "teensy_pid_param_sync_reason": self.teensy_pid_param_sync_reason,
             "teensy_pid_param_sync_count": int(self.teensy_pid_param_sync_count),
             "teensy_pid_param_sync_last_s": self.teensy_pid_param_sync_last_s,
+            "teensy_pid_param_write_interval_s": round(self.teensy_pid_param_write_interval_s, 3),
             "track_width_m": round(self.track_width_m, 4),
             "left_forward_speed_scale": round(self.left_forward_speed_scale, 4),
             "right_forward_speed_scale": round(self.right_forward_speed_scale, 4),

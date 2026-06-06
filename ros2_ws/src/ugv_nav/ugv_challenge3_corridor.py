@@ -17,6 +17,7 @@ from typing import Any, Optional, Sequence
 
 import rclpy
 from geometry_msgs.msg import PointStamped
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
@@ -68,6 +69,15 @@ def _parse_float_list(value: Any, *, default: Sequence[float]) -> tuple[float, .
     return tuple(parsed) if parsed else tuple(float(v) for v in default)
 
 
+def _normalize_imu_yaw_axis(value: Any) -> str:
+    # ROS 2 parameter YAML treats unquoted "y" as boolean true. Keep C3 alive
+    # even if a launch file or manual command forgets to quote the axis.
+    if isinstance(value, bool):
+        return "y" if value else "z"
+    axis = str(value).strip().lower()
+    return axis if axis in {"x", "y", "z"} else "y"
+
+
 def encoder_ticks_from_motor_status(payload: Any) -> Optional[tuple[int, int]]:
     if not isinstance(payload, dict):
         return None
@@ -103,7 +113,11 @@ class Challenge3CorridorNode(Node):
         self.declare_parameter("start_x_m", 0.0)
         self.declare_parameter("start_y_m", 0.0)
         self.declare_parameter("start_yaw_deg", 0.0)
-        self.declare_parameter("imu_yaw_axis", "y")
+        self.declare_parameter(
+            "imu_yaw_axis",
+            "y",
+            descriptor=ParameterDescriptor(dynamic_typing=True),
+        )
         self.declare_parameter("imu_yaw_sign", -1.0)
         self.declare_parameter("imu_timeout_s", 0.30)
         self.declare_parameter("imu_min_rate_hz", 20.0)
@@ -158,7 +172,7 @@ class Challenge3CorridorNode(Node):
         self.pose = self.start_pose
         self.previous_pose_yaw_rad = self.pose.yaw_rad
         self.field_yaw_rad = self.pose.yaw_rad
-        self.imu_axis = str(self.get_parameter("imu_yaw_axis").value).strip() or "y"
+        self.imu_axis = _normalize_imu_yaw_axis(self.get_parameter("imu_yaw_axis").value)
         self.imu_sign = float(self.get_parameter("imu_yaw_sign").value)
         self.imu_timeout_s = max(0.0, float(self.get_parameter("imu_timeout_s").value))
         self.imu_min_rate_hz = max(0.0, float(self.get_parameter("imu_min_rate_hz").value))

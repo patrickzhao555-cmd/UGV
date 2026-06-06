@@ -300,6 +300,7 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     setup_file = (ROOT / "ros2_ws" / "src" / "ugv_motor_controller" / "setup.py").read_text()
     nav_file = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_nav_dual_mode.py").read_text()
     field_odom_file = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_field_odom_node.py").read_text()
+    challenge3_file = (ROOT / "ros2_ws" / "src" / "ugv_nav" / "ugv_challenge3_corridor.py").read_text()
     firmware = (
         ROOT
         / "ros2_ws"
@@ -395,7 +396,10 @@ def test_clean_runtime_files_do_not_reintroduce_legacy_motor_pid():
     assert 'DeclareLaunchArgument("motor_teensy_right_reverse_pid_static_ff_us", default_value="-1.0")' in bringup_launch_file
     assert 'DeclareLaunchArgument("nav_imu_yaw_axis", default_value="y")' in bringup_launch_file
     assert 'parser.add_argument("--imu-yaw-axis", choices=["x", "y", "z"], default="y")' in nav_file
+    assert '["imu_yaw_axis:=", \'"\', nav_imu_yaw_axis, \'"\']' in bringup_launch_file
     assert 'self.declare_parameter("imu_yaw_axis", "y")' in field_odom_file
+    assert "ParameterDescriptor(dynamic_typing=True)" in challenge3_file
+    assert "_normalize_imu_yaw_axis(self.get_parameter(\"imu_yaw_axis\").value)" in challenge3_file
     assert "DEFAULT_CONTROL_INTERVAL_MS = 20" in firmware
     assert "int fl_encoder_sign = -1" in firmware
     assert "int rl_encoder_sign = -1" in firmware

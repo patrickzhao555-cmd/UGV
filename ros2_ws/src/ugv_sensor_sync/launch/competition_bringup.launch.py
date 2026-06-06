@@ -730,7 +730,7 @@ def generate_launch_description():
             "-p",
             ["start_yaw_deg:=", challenge3_start_yaw_deg],
             "-p",
-            ["imu_yaw_axis:=", nav_imu_yaw_axis],
+            ["imu_yaw_axis:=", '"', nav_imu_yaw_axis, '"'],
             "-p",
             ["imu_yaw_sign:=", nav_imu_yaw_sign],
             "-p",

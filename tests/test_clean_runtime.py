@@ -115,6 +115,7 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     assert 'DeclareLaunchArgument("nav_challenge2_align_heading_kp", default_value="22.345354")' in launch
     assert 'ugv_challenge3_corridor.py' in launch
     assert 'DeclareLaunchArgument("start_challenge3_corridor", default_value="false")' in launch
+    assert '["imu_yaw_axis:=", \'"\', nav_imu_yaw_axis, \'"\']' in launch
     assert 'DeclareLaunchArgument("challenge3_hard_turn_speed_mps", default_value="1.70")' in launch
     assert 'DeclareLaunchArgument("challenge3_hard_turn_max_omega_radps", default_value="7.80")' in launch
     assert 'DeclareLaunchArgument("challenge3_lane_offsets_m", default_value="0.0,1.6,-1.6,2.2,-2.2")' in launch

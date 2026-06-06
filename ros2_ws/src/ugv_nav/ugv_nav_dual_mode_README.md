@@ -15,6 +15,9 @@ When a test mode is explicitly selected, it still uses one command contract:
 ## Modes
 
 - `idle`: STOP only.
+- `challenge1_landing_platform`: Challenge 1 moving landing platform. It
+  drives straight with IMU heading hold, waits for a UAV landed signal, then
+  keeps moving for the required post-landing time before stopping.
 - `competition_tracker`: closed-loop target tracking from the current start
   pose to `/ugv/uav_target` or `nav_manual_target_x_m/y_m`.
 - `straight_test`: drive forward while holding the start heading.
@@ -48,6 +51,33 @@ Important `/ugv_nav_status` fields are `tracker_state`, `tracker_pose_m`,
 `tracker_remaining_m`, `tracker_cross_track_error_m`,
 `tracker_heading_error_rad`, `tracker_obstacle_state`, and
 `tracker_bypass_side`.
+
+## Challenge 1 Landing Platform
+
+Challenge 1 is not a target-marker navigation task. Launch the same bringup
+with the dedicated controller:
+
+```bash
+ros2 launch ugv_sensor_sync competition_bringup.launch.py \
+  nav_controller_mode:=challenge1_landing_platform \
+  nav_challenge1_speed_mps:=0.12
+```
+
+By default the UGV starts moving after IMU/motor/encoder prechecks pass. To
+make it wait for an explicit UAV launch signal, add
+`nav_challenge1_auto_start:=false` and publish `/ugv/uav_launched`.
+
+When the UAV has landed on the moving UGV, publish:
+
+```bash
+python3 tools/send_challenge1_event.py --event landed
+```
+
+The controller will continue straight-line closed-loop travel for
+`nav_challenge1_post_landing_s` seconds, default `30.0`, then stop. Key status
+fields are `challenge1_state`, `challenge1_uav_launched`,
+`challenge1_uav_landed`, `challenge1_distance_m`,
+`challenge1_elapsed_s`, and `challenge1_post_landing_elapsed_s`.
 
 Legacy/calibration controllers (`straight_test`, `pivot_test`, `curve_test`,
 and `mission_sequence`) are blocked by default in the competition bringup. Run

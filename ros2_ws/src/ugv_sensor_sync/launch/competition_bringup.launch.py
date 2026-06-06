@@ -127,6 +127,8 @@ def generate_launch_description():
     nav_curve_min_omega_disable_error_rad = LaunchConfiguration("nav_curve_min_omega_disable_error_rad")
     nav_allow_side_reverse = LaunchConfiguration("nav_allow_side_reverse")
     nav_target_topic = LaunchConfiguration("nav_target_topic")
+    nav_uav_launched_topic = LaunchConfiguration("nav_uav_launched_topic")
+    nav_uav_landed_topic = LaunchConfiguration("nav_uav_landed_topic")
     nav_manual_target_x_m = LaunchConfiguration("nav_manual_target_x_m")
     nav_manual_target_y_m = LaunchConfiguration("nav_manual_target_y_m")
     nav_tracking_enabled = LaunchConfiguration("nav_tracking_enabled")
@@ -145,6 +147,12 @@ def generate_launch_description():
     nav_bypass_offset_m = LaunchConfiguration("nav_bypass_offset_m")
     nav_bypass_forward_m = LaunchConfiguration("nav_bypass_forward_m")
     nav_bypass_rejoin_ahead_m = LaunchConfiguration("nav_bypass_rejoin_ahead_m")
+    nav_challenge1_auto_start = LaunchConfiguration("nav_challenge1_auto_start")
+    nav_challenge1_speed_mps = LaunchConfiguration("nav_challenge1_speed_mps")
+    nav_challenge1_post_landing_s = LaunchConfiguration("nav_challenge1_post_landing_s")
+    nav_challenge1_timeout_s = LaunchConfiguration("nav_challenge1_timeout_s")
+    nav_challenge1_max_distance_m = LaunchConfiguration("nav_challenge1_max_distance_m")
+    nav_challenge1_stop_on_obstacle = LaunchConfiguration("nav_challenge1_stop_on_obstacle")
     nav_max_omega_radps = LaunchConfiguration("nav_max_omega_radps")
     nav_heading_kp = LaunchConfiguration("nav_heading_kp")
     nav_heading_kd = LaunchConfiguration("nav_heading_kd")
@@ -360,6 +368,10 @@ def generate_launch_description():
             nav_allow_side_reverse,
             "--target-topic",
             nav_target_topic,
+            "--uav-launched-topic",
+            nav_uav_launched_topic,
+            "--uav-landed-topic",
+            nav_uav_landed_topic,
             "--manual-target-x-m",
             nav_manual_target_x_m,
             "--manual-target-y-m",
@@ -396,6 +408,18 @@ def generate_launch_description():
             nav_bypass_forward_m,
             "--bypass-rejoin-ahead-m",
             nav_bypass_rejoin_ahead_m,
+            "--challenge1-auto-start",
+            nav_challenge1_auto_start,
+            "--challenge1-speed-mps",
+            nav_challenge1_speed_mps,
+            "--challenge1-post-landing-s",
+            nav_challenge1_post_landing_s,
+            "--challenge1-timeout-s",
+            nav_challenge1_timeout_s,
+            "--challenge1-max-distance-m",
+            nav_challenge1_max_distance_m,
+            "--challenge1-stop-on-obstacle",
+            nav_challenge1_stop_on_obstacle,
             "--max-omega-radps",
             nav_max_omega_radps,
             "--heading-kp",
@@ -625,6 +649,8 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_curve_min_omega_disable_error_rad", default_value="0.08"),
             DeclareLaunchArgument("nav_allow_side_reverse", default_value="false"),
             DeclareLaunchArgument("nav_target_topic", default_value="/ugv/uav_target"),
+            DeclareLaunchArgument("nav_uav_launched_topic", default_value="/ugv/uav_launched"),
+            DeclareLaunchArgument("nav_uav_landed_topic", default_value="/ugv/uav_landed"),
             DeclareLaunchArgument("nav_manual_target_x_m", default_value="0.0"),
             DeclareLaunchArgument("nav_manual_target_y_m", default_value="0.0"),
             DeclareLaunchArgument("nav_tracking_enabled", default_value="true"),
@@ -643,6 +669,12 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_bypass_offset_m", default_value="1.1"),
             DeclareLaunchArgument("nav_bypass_forward_m", default_value="2.0"),
             DeclareLaunchArgument("nav_bypass_rejoin_ahead_m", default_value="2.0"),
+            DeclareLaunchArgument("nav_challenge1_auto_start", default_value="true"),
+            DeclareLaunchArgument("nav_challenge1_speed_mps", default_value="0.12"),
+            DeclareLaunchArgument("nav_challenge1_post_landing_s", default_value="30.0"),
+            DeclareLaunchArgument("nav_challenge1_timeout_s", default_value="420.0"),
+            DeclareLaunchArgument("nav_challenge1_max_distance_m", default_value="0.0"),
+            DeclareLaunchArgument("nav_challenge1_stop_on_obstacle", default_value="true"),
             DeclareLaunchArgument("nav_max_omega_radps", default_value="0.45"),
             DeclareLaunchArgument("nav_heading_kp", default_value="0.6"),
             DeclareLaunchArgument("nav_heading_kd", default_value="0.08"),

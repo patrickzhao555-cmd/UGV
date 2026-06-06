@@ -144,7 +144,15 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--mode", choices=["sim", "real"], default="sim")
     parser.add_argument(
         "--controller-mode",
-        choices=["idle", "straight_test", "pivot_test", "curve_test", "mission_sequence", "competition_tracker"],
+        choices=[
+            "idle",
+            "straight_test",
+            "pivot_test",
+            "curve_test",
+            "mission_sequence",
+            "competition_tracker",
+            "challenge1_landing_platform",
+        ],
         default="idle",
     )
     parser.add_argument("--allow-legacy-controller", type=parse_bool, default=False)
@@ -183,6 +191,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--curve-min-omega-disable-error-rad", type=float, default=0.08)
     parser.add_argument("--allow-side-reverse", type=parse_bool, default=False)
     parser.add_argument("--target-topic", default="/ugv/uav_target")
+    parser.add_argument("--uav-launched-topic", default="/ugv/uav_launched")
+    parser.add_argument("--uav-landed-topic", default="/ugv/uav_landed")
     parser.add_argument("--manual-target-x-m", type=float, default=0.0)
     parser.add_argument("--manual-target-y-m", type=float, default=0.0)
     parser.add_argument("--tracking-enabled", type=parse_bool, default=True)
@@ -201,6 +211,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--bypass-offset-m", type=float, default=1.1)
     parser.add_argument("--bypass-forward-m", type=float, default=2.0)
     parser.add_argument("--bypass-rejoin-ahead-m", type=float, default=2.0)
+    parser.add_argument("--challenge1-auto-start", type=parse_bool, default=True)
+    parser.add_argument("--challenge1-speed-mps", type=float, default=0.12)
+    parser.add_argument("--challenge1-post-landing-s", type=float, default=30.0)
+    parser.add_argument("--challenge1-timeout-s", type=float, default=420.0)
+    parser.add_argument("--challenge1-max-distance-m", type=float, default=0.0)
+    parser.add_argument("--challenge1-stop-on-obstacle", type=parse_bool, default=True)
     parser.add_argument("--max-omega-radps", type=float, default=0.45)
     parser.add_argument("--heading-kp", type=float, default=0.6)
     parser.add_argument("--heading-kd", type=float, default=0.08)
@@ -371,10 +387,11 @@ def run_sim() -> None:
 
 def validate_controller_mode(args: argparse.Namespace) -> None:
     mode = str(args.controller_mode)
-    if not bool(args.allow_legacy_controller) and mode not in {"idle", "competition_tracker"}:
+    if not bool(args.allow_legacy_controller) and mode not in {"idle", "competition_tracker", "challenge1_landing_platform"}:
         raise SystemExit(
             f"controller-mode={mode} is a legacy/calibration controller. "
-            "Use controller-mode=competition_tracker for closed-loop trajectory tracking, "
+            "Use controller-mode=competition_tracker or challenge1_landing_platform "
+            "for closed-loop competition tracking, "
             "or pass --allow-legacy-controller true for intentional calibration/debug runs."
         )
 
@@ -386,6 +403,7 @@ def run_real(args: argparse.Namespace) -> None:
         from rclpy.node import Node
         from rclpy.qos import qos_profile_sensor_data
         from sensor_msgs.msg import Imu
+        from std_msgs.msg import Bool
         from std_msgs.msg import String
         from ugv_sensor_sync.msg import EncoderTicksStamped, NavSensorFrame
     except ImportError as exc:
@@ -435,6 +453,16 @@ def run_real(args: argparse.Namespace) -> None:
             self.tracker_pending_target: Optional[tuple[float, float]] = None
             if abs(float(args.manual_target_x_m)) > 1e-9 or abs(float(args.manual_target_y_m)) > 1e-9:
                 self.tracker_pending_target = (float(args.manual_target_x_m), float(args.manual_target_y_m))
+            self.challenge1_state = "idle"
+            self.challenge1_uav_launched = bool(args.challenge1_auto_start)
+            self.challenge1_uav_landed = False
+            self.challenge1_start_s: Optional[float] = None
+            self.challenge1_landed_s: Optional[float] = None
+            self.challenge1_complete_s: Optional[float] = None
+            self.challenge1_start_left_ticks: Optional[int] = None
+            self.challenge1_start_right_ticks: Optional[int] = None
+            self.challenge1_distance_m = 0.0
+            self.challenge1_last_omega_radps = 0.0
             self.last_sensor_s: Optional[float] = None
             self.last_imu_s: Optional[float] = None
             self.last_motor_status_s: Optional[float] = None
@@ -504,6 +532,8 @@ def run_real(args: argparse.Namespace) -> None:
             self.create_subscription(NavSensorFrame, args.nav_frame_topic, self.nav_frame_callback, 10)
             self.create_subscription(Imu, args.imu_topic, self.imu_callback, imu_qos)
             self.create_subscription(PointStamped, args.target_topic, self.target_callback, 10)
+            self.create_subscription(Bool, args.uav_launched_topic, self.uav_launched_callback, 10)
+            self.create_subscription(Bool, args.uav_landed_topic, self.uav_landed_callback, 10)
             self.create_subscription(String, args.motor_status_topic, self.motor_status_callback, 10)
             self.create_subscription(
                 EncoderTicksStamped,
@@ -561,6 +591,21 @@ def run_real(args: argparse.Namespace) -> None:
             reset_tracker(self.tracker)
             self.tracker_pending_target = (x, y)
             self.get_logger().info(f"Competition tracker target queued: x={x:.3f}m y={y:.3f}m")
+
+        def uav_launched_callback(self, msg: Any) -> None:
+            if not bool(getattr(msg, "data", False)):
+                return
+            if not self.challenge1_uav_launched:
+                self.get_logger().warn("Challenge 1 UAV launched signal received; UGV may start moving.")
+            self.challenge1_uav_launched = True
+
+        def uav_landed_callback(self, msg: Any) -> None:
+            if not bool(getattr(msg, "data", False)):
+                return
+            if not self.challenge1_uav_landed:
+                self.challenge1_landed_s = time.monotonic()
+                self.get_logger().warn("Challenge 1 UAV landed signal received; starting post-landing travel timer.")
+            self.challenge1_uav_landed = True
 
         def imu_callback(self, msg: Any) -> None:
             now_s = time.monotonic()
@@ -802,6 +847,18 @@ def run_real(args: argparse.Namespace) -> None:
             reset_tracker(self.tracker)
             self.tracker_pending_target = None
 
+        def _reset_challenge1_state(self) -> None:
+            self.challenge1_state = "idle"
+            self.challenge1_uav_launched = bool(args.challenge1_auto_start)
+            self.challenge1_uav_landed = False
+            self.challenge1_start_s = None
+            self.challenge1_landed_s = None
+            self.challenge1_complete_s = None
+            self.challenge1_start_left_ticks = None
+            self.challenge1_start_right_ticks = None
+            self.challenge1_distance_m = 0.0
+            self.challenge1_last_omega_radps = 0.0
+
         def _tracker_safety_state(self, now_s: float) -> str:
             if not self.config.debug_ignore_nav_frame and (
                 self.last_sensor_s is None or now_s - self.last_sensor_s > self.config.sensor_timeout_s
@@ -903,6 +960,129 @@ def run_real(args: argparse.Namespace) -> None:
             if step.command_type == "velocity":
                 return build_velocity_command(step.v_mps, step.omega_radps, step.reason), heading, self.tracker.heading_error_rad, "ok"
             return build_stop_command(step.reason), heading, self.tracker.heading_error_rad, step.reason
+
+        def _challenge1_safety_state(self, now_s: float) -> str:
+            if not self._imu_fresh(now_s):
+                return "imu_stale"
+            if not self._imu_rate_ok():
+                return "imu_rate_low"
+            if self.last_motor_status_s is None or now_s - self.last_motor_status_s > self.config.motor_status_timeout_s:
+                return "motor_status_stale"
+            motor = motor_status_ready(self.motor_status)
+            if not motor.safe:
+                return motor.reason
+            if not self._encoder_feedback_available():
+                return "encoder_unavailable"
+            if not self._encoder_feedback_fresh(now_s):
+                return "encoder_stale"
+            if bool(args.challenge1_stop_on_obstacle) and not bool(args.debug_ignore_obstacles):
+                front = self.front_clearance_m
+                stop_m = max(0.0, float(args.obstacle_stop_m))
+                if front is not None and math.isfinite(front) and front < stop_m:
+                    return "challenge1_front_obstacle_stop"
+                if self.near_obstacle:
+                    return "challenge1_near_obstacle"
+            return "ok"
+
+        def _challenge1_speed_mps(self) -> float:
+            requested = abs(float(args.challenge1_speed_mps))
+            return max(
+                requested,
+                float(self.config.competition_min_speed_mps),
+                float(self.config.competition_moving_target_speed_mps),
+            )
+
+        def _challenge1_distance_since_start_m(self) -> float:
+            distance_m = encoder_average_distance_m(
+                start_left_ticks=self.challenge1_start_left_ticks,
+                start_right_ticks=self.challenge1_start_right_ticks,
+                current_left_ticks=self.current_left_ticks,
+                current_right_ticks=self.current_right_ticks,
+                config=self.config,
+            )
+            self.challenge1_distance_m = abs(float(distance_m))
+            return self.challenge1_distance_m
+
+        def _start_challenge1_if_needed(self, now_s: float) -> None:
+            if self.challenge1_start_s is not None:
+                return
+            self.challenge1_start_s = now_s
+            self.challenge1_start_left_ticks = self.current_left_ticks
+            self.challenge1_start_right_ticks = self.current_right_ticks
+            self.target_heading_rad = self._heading_rad(now_s)
+            self.challenge1_last_omega_radps = 0.0
+            self.last_mission_update_s = now_s
+            self.challenge1_state = "MOVING_WAIT_LANDING"
+            if self.challenge1_uav_landed and self.challenge1_landed_s is None:
+                self.challenge1_landed_s = now_s
+            self.get_logger().warn(
+                "Challenge 1 landing platform started: "
+                f"speed={self._challenge1_speed_mps():.3f}m/s "
+                f"post_landing={float(args.challenge1_post_landing_s):.1f}s "
+                f"timeout={float(args.challenge1_timeout_s):.1f}s"
+            )
+
+        def _tick_challenge1_landing_platform(self, now_s: float) -> tuple[ControlCommand, float, float, str]:
+            heading = self._heading_rad(now_s)
+            safety_state = self._challenge1_safety_state(now_s)
+            if safety_state != "ok":
+                self.challenge1_state = "FAULT"
+                return build_stop_command(safety_state), heading, 0.0, safety_state
+
+            if self.challenge1_complete_s is not None:
+                self.challenge1_state = "COMPLETE"
+                return build_stop_command("challenge1_complete"), heading, 0.0, "challenge1_complete"
+
+            if not self.challenge1_uav_launched:
+                self.challenge1_state = "WAIT_UAV_LAUNCH"
+                return build_stop_command("challenge1_wait_uav_launch"), heading, 0.0, "challenge1_wait_uav_launch"
+
+            self._start_challenge1_if_needed(now_s)
+            assert self.challenge1_start_s is not None
+            self._challenge1_distance_since_start_m()
+
+            timeout_s = max(0.0, float(args.challenge1_timeout_s))
+            elapsed_s = now_s - self.challenge1_start_s
+            if timeout_s > 0.0 and elapsed_s >= timeout_s:
+                self.challenge1_state = "TIMEOUT"
+                return build_stop_command("challenge1_timeout"), heading, 0.0, "challenge1_timeout"
+
+            max_distance_m = max(0.0, float(args.challenge1_max_distance_m))
+            if max_distance_m > 0.0 and self.challenge1_distance_m >= max_distance_m:
+                self.challenge1_state = "DISTANCE_LIMIT"
+                return build_stop_command("challenge1_distance_limit"), heading, 0.0, "challenge1_distance_limit"
+
+            if self.challenge1_uav_landed:
+                if self.challenge1_landed_s is None:
+                    self.challenge1_landed_s = now_s
+                post_elapsed_s = now_s - self.challenge1_landed_s
+                if post_elapsed_s >= max(0.0, float(args.challenge1_post_landing_s)):
+                    self.challenge1_complete_s = now_s
+                    self.challenge1_state = "COMPLETE"
+                    return build_stop_command("challenge1_complete"), heading, 0.0, "challenge1_complete"
+                self.challenge1_state = "POST_LANDING_TRAVEL"
+                reason = "challenge1_post_landing_travel"
+            else:
+                self.challenge1_state = "MOVING_WAIT_LANDING"
+                reason = "challenge1_wait_landing"
+
+            dt_s = 0.0 if self.last_mission_update_s is None else max(0.0, now_s - self.last_mission_update_s)
+            self.last_mission_update_s = now_s
+            target_heading = heading if self.target_heading_rad is None else float(self.target_heading_rad)
+            heading_error = math.atan2(
+                math.sin(target_heading - heading),
+                math.cos(target_heading - heading),
+            )
+            self.straight_heading_error_samples.append(heading_error)
+            omega = straight_omega_with_slew(
+                heading_error_rad=heading_error,
+                yaw_rate_radps=self.yaw_rate_radps,
+                previous_omega_radps=self.challenge1_last_omega_radps,
+                dt_s=dt_s,
+                config=self.config,
+            )
+            self.challenge1_last_omega_radps = omega
+            return build_velocity_command(self._challenge1_speed_mps(), omega, reason), heading, heading_error, "ok"
 
         def _reset_bias_and_heading(self) -> None:
             reset_gyro_bias_calibration(self.gyro_bias)
@@ -1379,6 +1559,15 @@ def run_real(args: argparse.Namespace) -> None:
                 self._reset_test_state()
                 self._reset_mission_state()
                 reset_tracker(self.tracker)
+                self._reset_challenge1_state()
+            elif self.mode == "challenge1_landing_platform":
+                calibrated, calibration_reason = self._calibrate_gyro_bias_if_needed(now_s)
+                if not calibrated:
+                    self.challenge1_state = "GYRO_BIAS_CALIBRATION"
+                    cmd = build_stop_command(calibration_reason)
+                    safety_state = calibration_reason
+                else:
+                    cmd, heading, heading_error, safety_state = self._tick_challenge1_landing_platform(now_s)
             elif self.mode == "competition_tracker":
                 calibrated, calibration_reason = self._calibrate_gyro_bias_if_needed(now_s)
                 if not calibrated:
@@ -1633,6 +1822,20 @@ def run_real(args: argparse.Namespace) -> None:
                 "segment_type": None if self._current_segment() is None else self._current_segment().segment_type,
                 "segment_distance_m": self.segment_distance_m,
                 "target_distance_m": self.target_distance_m,
+                "challenge1_state": self.challenge1_state,
+                "challenge1_uav_launched": self.challenge1_uav_launched,
+                "challenge1_uav_landed": self.challenge1_uav_landed,
+                "challenge1_speed_mps": self._challenge1_speed_mps(),
+                "challenge1_distance_m": self.challenge1_distance_m,
+                "challenge1_elapsed_s": (
+                    None if self.challenge1_start_s is None else round(max(0.0, now_s - self.challenge1_start_s), 3)
+                ),
+                "challenge1_post_landing_elapsed_s": (
+                    None if self.challenge1_landed_s is None else round(max(0.0, now_s - self.challenge1_landed_s), 3)
+                ),
+                "challenge1_post_landing_required_s": max(0.0, float(args.challenge1_post_landing_s)),
+                "challenge1_timeout_s": max(0.0, float(args.challenge1_timeout_s)),
+                "challenge1_max_distance_m": max(0.0, float(args.challenge1_max_distance_m)),
                 "competition_min_speed_mps": self.config.competition_min_speed_mps,
                 "moving_target_speed_mps": self.config.competition_moving_target_speed_mps,
                 "competition_continuous_motion_enabled": self.config.competition_continuous_motion_enabled,

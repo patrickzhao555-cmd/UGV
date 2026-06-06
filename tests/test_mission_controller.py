@@ -157,6 +157,36 @@ def test_competition_tracker_args_parse():
     assert args.bypass_offset_m == pytest.approx(1.1)
 
 
+def test_challenge1_landing_platform_args_parse_and_guard_allowed():
+    args = parse_args([
+        "--controller-mode",
+        "challenge1_landing_platform",
+        "--challenge1-auto-start",
+        "false",
+        "--challenge1-speed-mps",
+        "0.14",
+        "--challenge1-post-landing-s",
+        "30.0",
+        "--challenge1-timeout-s",
+        "420.0",
+        "--challenge1-max-distance-m",
+        "12.0",
+        "--uav-launched-topic",
+        "/test/uav_launched",
+        "--uav-landed-topic",
+        "/test/uav_landed",
+    ])
+    assert args.controller_mode == "challenge1_landing_platform"
+    assert not args.challenge1_auto_start
+    assert args.challenge1_speed_mps == pytest.approx(0.14)
+    assert args.challenge1_post_landing_s == pytest.approx(30.0)
+    assert args.challenge1_timeout_s == pytest.approx(420.0)
+    assert args.challenge1_max_distance_m == pytest.approx(12.0)
+    assert args.uav_launched_topic == "/test/uav_launched"
+    assert args.uav_landed_topic == "/test/uav_landed"
+    validate_controller_mode(args)
+
+
 def test_legacy_controller_guard_blocks_non_tracker_when_disabled():
     args = parse_args([
         "--controller-mode",

@@ -126,6 +126,7 @@ def test_launch_command_generation_for_pivot_case():
     command = build_launch_command(args)
     assert command[:4] == ["ros2", "launch", "ugv_sensor_sync", "competition_bringup.launch.py"]
     assert "nav_controller_mode:=pivot_test" in command
+    assert "nav_allow_legacy_controller:=true" in command
     assert "nav_pivot_angle_deg:=-45" in command
 
 
@@ -134,6 +135,7 @@ def test_launch_command_generation_for_curve_case():
     args = case_launch_args(case)
     command = build_launch_command(args)
     assert "nav_controller_mode:=curve_test" in command
+    assert "nav_allow_legacy_controller:=true" in command
     assert "nav_curve_direction:=right" in command
     assert "nav_curve_angle_deg:=90" in command
     assert "nav_curve_radius_m:=1" in command
@@ -160,6 +162,7 @@ def test_mission_case_writes_mission_file_and_launch_arg(tmp_path):
     assert data["mission_id"] == case.id
     args = case_launch_args(case, case_dir=tmp_path)
     assert args["nav_controller_mode"] == "mission_sequence"
+    assert args["nav_allow_legacy_controller"] == "true"
     assert args["nav_mission_file"] == str(mission_path)
     assert args["nav_competition_continuous_motion_enabled"] == "false"
 

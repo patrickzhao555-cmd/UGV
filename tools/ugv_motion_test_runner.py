@@ -634,6 +634,8 @@ def expected_distance_for_case(case: MotionTestCase) -> Optional[float]:
 def case_launch_args(case: MotionTestCase, *, case_dir: Optional[Path] = None) -> dict[str, str]:
     args = {"nav_controller_mode": case.mode}
     args.update({str(k): str(v) for k, v in case.launch_args.items()})
+    if case.mode not in {"idle", "competition_tracker"}:
+        args.setdefault("nav_allow_legacy_controller", "true")
     if case.mode == "idle":
         args.setdefault("nav_max_test_duration_s", _fmt_float(case.max_case_duration_s or case.duration_s or 10.0))
     elif case.mode == "straight_test":

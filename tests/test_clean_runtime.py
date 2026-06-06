@@ -59,15 +59,24 @@ def test_competition_bringup_wires_imu_health_and_debug_status():
     launch = (ROOT / "ros2_ws" / "src" / "ugv_sensor_sync" / "launch" / "competition_bringup.launch.py").read_text()
 
     assert 'DeclareLaunchArgument("start_debug_status", default_value="true")' in launch
+    assert 'DeclareLaunchArgument("motor_pwm_min_us", default_value="1000")' in launch
+    assert 'DeclareLaunchArgument("motor_pwm_max_us", default_value="2000")' in launch
+    assert 'DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.04")' in launch
+    assert 'DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.08")' in launch
+    assert 'DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="false")' in launch
+    assert 'DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="410.0")' in launch
+    assert 'DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="500.0")' in launch
     assert 'DeclareLaunchArgument("nav_imu_timeout_s", default_value="0.30")' in launch
     assert 'DeclareLaunchArgument("nav_imu_min_rate_hz", default_value="20.0")' in launch
     assert 'DeclareLaunchArgument("nav_zed_status_topic", default_value="/zed/status")' in launch
     assert 'DeclareLaunchArgument("nav_encoder_stamped_topic", default_value="/encoder_ticks_stamped")' in launch
     assert 'DeclareLaunchArgument("nav_allow_encoder_heading_fallback", default_value="false")' in launch
     assert 'DeclareLaunchArgument("nav_controller_mode", default_value="competition_tracker")' in launch
+    assert 'DeclareLaunchArgument("nav_allow_legacy_controller", default_value="false")' in launch
     assert 'DeclareLaunchArgument("zed_publish_rate_hz", default_value="10.0")' in launch
     assert 'DeclareLaunchArgument("zed_depth_downsample_factor", default_value="2")' in launch
     assert '"--imu-min-rate-hz"' in launch
+    assert '"--allow-legacy-controller"' in launch
     assert '"--zed-status-topic"' in launch
     assert '"--encoder-stamped-topic"' in launch
     assert '"--allow-encoder-heading-fallback"' in launch

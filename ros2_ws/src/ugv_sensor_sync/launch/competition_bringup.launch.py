@@ -94,6 +94,7 @@ def generate_launch_description():
     nav_status_period_s = LaunchConfiguration("nav_status_period_s")
     nav_control_period_s = LaunchConfiguration("nav_control_period_s")
     nav_controller_mode = LaunchConfiguration("nav_controller_mode")
+    nav_allow_legacy_controller = LaunchConfiguration("nav_allow_legacy_controller")
     nav_frame_topic = LaunchConfiguration("nav_frame_topic")
     nav_imu_topic = LaunchConfiguration("nav_imu_topic")
     nav_imu_qos = LaunchConfiguration("nav_imu_qos")
@@ -293,6 +294,8 @@ def generate_launch_description():
             nav_control_period_s,
             "--controller-mode",
             nav_controller_mode,
+            "--allow-legacy-controller",
+            nav_allow_legacy_controller,
             "--nav-frame-topic",
             nav_frame_topic,
             "--imu-topic",
@@ -551,20 +554,20 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_right_reverse_speed_scale", default_value="1.0"),
             DeclareLaunchArgument("motor_wheel_radius_m", default_value="0.0825"),
             DeclareLaunchArgument("motor_ticks_per_rev", default_value="3200"),
-            DeclareLaunchArgument("motor_pwm_min_us", default_value="1100"),
+            DeclareLaunchArgument("motor_pwm_min_us", default_value="1000"),
             DeclareLaunchArgument("motor_pwm_neutral_us", default_value="1500"),
-            DeclareLaunchArgument("motor_pwm_max_us", default_value="1900"),
+            DeclareLaunchArgument("motor_pwm_max_us", default_value="2000"),
             DeclareLaunchArgument("motor_pwm_slew_rate_us_per_s", default_value="2400.0"),
             DeclareLaunchArgument("motor_teensy_control_hz", default_value="50.0"),
-            DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.03"),
+            DeclareLaunchArgument("motor_teensy_pid_kp", default_value="0.04"),
             DeclareLaunchArgument("motor_teensy_pid_ki", default_value="0.0"),
             DeclareLaunchArgument("motor_teensy_pid_kd", default_value="0.0"),
-            DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.02"),
-            DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="true"),
+            DeclareLaunchArgument("motor_teensy_pid_feedforward_us_per_tps", default_value="0.08"),
+            DeclareLaunchArgument("motor_enable_teensy_side_specific_pid_params", default_value="false"),
             DeclareLaunchArgument("motor_teensy_left_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_feedforward_us_per_tps", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_reverse_pid_feedforward_us_per_tps", default_value="-1.0"),
-            DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="90.0"),
+            DeclareLaunchArgument("motor_teensy_pid_static_ff_us", default_value="410.0"),
             DeclareLaunchArgument("motor_teensy_pid_static_ff_full_target_tps", default_value="1500.0"),
             DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_start_ratio", default_value="0.20"),
             DeclareLaunchArgument("motor_teensy_pid_static_ff_fade_end_ratio", default_value="0.85"),
@@ -572,7 +575,7 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_right_pid_static_ff_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_reverse_pid_static_ff_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_reverse_pwm_floor_us", default_value="0.0"),
-            DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="180.0"),
+            DeclareLaunchArgument("motor_teensy_pid_output_limit_us", default_value="500.0"),
             DeclareLaunchArgument("motor_teensy_left_pid_output_limit_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_right_pid_output_limit_us", default_value="-1.0"),
             DeclareLaunchArgument("motor_teensy_pid_min_target_tps", default_value="2.0"),
@@ -589,6 +592,7 @@ def generate_launch_description():
             DeclareLaunchArgument("nav_status_period_s", default_value="0.25"),
             DeclareLaunchArgument("nav_control_period_s", default_value="0.02"),
             DeclareLaunchArgument("nav_controller_mode", default_value="competition_tracker"),
+            DeclareLaunchArgument("nav_allow_legacy_controller", default_value="false"),
             DeclareLaunchArgument("nav_frame_topic", default_value="/sensors/nav_frame"),
             DeclareLaunchArgument("nav_imu_topic", default_value="/zed/imu"),
             DeclareLaunchArgument("nav_imu_qos", default_value="sensor_data"),

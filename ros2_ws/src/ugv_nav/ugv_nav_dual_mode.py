@@ -147,6 +147,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         choices=["idle", "straight_test", "pivot_test", "curve_test", "mission_sequence", "competition_tracker"],
         default="idle",
     )
+    parser.add_argument("--allow-legacy-controller", type=parse_bool, default=False)
     parser.add_argument("--command-topic", default="/ugv_nav_cmd")
     parser.add_argument("--status-topic", default="/ugv_nav_status")
     parser.add_argument("--nav-frame-topic", default="/sensors/nav_frame")
@@ -368,6 +369,16 @@ def run_sim() -> None:
     print("Clean navigation chassis controller: real mode is idle unless a test or mission mode is selected.")
 
 
+def validate_controller_mode(args: argparse.Namespace) -> None:
+    mode = str(args.controller_mode)
+    if not bool(args.allow_legacy_controller) and mode not in {"idle", "competition_tracker"}:
+        raise SystemExit(
+            f"controller-mode={mode} is a legacy/calibration controller. "
+            "Use controller-mode=competition_tracker for closed-loop trajectory tracking, "
+            "or pass --allow-legacy-controller true for intentional calibration/debug runs."
+        )
+
+
 def run_real(args: argparse.Namespace) -> None:
     try:
         import rclpy
@@ -380,6 +391,7 @@ def run_real(args: argparse.Namespace) -> None:
     except ImportError as exc:
         raise SystemExit(f"ROS 2 Python packages are required for real mode: {exc}") from exc
 
+    validate_controller_mode(args)
     config = config_from_args(args)
     mission_plan: Optional[MissionPlan] = None
     if str(args.controller_mode) == "mission_sequence":

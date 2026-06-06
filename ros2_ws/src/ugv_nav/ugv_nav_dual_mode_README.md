@@ -49,6 +49,11 @@ Important `/ugv_nav_status` fields are `tracker_state`, `tracker_pose_m`,
 `tracker_heading_error_rad`, `tracker_obstacle_state`, and
 `tracker_bypass_side`.
 
+Legacy/calibration controllers (`straight_test`, `pivot_test`, `curve_test`,
+and `mission_sequence`) are blocked by default in the competition bringup. Run
+them only through `tools/ugv_motion_test_runner.py`, or explicitly pass
+`nav_allow_legacy_controller:=true` for an intentional debug session.
+
 ## Competition Motion Rule
 
 Formal competition autonomous travel uses the corrected continuous-movement
@@ -76,7 +81,8 @@ of crawling forward. Override only for controlled debug runs with
 ## Mission Sequence
 
 `mission_sequence` is now a calibration/fallback mode. Use
-`competition_tracker` for target-based competition driving.
+`competition_tracker` for target-based competition driving. Direct launch of
+this mode requires `nav_allow_legacy_controller:=true`.
 
 Mission files are JSON or YAML with relative segments:
 

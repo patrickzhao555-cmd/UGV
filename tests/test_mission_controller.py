@@ -34,7 +34,7 @@ from ugv_nav_core.mission_controller import (  # noqa: E402
     telemetry_force_flush_key,
     update_stuck_monitor,
 )
-from ugv_nav_dual_mode import encoder_ticks_from_motor_status, parse_args  # noqa: E402
+from ugv_nav_dual_mode import encoder_ticks_from_motor_status, parse_args, validate_controller_mode  # noqa: E402
 
 
 class _FakeTelemetryFile:
@@ -155,6 +155,41 @@ def test_competition_tracker_args_parse():
     assert args.tracking_max_omega_radps == pytest.approx(0.85)
     assert args.obstacle_warn_m == pytest.approx(2.0)
     assert args.bypass_offset_m == pytest.approx(1.1)
+
+
+def test_legacy_controller_guard_blocks_non_tracker_when_disabled():
+    args = parse_args([
+        "--controller-mode",
+        "mission_sequence",
+        "--mission-file",
+        "/tmp/mission.json",
+        "--allow-legacy-controller",
+        "false",
+    ])
+
+    with pytest.raises(SystemExit, match="legacy/calibration controller"):
+        validate_controller_mode(args)
+
+
+def test_legacy_controller_guard_blocks_non_tracker_by_default():
+    args = parse_args([
+        "--controller-mode",
+        "curve_test",
+    ])
+
+    with pytest.raises(SystemExit, match="legacy/calibration controller"):
+        validate_controller_mode(args)
+
+
+def test_legacy_controller_guard_allows_competition_tracker_when_disabled():
+    args = parse_args([
+        "--controller-mode",
+        "competition_tracker",
+        "--allow-legacy-controller",
+        "false",
+    ])
+
+    validate_controller_mode(args)
 
 
 def test_imu_health_args_parse():

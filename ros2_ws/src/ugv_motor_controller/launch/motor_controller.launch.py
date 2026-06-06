@@ -67,6 +67,8 @@ def generate_launch_description():
     teensy_encoder_jump_tps = LaunchConfiguration("teensy_encoder_jump_tps")
     teensy_pid_param_ack_timeout_s = LaunchConfiguration("teensy_pid_param_ack_timeout_s")
     teensy_pid_param_write_interval_s = LaunchConfiguration("teensy_pid_param_write_interval_s")
+    allow_teensy_param_sync_best_effort = LaunchConfiguration("allow_teensy_param_sync_best_effort")
+    teensy_param_best_effort_status_count = LaunchConfiguration("teensy_param_best_effort_status_count")
 
     return LaunchDescription(
         [
@@ -297,6 +299,14 @@ def generate_launch_description():
                 "teensy_pid_param_write_interval_s",
                 default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_WRITE_INTERVAL_S", default_value="0.03"),
             ),
+            DeclareLaunchArgument(
+                "allow_teensy_param_sync_best_effort",
+                default_value=EnvironmentVariable("MOTOR_ALLOW_TEENSY_PARAM_SYNC_BEST_EFFORT", default_value="true"),
+            ),
+            DeclareLaunchArgument(
+                "teensy_param_best_effort_status_count",
+                default_value=EnvironmentVariable("MOTOR_TEENSY_PARAM_BEST_EFFORT_STATUS_COUNT", default_value="3"),
+            ),
             Node(
                 package="ugv_motor_controller",
                 executable="motor_controller_bridge",
@@ -416,6 +426,14 @@ def generate_launch_description():
                         "teensy_pid_param_write_interval_s": ParameterValue(
                             teensy_pid_param_write_interval_s,
                             value_type=float,
+                        ),
+                        "allow_teensy_param_sync_best_effort": ParameterValue(
+                            allow_teensy_param_sync_best_effort,
+                            value_type=bool,
+                        ),
+                        "teensy_param_best_effort_status_count": ParameterValue(
+                            teensy_param_best_effort_status_count,
+                            value_type=int,
                         ),
                     }
                 ],

@@ -98,6 +98,12 @@ def generate_launch_description():
     motor_teensy_encoder_jump_tps = LaunchConfiguration("motor_teensy_encoder_jump_tps")
     motor_teensy_pid_param_ack_timeout_s = LaunchConfiguration("motor_teensy_pid_param_ack_timeout_s")
     motor_teensy_pid_param_write_interval_s = LaunchConfiguration("motor_teensy_pid_param_write_interval_s")
+    motor_allow_teensy_param_sync_best_effort = LaunchConfiguration(
+        "motor_allow_teensy_param_sync_best_effort"
+    )
+    motor_teensy_param_best_effort_status_count = LaunchConfiguration(
+        "motor_teensy_param_best_effort_status_count"
+    )
     nav_status_period_s = LaunchConfiguration("nav_status_period_s")
     nav_control_period_s = LaunchConfiguration("nav_control_period_s")
     nav_controller_mode = LaunchConfiguration("nav_controller_mode")
@@ -329,6 +335,8 @@ def generate_launch_description():
             "teensy_encoder_jump_tps": motor_teensy_encoder_jump_tps,
             "teensy_pid_param_ack_timeout_s": motor_teensy_pid_param_ack_timeout_s,
             "teensy_pid_param_write_interval_s": motor_teensy_pid_param_write_interval_s,
+            "allow_teensy_param_sync_best_effort": motor_allow_teensy_param_sync_best_effort,
+            "teensy_param_best_effort_status_count": motor_teensy_param_best_effort_status_count,
         }.items(),
         condition=IfCondition(start_motor_controller),
     )
@@ -867,6 +875,8 @@ def generate_launch_description():
             DeclareLaunchArgument("motor_teensy_encoder_jump_tps", default_value="12000.0"),
             DeclareLaunchArgument("motor_teensy_pid_param_ack_timeout_s", default_value="3.0"),
             DeclareLaunchArgument("motor_teensy_pid_param_write_interval_s", default_value="0.03"),
+            DeclareLaunchArgument("motor_allow_teensy_param_sync_best_effort", default_value="true"),
+            DeclareLaunchArgument("motor_teensy_param_best_effort_status_count", default_value="3"),
             DeclareLaunchArgument("nav_status_period_s", default_value="0.25"),
             DeclareLaunchArgument("nav_control_period_s", default_value="0.02"),
             DeclareLaunchArgument("nav_controller_mode", default_value="competition_tracker"),

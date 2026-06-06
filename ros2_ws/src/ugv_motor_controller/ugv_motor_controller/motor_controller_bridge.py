@@ -128,6 +128,8 @@ class MotorControllerBridge(Node):
         self.declare_parameter("teensy_encoder_jump_tps", 12000.0)
         self.declare_parameter("teensy_pid_param_ack_timeout_s", 3.0)
         self.declare_parameter("teensy_pid_param_write_interval_s", 0.03)
+        self.declare_parameter("allow_teensy_param_sync_best_effort", True)
+        self.declare_parameter("teensy_param_best_effort_status_count", 3)
 
         self.port = str(self.get_parameter("port").value)
         self.baud = int(self.get_parameter("baud").value)
@@ -285,6 +287,13 @@ class MotorControllerBridge(Node):
             0.0,
             float(self.get_parameter("teensy_pid_param_write_interval_s").value),
         )
+        self.allow_teensy_param_sync_best_effort = bool(
+            self.get_parameter("allow_teensy_param_sync_best_effort").value
+        )
+        self.teensy_param_best_effort_status_count = max(
+            1,
+            int(self.get_parameter("teensy_param_best_effort_status_count").value),
+        )
 
         self.serial_device: Optional[serial.Serial] = None
         self.dry_run_connected = False
@@ -318,6 +327,8 @@ class MotorControllerBridge(Node):
         self.teensy_pid_param_sync_pending: list[str] = []
         self.teensy_pid_param_sync_failed = False
         self.teensy_pid_param_sync_reason = "not_started"
+        self.teensy_status_count = 0
+        self.teensy_param_sync_best_effort_active = False
 
         self.encoder_pub = self.create_publisher(Int32MultiArray, self.encoder_topic, 10)
         self.encoder_stamped_pub = self.create_publisher(EncoderTicksStamped, self.encoder_stamped_topic, 10)
@@ -536,6 +547,8 @@ class MotorControllerBridge(Node):
             self._log_warn(str(exc))
             return
         self.last_teensy_status = status
+        self.teensy_status_count += 1
+        self._maybe_accept_param_sync_best_effort()
         self.measured_left_mps = ticks_per_sec_to_mps(
             status.left_measured_tps,
             wheel_radius_m=self.wheel_radius_m,
@@ -591,6 +604,24 @@ class MotorControllerBridge(Node):
         status_dict["left_front_rear_mismatch_fault_threshold"] = left_fault
         status_dict["right_front_rear_mismatch_fault_threshold"] = right_fault
         self._publish_status(**status_dict)
+
+    def _maybe_accept_param_sync_best_effort(self) -> None:
+        if self.teensy_pid_params_synced or self.teensy_param_sync_best_effort_active:
+            return
+        if not self.allow_teensy_param_sync_best_effort:
+            return
+        if self.teensy_status_count < self.teensy_param_best_effort_status_count:
+            return
+        self.teensy_param_sync_best_effort_active = True
+        self.teensy_pid_params_synced = True
+        self.teensy_pid_param_sync_pending = []
+        self.teensy_pid_param_sync_failed = False
+        self.teensy_pid_param_sync_reason = "best_effort_status_stream"
+        self.get_logger().warn(
+            "Teensy parameter sync accepted in best-effort mode after valid status stream; "
+            "continuing with firmware/default parameters"
+        )
+        self._publish_status(event="teensy param sync best effort")
 
     def _teensy_pid_param_values(self) -> OrderedDict[str, Any]:
         params = OrderedDict(
@@ -682,12 +713,20 @@ class MotorControllerBridge(Node):
         self._copy_param_sync_state()
 
     def _copy_param_sync_state(self) -> None:
+        if self.teensy_param_sync_best_effort_active:
+            self.teensy_pid_params_synced = True
+            self.teensy_pid_param_sync_pending = []
+            self.teensy_pid_param_sync_failed = False
+            self.teensy_pid_param_sync_reason = "best_effort_status_stream"
+            return
         self.teensy_pid_params_synced = bool(self.teensy_pid_param_sync.synced)
         self.teensy_pid_param_sync_pending = list(self.teensy_pid_param_sync.pending_names)
         self.teensy_pid_param_sync_failed = bool(self.teensy_pid_param_sync.failed)
         self.teensy_pid_param_sync_reason = self.teensy_pid_param_sync.reason
 
     def _handle_param_sync_timeout(self) -> None:
+        if self.teensy_pid_params_synced:
+            return
         if not self.teensy_pid_param_sync.check_timeout(time.monotonic(), self.teensy_pid_param_ack_timeout_s):
             return
         self._copy_param_sync_state()
@@ -751,6 +790,8 @@ class MotorControllerBridge(Node):
             "teensy_pid_param_sync_reason": self.teensy_pid_param_sync_reason,
             "teensy_pid_param_sync_count": int(self.teensy_pid_param_sync_count),
             "teensy_pid_param_sync_last_s": self.teensy_pid_param_sync_last_s,
+            "teensy_param_sync_best_effort_active": bool(self.teensy_param_sync_best_effort_active),
+            "allow_teensy_param_sync_best_effort": bool(self.allow_teensy_param_sync_best_effort),
             "teensy_pid_param_write_interval_s": round(self.teensy_pid_param_write_interval_s, 3),
             "track_width_m": round(self.track_width_m, 4),
             "left_forward_speed_scale": round(self.left_forward_speed_scale, 4),
@@ -828,6 +869,8 @@ class MotorControllerBridge(Node):
         self.serial_device = None
         self.dry_run_connected = False
         self.serial_rx_buffer = ""
+        self.teensy_status_count = 0
+        self.teensy_param_sync_best_effort_active = False
         self.teensy_pid_param_sync.mark_disconnected()
         self._copy_param_sync_state()
 
